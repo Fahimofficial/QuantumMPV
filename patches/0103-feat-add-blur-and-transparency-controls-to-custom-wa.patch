@@ -1,0 +1,173 @@
+From cf6371bacb8f168067aa4e27ae93326ae38800f7 Mon Sep 17 00:00:00 2001
+From: Utsav <mrutsav2024@gmail.com>
+Date: Tue, 15 Sep 2026 20:21:48 +0530
+Subject: [PATCH 103/140] feat: add blur and transparency controls to custom
+ wallpaper editor
+
+- Add customWallpaperBlur and customWallpaperAlpha preferences
+- Extend WallpaperImage composable with blurRadius (0-40dp) and imageAlpha (0-1) params
+- Add Blur and Transparency sliders to WallpaperEditorScreen
+- Wire save/reset for both new controls
+---
+ .../preferences/AppearancePreferences.kt      |  2 ++
+ .../ui/preferences/WallpaperEditorScreen.kt   | 28 +++++++++++++++++++
+ .../gyrolet/mpvrx/ui/theme/AppWallpaper.kt    | 15 ++++++++--
+ app/src/main/res/values/strings.xml           |  2 ++
+ 4 files changed, 45 insertions(+), 2 deletions(-)
+
+diff --git a/app/src/main/java/com/quantummpv/app/preferences/AppearancePreferences.kt b/app/src/main/java/com/quantummpv/app/preferences/AppearancePreferences.kt
+index 5160754e..62c116b3 100644
+--- a/app/src/main/java/com/quantummpv/app/preferences/AppearancePreferences.kt
++++ b/app/src/main/java/com/quantummpv/app/preferences/AppearancePreferences.kt
+@@ -56,6 +56,8 @@ class AppearancePreferences(
+   val customWallpaperOffsetX = preferenceStore.getFloat("custom_wallpaper_offset_x", 0f)
+   val customWallpaperOffsetY = preferenceStore.getFloat("custom_wallpaper_offset_y", 0f)
+   val customWallpaperScaleMode = preferenceStore.getEnum("custom_wallpaper_scale_mode", WallpaperScaleMode.Fit)
++  val customWallpaperBlur = preferenceStore.getFloat("custom_wallpaper_blur", 0f)
++  val customWallpaperAlpha = preferenceStore.getFloat("custom_wallpaper_alpha", 1f)
+   val amoledMode = preferenceStore.getBoolean("amoled_mode", false)
+   val useSystemFont = preferenceStore.getBoolean("use_system_font", false)
+   val unlimitedNameLines = preferenceStore.getBoolean("unlimited_name_lines", false)
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/WallpaperEditorScreen.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/WallpaperEditorScreen.kt
+index 958a1609..d7faded9 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/WallpaperEditorScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/WallpaperEditorScreen.kt
+@@ -92,6 +92,12 @@ data class WallpaperEditorScreen(
+     var scaleMode by rememberSaveable(sourceUri) {
+       mutableStateOf(if (isEditingCurrent) preferences.customWallpaperScaleMode.get() else WallpaperScaleMode.Fit)
+     }
++    var blur by rememberSaveable(sourceUri) {
++      mutableStateOf(if (isEditingCurrent) preferences.customWallpaperBlur.get() else 0f)
++    }
++    var alpha by rememberSaveable(sourceUri) {
++      mutableStateOf(if (isEditingCurrent) preferences.customWallpaperAlpha.get() else 1f)
++    }
+     val bitmap =
+       produceState<Bitmap?>(initialValue = null, sourceUri) {
+         val loaded = withContext(Dispatchers.IO) { loadWallpaperBitmap(context, sourceUri) }
+@@ -127,6 +133,8 @@ data class WallpaperEditorScreen(
+                 preferences.customWallpaperOffsetX.set(offsetX)
+                 preferences.customWallpaperOffsetY.set(offsetY)
+                 preferences.customWallpaperScaleMode.set(scaleMode)
++                preferences.customWallpaperBlur.set(blur)
++                preferences.customWallpaperAlpha.set(alpha)
+                 backStack.popSafely()
+               },
+             ) {
+@@ -184,6 +192,8 @@ data class WallpaperEditorScreen(
+                 offsetX = offsetX,
+                 offsetY = offsetY,
+                 scaleMode = scaleMode,
++                blurRadius = blur,
++                imageAlpha = alpha,
+                 modifier = Modifier.fillMaxSize(),
+               )
+             }
+@@ -220,6 +230,22 @@ data class WallpaperEditorScreen(
+             onValueChange = { offsetY = it },
+           )
+         }
++        item {
++          WallpaperSlider(
++            label = stringResource(R.string.pref_appearance_custom_wallpaper_blur),
++            value = blur,
++            valueRange = 0f..40f,
++            onValueChange = { blur = it },
++          )
++        }
++        item {
++          WallpaperSlider(
++            label = stringResource(R.string.pref_appearance_custom_wallpaper_transparency),
++            value = alpha,
++            valueRange = 0f..1f,
++            onValueChange = { alpha = it },
++          )
++        }
+         item {
+           Row(
+             modifier = Modifier.fillMaxWidth(),
+@@ -231,6 +257,8 @@ data class WallpaperEditorScreen(
+                 offsetX = 0f
+                 offsetY = 0f
+                 scaleMode = WallpaperScaleMode.Fit
++                blur = 0f
++                alpha = 1f
+               },
+               modifier = Modifier.tvFocusHighlight(RoundedCornerShape(12.dp), focusedScale = 1.03f),
+             ) {
+diff --git a/app/src/main/java/com/quantummpv/app/ui/theme/AppWallpaper.kt b/app/src/main/java/com/quantummpv/app/ui/theme/AppWallpaper.kt
+index e16bb83a..d3d757d2 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/theme/AppWallpaper.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/theme/AppWallpaper.kt
+@@ -57,6 +57,8 @@ fun AppWallpaperHost(content: @Composable () -> Unit) {
+   val wallpaperOffsetX by preferences.customWallpaperOffsetX.collectAsState()
+   val wallpaperOffsetY by preferences.customWallpaperOffsetY.collectAsState()
+   val wallpaperScaleMode by preferences.customWallpaperScaleMode.collectAsState()
++  val wallpaperBlur by preferences.customWallpaperBlur.collectAsState()
++  val wallpaperAlpha by preferences.customWallpaperAlpha.collectAsState()
+   val wallpaper =
+     produceState<Bitmap?>(initialValue = null, wallpaperUri) {
+       val loadedWallpaper =
+@@ -90,6 +92,8 @@ fun AppWallpaperHost(content: @Composable () -> Unit) {
+         offsetX = wallpaperOffsetX,
+         offsetY = wallpaperOffsetY,
+         scaleMode = wallpaperScaleMode,
++        blurRadius = wallpaperBlur,
++        imageAlpha = wallpaperAlpha,
+         modifier = Modifier.fillMaxSize(),
+       )
+       Box(
+@@ -122,8 +126,12 @@ fun WallpaperImage(
+   offsetX: Float,
+   offsetY: Float,
+   scaleMode: WallpaperScaleMode,
++  blurRadius: Float = 0f,
++  imageAlpha: Float = 1f,
+   modifier: Modifier = Modifier,
+ ) {
++  val safeBlur = blurRadius.coerceIn(0f, MAX_WALLPAPER_BLUR_DP)
++  val safeAlpha = imageAlpha.coerceIn(0f, 1f)
+   Box(modifier = modifier.clipToBounds()) {
+     if (scaleMode == WallpaperScaleMode.Fit) {
+       Image(
+@@ -136,7 +144,7 @@ fun WallpaperImage(
+             .graphicsLayer {
+               scaleX = 1.12f
+               scaleY = 1.12f
+-              alpha = 0.72f
++              alpha = 0.72f * safeAlpha
+             }.blur(28.dp),
+       )
+     }
+@@ -153,11 +161,14 @@ fun WallpaperImage(
+             scaleY = safeZoom
+             translationX = offsetX.coerceIn(-1f, 1f) * size.width * 0.35f
+             translationY = offsetY.coerceIn(-1f, 1f) * size.height * 0.35f
+-          },
++            alpha = safeAlpha
++          }.then(if (safeBlur > 0f) Modifier.blur(safeBlur.dp) else Modifier),
+     )
+   }
+ }
+ 
++private const val MAX_WALLPAPER_BLUR_DP = 40f
++
+ fun loadWallpaperBitmap(
+   context: android.content.Context,
+   wallpaperUri: String,
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index 98519de4..4fa11f0a 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -2248,6 +2248,8 @@
+   <string name="pref_appearance_custom_wallpaper_zoom">Zoom</string>
+   <string name="pref_appearance_custom_wallpaper_horizontal">Horizontal position</string>
+   <string name="pref_appearance_custom_wallpaper_vertical">Vertical position</string>
++  <string name="pref_appearance_custom_wallpaper_blur">Blur</string>
++  <string name="pref_appearance_custom_wallpaper_transparency">Transparency</string>
+   <string name="pref_appearance_custom_wallpaper_save">Save wallpaper</string>
+   <string name="pref_appearance_custom_wallpaper_adjust">Adjust</string>
+   <string name="pref_appearance_custom_wallpaper_gesture_hint">Drag to reposition. Pinch to zoom.</string>
+-- 
+2.25.1
+

@@ -1,0 +1,2813 @@
+From ef5e030e2156b8845dace9c9c61d3c557cc4be10 Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <riteshp2001@gmail.com>
+Date: Thu, 17 Sep 2026 12:27:19 +0530
+Subject: [PATCH 118/140] feat(browser): add configurable video and folder
+ swipe actions
+
+Add expressive swipe feedback, folder-wide actions, manual video marks, and localized settings. Preserve explicit New and cleared labels with a non-destructive database migration.
+---
+ .../gyrolet/mpvrx/database/MpvRxDatabase.kt   |   2 +-
+ .../gyrolet/mpvrx/database/dao/PlaylistDao.kt |   9 +
+ .../mpvrx/database/dao/RecentlyPlayedDao.kt   |   3 +
+ .../database/entities/PlaybackStateEntity.kt  |   1 +
+ .../RecentlyPlayedRepositoryImpl.kt           |   5 +
+ .../com/quantummpv/app/di/DatabaseModule.kt    |   8 +
+ .../repository/RecentlyPlayedRepository.kt    |   2 +
+ .../mpvrx/preferences/BrowserPreferences.kt   |  15 +
+ .../mpvrx/repository/MediaFileRepository.kt   |  32 +-
+ .../mpvrx/ui/browser/cards/FolderCard.kt      |  13 +-
+ .../mpvrx/ui/browser/cards/VideoCard.kt       |  96 +++---
+ .../ui/browser/cards/VideoSwipeSurface.kt     | 279 ++++++++++++++++
+ .../browser/components/VideoSwipeActions.kt   | 303 ++++++++++++++++++
+ .../ui/browser/dialogs/AddToPlaylistDialog.kt |   3 +
+ .../filesystem/FileSystemBrowserScreen.kt     |  34 +-
+ .../filesystem/FileSystemBrowserViewModel.kt  |  36 +--
+ .../ui/browser/folderlist/FolderListScreen.kt |  26 ++
+ .../browser/folderlist/FolderListViewModel.kt |   3 +-
+ .../medialibrary/MediaLibraryViewModel.kt     |  30 +-
+ .../browser/playlist/PlaylistDetailScreen.kt  |  18 ++
+ .../recentlyplayed/RecentlyPlayedScreen.kt    |  20 ++
+ .../ui/browser/videolist/VideoListScreen.kt   |  10 +
+ .../browser/videolist/VideoListViewModel.kt   |  48 +--
+ .../preferences/GesturePreferencesScreen.kt   |   7 +
+ .../ui/preferences/SearchablePreference.kt    |  24 ++
+ .../preferences/SettingsSearchNavigation.kt   |   6 +
+ .../VideoSwipePreferencesScreen.kt            | 242 ++++++++++++++
+ .../mpvrx/utils/history/RecentlyPlayedOps.kt  |  27 ++
+ .../mpvrx/utils/media/PlaybackStateOps.kt     | 100 ++++++
+ .../mpvrx/utils/storage/TreeViewScanner.kt    |  27 +-
+ app/src/main/res/values-ar/strings.xml        |  21 ++
+ app/src/main/res/values-de/strings.xml        |  21 ++
+ app/src/main/res/values-es/strings.xml        |  21 ++
+ app/src/main/res/values-fr/strings.xml        |  21 ++
+ app/src/main/res/values-hi/strings.xml        |  21 ++
+ app/src/main/res/values-ja/strings.xml        |  21 ++
+ app/src/main/res/values-pt-rBR/strings.xml    |  21 ++
+ app/src/main/res/values-ru/strings.xml        |  21 ++
+ app/src/main/res/values-zh-rCN/strings.xml    |  21 ++
+ app/src/main/res/values/strings.xml           |  21 ++
+ 40 files changed, 1456 insertions(+), 183 deletions(-)
+ create mode 100644 app/src/main/java/com/quantummpv/app/ui/browser/cards/VideoSwipeSurface.kt
+ create mode 100644 app/src/main/java/com/quantummpv/app/ui/browser/components/VideoSwipeActions.kt
+ create mode 100644 app/src/main/java/com/quantummpv/app/ui/preferences/VideoSwipePreferencesScreen.kt
+
+diff --git a/app/src/main/java/com/quantummpv/app/database/MpvRxDatabase.kt b/app/src/main/java/com/quantummpv/app/database/MpvRxDatabase.kt
+index 2cf23fb5..51a6846c 100644
+--- a/app/src/main/java/com/quantummpv/app/database/MpvRxDatabase.kt
++++ b/app/src/main/java/com/quantummpv/app/database/MpvRxDatabase.kt
+@@ -53,7 +53,7 @@ import com.quantummpv.app.domain.network.NetworkConnection
+     DownloadItemEntity::class,
+     NavidromeServerEntity::class,
+   ],
+-  version = 21,
++  version = 22,
+   exportSchema = true,
+ )
+ @TypeConverters(NetworkProtocolConverter::class, NetworkStreamEntryTypeConverter::class)
+diff --git a/app/src/main/java/com/quantummpv/app/database/dao/PlaylistDao.kt b/app/src/main/java/com/quantummpv/app/database/dao/PlaylistDao.kt
+index 4fd757ff..76bd009a 100644
+--- a/app/src/main/java/com/quantummpv/app/database/dao/PlaylistDao.kt
++++ b/app/src/main/java/com/quantummpv/app/database/dao/PlaylistDao.kt
+@@ -170,6 +170,15 @@ interface PlaylistDao {
+     position: Long,
+   )
+ 
++  @Query("UPDATE PlaylistItemEntity SET lastPosition = 0, lastPlayedAt = 0, playCount = 0 WHERE filePath = :filePath")
++  suspend fun clearPlayHistoryForFile(filePath: String)
++
++  @Query("UPDATE PlaylistItemEntity SET lastPlayedAt = :timestamp WHERE filePath = :filePath")
++  suspend fun markFileLastPlayed(filePath: String, timestamp: Long)
++
++  @Query("UPDATE PlaylistItemEntity SET lastPosition = 0 WHERE filePath = :filePath")
++  suspend fun clearResumePositionForFile(filePath: String)
++
+   @Query(
+     """
+     SELECT * FROM PlaylistItemEntity 
+diff --git a/app/src/main/java/com/quantummpv/app/database/dao/RecentlyPlayedDao.kt b/app/src/main/java/com/quantummpv/app/database/dao/RecentlyPlayedDao.kt
+index 14397803..30932300 100644
+--- a/app/src/main/java/com/quantummpv/app/database/dao/RecentlyPlayedDao.kt
++++ b/app/src/main/java/com/quantummpv/app/database/dao/RecentlyPlayedDao.kt
+@@ -27,6 +27,9 @@ interface RecentlyPlayedDao {
+   @Query("SELECT * FROM RecentlyPlayedEntity WHERE filePath = :filePath LIMIT 1")
+   suspend fun getByFilePath(filePath: String): RecentlyPlayedEntity?
+ 
++  @Query("UPDATE RecentlyPlayedEntity SET timestamp = :timestamp, launchSource = 'normal' WHERE filePath = :filePath")
++  suspend fun markLastPlayed(filePath: String, timestamp: Long)
++
+   // Existing history rows keep their id when they are replayed, while timestamp is refreshed.
+   // Recency must therefore be ordered by timestamp (with id only as a deterministic tie-breaker)
+   // or the browser can keep highlighting an older row as the current/recently played video.
+diff --git a/app/src/main/java/com/quantummpv/app/database/entities/PlaybackStateEntity.kt b/app/src/main/java/com/quantummpv/app/database/entities/PlaybackStateEntity.kt
+index 8f512aaf..71de2dc3 100644
+--- a/app/src/main/java/com/quantummpv/app/database/entities/PlaybackStateEntity.kt
++++ b/app/src/main/java/com/quantummpv/app/database/entities/PlaybackStateEntity.kt
+@@ -27,4 +27,5 @@ data class PlaybackStateEntity(
+   val timeRemaining: Int = 0, // in seconds (duration - lastPosition)
+   val externalSubtitles: String = "", // Comma-separated list of external subtitle URIs
+   val hasBeenWatched: Boolean = false, // Persistent flag: true if video has ever reached the watched threshold
++  val newLabelOverride: Boolean? = null,
+ )
+diff --git a/app/src/main/java/com/quantummpv/app/database/repository/RecentlyPlayedRepositoryImpl.kt b/app/src/main/java/com/quantummpv/app/database/repository/RecentlyPlayedRepositoryImpl.kt
+index 3f980a55..3857f0a5 100644
+--- a/app/src/main/java/com/quantummpv/app/database/repository/RecentlyPlayedRepositoryImpl.kt
++++ b/app/src/main/java/com/quantummpv/app/database/repository/RecentlyPlayedRepositoryImpl.kt
+@@ -77,6 +77,11 @@ class RecentlyPlayedRepositoryImpl(
+ 
+   override suspend fun getLastPlayed(): RecentlyPlayedEntity? = recentlyPlayedDao.getLastPlayed()
+ 
++  override suspend fun markLastPlayed(filePath: String, timestamp: Long) = addMutex.withLock {
++    val previousTimestamp = recentlyPlayedDao.getLastPlayed()?.timestamp ?: 0L
++    recentlyPlayedDao.markLastPlayed(filePath, maxOf(timestamp, previousTimestamp + 1L))
++  }
++
+   override fun observeLastPlayed(): Flow<RecentlyPlayedEntity?> = recentlyPlayedDao.observeLastPlayed()
+ 
+   override suspend fun getLastPlayedForHighlight(): RecentlyPlayedEntity? =
+diff --git a/app/src/main/java/com/quantummpv/app/di/DatabaseModule.kt b/app/src/main/java/com/quantummpv/app/di/DatabaseModule.kt
+index 6b4c6e37..85510171 100644
+--- a/app/src/main/java/com/quantummpv/app/di/DatabaseModule.kt
++++ b/app/src/main/java/com/quantummpv/app/di/DatabaseModule.kt
+@@ -826,6 +826,13 @@ val MIGRATION_19_21 =
+     }
+   }
+ 
++val MIGRATION_21_22 =
++  object : Migration(21, 22) {
++    override fun migrate(db: SupportSQLiteDatabase) {
++      db.execSQL("ALTER TABLE `PlaybackStateEntity` ADD COLUMN `newLabelOverride` INTEGER")
++    }
++  }
++
+ val DatabaseModule =
+   module {
+     single<Json> {
+@@ -862,6 +869,7 @@ val DatabaseModule =
+           MIGRATION_19_20,
+           MIGRATION_20_21,
+           MIGRATION_19_21,
++          MIGRATION_21_22,
+         ).build()
+     }
+ 
+diff --git a/app/src/main/java/com/quantummpv/app/domain/recentlyplayed/repository/RecentlyPlayedRepository.kt b/app/src/main/java/com/quantummpv/app/domain/recentlyplayed/repository/RecentlyPlayedRepository.kt
+index 28d23b20..4b6ff628 100644
+--- a/app/src/main/java/com/quantummpv/app/domain/recentlyplayed/repository/RecentlyPlayedRepository.kt
++++ b/app/src/main/java/com/quantummpv/app/domain/recentlyplayed/repository/RecentlyPlayedRepository.kt
+@@ -27,6 +27,8 @@ interface RecentlyPlayedRepository {
+ 
+   suspend fun getLastPlayed(): RecentlyPlayedEntity?
+ 
++  suspend fun markLastPlayed(filePath: String, timestamp: Long)
++
+   fun observeLastPlayed(): Flow<RecentlyPlayedEntity?>
+ 
+   suspend fun getLastPlayedForHighlight(): RecentlyPlayedEntity?
+diff --git a/app/src/main/java/com/quantummpv/app/preferences/BrowserPreferences.kt b/app/src/main/java/com/quantummpv/app/preferences/BrowserPreferences.kt
+index e6a5eafd..2ee97057 100644
+--- a/app/src/main/java/com/quantummpv/app/preferences/BrowserPreferences.kt
++++ b/app/src/main/java/com/quantummpv/app/preferences/BrowserPreferences.kt
+@@ -25,6 +25,19 @@ import com.quantummpv.app.ui.browser.music.MusicViewMode
+ /**
+  * Preferences for the video browser (folder and video lists)
+  */
++enum class VideoSwipeAction {
++  None,
++  ToggleWatched,
++  AddToPlaylist,
++  PlayNext,
++  AddToQueue,
++  Delete,
++  MarkNew,
++  LastPlayed,
++  Finished,
++  ClearHistory,
++}
++
+ class BrowserPreferences(
+   preferenceStore: PreferenceStore,
+   context: android.content.Context,
+@@ -40,6 +53,8 @@ class BrowserPreferences(
+   // Video sorting preferences
+   val videoSortType = preferenceStore.getEnum("video_sort_type", VideoSortType.Title)
+   val videoSortOrder = preferenceStore.getEnum("video_sort_order", SortOrder.Ascending)
++  val videoSwipeRight = preferenceStore.getEnum("video_swipe_right", VideoSwipeAction.ToggleWatched)
++  val videoSwipeLeft = preferenceStore.getEnum("video_swipe_left", VideoSwipeAction.AddToPlaylist)
+ 
+   // Music view mode and sorting preferences
+   val musicViewMode = preferenceStore.getEnum("music_view_mode", MusicViewMode.GRID)
+diff --git a/app/src/main/java/com/quantummpv/app/repository/MediaFileRepository.kt b/app/src/main/java/com/quantummpv/app/repository/MediaFileRepository.kt
+index 662de266..0f16a193 100644
+--- a/app/src/main/java/com/quantummpv/app/repository/MediaFileRepository.kt
++++ b/app/src/main/java/com/quantummpv/app/repository/MediaFileRepository.kt
+@@ -69,22 +69,21 @@ object MediaFileRepository : KoinComponent {
+       minimumAudioDurationSeconds = browserPreferences.minimumAudioDurationSeconds.get(),
+     )
+ 
+-  private suspend fun getTreeViewNewBadgeParams(): Triple<Boolean, Int, Set<String>> {
++  private data class TreeViewNewBadgeParams(
++    val showNewLabels: Boolean,
++    val thresholdDays: Int,
++    val playedMediaTitles: Set<String>,
++    val newLabelOverrides: Map<String, Boolean>,
++  )
++
++  private suspend fun getTreeViewNewBadgeParams(): TreeViewNewBadgeParams {
+     val showNewLabels = appearancePreferences.showUnplayedOldVideoLabel.get()
+     val thresholdDays = appearancePreferences.unplayedOldVideoDays.get()
+-    val playedMediaTitles =
+-      if (showNewLabels) {
+-        playbackStateRepository
+-          .getAllPlaybackStates()
+-          // Only treat a video as "played" (and drop its NEW badge) once it has
+-          // actually been watched to the threshold. Threshold 0 keeps the badge.
+-          .filter { it.hasBeenWatched }
+-          .mapTo(mutableSetOf()) { it.mediaTitle }
+-      } else {
+-        emptySet()
+-      }
++    val states = if (showNewLabels) playbackStateRepository.getAllPlaybackStates() else emptyList()
++    val playedMediaTitles = states.filter { it.hasBeenWatched }.mapTo(mutableSetOf()) { it.mediaTitle }
++    val overrides = states.mapNotNull { state -> state.newLabelOverride?.let { state.mediaTitle to it } }.toMap()
+ 
+-    return Triple(showNewLabels, thresholdDays, playedMediaTitles)
++    return TreeViewNewBadgeParams(showNewLabels, thresholdDays, playedMediaTitles, overrides)
+   }
+ 
+   /**
+@@ -629,7 +628,7 @@ object MediaFileRepository : KoinComponent {
+ 
+         // Get folders using TreeViewScanner (instant from cache)
+         val scanOptions = currentScanOptions()
+-        val (showNewLabels, thresholdDays, playedMediaTitles) = getTreeViewNewBadgeParams()
++        val (showNewLabels, thresholdDays, playedMediaTitles, newLabelOverrides) = getTreeViewNewBadgeParams()
+         val folders =
+           TreeViewScanner.getFoldersInDirectory(
+             context = context,
+@@ -640,6 +639,7 @@ object MediaFileRepository : KoinComponent {
+             showNewLabels = showNewLabels,
+             thresholdDays = thresholdDays,
+             maxAutoFlattenLevels = browserPreferences.treeFlattenDepth.get().maxLevels,
++            newLabelOverrides = newLabelOverrides,
+           )
+         folders.forEach { folderData ->
+           items.add(
+@@ -692,7 +692,7 @@ object MediaFileRepository : KoinComponent {
+       val roots = mutableListOf<FileSystemItem.Folder>()
+ 
+       try {
+-        val (showNewLabels, thresholdDays, playedMediaTitles) = getTreeViewNewBadgeParams()
++        val (showNewLabels, thresholdDays, playedMediaTitles, newLabelOverrides) = getTreeViewNewBadgeParams()
+ 
+         // Primary storage (internal)
+         val primaryStorage = Environment.getExternalStorageDirectory()
+@@ -709,6 +709,7 @@ object MediaFileRepository : KoinComponent {
+               playedMediaTitles,
+               showNewLabels,
+               thresholdDays,
++              newLabelOverrides,
+             )
+ 
+           roots.add(
+@@ -744,6 +745,7 @@ object MediaFileRepository : KoinComponent {
+                   playedMediaTitles,
+                   showNewLabels,
+                   thresholdDays,
++                  newLabelOverrides,
+                 )
+ 
+               roots.add(
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/cards/FolderCard.kt b/app/src/main/java/com/quantummpv/app/ui/browser/cards/FolderCard.kt
+index da0f5e99..8b05960f 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/cards/FolderCard.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/cards/FolderCard.kt
+@@ -22,7 +22,6 @@ import androidx.compose.foundation.layout.height
+ import androidx.compose.foundation.layout.padding
+ import androidx.compose.foundation.layout.size
+ import androidx.compose.foundation.layout.width
+-import androidx.compose.material3.Card
+ import androidx.compose.material3.CardDefaults
+ import androidx.compose.material3.MaterialTheme
+ import androidx.compose.material3.Surface
+@@ -53,6 +52,7 @@ import com.quantummpv.app.domain.media.model.VideoFolder
+ import com.quantummpv.app.domain.thumbnail.ThumbnailRepository
+ import com.quantummpv.app.preferences.AppearancePreferences
+ import com.quantummpv.app.preferences.BrowserPreferences
++import com.quantummpv.app.preferences.VideoSwipeAction
+ import com.quantummpv.app.preferences.preference.collectAsState
+ import com.quantummpv.app.ui.icons.AppIcon
+ import com.quantummpv.app.ui.icons.Icon
+@@ -85,6 +85,7 @@ fun FolderCard(
+   isDualPane: Boolean = false,
+   isActive: Boolean = false,
+   isAudioOnly: Boolean = false,
++  onSwipeAction: ((VideoFolder, VideoSwipeAction) -> Unit)? = null,
+ ) {
+   val appearancePreferences = koinInject<AppearancePreferences>()
+   val browserPreferences = koinInject<BrowserPreferences>()
+@@ -98,6 +99,8 @@ fun FolderCard(
+   val showFolderThumbnails by browserPreferences.showFolderThumbnails.collectAsState()
+   val thumbnailQuality by browserPreferences.thumbnailQuality.collectAsState()
+   val includeAudio by browserPreferences.includeAudioBrowser.collectAsState()
++  val swipeLeft by browserPreferences.videoSwipeLeft.collectAsState()
++  val swipeRight by browserPreferences.videoSwipeRight.collectAsState()
+   val context = androidx.compose.ui.platform.LocalContext.current
+   val thumbnailRepository = koinInject<ThumbnailRepository>()
+   var thumbnailSize by remember { mutableStateOf(IntSize.Zero) }
+@@ -160,7 +163,13 @@ fun FolderCard(
+ 
+   val cardShape = AppShapeScale.large
+ 
+-  Card(
++  VideoSwipeSurface(
++    identity = folder.path,
++    leftAction = swipeLeft,
++    rightAction = swipeRight,
++    isWatched = null,
++    enabled = !isGridMode && !isSelected && !isAudioOnly && folder.path.startsWith('/'),
++    onAction = onSwipeAction?.let { action -> { swipe -> action(folder, swipe) } },
+     modifier =
+       modifier
+         .fillMaxWidth()
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/cards/VideoCard.kt b/app/src/main/java/com/quantummpv/app/ui/browser/cards/VideoCard.kt
+index bd13b085..9f233dd8 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/cards/VideoCard.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/cards/VideoCard.kt
+@@ -26,7 +26,6 @@ import androidx.compose.foundation.layout.height
+ import androidx.compose.foundation.layout.padding
+ import androidx.compose.foundation.layout.size
+ import androidx.compose.foundation.layout.width
+-import androidx.compose.material3.Card
+ import androidx.compose.material3.CardDefaults
+ import androidx.compose.material3.Icon
+ import androidx.compose.material3.MaterialTheme
+@@ -59,6 +58,7 @@ import com.quantummpv.app.domain.thumbnail.ThumbnailRepository
+ import com.quantummpv.app.preferences.AppearancePreferences
+ import com.quantummpv.app.preferences.BrowserPreferences
+ import com.quantummpv.app.preferences.ThumbnailQuality
++import com.quantummpv.app.preferences.VideoSwipeAction
+ import com.quantummpv.app.preferences.preference.collectAsState
+ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
+@@ -88,6 +88,8 @@ data class VideoCardUiConfig(
+   val showDurationField: Boolean = true,
+   val centerGridTitles: Boolean = false,
+   val thumbnailQuality: ThumbnailQuality = ThumbnailQuality.High,
++  val swipeLeft: VideoSwipeAction = VideoSwipeAction.AddToPlaylist,
++  val swipeRight: VideoSwipeAction = VideoSwipeAction.ToggleWatched,
+ )
+ 
+ /** Hoist this once per screen and pass the result to every card rather than collecting per item. */
+@@ -110,6 +112,8 @@ fun rememberVideoCardUiConfig(): VideoCardUiConfig {
+   val showDurationFieldConfig by browserPreferences.showDurationField.collectAsState()
+   val centerGridTitles by browserPreferences.centerGridTitles.collectAsState()
+   val thumbnailQuality by browserPreferences.thumbnailQuality.collectAsState()
++  val swipeLeft by browserPreferences.videoSwipeLeft.collectAsState()
++  val swipeRight by browserPreferences.videoSwipeRight.collectAsState()
+ 
+   return remember(
+     unlimitedNameLines,
+@@ -126,6 +130,8 @@ fun rememberVideoCardUiConfig(): VideoCardUiConfig {
+     showDurationFieldConfig,
+     centerGridTitles,
+     thumbnailQuality,
++    swipeLeft,
++    swipeRight,
+   ) {
+     VideoCardUiConfig(
+       unlimitedNameLines = unlimitedNameLines,
+@@ -142,6 +148,8 @@ fun rememberVideoCardUiConfig(): VideoCardUiConfig {
+       showDurationField = showDurationFieldConfig,
+       centerGridTitles = centerGridTitles,
+       thumbnailQuality = thumbnailQuality,
++      swipeLeft = swipeLeft,
++      swipeRight = swipeRight,
+     )
+   }
+ }
+@@ -169,6 +177,7 @@ fun VideoCard(
+   allowThumbnailGeneration: Boolean = true,
+   allowThumbnailLoading: Boolean = true,
+   uiConfig: VideoCardUiConfig? = null,
++  onSwipeAction: ((Video, Boolean, VideoSwipeAction) -> Unit)? = null,
+ ) {
+   // Screens hoist this once and pass it down; collecting per card would register a dozen
+   // preference observers for every visible item in a grid.
+@@ -182,7 +191,6 @@ fun VideoCard(
+   val showProgressBar = resolvedUiConfig.showProgressBar
+   val showDateChip = resolvedUiConfig.showDateChip
+   val showUnplayedOldVideoLabel = resolvedUiConfig.showUnplayedOldVideoLabel
+-  val unplayedOldVideoDays = resolvedUiConfig.unplayedOldVideoDays
+   val showDurationField = resolvedUiConfig.showDurationField
+   val displayName =
+     if (resolvedUiConfig.showExtensionField) {
+@@ -203,7 +211,13 @@ fun VideoCard(
+ 
+   val cardShape = AppShapeScale.large
+ 
+-  Card(
++  VideoSwipeSurface(
++    identity = video.path,
++    leftAction = resolvedUiConfig.swipeLeft,
++    rightAction = resolvedUiConfig.swipeRight,
++    isWatched = isWatched,
++    enabled = !isGridMode && !isSelected && !video.isAudio && video.path.startsWith('/'),
++    onAction = onSwipeAction?.let { action -> { swipe -> action(video, isWatched, swipe) } },
+     modifier =
+       modifier
+         .then(
+@@ -349,32 +363,20 @@ fun VideoCard(
+               )
+             }
+ 
+-            // Show "NEW" label for recently added unplayed videos if enabled (top-left corner)
+-            // Like MX Player: show NEW for videos added within threshold days that haven't been played
+             if (showUnplayedOldVideoLabel && isOldAndUnplayed && !showSelectionBadge) {
+-              // Check if video is recently modified (within threshold days)
+-              val currentTime = System.currentTimeMillis()
+-              val videoAge = currentTime - (video.dateModified * 1000) // dateModified is in seconds
+-              val thresholdMillis = unplayedOldVideoDays * 24L * 60L * 60L * 1000L
+-
+-              if (unplayedOldVideoDays == 0 || videoAge <= thresholdMillis) {
+-                Box(
+-                  modifier =
+-                    Modifier
+-                      .align(Alignment.TopStart)
+-                      .padding(6.dp)
+-                      .cardOverlay(containerColor = Color(0xFFD32F2F))
+-                      .padding(horizontal = 8.dp, vertical = 3.dp),
+-                ) {
+-                  Text(
+-                    text = stringResource(R.string.video_label_new),
+-                    style =
+-                      MaterialTheme.typography.labelSmall.copy(
+-                        fontWeight = FontWeight.Bold,
+-                      ),
+-                    color = Color.White,
+-                  )
+-                }
++              Box(
++                modifier =
++                  Modifier
++                    .align(Alignment.TopStart)
++                    .padding(6.dp)
++                    .cardOverlay(containerColor = Color(0xFFD32F2F))
++                    .padding(horizontal = 8.dp, vertical = 3.dp),
++              ) {
++                Text(
++                  text = stringResource(R.string.video_label_new),
++                  style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
++                  color = Color.White,
++                )
+               }
+             }
+ 
+@@ -680,32 +682,20 @@ fun VideoCard(
+               )
+             }
+ 
+-            // Show "NEW" label for recently added unplayed videos if enabled (top-left corner)
+-            // Like MX Player: show NEW for videos added within threshold days that haven't been played
+             if (showUnplayedOldVideoLabel && isOldAndUnplayed && !showSelectionBadge) {
+-              // Check if video is recently modified (within threshold days)
+-              val currentTime = System.currentTimeMillis()
+-              val videoAge = currentTime - (video.dateModified * 1000) // dateModified is in seconds
+-              val thresholdMillis = unplayedOldVideoDays * 24L * 60L * 60L * 1000L
+-
+-              if (unplayedOldVideoDays == 0 || videoAge <= thresholdMillis) {
+-                Box(
+-                  modifier =
+-                    Modifier
+-                      .align(Alignment.TopStart)
+-                      .padding(6.dp)
+-                      .cardOverlay(containerColor = Color(0xFFD32F2F))
+-                      .padding(horizontal = 8.dp, vertical = 3.dp),
+-                ) {
+-                  Text(
+-                    text = stringResource(R.string.video_label_new),
+-                    style =
+-                      MaterialTheme.typography.labelSmall.copy(
+-                        fontWeight = FontWeight.Bold,
+-                      ),
+-                    color = Color.White,
+-                  )
+-                }
++              Box(
++                modifier =
++                  Modifier
++                    .align(Alignment.TopStart)
++                    .padding(6.dp)
++                    .cardOverlay(containerColor = Color(0xFFD32F2F))
++                    .padding(horizontal = 8.dp, vertical = 3.dp),
++              ) {
++                Text(
++                  text = stringResource(R.string.video_label_new),
++                  style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
++                  color = Color.White,
++                )
+               }
+             }
+ 
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/cards/VideoSwipeSurface.kt b/app/src/main/java/com/quantummpv/app/ui/browser/cards/VideoSwipeSurface.kt
+new file mode 100644
+index 00000000..0f0aa70e
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/cards/VideoSwipeSurface.kt
+@@ -0,0 +1,279 @@
++package com.quantummpv.app.ui.browser.cards
++
++import androidx.annotation.StringRes
++import androidx.compose.animation.animateColorAsState
++import androidx.compose.animation.core.animateFloatAsState
++import androidx.compose.animation.core.snap
++import androidx.compose.foundation.background
++import androidx.compose.foundation.gestures.Orientation
++import androidx.compose.foundation.gestures.draggable
++import androidx.compose.foundation.gestures.rememberDraggableState
++import androidx.compose.foundation.interaction.DragInteraction
++import androidx.compose.foundation.interaction.MutableInteractionSource
++import androidx.compose.foundation.layout.Arrangement
++import androidx.compose.foundation.layout.Box
++import androidx.compose.foundation.layout.Column
++import androidx.compose.foundation.layout.ColumnScope
++import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.layout.size
++import androidx.compose.foundation.layout.width
++import androidx.compose.material3.Card
++import androidx.compose.material3.CardColors
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.Text
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.LaunchedEffect
++import androidx.compose.runtime.getValue
++import androidx.compose.runtime.mutableFloatStateOf
++import androidx.compose.runtime.mutableIntStateOf
++import androidx.compose.runtime.mutableStateOf
++import androidx.compose.runtime.remember
++import androidx.compose.runtime.rememberUpdatedState
++import androidx.compose.runtime.setValue
++import androidx.compose.ui.AbsoluteAlignment
++import androidx.compose.ui.Alignment
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.draw.drawWithContent
++import androidx.compose.ui.graphics.Color
++import androidx.compose.ui.graphics.Shape
++import androidx.compose.ui.graphics.drawscope.clipRect
++import androidx.compose.ui.graphics.graphicsLayer
++import androidx.compose.ui.layout.onSizeChanged
++import androidx.compose.ui.platform.LocalContext
++import androidx.compose.ui.platform.LocalDensity
++import androidx.compose.ui.res.stringResource
++import androidx.compose.ui.semantics.CustomAccessibilityAction
++import androidx.compose.ui.semantics.clearAndSetSemantics
++import androidx.compose.ui.semantics.customActions
++import androidx.compose.ui.semantics.semantics
++import androidx.compose.ui.text.style.TextAlign
++import androidx.compose.ui.text.style.TextOverflow
++import androidx.compose.ui.unit.dp
++import com.quantummpv.app.R
++import com.quantummpv.app.preferences.VideoSwipeAction
++import com.quantummpv.app.ui.icons.AppIcon
++import com.quantummpv.app.ui.icons.Icon
++import com.quantummpv.app.ui.icons.Icons
++import com.quantummpv.app.ui.theme.AppMotion
++import com.quantummpv.app.ui.utils.rememberAppHaptics
++import com.quantummpv.app.utils.device.DeviceFormFactor
++import kotlinx.coroutines.flow.collect
++import kotlin.math.abs
++
++@StringRes
++internal fun VideoSwipeAction.labelRes(isWatched: Boolean? = false): Int = when (this) {
++  VideoSwipeAction.None -> R.string.pref_none
++  VideoSwipeAction.ToggleWatched ->
++    when (isWatched) {
++      true -> R.string.video_action_mark_unwatched
++      false -> R.string.video_action_mark_watched
++      null -> R.string.pref_video_swipe_toggle_watched
++    }
++  VideoSwipeAction.AddToPlaylist -> R.string.ui_add_to_playlist
++  VideoSwipeAction.PlayNext -> R.string.video_swipe_play_next
++  VideoSwipeAction.AddToQueue -> R.string.video_swipe_add_queue
++  VideoSwipeAction.Delete -> R.string.delete
++  VideoSwipeAction.MarkNew -> R.string.video_swipe_mark_new
++  VideoSwipeAction.LastPlayed -> R.string.video_swipe_last_played
++  VideoSwipeAction.Finished -> R.string.video_swipe_finished
++  VideoSwipeAction.ClearHistory -> R.string.video_swipe_clear_history
++}
++
++internal fun VideoSwipeAction.icon(isWatched: Boolean? = false): AppIcon = when (this) {
++  VideoSwipeAction.None -> Icons.RoundedFilled.Block
++  VideoSwipeAction.ToggleWatched ->
++    if (isWatched == true) Icons.RoundedFilled.VisibilityOff else Icons.RoundedFilled.Visibility
++  VideoSwipeAction.AddToPlaylist -> Icons.RoundedFilled.PlaylistAdd
++  VideoSwipeAction.PlayNext -> Icons.RoundedFilled.SkipNext
++  VideoSwipeAction.AddToQueue -> Icons.RoundedFilled.QueueMusic
++  VideoSwipeAction.Delete -> Icons.RoundedFilled.Delete
++  VideoSwipeAction.MarkNew -> Icons.RoundedFilled.NewReleases
++  VideoSwipeAction.LastPlayed -> Icons.RoundedFilled.History
++  VideoSwipeAction.Finished -> Icons.RoundedFilled.CheckCircle
++  VideoSwipeAction.ClearHistory -> Icons.RoundedFilled.Close
++}
++
++@Composable
++internal fun VideoSwipeAction.containerColor(): Color = when (this) {
++  VideoSwipeAction.Delete -> MaterialTheme.colorScheme.errorContainer
++  VideoSwipeAction.ToggleWatched, VideoSwipeAction.Finished -> MaterialTheme.colorScheme.tertiaryContainer
++  VideoSwipeAction.AddToQueue, VideoSwipeAction.PlayNext, VideoSwipeAction.LastPlayed ->
++    MaterialTheme.colorScheme.secondaryContainer
++  VideoSwipeAction.AddToPlaylist, VideoSwipeAction.MarkNew -> MaterialTheme.colorScheme.primaryContainer
++  VideoSwipeAction.None, VideoSwipeAction.ClearHistory -> MaterialTheme.colorScheme.surfaceContainerHighest
++}
++
++@Composable
++internal fun VideoSwipeAction.contentColor(): Color = when (this) {
++  VideoSwipeAction.Delete -> MaterialTheme.colorScheme.onErrorContainer
++  VideoSwipeAction.ToggleWatched, VideoSwipeAction.Finished -> MaterialTheme.colorScheme.onTertiaryContainer
++  VideoSwipeAction.AddToQueue, VideoSwipeAction.PlayNext, VideoSwipeAction.LastPlayed ->
++    MaterialTheme.colorScheme.onSecondaryContainer
++  VideoSwipeAction.AddToPlaylist, VideoSwipeAction.MarkNew -> MaterialTheme.colorScheme.onPrimaryContainer
++  VideoSwipeAction.None, VideoSwipeAction.ClearHistory -> MaterialTheme.colorScheme.onSurfaceVariant
++}
++
++@Composable
++internal fun VideoSwipeSurface(
++  identity: String,
++  leftAction: VideoSwipeAction,
++  rightAction: VideoSwipeAction,
++  isWatched: Boolean?,
++  enabled: Boolean,
++  onAction: ((VideoSwipeAction) -> Unit)?,
++  modifier: Modifier,
++  shape: Shape,
++  colors: CardColors,
++  content: @Composable ColumnScope.() -> Unit,
++) {
++  if (!enabled || onAction == null || (leftAction == VideoSwipeAction.None && rightAction == VideoSwipeAction.None)) {
++    Card(modifier = modifier, shape = shape, colors = colors, content = content)
++    return
++  }
++  val haptics = rememberAppHaptics()
++  val reducedMotion = AppMotion.shouldReduceMotion()
++  val isTelevision = DeviceFormFactor.isTelevision(LocalContext.current)
++  val density = LocalDensity.current
++  val interactions = remember(identity) { MutableInteractionSource() }
++  var rowWidth by remember(identity) { mutableIntStateOf(0) }
++  var dragOffset by remember(identity) { mutableFloatStateOf(0f) }
++  var dragging by remember(identity) { mutableStateOf(false) }
++  var thresholdReached by remember(identity) { mutableStateOf(false) }
++  var thresholdFeedbackSent by remember(identity) { mutableStateOf(false) }
++  val travel = minOf(rowWidth * 0.4f, with(density) { 112.dp.toPx() })
++  val threshold = minOf(travel * 0.7f, with(density) { 56.dp.toPx() })
++  val canSwipe = enabled && onAction != null &&
++    (leftAction != VideoSwipeAction.None || rightAction != VideoSwipeAction.None)
++  val currentEnabled by rememberUpdatedState(canSwipe)
++  val currentAction by rememberUpdatedState(onAction)
++  val currentLeft by rememberUpdatedState(leftAction)
++  val currentRight by rememberUpdatedState(rightAction)
++  val currentThreshold by rememberUpdatedState(threshold)
++  val displayOffset by animateFloatAsState(
++    targetValue = if (dragging) dragOffset else 0f,
++    animationSpec = if (dragging || reducedMotion) snap() else AppMotion.Spatial.ExpressiveFast,
++    label = "videoSwipeOffset",
++  )
++
++  LaunchedEffect(canSwipe, leftAction, rightAction, identity, rowWidth) {
++    dragOffset = 0f
++    dragging = false
++    thresholdReached = false
++    thresholdFeedbackSent = false
++  }
++  LaunchedEffect(interactions) {
++    interactions.interactions.collect { interaction ->
++      if (interaction is DragInteraction.Stop || interaction is DragInteraction.Cancel) {
++        val committedOffset = dragOffset
++        val action = if (committedOffset > 0f) currentRight else currentLeft
++        dragging = false
++        dragOffset = 0f
++        thresholdReached = false
++        if (
++          interaction is DragInteraction.Stop && currentEnabled && currentThreshold > 0f &&
++          abs(committedOffset) >= currentThreshold && action != VideoSwipeAction.None
++        ) {
++          currentAction?.invoke(action)
++        }
++      }
++    }
++  }
++
++  val accessibilityActions =
++    if (canSwipe) {
++      listOf(rightAction, leftAction).filter { it != VideoSwipeAction.None }.distinct().map { action ->
++        CustomAccessibilityAction(stringResource(action.labelRes(isWatched))) {
++          currentAction?.invoke(action)
++          true
++        }
++      }
++    } else {
++      emptyList()
++    }
++  val revealedAction = if (displayOffset >= 0f) rightAction else leftAction
++  val background by animateColorAsState(
++    targetValue = revealedAction.containerColor(),
++    animationSpec = AppMotion.spatial(AppMotion.Effect.Color, snap()),
++    label = "videoSwipeColor",
++  )
++  val iconScale by animateFloatAsState(
++    targetValue = if (thresholdReached && !reducedMotion) 1.12f else 1f,
++    animationSpec = AppMotion.spatial(AppMotion.Spatial.ExpressiveFast, snap()),
++    label = "videoSwipeIconScale",
++  )
++
++  Box(
++    modifier = modifier
++      .onSizeChanged { rowWidth = it.width }
++      .semantics { customActions = accessibilityActions }
++      .draggable(
++        state = rememberDraggableState { delta ->
++          val minimum = if (leftAction == VideoSwipeAction.None) 0f else -travel
++          val maximum = if (rightAction == VideoSwipeAction.None) 0f else travel
++          dragOffset = (dragOffset + delta).coerceIn(minimum, maximum)
++          if (!thresholdReached && threshold > 0f && abs(dragOffset) >= threshold) {
++            thresholdReached = true
++            if (!thresholdFeedbackSent) {
++              thresholdFeedbackSent = true
++              haptics.tick()
++            }
++          } else if (abs(dragOffset) < threshold * 0.8f) {
++            thresholdReached = false
++          }
++        },
++        orientation = Orientation.Horizontal,
++        enabled = canSwipe && !isTelevision && rowWidth > 0 && (dragging || abs(displayOffset) < 0.5f),
++        reverseDirection = false,
++        interactionSource = interactions,
++        onDragStarted = {
++          dragOffset = 0f
++          dragging = true
++          thresholdReached = false
++          thresholdFeedbackSent = false
++        },
++      ),
++  ) {
++    Box(
++      modifier = Modifier.matchParentSize().clearAndSetSemantics { }
++        .drawWithContent {
++          val left = if (displayOffset < 0f) size.width + displayOffset else 0f
++          val right = if (displayOffset > 0f) displayOffset else size.width
++          if (abs(displayOffset) > 0f) clipRect(left = left, right = right) { this@drawWithContent.drawContent() }
++        }.background(background, shape),
++    ) {
++      Column(
++        modifier = Modifier
++          .align(if (displayOffset >= 0f) AbsoluteAlignment.CenterLeft else AbsoluteAlignment.CenterRight)
++          .width(with(density) { travel.toDp() })
++          .padding(horizontal = 6.dp, vertical = 4.dp),
++        horizontalAlignment = Alignment.CenterHorizontally,
++        verticalArrangement = Arrangement.spacedBy(4.dp),
++      ) {
++        Icon(
++          imageVector = revealedAction.icon(isWatched),
++          contentDescription = null,
++          tint = revealedAction.contentColor(),
++          modifier = Modifier.size(24.dp).graphicsLayer {
++            scaleX = iconScale
++            scaleY = iconScale
++          },
++        )
++        Text(
++          text = stringResource(revealedAction.labelRes(isWatched)),
++          style = MaterialTheme.typography.labelSmall,
++          color = revealedAction.contentColor(),
++          textAlign = TextAlign.Center,
++          maxLines = 2,
++          overflow = TextOverflow.Ellipsis,
++        )
++      }
++    }
++    Card(
++      modifier = Modifier.fillMaxWidth().graphicsLayer { translationX = displayOffset },
++      shape = shape,
++      colors = colors,
++      content = content,
++    )
++  }
++}
+\ No newline at end of file
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/components/VideoSwipeActions.kt b/app/src/main/java/com/quantummpv/app/ui/browser/components/VideoSwipeActions.kt
+new file mode 100644
+index 00000000..04173c4c
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/components/VideoSwipeActions.kt
+@@ -0,0 +1,303 @@
++package com.quantummpv.app.ui.browser.components
++
++import android.util.Log
++import android.widget.Toast
++import androidx.compose.foundation.layout.Arrangement
++import androidx.compose.foundation.layout.Row
++import androidx.compose.foundation.layout.size
++import androidx.compose.material3.AlertDialog
++import androidx.compose.material3.CircularProgressIndicator
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.Text
++import androidx.compose.material3.TextButton
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.LaunchedEffect
++import androidx.compose.runtime.getValue
++import androidx.compose.runtime.mutableStateOf
++import androidx.compose.runtime.remember
++import androidx.compose.runtime.rememberCoroutineScope
++import androidx.compose.runtime.rememberUpdatedState
++import androidx.compose.runtime.setValue
++import androidx.compose.ui.Alignment
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.platform.LocalContext
++import androidx.compose.ui.res.stringResource
++import androidx.compose.ui.unit.dp
++import com.quantummpv.app.R
++import com.quantummpv.app.database.repository.VideoMetadataCacheRepository
++import com.quantummpv.app.domain.media.model.Video
++import com.quantummpv.app.domain.media.model.VideoFolder
++import com.quantummpv.app.domain.playbackstate.repository.PlaybackStateRepository
++import com.quantummpv.app.preferences.AppearancePreferences
++import com.quantummpv.app.preferences.BrowserPreferences
++import com.quantummpv.app.preferences.VideoSwipeAction
++import com.quantummpv.app.preferences.preference.collectAsState
++import com.quantummpv.app.repository.MediaFileRepository
++import com.quantummpv.app.ui.browser.dialogs.AddToPlaylistDialog
++import com.quantummpv.app.ui.browser.videolist.VideoWithPlaybackInfo
++import com.quantummpv.app.ui.browser.videolist.buildVideoWithPlaybackInfo
++import com.quantummpv.app.ui.browser.videolist.videoPlaybackIdentifiers
++import com.quantummpv.app.ui.icons.Icon
++import com.quantummpv.app.ui.icons.Icons
++import com.quantummpv.app.ui.utils.rememberAppHaptics
++import com.quantummpv.app.utils.media.PlaybackStateEvents
++import com.quantummpv.app.utils.media.PlaybackStateOps
++import com.quantummpv.app.utils.permission.PermissionUtils.StorageOps
++import com.quantummpv.app.utils.storage.FileTypeUtils
++import kotlinx.coroutines.CancellationException
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.Job
++import kotlinx.coroutines.currentCoroutineContext
++import kotlinx.coroutines.ensureActive
++import kotlinx.coroutines.flow.collectLatest
++import kotlinx.coroutines.flow.onStart
++import kotlinx.coroutines.launch
++import kotlinx.coroutines.withContext
++import org.koin.compose.koinInject
++import java.io.File
++import java.nio.file.Files
++
++internal class VideoSwipeActions(
++  val video: (Video, Boolean, VideoSwipeAction) -> Unit,
++  val folder: (VideoFolder, VideoSwipeAction) -> Unit,
++)
++
++private data class SwipeTarget(val videos: List<Video>, val folderName: String? = null)
++
++@Composable
++internal fun rememberSwipePlaybackInfo(videos: List<Video>): Map<String, VideoWithPlaybackInfo> {
++  val preferences = koinInject<BrowserPreferences>()
++  val appearance = koinInject<AppearancePreferences>()
++  val repository = koinInject<PlaybackStateRepository>()
++  val threshold by preferences.watchedThreshold.collectAsState()
++  val newDays by appearance.unplayedOldVideoDays.collectAsState()
++  var playbackInfo by remember { mutableStateOf(emptyMap<String, VideoWithPlaybackInfo>()) }
++  LaunchedEffect(videos, threshold, newDays) {
++    PlaybackStateEvents.changes.onStart { emit("") }.collectLatest {
++      playbackInfo = withContext(Dispatchers.IO) {
++        val states = repository.getAllPlaybackStates().associateBy { it.mediaTitle }
++        val now = System.currentTimeMillis()
++        videos.associate { video ->
++          video.path to buildVideoWithPlaybackInfo(
++            video = video,
++            playbackState = videoPlaybackIdentifiers(video).firstNotNullOfOrNull(states::get),
++            currentTimeMillis = now,
++            newLabelDays = newDays,
++            watchedThreshold = threshold,
++          )
++        }
++      }
++    }
++  }
++  return playbackInfo
++}
++
++@Composable
++internal fun rememberVideoSwipeActions(
++  onDeleted: suspend (List<Video>) -> Unit = {},
++  onChanged: () -> Unit,
++): VideoSwipeActions {
++  val context = LocalContext.current
++  val scope = rememberCoroutineScope()
++  val haptics = rememberAppHaptics()
++  val metadataCache = koinInject<VideoMetadataCacheRepository>()
++  val preferences = koinInject<BrowserPreferences>()
++  val currentOnChanged by rememberUpdatedState(onChanged)
++  val currentOnDeleted by rememberUpdatedState(onDeleted)
++  var deleteTarget by remember { mutableStateOf<SwipeTarget?>(null) }
++  var playlistTarget by remember { mutableStateOf<SwipeTarget?>(null) }
++  var busy by remember { mutableStateOf(false) }
++  var collecting by remember { mutableStateOf(false) }
++  var scanJob by remember { mutableStateOf<Job?>(null) }
++
++  if (collecting) {
++    AlertDialog(
++      onDismissRequest = { scanJob?.cancel() },
++      title = { Text(stringResource(R.string.video_swipe_loading)) },
++      text = {
++        Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
++          CircularProgressIndicator(Modifier.size(24.dp))
++          Text(stringResource(R.string.video_swipe_folder_videos))
++        }
++      },
++      confirmButton = {
++        TextButton(onClick = { scanJob?.cancel() }) { Text(stringResource(R.string.generic_cancel)) }
++      },
++    )
++  }
++
++  deleteTarget?.let { target ->
++    AlertDialog(
++      onDismissRequest = { if (!busy) deleteTarget = null },
++      icon = { Icon(Icons.RoundedFilled.Delete, null, tint = MaterialTheme.colorScheme.error) },
++      title = { Text(stringResource(R.string.video_swipe_delete_title)) },
++      text = {
++        Text(
++          if (target.folderName != null) {
++            stringResource(R.string.video_swipe_delete_folder_message, target.videos.size, target.folderName)
++          } else {
++            stringResource(R.string.video_swipe_delete_message, target.videos.single().displayName)
++          },
++        )
++      },
++      confirmButton = {
++        TextButton(
++          enabled = !busy,
++          onClick = {
++            if (!busy) {
++              busy = true
++              scope.launch {
++                try {
++                  val (deleted, failed) = StorageOps.deleteVideos(context, target.videos)
++                  if (deleted > 0) {
++                    metadataCache.invalidateVideos(target.videos.map { it.path })
++                    val deletedVideos = withContext(Dispatchers.IO) {
++                      target.videos.filter { video ->
++                        runCatching { Files.notExists(File(video.path).toPath()) }.getOrDefault(false)
++                      }
++                    }
++                    currentOnDeleted(deletedVideos)
++                    haptics.confirm()
++                    currentOnChanged()
++                  }
++                  val message = context.getString(R.string.video_swipe_delete_result, deleted, failed)
++                  Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
++                } catch (cancelled: CancellationException) {
++                  throw cancelled
++                } catch (error: Exception) {
++                  Log.e("VideoSwipeActions", "Unable to delete video", error)
++                  Toast.makeText(context, R.string.ui_failed_to_delete, Toast.LENGTH_SHORT).show()
++                } finally {
++                  deleteTarget = null
++                  busy = false
++                }
++              }
++            }
++          },
++        ) {
++          if (busy) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
++          else Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
++        }
++      },
++      dismissButton = {
++        TextButton(enabled = !busy, onClick = { deleteTarget = null }) { Text(stringResource(R.string.generic_cancel)) }
++      },
++    )
++  }
++
++  playlistTarget?.let { target ->
++    AddToPlaylistDialog(
++      isOpen = true,
++      videos = target.videos,
++      onDismiss = { playlistTarget = null },
++      onSuccess = { currentOnChanged() },
++      onItemsAdded = haptics::confirm,
++    )
++  }
++
++  val perform: (SwipeTarget, VideoSwipeAction) -> Unit = { target, action ->
++    when (action) {
++      VideoSwipeAction.None -> Unit
++      VideoSwipeAction.Delete -> deleteTarget = target
++      VideoSwipeAction.AddToPlaylist -> playlistTarget = target
++      VideoSwipeAction.PlayNext, VideoSwipeAction.AddToQueue -> {
++        val insertion = if (action == VideoSwipeAction.PlayNext) QueueInsertion.PlayNext else QueueInsertion.AddToEnd
++        if (addVideosToPlaybackQueue(context, target.videos, insertion)) haptics.confirm()
++      }
++      VideoSwipeAction.ToggleWatched,
++      VideoSwipeAction.MarkNew,
++      VideoSwipeAction.LastPlayed,
++      VideoSwipeAction.Finished,
++      VideoSwipeAction.ClearHistory,
++      -> {
++        busy = true
++        scope.launch {
++          try {
++            when (action) {
++              VideoSwipeAction.ToggleWatched -> {
++                val watched = !PlaybackStateOps.areAllWatched(target.videos, preferences.watchedThreshold.get())
++                PlaybackStateOps.setWatched(target.videos, watched)
++                haptics.selection(watched)
++              }
++              VideoSwipeAction.Finished -> {
++                PlaybackStateOps.setWatched(target.videos, true)
++                haptics.confirm()
++              }
++              VideoSwipeAction.MarkNew, VideoSwipeAction.ClearHistory -> {
++                PlaybackStateOps.resetWatchHistory(target.videos, markAsNew = action == VideoSwipeAction.MarkNew)
++                haptics.confirm()
++              }
++              VideoSwipeAction.LastPlayed -> {
++                if (PlaybackStateOps.markLastPlayed(target.videos)) {
++                  haptics.confirm()
++                } else {
++                  Toast.makeText(context, R.string.video_swipe_recent_disabled, Toast.LENGTH_SHORT).show()
++                }
++              }
++              else -> Unit
++            }
++            currentOnChanged()
++          } catch (cancelled: CancellationException) {
++            throw cancelled
++          } catch (error: Exception) {
++            Log.e("VideoSwipeActions", "Unable to update video marks", error)
++            Toast.makeText(context, R.string.generic_unknown_error, Toast.LENGTH_SHORT).show()
++          } finally {
++            busy = false
++          }
++        }
++      }
++    }
++  }
++
++  return VideoSwipeActions(
++    video = { video, _, action ->
++      if (!busy && !collecting && deleteTarget == null && playlistTarget == null &&
++        !video.isAudio && video.path.startsWith('/')) {
++        perform(SwipeTarget(listOf(video)), action)
++      }
++    },
++    folder = { folder, action ->
++      if (!busy && !collecting && deleteTarget == null && playlistTarget == null && action != VideoSwipeAction.None) {
++        collecting = true
++        scanJob = scope.launch {
++          try {
++            val videos = withContext(Dispatchers.IO) {
++              val root = File(folder.path).canonicalFile
++              require(root.isDirectory && root.canRead())
++              val coroutineContext = currentCoroutineContext()
++              val files = root.walkTopDown()
++                .onEnter { directory ->
++                  coroutineContext.ensureActive()
++                  !Files.isSymbolicLink(directory.toPath())
++                }
++                .onFail { _, error -> throw error }
++                .filter { file ->
++                  coroutineContext.ensureActive()
++                  file.isFile && !Files.isSymbolicLink(file.toPath()) && FileTypeUtils.isVideoFile(file)
++                }.toList()
++              val resolved = MediaFileRepository.getVideosFromFiles(context, files).filterNot { it.isAudio }
++              coroutineContext.ensureActive()
++              check(resolved.size == files.size)
++              resolved.distinctBy { it.path }.sortedBy { it.path.lowercase() }
++            }
++            currentCoroutineContext().ensureActive()
++            if (videos.isEmpty()) {
++              Toast.makeText(context, R.string.video_swipe_folder_empty, Toast.LENGTH_SHORT).show()
++            } else {
++              perform(SwipeTarget(videos, folder.name), action)
++            }
++          } catch (cancelled: CancellationException) {
++            throw cancelled
++          } catch (error: Exception) {
++            Log.e("VideoSwipeActions", "Unable to collect folder videos", error)
++            Toast.makeText(context, R.string.generic_unknown_error, Toast.LENGTH_SHORT).show()
++          } finally {
++            collecting = false
++            scanJob = null
++          }
++        }
++      }
++    },
++  )
++}
+\ No newline at end of file
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/dialogs/AddToPlaylistDialog.kt b/app/src/main/java/com/quantummpv/app/ui/browser/dialogs/AddToPlaylistDialog.kt
+index 3753bee3..f24a4823 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/dialogs/AddToPlaylistDialog.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/dialogs/AddToPlaylistDialog.kt
+@@ -67,6 +67,7 @@ fun AddToPlaylistDialog(
+   onSuccess: () -> Unit,
+   isJellyfin: Boolean = false,
+   modifier: Modifier = Modifier,
++  onItemsAdded: () -> Unit = {},
+ ) {
+   val viewModel: AddToPlaylistViewModel = viewModel()
+   val playlistOptions by viewModel.playlistOptions.collectAsState()
+@@ -97,6 +98,7 @@ fun AddToPlaylistDialog(
+             )
+           Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+           showCreateDialog = false
++          onItemsAdded()
+           onSuccess()
+           onDismiss()
+         }
+@@ -181,6 +183,7 @@ fun AddToPlaylistDialog(
+                         compatibleVideos.size,
+                       )
+                     Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
++                    onItemsAdded()
+                     onSuccess()
+                     onDismiss()
+                   }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/filesystem/FileSystemBrowserScreen.kt b/app/src/main/java/com/quantummpv/app/ui/browser/filesystem/FileSystemBrowserScreen.kt
+index 770fd88b..10f93c7c 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/filesystem/FileSystemBrowserScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/filesystem/FileSystemBrowserScreen.kt
+@@ -88,6 +88,8 @@ import androidx.lifecycle.Lifecycle
+ import androidx.lifecycle.LifecycleEventObserver
+ import androidx.lifecycle.viewmodel.compose.viewModel
+ import com.quantummpv.app.R
++import com.quantummpv.app.ui.browser.components.rememberVideoSwipeActions
++import com.quantummpv.app.ui.browser.components.rememberSwipePlaybackInfo
+ import com.quantummpv.app.domain.browser.FileSystemItem
+ import com.quantummpv.app.preferences.AppearancePreferences
+ import com.quantummpv.app.preferences.BrowserPreferences
+@@ -746,6 +748,7 @@ fun FileSystemBrowserScreen(path: String? = null) {
+             if (isSearching) {
+               // Show search results
+               FileSystemSearchContent(
++                onChanged = { viewModel.refresh() },
+                 listState = listState, // Use the main listState for FAB tracking
+                 gridState = gridState,
+                 searchQuery = searchQuery,
+@@ -1232,6 +1235,8 @@ private fun FileSystemBrowserContent(
+   modifier: Modifier = Modifier,
+   isInSelectionMode: Boolean = false,
+ ) {
++  val swipeScope = rememberCoroutineScope()
++  val swipeActions = rememberVideoSwipeActions { swipeScope.launch { onRefresh() } }
+   val gesturePreferences = koinInject<GesturePreferences>()
+   val browserPreferences = koinInject<BrowserPreferences>()
+   val appearancePreferences = koinInject<AppearancePreferences>()
+@@ -1252,6 +1257,8 @@ private fun FileSystemBrowserContent(
+   val showDurationField by browserPreferences.showDurationField.collectAsState()
+   val centerGridTitles by browserPreferences.centerGridTitles.collectAsState()
+   val thumbnailQuality by browserPreferences.thumbnailQuality.collectAsState()
++  val swipeLeft by browserPreferences.videoSwipeLeft.collectAsState()
++  val swipeRight by browserPreferences.videoSwipeRight.collectAsState()
+   val videoCardUiConfig =
+     remember(
+       unlimitedNameLines,
+@@ -1268,6 +1275,8 @@ private fun FileSystemBrowserContent(
+       centerGridTitles,
+       showCodecSupportIndicator,
+       thumbnailQuality,
++      swipeLeft,
++      swipeRight,
+     ) {
+       VideoCardUiConfig(
+         unlimitedNameLines = unlimitedNameLines,
+@@ -1284,6 +1293,8 @@ private fun FileSystemBrowserContent(
+         showDurationField = showDurationField,
+         centerGridTitles = centerGridTitles,
+         thumbnailQuality = thumbnailQuality,
++        swipeLeft = swipeLeft,
++        swipeRight = swipeRight,
+       )
+     }
+ 
+@@ -1570,6 +1581,8 @@ private fun FileSystemBrowserContent(
+                     },
+                   newVideoCount = folder.newCount,
+                   isGridMode = false,
++                  onSwipeAction =
++                    swipeActions.folder.takeUnless { selectionManager.isInSelectionMode || isInSelectionMode },
+                 )
+               }
+ 
+@@ -1595,6 +1608,8 @@ private fun FileSystemBrowserContent(
+                     isOldAndUnplayed = newVideoIds.contains(videoFile.video.id),
+                     isWatched = watchedVideoIds.contains(videoFile.video.id),
+                     isGridMode = false,
++                    onSwipeAction =
++                      swipeActions.video.takeUnless { selectionManager.isInSelectionMode || isInSelectionMode },
+                     showSubtitleIndicator = showSubtitleIndicator,
+                     overrideShowSizeChip = null,
+                     overrideShowResolutionChip = null,
+@@ -1648,8 +1663,13 @@ private fun FileSystemSearchContent(
+   isFabVisible: androidx.compose.runtime.MutableState<Boolean>, // Add FAB visibility state
+   onVideoClick: (com.quantummpv.app.domain.media.model.Video) -> Unit,
+   onFolderClick: (FileSystemItem.Folder) -> Unit,
++  onChanged: () -> Unit,
+   modifier: Modifier = Modifier,
+ ) {
++  val swipeActions = rememberVideoSwipeActions(onChanged = onChanged)
++  val swipePlaybackInfo = rememberSwipePlaybackInfo(
++    searchResults.filterIsInstance<FileSystemItem.VideoFile>().map { it.video },
++  )
+   val gesturePreferences = koinInject<GesturePreferences>()
+   val browserPreferences = koinInject<BrowserPreferences>()
+   val appearancePreferences = koinInject<AppearancePreferences>()
+@@ -1668,6 +1688,8 @@ private fun FileSystemSearchContent(
+   val showDurationField by browserPreferences.showDurationField.collectAsState()
+   val centerGridTitles by browserPreferences.centerGridTitles.collectAsState()
+   val thumbnailQuality by browserPreferences.thumbnailQuality.collectAsState()
++  val swipeLeft by browserPreferences.videoSwipeLeft.collectAsState()
++  val swipeRight by browserPreferences.videoSwipeRight.collectAsState()
+   val videoCardUiConfig =
+     remember(
+       unlimitedNameLines,
+@@ -1684,6 +1706,8 @@ private fun FileSystemSearchContent(
+       centerGridTitles,
+       showCodecSupportIndicator,
+       thumbnailQuality,
++      swipeLeft,
++      swipeRight,
+     ) {
+       VideoCardUiConfig(
+         unlimitedNameLines = unlimitedNameLines,
+@@ -1700,6 +1724,8 @@ private fun FileSystemSearchContent(
+         showDurationField = showDurationField,
+         centerGridTitles = centerGridTitles,
+         thumbnailQuality = thumbnailQuality,
++        swipeLeft = swipeLeft,
++        swipeRight = swipeRight,
+       )
+     }
+ 
+@@ -1863,7 +1889,8 @@ private fun FileSystemSearchContent(
+                     onClick = { onVideoClick(videoFile.video) },
+                     onLongClick = { },
+                     onThumbClick = { onVideoClick(videoFile.video) },
+-                    isOldAndUnplayed = newVideoIds.contains(videoFile.video.id),
++                    isOldAndUnplayed = swipePlaybackInfo[videoFile.video.path]?.isOldAndUnplayed == true,
++                    isWatched = swipePlaybackInfo[videoFile.video.path]?.isWatched == true,
+                     isGridMode = true,
+                     showSubtitleIndicator = showSubtitleIndicator,
+                     overrideShowSizeChip = null,
+@@ -1926,6 +1953,7 @@ private fun FileSystemSearchContent(
+                   onThumbClick = { onFolderClick(folder) },
+                   newVideoCount = folder.newCount,
+                   isGridMode = false,
++                  onSwipeAction = swipeActions.folder,
+                 )
+               }
+ 
+@@ -1943,8 +1971,10 @@ private fun FileSystemSearchContent(
+                   onClick = { onVideoClick(videoFile.video) },
+                   onLongClick = { },
+                   onThumbClick = { onVideoClick(videoFile.video) },
+-                  isOldAndUnplayed = newVideoIds.contains(videoFile.video.id),
++                  isOldAndUnplayed = swipePlaybackInfo[videoFile.video.path]?.isOldAndUnplayed == true,
+                   isGridMode = false,
++                  isWatched = swipePlaybackInfo[videoFile.video.path]?.isWatched == true,
++                  onSwipeAction = swipeActions.video,
+                   showSubtitleIndicator = showSubtitleIndicator,
+                   overrideShowSizeChip = null,
+                   overrideShowResolutionChip = null,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/filesystem/FileSystemBrowserViewModel.kt b/app/src/main/java/com/quantummpv/app/ui/browser/filesystem/FileSystemBrowserViewModel.kt
+index 07533936..d5a6fe6e 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/filesystem/FileSystemBrowserViewModel.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/filesystem/FileSystemBrowserViewModel.kt
+@@ -25,6 +25,7 @@ import com.quantummpv.app.ui.player.PlaybackIdentity
+ import com.quantummpv.app.utils.media.MediaLibraryEvents
+ import com.quantummpv.app.utils.media.MetadataRetrieval
+ import com.quantummpv.app.utils.media.PlaybackStateEvents
++import com.quantummpv.app.utils.media.PlaybackStateOps
+ import com.quantummpv.app.utils.permission.PermissionUtils.StorageOps
+ import com.quantummpv.app.utils.sort.SortUtils
+ import com.quantummpv.app.utils.storage.FileTypeUtils
+@@ -598,7 +599,7 @@ class FileSystemBrowserViewModel(
+ 
+       val videoAge = currentTime - (video.dateModified * 1000L)
+       val isWithinNewWindow = thresholdMillis == 0L || videoAge <= thresholdMillis
+-      if (showNewLabels && !isWatched && isWithinNewWindow) {
++      if (showNewLabels && !isWatched && (playbackState?.newLabelOverride ?: isWithinNewWindow)) {
+         newIds += video.id
+       }
+     }
+@@ -614,38 +615,7 @@ class FileSystemBrowserViewModel(
+ 
+   fun setWatched(video: Video, watched: Boolean) {
+     viewModelScope.launch(Dispatchers.IO) {
+-      val durationSeconds = (video.duration / 1000L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+-      val identifiers =
+-        linkedSetOf(
+-          PlaybackIdentity.forLocalPath(video.path),
+-          PlaybackIdentity.forUri(video.uri.toString()),
+-          PlaybackIdentity.forUri(video.path),
+-          PlaybackIdentity.forUri("file://${video.path}"),
+-        )
+-      val existing = playbackStateRepository.getAllPlaybackStates().firstNotNullOfOrNull { state ->
+-        if (state.mediaTitle in identifiers) state else null
+-      }
+-      playbackStateRepository.upsert(
+-        (existing ?: com.quantummpv.app.database.entities.PlaybackStateEntity(
+-          mediaTitle = PlaybackIdentity.forLocalPath(video.path),
+-          lastPosition = 0,
+-          playbackSpeed = 1.0,
+-          sid = -1,
+-          secondarySid = -1,
+-          subDelay = 0,
+-          subSpeed = 1.0,
+-          aid = -1,
+-          audioDelay = 0,
+-          timeRemaining = durationSeconds,
+-          hasBeenWatched = false,
+-        )).copy(
+-          mediaTitle = PlaybackIdentity.forLocalPath(video.path),
+-          lastPosition = 0,
+-          timeRemaining = if (watched) 0 else durationSeconds,
+-          hasBeenWatched = watched,
+-        ),
+-      )
+-      PlaybackStateEvents.notifyChanged(PlaybackIdentity.forLocalPath(video.path))
++      PlaybackStateOps.setWatched(video, watched)
+     }
+   }
+ }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/folderlist/FolderListScreen.kt b/app/src/main/java/com/quantummpv/app/ui/browser/folderlist/FolderListScreen.kt
+index c5cf5dad..feaebcda 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/folderlist/FolderListScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/folderlist/FolderListScreen.kt
+@@ -89,6 +89,9 @@ import androidx.lifecycle.LifecycleEventObserver
+ import androidx.lifecycle.viewmodel.compose.viewModel
+ import com.quantummpv.app.BuildConfig
+ import com.quantummpv.app.R
++import com.quantummpv.app.preferences.VideoSwipeAction
++import com.quantummpv.app.ui.browser.components.rememberVideoSwipeActions
++import com.quantummpv.app.ui.browser.components.rememberSwipePlaybackInfo
+ import com.quantummpv.app.domain.browser.FileSystemItem
+ import com.quantummpv.app.domain.media.model.Video
+ import com.quantummpv.app.domain.media.model.VideoFolder
+@@ -838,6 +841,8 @@ object FolderListScreen : Screen {
+                     // Show search results
+                     SearchResultsContent(
+                       searchResults = searchResults,
++                      onChanged = { viewModel.refresh() },
++                      audioOnly = audioOnly,
+                       navigationBarHeight = navigationBarHeight,
+                       onFolderClick = { folder ->
+                         if (isDualPaneActive) {
+@@ -1222,6 +1227,8 @@ private fun FolderListContent(
+   selectedFolderBucketId: String? = null,
+   audioOnly: Boolean = false,
+ ) {
++  val swipeScope = rememberCoroutineScope()
++  val swipeActions = rememberVideoSwipeActions { swipeScope.launch { onRefresh() } }
+   val isGridMode = mediaLayoutMode == MediaLayoutMode.GRID
+   val showLoading = isLoading && !hasCompletedInitialLoad
+   val showEmpty = folders.isEmpty() && hasCompletedInitialLoad && !foldersWereDeleted
+@@ -1282,6 +1289,7 @@ private fun FolderListContent(
+         )
+       } else {
+         ListContent(
++          onFolderSwipe = swipeActions.folder.takeUnless { selectionManager.isInSelectionMode || audioOnly },
+           folders = folders,
+           foldersWithNewCount = foldersWithNewCount,
+           pinnedFolderPaths = pinnedFolderPaths,
+@@ -1419,6 +1427,7 @@ private fun ListContent(
+   onTogglePin: (VideoFolder) -> Unit,
+   selectedFolderBucketId: String? = null,
+   audioOnly: Boolean = false,
++  onFolderSwipe: ((VideoFolder, VideoSwipeAction) -> Unit)? = null,
+ ) {
+   val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+   val isTablet = configuration.smallestScreenWidthDp >= 600
+@@ -1463,6 +1472,7 @@ private fun ListContent(
+             },
+           newVideoCount = newCount,
+           isGridMode = false,
++          onSwipeAction = onFolderSwipe,
+           isPinned = folder.path in pinnedFolderPaths,
+           onPinClick =
+             if (!selectionManager.isInSelectionMode) {
+@@ -1523,7 +1533,10 @@ private fun SearchResultsContent(
+   onFolderClick: (com.quantummpv.app.domain.media.model.VideoFolder) -> Unit,
+   onVideoClick: (com.quantummpv.app.domain.media.model.Video) -> Unit,
+   mediaLayoutMode: com.quantummpv.app.preferences.MediaLayoutMode,
++  onChanged: () -> Unit,
++  audioOnly: Boolean,
+ ) {
++  val swipeActions = rememberVideoSwipeActions(onChanged = onChanged)
+   val folders =
+     searchResults.filterIsInstance<FileSystemItem.Folder>().map { folder ->
+       com.quantummpv.app.domain.media.model.VideoFolder(
+@@ -1537,6 +1550,7 @@ private fun SearchResultsContent(
+       )
+     }
+   val videos = searchResults.filterIsInstance<FileSystemItem.VideoFile>().map { it.video }
++  val swipePlaybackInfo = rememberSwipePlaybackInfo(videos)
+   val browserPreferences = koinInject<BrowserPreferences>()
+   val appearancePreferences = koinInject<AppearancePreferences>()
+   val showVideoThumbnails by browserPreferences.showVideoThumbnails.collectAsState()
+@@ -1554,6 +1568,8 @@ private fun SearchResultsContent(
+   val showDurationField by browserPreferences.showDurationField.collectAsState()
+   val centerGridTitles by browserPreferences.centerGridTitles.collectAsState()
+   val thumbnailQuality by browserPreferences.thumbnailQuality.collectAsState()
++  val swipeLeft by browserPreferences.videoSwipeLeft.collectAsState()
++  val swipeRight by browserPreferences.videoSwipeRight.collectAsState()
+   val videoCardUiConfig =
+     remember(
+       unlimitedNameLines,
+@@ -1570,6 +1586,8 @@ private fun SearchResultsContent(
+       showDurationField,
+       centerGridTitles,
+       thumbnailQuality,
++      swipeLeft,
++      swipeRight,
+     ) {
+       VideoCardUiConfig(
+         unlimitedNameLines = unlimitedNameLines,
+@@ -1586,6 +1604,8 @@ private fun SearchResultsContent(
+         showDurationField = showDurationField,
+         centerGridTitles = centerGridTitles,
+         thumbnailQuality = thumbnailQuality,
++        swipeLeft = swipeLeft,
++        swipeRight = swipeRight,
+       )
+     }
+ 
+@@ -1640,6 +1660,8 @@ private fun SearchResultsContent(
+             val video = videos[index]
+             VideoCard(
+               video = video,
++              isWatched = swipePlaybackInfo[video.path]?.isWatched == true,
++              isOldAndUnplayed = swipePlaybackInfo[video.path]?.isOldAndUnplayed == true,
+               isSelected = false,
+               onClick = { onVideoClick(video) },
+               onLongClick = {},
+@@ -1677,6 +1699,7 @@ private fun SearchResultsContent(
+             onThumbClick = { onFolderClick(folder) },
+             newVideoCount = 0,
+             isGridMode = false,
++            onSwipeAction = swipeActions.folder.takeUnless { audioOnly },
+           )
+         }
+ 
+@@ -1693,6 +1716,9 @@ private fun SearchResultsContent(
+             onLongClick = {},
+             onThumbClick = { onVideoClick(video) },
+             isGridMode = false,
++            onSwipeAction = swipeActions.video.takeUnless { audioOnly },
++            isWatched = swipePlaybackInfo[video.path]?.isWatched == true,
++            isOldAndUnplayed = swipePlaybackInfo[video.path]?.isOldAndUnplayed == true,
+             showSubtitleIndicator = showSubtitleIndicator,
+             uiConfig = videoCardUiConfig,
+           )
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/folderlist/FolderListViewModel.kt b/app/src/main/java/com/quantummpv/app/ui/browser/folderlist/FolderListViewModel.kt
+index f0d09248..fd4b14c3 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/folderlist/FolderListViewModel.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/folderlist/FolderListViewModel.kt
+@@ -313,7 +313,8 @@ class FolderListViewModel(
+                         playbackState == null
+                       }
+ 
+-                    isRecent && isUnplayed
++                    playbackState?.hasBeenWatched != true &&
++                      (playbackState?.newLabelOverride ?: (isRecent && isUnplayed))
+                   }
+ 
+                 FolderWithNewCount(folder, newCount)
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/medialibrary/MediaLibraryViewModel.kt b/app/src/main/java/com/quantummpv/app/ui/browser/medialibrary/MediaLibraryViewModel.kt
+index 90587ce4..deb74ea0 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/medialibrary/MediaLibraryViewModel.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/medialibrary/MediaLibraryViewModel.kt
+@@ -14,7 +14,6 @@ import android.util.Log
+ import androidx.lifecycle.ViewModel
+ import androidx.lifecycle.ViewModelProvider
+ import androidx.lifecycle.viewModelScope
+-import com.quantummpv.app.database.entities.PlaybackStateEntity
+ import com.quantummpv.app.domain.media.model.Video
+ import com.quantummpv.app.domain.playbackstate.repository.PlaybackStateRepository
+ import com.quantummpv.app.preferences.AppearancePreferences
+@@ -24,9 +23,9 @@ import com.quantummpv.app.ui.browser.base.BaseBrowserViewModel
+ import com.quantummpv.app.ui.browser.videolist.VideoWithPlaybackInfo
+ import com.quantummpv.app.ui.browser.videolist.buildVideoWithPlaybackInfo
+ import com.quantummpv.app.ui.browser.videolist.videoPlaybackIdentifiers
+-import com.quantummpv.app.ui.player.PlaybackIdentity
+ import com.quantummpv.app.utils.media.MetadataRetrieval
+ import com.quantummpv.app.utils.media.PlaybackStateEvents
++import com.quantummpv.app.utils.media.PlaybackStateOps
+ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.flow.MutableStateFlow
+ import kotlinx.coroutines.flow.StateFlow
+@@ -158,32 +157,7 @@ class MediaLibraryViewModel(
+ 
+   fun setWatched(video: Video, watched: Boolean) {
+     viewModelScope.launch(Dispatchers.IO) {
+-      val durationSeconds = (video.duration / 1000L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+-      val identifiers = videoPlaybackIdentifiers(video)
+-      val existing = playbackStateRepository.getAllPlaybackStates().firstNotNullOfOrNull { state ->
+-        if (state.mediaTitle in identifiers) state else null
+-      }
+-      playbackStateRepository.upsert(
+-        (existing ?: PlaybackStateEntity(
+-          mediaTitle = PlaybackIdentity.forLocalPath(video.path),
+-          lastPosition = 0,
+-          playbackSpeed = 1.0,
+-          sid = -1,
+-          secondarySid = -1,
+-          subDelay = 0,
+-          subSpeed = 1.0,
+-          aid = -1,
+-          audioDelay = 0,
+-          timeRemaining = durationSeconds,
+-          hasBeenWatched = false,
+-        )).copy(
+-          mediaTitle = PlaybackIdentity.forLocalPath(video.path),
+-          lastPosition = 0,
+-          timeRemaining = if (watched) 0 else durationSeconds,
+-          hasBeenWatched = watched,
+-        ),
+-      )
+-      PlaybackStateEvents.notifyChanged(PlaybackIdentity.forLocalPath(video.path))
++      PlaybackStateOps.setWatched(video, watched)
+     }
+   }
+ 
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/playlist/PlaylistDetailScreen.kt b/app/src/main/java/com/quantummpv/app/ui/browser/playlist/PlaylistDetailScreen.kt
+index 2ec7cd84..bacd6e3d 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/playlist/PlaylistDetailScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/playlist/PlaylistDetailScreen.kt
+@@ -65,6 +65,8 @@ import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.unit.dp
+ import androidx.lifecycle.viewmodel.compose.viewModel
+ import com.quantummpv.app.R
++import com.quantummpv.app.ui.browser.components.rememberVideoSwipeActions
++import com.quantummpv.app.ui.browser.components.rememberSwipePlaybackInfo
+ import com.quantummpv.app.database.entities.PlaylistEntity
+ import com.quantummpv.app.database.entities.PlaylistItemEntity
+ import com.quantummpv.app.database.repository.PlaylistRepository
+@@ -595,6 +597,8 @@ data class PlaylistDetailScreen(
+             }
+ 
+             PlaylistVideoListContent(
++              onChanged = { viewModel.refresh() },
++              onDeleted = viewModel::removeVideosFromPlaylist,
+               videoItems = filteredVideoItems,
+               isLoading = isLoading && videoItems.isEmpty(),
+               selectionManager = selectionManager,
+@@ -678,7 +682,11 @@ private fun PlaylistVideoListContent(
+   modifier: Modifier = Modifier,
+   isM3uPlaylist: Boolean = false,
+   isAudio: Boolean = false,
++  onChanged: () -> Unit,
++  onDeleted: suspend (List<Video>) -> Unit,
+ ) {
++  val swipeActions = rememberVideoSwipeActions(onDeleted = onDeleted, onChanged = onChanged)
++  val swipePlaybackInfo = rememberSwipePlaybackInfo(videoItems.map { it.video })
+   val gesturePreferences = koinInject<GesturePreferences>()
+   val browserPreferences = koinInject<com.quantummpv.app.preferences.BrowserPreferences>()
+   val appearancePreferences = koinInject<AppearancePreferences>()
+@@ -699,6 +707,8 @@ private fun PlaylistVideoListContent(
+   val centerGridTitles by browserPreferences.centerGridTitles.collectAsState()
+   val musicCoverArtSize by browserPreferences.musicCoverArtSize.collectAsState()
+   val thumbnailQuality by browserPreferences.thumbnailQuality.collectAsState()
++  val swipeLeft by browserPreferences.videoSwipeLeft.collectAsState()
++  val swipeRight by browserPreferences.videoSwipeRight.collectAsState()
+   val density = LocalDensity.current
+   val audioThumbnailSizePx = with(density) { musicCoverArtSize.dp.roundToPx() }
+   val videoCardUiConfig =
+@@ -717,6 +727,8 @@ private fun PlaylistVideoListContent(
+       showDurationField,
+       centerGridTitles,
+       thumbnailQuality,
++      swipeLeft,
++      swipeRight,
+     ) {
+       VideoCardUiConfig(
+         unlimitedNameLines = unlimitedNameLines,
+@@ -733,6 +745,8 @@ private fun PlaylistVideoListContent(
+         showDurationField = showDurationField,
+         centerGridTitles = centerGridTitles,
+         thumbnailQuality = thumbnailQuality,
++        swipeLeft = swipeLeft,
++        swipeRight = swipeRight,
+       )
+     }
+ 
+@@ -863,6 +877,10 @@ private fun PlaylistVideoListContent(
+                 } else {
+                   VideoCard(
+                     video = if (isAudio && !item.video.isAudio) item.video.copy(isAudio = true) else item.video,
++                    onSwipeAction =
++                      swipeActions.video.takeUnless { selectionManager.isInSelectionMode || isReorderMode },
++                    isWatched = swipePlaybackInfo[item.video.path]?.isWatched == true,
++                    isOldAndUnplayed = swipePlaybackInfo[item.video.path]?.isOldAndUnplayed == true,
+                     progressPercentage = progressPercentage,
+                     isRecentlyPlayed = item.playlistItem.id == mostRecentlyPlayedItem?.playlistItem?.id,
+                     isSelected = selectionManager.isSelected(item),
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/recentlyplayed/RecentlyPlayedScreen.kt b/app/src/main/java/com/quantummpv/app/ui/browser/recentlyplayed/RecentlyPlayedScreen.kt
+index e971d125..04124dd7 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/recentlyplayed/RecentlyPlayedScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/recentlyplayed/RecentlyPlayedScreen.kt
+@@ -78,6 +78,8 @@ import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.unit.dp
+ import androidx.lifecycle.viewmodel.compose.viewModel
+ import com.quantummpv.app.R
++import com.quantummpv.app.ui.browser.components.rememberVideoSwipeActions
++import com.quantummpv.app.ui.browser.components.rememberSwipePlaybackInfo
+ import com.quantummpv.app.domain.media.model.Video
+ import com.quantummpv.app.domain.media.model.VideoFolder
+ import com.quantummpv.app.domain.thumbnail.ThumbnailRepository
+@@ -513,6 +515,7 @@ object RecentlyPlayedScreen : Screen {
+               }
+             } else {
+               RecentItemsContent(
++                onChanged = {},
+                 recentItems = pageItems,
+                 selectionManager = selectionManager,
+                 onVideoClick = { video ->
+@@ -636,7 +639,12 @@ private fun RecentItemsContent(
+   isAudioTab: Boolean = false,
+   listState: LazyListState,
+   gridState: LazyGridState,
++  onChanged: () -> Unit,
+ ) {
++  val swipeActions = rememberVideoSwipeActions(onChanged = onChanged)
++  val swipePlaybackInfo = rememberSwipePlaybackInfo(
++    recentItems.filterIsInstance<RecentlyPlayedItem.VideoItem>().map { it.video },
++  )
+   val gesturePreferences = koinInject<GesturePreferences>()
+   val browserPreferences = koinInject<com.quantummpv.app.preferences.BrowserPreferences>()
+   val appearancePreferences = koinInject<AppearancePreferences>()
+@@ -659,6 +667,8 @@ private fun RecentItemsContent(
+   val showDurationField by browserPreferences.showDurationField.collectAsState()
+   val centerGridTitles by browserPreferences.centerGridTitles.collectAsState()
+   val thumbnailQuality by browserPreferences.thumbnailQuality.collectAsState()
++  val swipeLeft by browserPreferences.videoSwipeLeft.collectAsState()
++  val swipeRight by browserPreferences.videoSwipeRight.collectAsState()
+   val manualGridColumnsEnabled by browserPreferences.manualGridColumnsEnabled.collectAsState()
+   val videoGridColumnsPortrait by browserPreferences.videoGridColumnsPortrait.collectAsState()
+   val videoGridColumnsLandscape by browserPreferences.videoGridColumnsLandscape.collectAsState()
+@@ -714,6 +724,8 @@ private fun RecentItemsContent(
+       showDurationField,
+       centerGridTitles,
+       thumbnailQuality,
++      swipeLeft,
++      swipeRight,
+     ) {
+       VideoCardUiConfig(
+         unlimitedNameLines = unlimitedNameLines,
+@@ -730,6 +742,8 @@ private fun RecentItemsContent(
+         showDurationField = showDurationField,
+         centerGridTitles = centerGridTitles,
+         thumbnailQuality = thumbnailQuality,
++        swipeLeft = swipeLeft,
++        swipeRight = swipeRight,
+       )
+     }
+ 
+@@ -823,6 +837,8 @@ private fun RecentItemsContent(
+               is RecentlyPlayedItem.VideoItem -> {
+                 VideoCard(
+                   video = item.video,
++                  isWatched = swipePlaybackInfo[item.video.path]?.isWatched == true,
++                  isOldAndUnplayed = swipePlaybackInfo[item.video.path]?.isOldAndUnplayed == true,
+                   progressPercentage = null,
+                   isSelected = selectionManager.isSelected(item),
+                   onClick = {
+@@ -972,6 +988,10 @@ private fun RecentItemsContent(
+                       }
+                     },
+                   isGridMode = false,
++                  onSwipeAction =
++                    swipeActions.video.takeUnless { selectionManager.isInSelectionMode || isInSelectionMode },
++                  isWatched = swipePlaybackInfo[item.video.path]?.isWatched == true,
++                  isOldAndUnplayed = swipePlaybackInfo[item.video.path]?.isOldAndUnplayed == true,
+                   thumbnailWidthPx = if (isAudioTab) with(density) { musicCoverArtSize.dp.roundToPx() } else null,
+                   thumbnailHeightPx = if (isAudioTab) with(density) { musicCoverArtSize.dp.roundToPx() } else null,
+                   showSubtitleIndicator = showSubtitleIndicator,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/videolist/VideoListScreen.kt b/app/src/main/java/com/quantummpv/app/ui/browser/videolist/VideoListScreen.kt
+index 6288a050..4ed92227 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/videolist/VideoListScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/videolist/VideoListScreen.kt
+@@ -94,6 +94,7 @@ import com.quantummpv.app.ui.browser.components.BrowserTopBar
+ import com.quantummpv.app.ui.browser.components.ExpressiveScrollBar
+ import com.quantummpv.app.ui.browser.components.fastScrollGlyph
+ import com.quantummpv.app.ui.browser.dialogs.AddToPlaylistDialog
++import com.quantummpv.app.ui.browser.components.rememberVideoSwipeActions
+ import com.quantummpv.app.ui.browser.dialogs.DeleteConfirmationDialog
+ import com.quantummpv.app.ui.browser.dialogs.FileOperationProgressDialog
+ import com.quantummpv.app.ui.browser.dialogs.FolderPickerDialog
+@@ -826,6 +827,8 @@ internal fun VideoListContent(
+   isFabExpanded: Boolean = false,
+   onFabExpandedChange: (Boolean) -> Unit = {},
+ ) {
++  val swipeScope = rememberCoroutineScope()
++  val swipeActions = rememberVideoSwipeActions { swipeScope.launch { onRefresh() } }
+   val thumbnailRepository = koinInject<ThumbnailRepository>()
+   val gesturePreferences = koinInject<GesturePreferences>()
+   val browserPreferences = koinInject<BrowserPreferences>()
+@@ -858,6 +861,8 @@ internal fun VideoListContent(
+   val showDurationField by browserPreferences.showDurationField.collectAsState()
+   val centerGridTitles by browserPreferences.centerGridTitles.collectAsState()
+   val thumbnailQuality by browserPreferences.thumbnailQuality.collectAsState()
++  val swipeLeft by browserPreferences.videoSwipeLeft.collectAsState()
++  val swipeRight by browserPreferences.videoSwipeRight.collectAsState()
+   val manualGridColumnsEnabled by browserPreferences.manualGridColumnsEnabled.collectAsState()
+   val videoGridColumnsPortrait by browserPreferences.videoGridColumnsPortrait.collectAsState()
+   val videoGridColumnsLandscape by browserPreferences.videoGridColumnsLandscape.collectAsState()
+@@ -879,6 +884,8 @@ internal fun VideoListContent(
+       showDurationField,
+       centerGridTitles,
+       thumbnailQuality,
++      swipeLeft,
++      swipeRight,
+     ) {
+       VideoCardUiConfig(
+         unlimitedNameLines = unlimitedNameLines,
+@@ -895,6 +902,8 @@ internal fun VideoListContent(
+         showDurationField = showDurationField,
+         centerGridTitles = centerGridTitles,
+         thumbnailQuality = thumbnailQuality,
++        swipeLeft = swipeLeft,
++        swipeRight = swipeRight,
+       )
+     }
+ 
+@@ -1238,6 +1247,7 @@ internal fun VideoListContent(
+                           { onVideoClick(videoWithInfo.video) }
+                         },
+                       isGridMode = false,
++                      onSwipeAction = swipeActions.video.takeUnless { selectionManager.isInSelectionMode },
+                       showSubtitleIndicator = showSubtitleIndicator,
+                       allowThumbnailGeneration = false,
+                       allowThumbnailLoading = allowThumbnailLoading,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/videolist/VideoListViewModel.kt b/app/src/main/java/com/quantummpv/app/ui/browser/videolist/VideoListViewModel.kt
+index 7a4f69eb..d423d576 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/videolist/VideoListViewModel.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/videolist/VideoListViewModel.kt
+@@ -24,6 +24,7 @@ import com.quantummpv.app.ui.player.PlaybackIdentity
+ import com.quantummpv.app.utils.media.MediaLibraryEvents
+ import com.quantummpv.app.utils.media.MetadataRetrieval
+ import com.quantummpv.app.utils.media.PlaybackStateEvents
++import com.quantummpv.app.utils.media.PlaybackStateOps
+ import com.quantummpv.app.utils.storage.FolderViewScanner
+ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.delay
+@@ -84,7 +85,7 @@ internal fun buildVideoWithPlaybackInfo(
+     video = video,
+     timeRemaining = playbackState?.timeRemaining?.toLong(),
+     progressPercentage = progressValue?.takeIf { it in 0.01f..0.99f },
+-    isOldAndUnplayed = !isWatched && isWithinNewLabelWindow,
++    isOldAndUnplayed = !isWatched && (playbackState?.newLabelOverride ?: isWithinNewLabelWindow),
+     isWatched = isWatched,
+   )
+ }
+@@ -279,20 +280,6 @@ class VideoListViewModel(
+     _videosWereDeletedOrMoved.value = true
+   }
+ 
+-  /**
+-   * PlayerActivity persists new playback rows with PlaybackIdentity.forUri(...). Older app
+-   * versions used the display filename. Read the v2 key first and retain legacy fallbacks so
+-   * existing histories continue to work without a destructive database migration.
+-   */
+-  private suspend fun findPlaybackState(video: Video): PlaybackStateEntity? {
+-    for (identifier in videoPlaybackIdentifiers(video)) {
+-      playbackStateRepository.getVideoDataByTitle(identifier)?.let { return it }
+-    }
+-    return null
+-  }
+-
+-  private fun canonicalPlaybackIdentifier(video: Video): String = PlaybackIdentity.forLocalPath(video.path)
+-
+   private suspend fun loadPlaybackInfo(videos: List<Video>) {
+     val playbackByIdentifier = playbackStateRepository.getAllPlaybackStates().associateBy { it.mediaTitle }
+     val watchedThreshold = browserPreferences.watchedThreshold.get()
+@@ -368,19 +355,8 @@ class VideoListViewModel(
+     }
+ 
+     viewModelScope.launch(Dispatchers.IO) {
+-      val durationSeconds = (video.duration / 1000L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+-      val canonicalIdentifier = canonicalPlaybackIdentifier(video)
+       runCatching {
+-        val existing = findPlaybackState(video)
+-        playbackStateRepository.upsert(
+-          (existing ?: emptyPlaybackState(video, durationSeconds)).copy(
+-            mediaTitle = canonicalIdentifier,
+-            lastPosition = 0,
+-            timeRemaining = if (watched) 0 else durationSeconds,
+-            hasBeenWatched = watched,
+-          ),
+-        )
+-        PlaybackStateEvents.notifyChanged(canonicalIdentifier)
++        PlaybackStateOps.setWatched(video, watched)
+       }.onFailure { error ->
+         Log.e(tag, "Failed to update watched state for ${video.displayName}", error)
+         loadPlaybackInfo(_videos.value)
+@@ -388,24 +364,6 @@ class VideoListViewModel(
+     }
+   }
+ 
+-  private fun emptyPlaybackState(
+-    video: Video,
+-    durationSeconds: Int,
+-  ): PlaybackStateEntity =
+-    PlaybackStateEntity(
+-      mediaTitle = canonicalPlaybackIdentifier(video),
+-      lastPosition = 0,
+-      playbackSpeed = 1.0,
+-      sid = -1,
+-      secondarySid = -1,
+-      subDelay = 0,
+-      subSpeed = 1.0,
+-      aid = -1,
+-      audioDelay = 0,
+-      timeRemaining = durationSeconds,
+-      hasBeenWatched = false,
+-    )
+-
+   private fun triggerMediaScan() {
+     try {
+       // Trigger a targeted media scan for the specific folder
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/GesturePreferencesScreen.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/GesturePreferencesScreen.kt
+index 595cdb96..09538a59 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/GesturePreferencesScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/GesturePreferencesScreen.kt
+@@ -130,6 +130,13 @@ object GesturePreferencesScreen : Screen {
+               )
+               PreferenceDivider()
+ 
++              me.zhanghai.compose.preference.Preference(
++                title = { Text(stringResource(R.string.pref_video_swipe_title)) },
++                onClick = { backstack.add(VideoSwipePreferencesScreen) },
++                modifier = Modifier.settingsSearchTarget(R.string.pref_video_swipe_title),
++              )
++              PreferenceDivider()
++
+               val brightnessGesture by playerPreferences.brightnessGesture.collectAsState()
+               SwitchPreference(
+                 modifier = Modifier.settingsSearchTarget(R.string.pref_player_gestures_brightness),
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/SearchablePreference.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/SearchablePreference.kt
+index 527765a0..4fa56454 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/SearchablePreference.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/SearchablePreference.kt
+@@ -474,6 +474,30 @@ object SearchablePreferences {
+           screen = GesturePreferencesScreen,
+         ),
+       )
++      add(
++        SearchablePreference(
++          titleRes = R.string.pref_video_swipe_title,
++          keywords = listOf("swipe", "left", "right", "video", "folder", "watched", "queue", "delete"),
++          category = "Gestures",
++          screen = GesturePreferencesScreen,
++        ),
++      )
++      add(
++        SearchablePreference(
++          titleRes = R.string.pref_video_swipe_right,
++          keywords = listOf("swipe", "video", "folder", "action"),
++          category = "Gestures",
++          screen = VideoSwipePreferencesScreen,
++        ),
++      )
++      add(
++        SearchablePreference(
++          titleRes = R.string.pref_video_swipe_left,
++          keywords = listOf("swipe", "video", "folder", "action"),
++          category = "Gestures",
++          screen = VideoSwipePreferencesScreen,
++        ),
++      )
+       add(
+         SearchablePreference(
+           titleRes = R.string.pref_player_gestures_brightness,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/SettingsSearchNavigation.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/SettingsSearchNavigation.kt
+index 1d7f0dbe..6d636fae 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/SettingsSearchNavigation.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/SettingsSearchNavigation.kt
+@@ -119,6 +119,7 @@ private val settingsSearchListAnchors: Map<Screen, List<SettingsSearchListAnchor
+       listOf(
+         SettingsSearchListAnchor(titleRes = R.string.pref_gesture, itemIndex = 0),
+         SettingsSearchListAnchor(titleRes = R.string.pref_haptic_feedback_title, itemIndex = 1),
++        SettingsSearchListAnchor(titleRes = R.string.pref_video_swipe_title, itemIndex = 1),
+         SettingsSearchListAnchor(titleRes = R.string.pref_player_gestures_brightness, itemIndex = 1),
+         SettingsSearchListAnchor(titleRes = R.string.pref_player_gestures_volume, itemIndex = 1),
+         SettingsSearchListAnchor(titleRes = R.string.pref_player_gestures_pinch_to_zoom, itemIndex = 1),
+@@ -135,6 +136,11 @@ private val settingsSearchListAnchors: Map<Screen, List<SettingsSearchListAnchor
+         SettingsSearchListAnchor(titleRes = R.string.pref_gesture_media_play, itemIndex = 5),
+         SettingsSearchListAnchor(titleRes = R.string.pref_gesture_media_next, itemIndex = 5),
+       ),
++    VideoSwipePreferencesScreen to
++      listOf(
++        SettingsSearchListAnchor(titleRes = R.string.pref_video_swipe_right, itemIndex = 0),
++        SettingsSearchListAnchor(titleRes = R.string.pref_video_swipe_left, itemIndex = 1),
++      ),
+     DecoderPreferencesScreen to
+       listOf(
+         SettingsSearchListAnchor(titleRes = R.string.pref_decoder, itemIndex = 0),
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/VideoSwipePreferencesScreen.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/VideoSwipePreferencesScreen.kt
+new file mode 100644
+index 00000000..9a3520fe
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/VideoSwipePreferencesScreen.kt
+@@ -0,0 +1,242 @@
++package com.quantummpv.app.ui.preferences
++
++import androidx.compose.animation.Crossfade
++import androidx.compose.animation.animateColorAsState
++import androidx.compose.animation.core.animateFloatAsState
++import androidx.compose.animation.core.snap
++import androidx.compose.foundation.background
++import androidx.compose.foundation.layout.Arrangement
++import androidx.compose.foundation.layout.Box
++import androidx.compose.foundation.layout.Column
++import androidx.compose.foundation.layout.Row
++import androidx.compose.foundation.layout.Spacer
++import androidx.compose.foundation.layout.fillMaxSize
++import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.height
++import androidx.compose.foundation.layout.heightIn
++import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.layout.size
++import androidx.compose.foundation.layout.width
++import androidx.compose.foundation.lazy.LazyColumn
++import androidx.compose.foundation.rememberScrollState
++import androidx.compose.foundation.selection.selectable
++import androidx.compose.foundation.selection.selectableGroup
++import androidx.compose.foundation.shape.RoundedCornerShape
++import androidx.compose.foundation.verticalScroll
++import androidx.compose.material3.AlertDialog
++import androidx.compose.material3.ExperimentalMaterial3Api
++import androidx.compose.material3.HorizontalDivider
++import androidx.compose.material3.IconButton
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.RadioButton
++import androidx.compose.material3.Scaffold
++import androidx.compose.material3.Text
++import androidx.compose.material3.TextButton
++import androidx.compose.material3.TopAppBar
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.getValue
++import androidx.compose.runtime.mutableStateOf
++import androidx.compose.runtime.saveable.rememberSaveable
++import androidx.compose.runtime.setValue
++import androidx.compose.ui.AbsoluteAlignment
++import androidx.compose.ui.Alignment
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.draw.clip
++import androidx.compose.ui.graphics.graphicsLayer
++import androidx.compose.ui.platform.LocalDensity
++import androidx.compose.ui.res.stringResource
++import androidx.compose.ui.semantics.Role
++import androidx.compose.ui.semantics.clearAndSetSemantics
++import androidx.compose.ui.text.style.TextOverflow
++import androidx.compose.ui.unit.dp
++import com.quantummpv.app.R
++import com.quantummpv.app.preferences.BrowserPreferences
++import com.quantummpv.app.preferences.VideoSwipeAction
++import com.quantummpv.app.preferences.preference.collectAsState
++import com.quantummpv.app.presentation.Screen
++import com.quantummpv.app.ui.browser.cards.containerColor
++import com.quantummpv.app.ui.browser.cards.contentColor
++import com.quantummpv.app.ui.browser.cards.icon
++import com.quantummpv.app.ui.browser.cards.labelRes
++import com.quantummpv.app.ui.icons.Icon
++import com.quantummpv.app.ui.icons.Icons
++import com.quantummpv.app.ui.theme.AppMotion
++import com.quantummpv.app.ui.utils.LocalBackStack
++import com.quantummpv.app.ui.utils.popSafely
++import com.quantummpv.app.ui.utils.rememberAppHaptics
++import kotlinx.serialization.Serializable
++import org.koin.compose.koinInject
++
++@Serializable
++object VideoSwipePreferencesScreen : Screen {
++  @OptIn(ExperimentalMaterial3Api::class)
++  @Composable
++  override fun Content() {
++    val preferences = koinInject<BrowserPreferences>()
++    val right by preferences.videoSwipeRight.collectAsState()
++    val left by preferences.videoSwipeLeft.collectAsState()
++    val backStack = LocalBackStack.current
++    val haptics = rememberAppHaptics()
++    var editingRight by rememberSaveable { mutableStateOf<Boolean?>(null) }
++
++    Scaffold(
++      topBar = {
++        TopAppBar(
++          title = {
++            Text(
++              stringResource(R.string.pref_video_swipe_title),
++              style = MaterialTheme.typography.titleLarge,
++              maxLines = 1,
++              overflow = TextOverflow.Ellipsis,
++            )
++          },
++          navigationIcon = {
++            IconButton(onClick = { backStack.popSafely() }) { Icon(Icons.RoundedFilled.ArrowBack, null) }
++          },
++        )
++      },
++    ) { padding ->
++      val (listState, highlight) =
++        rememberSettingsSearchList(VideoSwipePreferencesScreen, MaterialTheme.colorScheme.primary)
++      LazyColumn(state = listState, modifier = Modifier.fillMaxSize().padding(padding).then(highlight)) {
++        item {
++          SwipeDirectionPreference(
++            right = true,
++            action = right,
++            modifier = Modifier.settingsSearchTarget(R.string.pref_video_swipe_right),
++            onChange = { editingRight = true },
++          )
++          HorizontalDivider()
++        }
++        item {
++          SwipeDirectionPreference(
++            right = false,
++            action = left,
++            modifier = Modifier.settingsSearchTarget(R.string.pref_video_swipe_left),
++            onChange = { editingRight = false },
++          )
++        }
++      }
++    }
++
++    editingRight?.let { isRight ->
++      val selectedAction = if (isRight) right else left
++      AlertDialog(
++        onDismissRequest = { editingRight = null },
++        title = {
++          val titleRes = if (isRight) R.string.pref_video_swipe_choose_right else R.string.pref_video_swipe_choose_left
++          Text(stringResource(titleRes))
++        },
++        text = {
++          Column(Modifier.verticalScroll(rememberScrollState()).selectableGroup()) {
++            VideoSwipeAction.entries.forEach { action ->
++              Row(
++                modifier = Modifier.fillMaxWidth()
++                  .selectable(selected = action == selectedAction, role = Role.RadioButton) {
++                    if (action != selectedAction) {
++                      if (isRight) preferences.videoSwipeRight.set(action) else preferences.videoSwipeLeft.set(action)
++                      haptics.selection(true)
++                    }
++                    editingRight = null
++                  }.heightIn(min = 56.dp).padding(vertical = 8.dp),
++                verticalAlignment = Alignment.CenterVertically,
++                horizontalArrangement = Arrangement.spacedBy(12.dp),
++              ) {
++                RadioButton(selected = action == selectedAction, onClick = null)
++                Icon(action.icon(), null, modifier = Modifier.size(24.dp))
++                Text(stringResource(action.labelRes(null)), modifier = Modifier.weight(1f))
++              }
++            }
++          }
++        },
++        confirmButton = {},
++        dismissButton = {
++          TextButton(onClick = { editingRight = null }) { Text(stringResource(R.string.generic_cancel)) }
++        },
++      )
++    }
++  }
++}
++
++@Composable
++private fun SwipeDirectionPreference(
++  right: Boolean,
++  action: VideoSwipeAction,
++  modifier: Modifier = Modifier,
++  onChange: () -> Unit,
++) {
++  Column(modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 20.dp)) {
++    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
++      Column(Modifier.weight(1f)) {
++        Text(
++          stringResource(if (right) R.string.pref_video_swipe_right else R.string.pref_video_swipe_left),
++          style = MaterialTheme.typography.titleMedium,
++        )
++        Text(
++          stringResource(action.labelRes(null)),
++          style = MaterialTheme.typography.bodyMedium,
++          color = MaterialTheme.colorScheme.onSurfaceVariant,
++        )
++      }
++      TextButton(onClick = onChange) {
++        Icon(Icons.RoundedFilled.Edit, null, modifier = Modifier.size(18.dp))
++        Spacer(Modifier.width(6.dp))
++        Text(stringResource(R.string.pref_video_swipe_change))
++      }
++    }
++    Spacer(Modifier.height(16.dp))
++    SwipeActionPreview(right, action)
++  }
++}
++
++@Composable
++private fun SwipeActionPreview(right: Boolean, action: VideoSwipeAction) {
++  val density = LocalDensity.current
++  val offset by animateFloatAsState(
++    targetValue = if (action == VideoSwipeAction.None) 0f else with(density) { 76.dp.toPx() } * if (right) 1f else -1f,
++    animationSpec = AppMotion.spatial(AppMotion.Spatial.ExpressiveFast, snap()),
++    label = "swipePreviewOffset",
++  )
++  val background by animateColorAsState(
++    targetValue = action.containerColor(),
++    animationSpec = AppMotion.spatial(AppMotion.Effect.Color, snap()),
++    label = "swipePreviewColor",
++  )
++  Box(
++    Modifier.fillMaxWidth().height(88.dp).clip(RoundedCornerShape(8.dp))
++      .background(background).clearAndSetSemantics { },
++  ) {
++    Crossfade(
++      targetState = action,
++      animationSpec = AppMotion.spatial(AppMotion.Effect.Alpha, snap()),
++      modifier = Modifier
++        .align(if (right) AbsoluteAlignment.CenterLeft else AbsoluteAlignment.CenterRight)
++        .width(76.dp),
++      label = "swipePreviewAction",
++    ) { previewAction ->
++      Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
++        Icon(previewAction.icon(), null, tint = previewAction.contentColor(), modifier = Modifier.size(28.dp))
++      }
++    }
++    Row(
++      modifier = Modifier.fillMaxSize().graphicsLayer { translationX = offset }
++        .background(MaterialTheme.colorScheme.surfaceContainerLow).padding(16.dp),
++      verticalAlignment = Alignment.CenterVertically,
++      horizontalArrangement = Arrangement.spacedBy(16.dp),
++    ) {
++      Box(
++        Modifier.size(48.dp).background(MaterialTheme.colorScheme.surfaceContainerHighest, RoundedCornerShape(6.dp)),
++        contentAlignment = Alignment.Center,
++      ) {
++        Icon(Icons.RoundedFilled.PlayArrow, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
++      }
++      Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
++        Box(Modifier.fillMaxWidth(0.85f).height(8.dp).background(MaterialTheme.colorScheme.outlineVariant))
++        Box(
++          Modifier.fillMaxWidth(0.55f).height(6.dp)
++            .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
++        )
++      }
++    }
++  }
++}
+\ No newline at end of file
+diff --git a/app/src/main/java/com/quantummpv/app/utils/history/RecentlyPlayedOps.kt b/app/src/main/java/com/quantummpv/app/utils/history/RecentlyPlayedOps.kt
+index 3f774b74..96906924 100644
+--- a/app/src/main/java/com/quantummpv/app/utils/history/RecentlyPlayedOps.kt
++++ b/app/src/main/java/com/quantummpv/app/utils/history/RecentlyPlayedOps.kt
+@@ -12,6 +12,7 @@ package com.quantummpv.app.utils.history
+ import android.annotation.SuppressLint
+ import android.net.Uri
+ import com.quantummpv.app.database.entities.RecentlyPlayedEntity
++import com.quantummpv.app.domain.media.model.Video
+ import com.quantummpv.app.domain.recentlyplayed.repository.RecentlyPlayedRepository
+ import com.quantummpv.app.preferences.AdvancedPreferences
+ import kotlinx.coroutines.Dispatchers
+@@ -22,6 +23,7 @@ import kotlinx.coroutines.flow.flowOn
+ import kotlinx.coroutines.flow.mapLatest
+ import kotlinx.coroutines.withContext
+ import org.koin.java.KoinJavaComponent.inject
++import java.io.File
+ 
+ object RecentlyPlayedOps {
+   private val repository: RecentlyPlayedRepository by inject(RecentlyPlayedRepository::class.java)
+@@ -153,6 +155,31 @@ object RecentlyPlayedOps {
+       }.distinctUntilChanged()
+       .flowOn(Dispatchers.IO)
+ 
++  suspend fun removeVideoHistory(video: Video) = withContext(Dispatchers.IO) {
++    setOf(video.path, video.uri.toString(), Uri.fromFile(File(video.path)).toString()).forEach { path ->
++      repository.deleteByFilePath(path)
++    }
++  }
++
++  suspend fun markLastPlayed(videos: List<Video>): Boolean =
++    withContext(Dispatchers.IO) {
++      if (!preferences.enableRecentlyPlayed.get() || videos.isEmpty()) return@withContext false
++      videos.asReversed().forEach { video ->
++        addRecentlyPlayed(
++          filePath = video.path,
++          fileName = video.displayName,
++          videoTitle = video.title,
++          duration = video.duration,
++          fileSize = video.size,
++          width = video.width,
++          height = video.height,
++          launchSource = "normal",
++        )
++        repository.markLastPlayed(video.path, System.currentTimeMillis())
++      }
++      true
++    }
++
+   suspend fun onVideoDeleted(filePath: String) {
+     if (filePath.isBlank()) return
+     withContext(Dispatchers.IO) {
+diff --git a/app/src/main/java/com/quantummpv/app/utils/media/PlaybackStateOps.kt b/app/src/main/java/com/quantummpv/app/utils/media/PlaybackStateOps.kt
+index af7e9de7..10f201a7 100644
+--- a/app/src/main/java/com/quantummpv/app/utils/media/PlaybackStateOps.kt
++++ b/app/src/main/java/com/quantummpv/app/utils/media/PlaybackStateOps.kt
+@@ -10,7 +10,17 @@
+ package com.quantummpv.app.utils.media
+ 
+ import android.util.Log
++import com.quantummpv.app.database.MpvRxDatabase
++import com.quantummpv.app.database.entities.PlaybackStateEntity
++import com.quantummpv.app.domain.media.model.Video
+ import com.quantummpv.app.domain.playbackstate.repository.PlaybackStateRepository
++import com.quantummpv.app.ui.browser.videolist.videoPlaybackIdentifiers
++import com.quantummpv.app.ui.player.PlaybackIdentity
++import com.quantummpv.app.utils.history.RecentlyPlayedOps
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.currentCoroutineContext
++import kotlinx.coroutines.ensureActive
++import kotlinx.coroutines.withContext
+ import org.koin.java.KoinJavaComponent.inject
+ import java.io.File
+ 
+@@ -20,6 +30,96 @@ import java.io.File
+ object PlaybackStateOps {
+   private const val TAG = "PlaybackStateOps"
+   private val repository: PlaybackStateRepository by inject(PlaybackStateRepository::class.java)
++  private val database: MpvRxDatabase by inject(MpvRxDatabase::class.java)
++
++  suspend fun setWatched(video: Video, watched: Boolean) = setWatched(listOf(video), watched)
++
++  suspend fun setWatched(videos: List<Video>, watched: Boolean) = withContext(Dispatchers.IO) {
++    try {
++      videos.forEach { video ->
++        currentCoroutineContext().ensureActive()
++        persistWatched(video, watched)
++        database.playlistDao().clearResumePositionForFile(video.path)
++      }
++    } finally {
++      PlaybackStateEvents.notifyChanged(videos.singleOrNull()?.let { PlaybackIdentity.forLocalPath(it.path) }.orEmpty())
++    }
++  }
++
++  suspend fun areAllWatched(videos: List<Video>, threshold: Int): Boolean {
++    val watched = watchedPaths(videos, threshold)
++    return videos.isNotEmpty() && videos.all { it.path in watched }
++  }
++
++  suspend fun watchedPaths(videos: List<Video>, threshold: Int): Set<String> = withContext(Dispatchers.IO) {
++    val states = repository.getAllPlaybackStates().associateBy { it.mediaTitle }
++    videos.filter { video ->
++      val state = videoPlaybackIdentifiers(video).firstNotNullOfOrNull(states::get)
++      val duration = video.duration / 1000.0
++      state != null && (state.hasBeenWatched ||
++        (threshold > 0 && duration > 0 && (duration - state.timeRemaining) / duration >= threshold / 100.0))
++    }.mapTo(mutableSetOf()) { it.path }
++  }
++
++  suspend fun resetWatchHistory(videos: List<Video>, markAsNew: Boolean) = withContext(Dispatchers.IO) {
++    try {
++      videos.forEach { video ->
++        currentCoroutineContext().ensureActive()
++        persistWatched(video, watched = false, newLabelOverride = markAsNew)
++        val identifier = PlaybackIdentity.forLocalPath(video.path)
++        videoPlaybackIdentifiers(video).filterNot { it == identifier }.forEach { repository.deleteByTitle(it) }
++        RecentlyPlayedOps.removeVideoHistory(video)
++        database.playlistDao().clearPlayHistoryForFile(video.path)
++      }
++    } finally {
++      PlaybackStateEvents.notifyChanged("")
++    }
++  }
++
++  suspend fun markLastPlayed(videos: List<Video>): Boolean = withContext(Dispatchers.IO) {
++    if (!RecentlyPlayedOps.markLastPlayed(videos)) return@withContext false
++    try {
++      videos.forEach { video ->
++        currentCoroutineContext().ensureActive()
++        val existing = videoPlaybackIdentifiers(video).firstNotNullOfOrNull { repository.getVideoDataByTitle(it) }
++        if (existing == null) {
++          persistWatched(video, watched = false, newLabelOverride = false)
++        } else {
++          repository.upsert(existing.copy(newLabelOverride = false))
++        }
++        database.playlistDao().markFileLastPlayed(video.path, System.currentTimeMillis())
++      }
++    } finally {
++      PlaybackStateEvents.notifyChanged("")
++    }
++    true
++  }
++
++  private suspend fun persistWatched(video: Video, watched: Boolean, newLabelOverride: Boolean? = null) {
++    val identifier = PlaybackIdentity.forLocalPath(video.path)
++    val existing = videoPlaybackIdentifiers(video).firstNotNullOfOrNull { repository.getVideoDataByTitle(it) }
++    val durationSeconds = (video.duration / 1000L).coerceIn(0L, Int.MAX_VALUE.toLong()).toInt()
++    val state = existing ?: PlaybackStateEntity(
++      mediaTitle = identifier,
++      lastPosition = 0,
++      playbackSpeed = 1.0,
++      sid = -1,
++      secondarySid = -1,
++      subDelay = 0,
++      subSpeed = 1.0,
++      aid = -1,
++      audioDelay = 0,
++    )
++    repository.upsert(
++      state.copy(
++        mediaTitle = identifier,
++        lastPosition = 0,
++        timeRemaining = if (watched) 0 else durationSeconds,
++        hasBeenWatched = watched,
++        newLabelOverride = newLabelOverride,
++      ),
++    )
++  }
+ 
+   /**
+    * Called when a video file is renamed
+diff --git a/app/src/main/java/com/quantummpv/app/utils/storage/TreeViewScanner.kt b/app/src/main/java/com/quantummpv/app/utils/storage/TreeViewScanner.kt
+index c2096b8d..a38fa1d3 100644
+--- a/app/src/main/java/com/quantummpv/app/utils/storage/TreeViewScanner.kt
++++ b/app/src/main/java/com/quantummpv/app/utils/storage/TreeViewScanner.kt
+@@ -13,6 +13,7 @@ import android.content.Context
+ import android.os.Environment
+ import android.provider.MediaStore
+ import android.util.Log
++import com.quantummpv.app.ui.player.PlaybackIdentity
+ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.withContext
+ import java.io.File
+@@ -51,6 +52,7 @@ object TreeViewScanner {
+ 
+   private data class VideoInfo(
+     val displayName: String,
++    val filePath: String,
+     val size: Long,
+     val duration: Long,
+     val dateModified: Long,
+@@ -82,6 +84,7 @@ object TreeViewScanner {
+     val enabled: Boolean,
+     val thresholdMillis: Long,
+     val playedMediaTitles: Set<String>,
++    val newLabelOverrides: Map<String, Boolean>,
+   )
+ 
+   suspend fun getFoldersInDirectory(
+@@ -93,6 +96,7 @@ object TreeViewScanner {
+     showNewLabels: Boolean = false,
+     thresholdDays: Int = 7,
+     maxAutoFlattenLevels: Int = -1,
++    newLabelOverrides: Map<String, Boolean> = emptyMap(),
+   ): List<FolderData> =
+     withContext(Dispatchers.IO) {
+       val allFolders =
+@@ -103,6 +107,7 @@ object TreeViewScanner {
+           playedMediaTitles = playedMediaTitles,
+           showNewLabels = showNewLabels,
+           thresholdDays = thresholdDays,
++          newLabelOverrides = newLabelOverrides,
+         )
+ 
+       getEffectiveChildren(parentPath, allFolders, maxAutoFlattenLevels)
+@@ -118,6 +123,7 @@ object TreeViewScanner {
+     playedMediaTitles: Set<String> = emptySet(),
+     showNewLabels: Boolean = false,
+     thresholdDays: Int = 7,
++    newLabelOverrides: Map<String, Boolean> = emptyMap(),
+   ): FolderData? =
+     withContext(Dispatchers.IO) {
+       val allFolders =
+@@ -128,6 +134,7 @@ object TreeViewScanner {
+           playedMediaTitles = playedMediaTitles,
+           showNewLabels = showNewLabels,
+           thresholdDays = thresholdDays,
++          newLabelOverrides = newLabelOverrides,
+         )
+       val normalizedFolderPath = normalizeStoragePath(folderPath) ?: return@withContext null
+       val folderKey = storagePathKey(normalizedFolderPath) ?: return@withContext null
+@@ -158,6 +165,7 @@ object TreeViewScanner {
+     playedMediaTitles: Set<String>,
+     showNewLabels: Boolean,
+     thresholdDays: Int,
++    newLabelOverrides: Map<String, Boolean>,
+   ): Map<String, FolderNode> =
+     withContext(Dispatchers.IO) {
+       val now = System.currentTimeMillis()
+@@ -167,6 +175,7 @@ object TreeViewScanner {
+           showNewLabels = showNewLabels,
+           thresholdDays = thresholdDays,
+           playedMediaTitles = playedMediaTitles,
++          newLabelOverrides = newLabelOverrides,
+         )
+ 
+       cachedTreeViewData?.let { cached ->
+@@ -183,6 +192,7 @@ object TreeViewScanner {
+           playedMediaTitles = playedMediaTitles,
+           showNewLabels = showNewLabels,
+           thresholdDays = thresholdDays,
++          newLabelOverrides = newLabelOverrides,
+         )
+ 
+       cachedTreeViewData = data
+@@ -196,6 +206,7 @@ object TreeViewScanner {
+     showNewLabels: Boolean,
+     thresholdDays: Int,
+     playedMediaTitles: Set<String>,
++    newLabelOverrides: Map<String, Boolean>,
+   ): String {
+     val playedTitlesHash =
+       if (showNewLabels) {
+@@ -204,7 +215,8 @@ object TreeViewScanner {
+         0
+       }
+ 
+-    return "${options.cacheKey}|new=$showNewLabels|days=$thresholdDays|played=$playedTitlesHash"
++    return "${options.cacheKey}|new=$showNewLabels|days=$thresholdDays|played=$playedTitlesHash" +
++      "|marks=${newLabelOverrides.hashCode()}"
+   }
+ 
+   private suspend fun buildTreeViewData(
+@@ -214,6 +226,7 @@ object TreeViewScanner {
+     playedMediaTitles: Set<String>,
+     showNewLabels: Boolean,
+     thresholdDays: Int,
++    newLabelOverrides: Map<String, Boolean>,
+   ): Map<String, FolderNode> =
+     withContext(Dispatchers.IO) {
+       val allFolders = mutableMapOf<String, FolderNode>()
+@@ -224,6 +237,7 @@ object TreeViewScanner {
+           enabled = showNewLabels,
+           thresholdMillis = thresholdDays.toLong() * 24L * 60L * 60L * 1000L,
+           playedMediaTitles = playedMediaTitles,
++          newLabelOverrides = newLabelOverrides,
+         )
+       val currentTimeMs = System.currentTimeMillis()
+ 
+@@ -302,6 +316,7 @@ object TreeViewScanner {
+             aggregate.videos.add(
+               VideoInfo(
+                 displayName = cursor.getString(displayNameColumn) ?: file.name,
++                filePath = file.absolutePath,
+                 size = cursor.getLong(sizeColumn),
+                 duration = cursor.getLong(durationColumn),
+                 dateModified = cursor.getLong(dateColumn),
+@@ -335,6 +350,7 @@ object TreeViewScanner {
+         videos.count { video ->
+           isVideoNew(
+             displayName = video.displayName,
++            filePath = video.filePath,
+             dateModifiedSeconds = video.dateModified,
+             currentTimeMs = currentTimeMs,
+             newBadgeConfig = newBadgeConfig,
+@@ -398,6 +414,7 @@ object TreeViewScanner {
+             audioByFolder.getOrPut(folderKey) { FolderAggregate(folderPath) }.videos +=
+               VideoInfo(
+                 displayName = cursor.getString(nameColumn) ?: file.name,
++                filePath = file.absolutePath,
+                 size = cursor.getLong(sizeColumn),
+                 duration = duration,
+                 dateModified = cursor.getLong(dateColumn),
+@@ -428,6 +445,7 @@ object TreeViewScanner {
+ 
+   private fun isVideoNew(
+     displayName: String,
++    filePath: String,
+     dateModifiedSeconds: Long,
+     currentTimeMs: Long,
+     newBadgeConfig: NewBadgeConfig,
+@@ -436,12 +454,14 @@ object TreeViewScanner {
+       return false
+     }
+ 
+-    if (displayName in newBadgeConfig.playedMediaTitles) {
++    val identifier = PlaybackIdentity.forLocalPath(filePath)
++    if (displayName in newBadgeConfig.playedMediaTitles || identifier in newBadgeConfig.playedMediaTitles) {
+       return false
+     }
++    newBadgeConfig.newLabelOverrides[identifier]?.let { return it }
+ 
+     val videoAgeMs = currentTimeMs - (dateModifiedSeconds * 1000L)
+-    return videoAgeMs <= newBadgeConfig.thresholdMillis
++    return newBadgeConfig.thresholdMillis == 0L || videoAgeMs <= newBadgeConfig.thresholdMillis
+   }
+ 
+   private fun scanFileSystemRoots(
+@@ -543,6 +563,7 @@ object TreeViewScanner {
+             mediaFiles.count { file ->
+               isVideoNew(
+                 displayName = file.name,
++                filePath = file.absolutePath,
+                 dateModifiedSeconds = file.lastModified() / 1000L,
+                 currentTimeMs = currentTimeMs,
+                 newBadgeConfig = newBadgeConfig,
+diff --git a/app/src/main/res/values-ar/strings.xml b/app/src/main/res/values-ar/strings.xml
+index 9f2e492b..d4e20e03 100644
+--- a/app/src/main/res/values-ar/strings.xml
++++ b/app/src/main/res/values-ar/strings.xml
+@@ -2293,4 +2293,25 @@
+   <string name="ytdlp_install_failed">تعذر تثبيت yt-dlp. تحقق من الاتصال وحاول مجددًا.</string>
+   <string name="ytdlp_install_prompt_subtitle">يتطلب تشغيل هذا الرابط yt-dlp. ثبّته الآن أو اضبطه لاحقًا من الإعدادات.</string>
+   <string name="ytdlp_installing">جارٍ تثبيت yt-dlp…</string>
++  <string name="video_swipe_play_next">تشغيل تاليًا</string>
++  <string name="video_swipe_add_queue">إضافة إلى قائمة الانتظار</string>
++  <string name="pref_video_swipe_title">إجراءات سحب الفيديوهات والمجلدات</string>
++  <string name="pref_video_swipe_right">السحب إلى اليمين</string>
++  <string name="pref_video_swipe_left">السحب إلى اليسار</string>
++  <string name="pref_video_swipe_choose_right">إجراء السحب إلى اليمين</string>
++  <string name="pref_video_swipe_choose_left">إجراء السحب إلى اليسار</string>
++  <string name="pref_video_swipe_toggle_watched">تحديد كمُشاهد / غير مُشاهد</string>
++  <string name="pref_video_swipe_change">تغيير</string>
++  <string name="video_swipe_delete_title">حذف الفيديوهات؟</string>
++  <string name="video_swipe_delete_message">هل تريد حذف \"%1$s\" نهائيًا؟ لا يمكن التراجع عن هذا الإجراء.</string>
++  <string name="video_swipe_delete_folder_message">هل تريد حذف الفيديوهات في \"%2$s\" ومجلداته الفرعية نهائيًا؟ العدد: %1$d. ستبقى الملفات والمجلدات الأخرى. لا يمكن التراجع عن هذا الإجراء.</string>
++  <string name="video_swipe_delete_result">المحذوفة: %1$d. الفاشلة أو الملغاة: %2$d.</string>
++  <string name="video_swipe_loading">جارٍ جمع الفيديوهات</string>
++  <string name="video_swipe_folder_videos">المجلد ومجلداته الفرعية</string>
++  <string name="video_swipe_folder_empty">لم يتم العثور على فيديوهات في هذا المجلد</string>
++  <string name="video_swipe_mark_new">جديد</string>
++  <string name="video_swipe_last_played">آخر تشغيل</string>
++  <string name="video_swipe_finished">مُشاهد بالكامل</string>
++  <string name="video_swipe_clear_history">مسح العلامات وسجل المشاهدة</string>
++  <string name="video_swipe_recent_disabled">سجل آخر تشغيل معطّل في الإعدادات</string>
+ </resources>
+diff --git a/app/src/main/res/values-de/strings.xml b/app/src/main/res/values-de/strings.xml
+index f4d1e3d8..a84dbc78 100644
+--- a/app/src/main/res/values-de/strings.xml
++++ b/app/src/main/res/values-de/strings.xml
+@@ -2279,4 +2279,25 @@ Bitte starten Sie die App neu, damit alle Änderungen wirksam werden.</string>
+   <string name="ytdlp_install_failed">yt-dlp konnte nicht installiert werden. Prüfe die Verbindung und versuche es erneut.</string>
+   <string name="ytdlp_install_prompt_subtitle">Zum Abspielen dieses Links wird yt-dlp benötigt. Jetzt installieren oder später in den Einstellungen konfigurieren.</string>
+   <string name="ytdlp_installing">yt-dlp wird installiert…</string>
++  <string name="video_swipe_play_next">Als Nächstes abspielen</string>
++  <string name="video_swipe_add_queue">Zur Warteschlange hinzufügen</string>
++  <string name="pref_video_swipe_title">Wischaktionen für Videos und Ordner</string>
++  <string name="pref_video_swipe_right">Nach rechts wischen</string>
++  <string name="pref_video_swipe_left">Nach links wischen</string>
++  <string name="pref_video_swipe_choose_right">Aktion beim Wischen nach rechts</string>
++  <string name="pref_video_swipe_choose_left">Aktion beim Wischen nach links</string>
++  <string name="pref_video_swipe_toggle_watched">Als gesehen / ungesehen markieren</string>
++  <string name="pref_video_swipe_change">Ändern</string>
++  <string name="video_swipe_delete_title">Videos löschen?</string>
++  <string name="video_swipe_delete_message">\"%1$s\" endgültig löschen? Dies kann nicht rückgängig gemacht werden.</string>
++  <string name="video_swipe_delete_folder_message">Videos in \"%2$s\" und seinen Unterordnern endgültig löschen? Anzahl: %1$d. Andere Dateien und Ordner bleiben erhalten. Dies kann nicht rückgängig gemacht werden.</string>
++  <string name="video_swipe_delete_result">Gelöscht: %1$d. Fehlgeschlagen oder abgebrochen: %2$d.</string>
++  <string name="video_swipe_loading">Videos werden ermittelt</string>
++  <string name="video_swipe_folder_videos">Ordner und Unterordner</string>
++  <string name="video_swipe_folder_empty">Keine Videos in diesem Ordner gefunden</string>
++  <string name="video_swipe_mark_new">Neu</string>
++  <string name="video_swipe_last_played">Zuletzt abgespielt</string>
++  <string name="video_swipe_finished">Vollständig angesehen</string>
++  <string name="video_swipe_clear_history">Markierungen und Verlauf löschen</string>
++  <string name="video_swipe_recent_disabled">Zuletzt abgespielt ist in den Einstellungen deaktiviert</string>
+ </resources>
+diff --git a/app/src/main/res/values-es/strings.xml b/app/src/main/res/values-es/strings.xml
+index 909143f6..2be00a2e 100644
+--- a/app/src/main/res/values-es/strings.xml
++++ b/app/src/main/res/values-es/strings.xml
+@@ -2279,4 +2279,25 @@ Reinicia la aplicación para que se apliquen todos los cambios.</string>
+   <string name="ytdlp_install_failed">No se pudo instalar yt-dlp. Comprueba tu conexión e inténtalo de nuevo.</string>
+   <string name="ytdlp_install_prompt_subtitle">Este enlace necesita yt-dlp para reproducirse. Instálalo ahora o configúralo más tarde desde los ajustes.</string>
+   <string name="ytdlp_installing">Instalando yt-dlp…</string>
++  <string name="video_swipe_play_next">Reproducir a continuación</string>
++  <string name="video_swipe_add_queue">Añadir a la cola</string>
++  <string name="pref_video_swipe_title">Deslizamientos en vídeos y carpetas</string>
++  <string name="pref_video_swipe_right">Deslizar a la derecha</string>
++  <string name="pref_video_swipe_left">Deslizar a la izquierda</string>
++  <string name="pref_video_swipe_choose_right">Acción al deslizar a la derecha</string>
++  <string name="pref_video_swipe_choose_left">Acción al deslizar a la izquierda</string>
++  <string name="pref_video_swipe_toggle_watched">Marcar como visto / no visto</string>
++  <string name="pref_video_swipe_change">Cambiar</string>
++  <string name="video_swipe_delete_title">¿Eliminar vídeos?</string>
++  <string name="video_swipe_delete_message">¿Eliminar \"%1$s\" de forma permanente? Esta acción no se puede deshacer.</string>
++  <string name="video_swipe_delete_folder_message">¿Eliminar de forma permanente los vídeos de \"%2$s\" y sus subcarpetas? Total: %1$d. Los demás archivos y carpetas se conservarán. Esta acción no se puede deshacer.</string>
++  <string name="video_swipe_delete_result">Eliminados: %1$d. Fallidos o cancelados: %2$d.</string>
++  <string name="video_swipe_loading">Buscando vídeos</string>
++  <string name="video_swipe_folder_videos">Carpeta y subcarpetas</string>
++  <string name="video_swipe_folder_empty">No se encontraron vídeos en esta carpeta</string>
++  <string name="video_swipe_mark_new">Nuevo</string>
++  <string name="video_swipe_last_played">Última reproducción</string>
++  <string name="video_swipe_finished">Visto por completo</string>
++  <string name="video_swipe_clear_history">Borrar marcas e historial</string>
++  <string name="video_swipe_recent_disabled">Las reproducciones recientes están desactivadas en los ajustes</string>
+ </resources>
+diff --git a/app/src/main/res/values-fr/strings.xml b/app/src/main/res/values-fr/strings.xml
+index f68a773f..de069ea9 100644
+--- a/app/src/main/res/values-fr/strings.xml
++++ b/app/src/main/res/values-fr/strings.xml
+@@ -2279,4 +2279,25 @@ Veuillez redémarrer l’application pour appliquer toutes les modifications.</s
+   <string name="ytdlp_install_failed">Impossible d\'installer yt-dlp. Vérifiez votre connexion et réessayez.</string>
+   <string name="ytdlp_install_prompt_subtitle">La lecture de ce lien nécessite yt-dlp. Installez-le maintenant ou configurez-le plus tard dans les paramètres.</string>
+   <string name="ytdlp_installing">Installation de yt-dlp…</string>
++  <string name="video_swipe_play_next">Lire ensuite</string>
++  <string name="video_swipe_add_queue">Ajouter à la file d\'attente</string>
++  <string name="pref_video_swipe_title">Balayages des vidéos et dossiers</string>
++  <string name="pref_video_swipe_right">Balayage vers la droite</string>
++  <string name="pref_video_swipe_left">Balayage vers la gauche</string>
++  <string name="pref_video_swipe_choose_right">Action du balayage vers la droite</string>
++  <string name="pref_video_swipe_choose_left">Action du balayage vers la gauche</string>
++  <string name="pref_video_swipe_toggle_watched">Marquer comme vu / non vu</string>
++  <string name="pref_video_swipe_change">Modifier</string>
++  <string name="video_swipe_delete_title">Supprimer les vidéos ?</string>
++  <string name="video_swipe_delete_message">Supprimer définitivement \"%1$s\" ? Cette action est irréversible.</string>
++  <string name="video_swipe_delete_folder_message">Supprimer définitivement les vidéos de \"%2$s\" et de ses sous-dossiers ? Nombre : %1$d. Les autres fichiers et dossiers seront conservés. Cette action est irréversible.</string>
++  <string name="video_swipe_delete_result">Supprimés : %1$d. Échecs ou annulations : %2$d.</string>
++  <string name="video_swipe_loading">Recherche des vidéos</string>
++  <string name="video_swipe_folder_videos">Dossier et sous-dossiers</string>
++  <string name="video_swipe_folder_empty">Aucune vidéo trouvée dans ce dossier</string>
++  <string name="video_swipe_mark_new">Nouveau</string>
++  <string name="video_swipe_last_played">Dernière lecture</string>
++  <string name="video_swipe_finished">Vu entièrement</string>
++  <string name="video_swipe_clear_history">Effacer les marques et l\'historique</string>
++  <string name="video_swipe_recent_disabled">Les lectures récentes sont désactivées dans les paramètres</string>
+ </resources>
+diff --git a/app/src/main/res/values-hi/strings.xml b/app/src/main/res/values-hi/strings.xml
+index c4e928b3..2d4c048a 100644
+--- a/app/src/main/res/values-hi/strings.xml
++++ b/app/src/main/res/values-hi/strings.xml
+@@ -2183,4 +2183,25 @@
+   <string name="ytdlp_install_failed">yt-dlp इंस्टॉल नहीं हो सका। अपना कनेक्शन जाँचें और फिर कोशिश करें।</string>
+   <string name="ytdlp_install_prompt_subtitle">इस लिंक को चलाने के लिए yt-dlp चाहिए। इसे अभी इंस्टॉल करें या बाद में सेटिंग से कॉन्फ़िगर करें।</string>
+   <string name="ytdlp_installing">yt-dlp इंस्टॉल हो रहा है…</string>
++  <string name="video_swipe_play_next">अगला चलाएँ</string>
++  <string name="video_swipe_add_queue">कतार में जोड़ें</string>
++  <string name="pref_video_swipe_title">वीडियो और फ़ोल्डर की स्वाइप कार्रवाइयाँ</string>
++  <string name="pref_video_swipe_right">दाईं ओर स्वाइप</string>
++  <string name="pref_video_swipe_left">बाईं ओर स्वाइप</string>
++  <string name="pref_video_swipe_choose_right">दाईं ओर स्वाइप करने पर कार्रवाई</string>
++  <string name="pref_video_swipe_choose_left">बाईं ओर स्वाइप करने पर कार्रवाई</string>
++  <string name="pref_video_swipe_toggle_watched">देखा गया / नहीं देखा गया चिह्नित करें</string>
++  <string name="pref_video_swipe_change">बदलें</string>
++  <string name="video_swipe_delete_title">वीडियो हटाएँ?</string>
++  <string name="video_swipe_delete_message">\"%1$s\" को स्थायी रूप से हटाएँ? इस कार्रवाई को वापस नहीं लिया जा सकता।</string>
++  <string name="video_swipe_delete_folder_message">\"%2$s\" और उसके सबफ़ोल्डर के वीडियो स्थायी रूप से हटाएँ? कुल: %1$d। अन्य फ़ाइलें और फ़ोल्डर बने रहेंगे। इस कार्रवाई को वापस नहीं लिया जा सकता।</string>
++  <string name="video_swipe_delete_result">हटाए गए: %1$d। विफल या रद्द: %2$d।</string>
++  <string name="video_swipe_loading">वीडियो खोजे जा रहे हैं</string>
++  <string name="video_swipe_folder_videos">फ़ोल्डर और सबफ़ोल्डर</string>
++  <string name="video_swipe_folder_empty">इस फ़ोल्डर में कोई वीडियो नहीं मिला</string>
++  <string name="video_swipe_mark_new">नया</string>
++  <string name="video_swipe_last_played">अंतिम बार चलाया गया</string>
++  <string name="video_swipe_finished">पूरा देखा गया</string>
++  <string name="video_swipe_clear_history">चिह्न और देखने का इतिहास हटाएँ</string>
++  <string name="video_swipe_recent_disabled">सेटिंग में हाल ही में चलाए गए आइटम का इतिहास बंद है</string>
+ </resources>
+diff --git a/app/src/main/res/values-ja/strings.xml b/app/src/main/res/values-ja/strings.xml
+index 9e9191f0..dd0347be 100644
+--- a/app/src/main/res/values-ja/strings.xml
++++ b/app/src/main/res/values-ja/strings.xml
+@@ -2275,4 +2275,25 @@
+   <string name="ytdlp_install_failed">yt-dlp をインストールできませんでした。接続を確認して、もう一度お試しください。</string>
+   <string name="ytdlp_install_prompt_subtitle">このリンクの再生には yt-dlp が必要です。今すぐインストールするか、後で設定から構成してください。</string>
+   <string name="ytdlp_installing">yt-dlp をインストール中…</string>
++  <string name="video_swipe_play_next">次に再生</string>
++  <string name="video_swipe_add_queue">キューに追加</string>
++  <string name="pref_video_swipe_title">動画とフォルダーのスワイプ操作</string>
++  <string name="pref_video_swipe_right">右スワイプ</string>
++  <string name="pref_video_swipe_left">左スワイプ</string>
++  <string name="pref_video_swipe_choose_right">右スワイプの操作</string>
++  <string name="pref_video_swipe_choose_left">左スワイプの操作</string>
++  <string name="pref_video_swipe_toggle_watched">視聴済み / 未視聴にする</string>
++  <string name="pref_video_swipe_change">変更</string>
++  <string name="video_swipe_delete_title">動画を削除しますか？</string>
++  <string name="video_swipe_delete_message">「%1$s」を完全に削除しますか？この操作は元に戻せません。</string>
++  <string name="video_swipe_delete_folder_message">「%2$s」とそのサブフォルダー内の動画 %1$d 件を完全に削除しますか？他のファイルやフォルダーは残ります。この操作は元に戻せません。</string>
++  <string name="video_swipe_delete_result">削除：%1$d 件。失敗またはキャンセル：%2$d 件。</string>
++  <string name="video_swipe_loading">動画を検索中</string>
++  <string name="video_swipe_folder_videos">フォルダーとサブフォルダー</string>
++  <string name="video_swipe_folder_empty">このフォルダーに動画が見つかりません</string>
++  <string name="video_swipe_mark_new">新着</string>
++  <string name="video_swipe_last_played">最後に再生</string>
++  <string name="video_swipe_finished">視聴完了</string>
++  <string name="video_swipe_clear_history">マークと再生履歴を消去</string>
++  <string name="video_swipe_recent_disabled">設定で最近の再生履歴が無効になっています</string>
+ </resources>
+diff --git a/app/src/main/res/values-pt-rBR/strings.xml b/app/src/main/res/values-pt-rBR/strings.xml
+index 7820a926..c962d6e1 100644
+--- a/app/src/main/res/values-pt-rBR/strings.xml
++++ b/app/src/main/res/values-pt-rBR/strings.xml
+@@ -2279,4 +2279,25 @@ Reinicie o aplicativo para que todas as alterações entrem em vigor.</string>
+   <string name="ytdlp_install_failed">Não foi possível instalar o yt-dlp. Verifique sua conexão e tente novamente.</string>
+   <string name="ytdlp_install_prompt_subtitle">Este link precisa do yt-dlp para ser reproduzido. Instale agora ou configure depois nas configurações.</string>
+   <string name="ytdlp_installing">Instalando yt-dlp…</string>
++  <string name="video_swipe_play_next">Reproduzir em seguida</string>
++  <string name="video_swipe_add_queue">Adicionar à fila</string>
++  <string name="pref_video_swipe_title">Deslizamentos em vídeos e pastas</string>
++  <string name="pref_video_swipe_right">Deslizar para a direita</string>
++  <string name="pref_video_swipe_left">Deslizar para a esquerda</string>
++  <string name="pref_video_swipe_choose_right">Ação ao deslizar para a direita</string>
++  <string name="pref_video_swipe_choose_left">Ação ao deslizar para a esquerda</string>
++  <string name="pref_video_swipe_toggle_watched">Marcar como assistido / não assistido</string>
++  <string name="pref_video_swipe_change">Alterar</string>
++  <string name="video_swipe_delete_title">Excluir vídeos?</string>
++  <string name="video_swipe_delete_message">Excluir \"%1$s\" permanentemente? Esta ação não pode ser desfeita.</string>
++  <string name="video_swipe_delete_folder_message">Excluir permanentemente os vídeos de \"%2$s\" e suas subpastas? Total: %1$d. Os outros arquivos e pastas serão mantidos. Esta ação não pode ser desfeita.</string>
++  <string name="video_swipe_delete_result">Excluídos: %1$d. Falhas ou cancelamentos: %2$d.</string>
++  <string name="video_swipe_loading">Buscando vídeos</string>
++  <string name="video_swipe_folder_videos">Pasta e subpastas</string>
++  <string name="video_swipe_folder_empty">Nenhum vídeo encontrado nesta pasta</string>
++  <string name="video_swipe_mark_new">Novo</string>
++  <string name="video_swipe_last_played">Última reprodução</string>
++  <string name="video_swipe_finished">Assistido por completo</string>
++  <string name="video_swipe_clear_history">Limpar marcações e histórico</string>
++  <string name="video_swipe_recent_disabled">As reproduções recentes estão desativadas nas configurações</string>
+ </resources>
+diff --git a/app/src/main/res/values-ru/strings.xml b/app/src/main/res/values-ru/strings.xml
+index 0ccfaa18..3635610f 100644
+--- a/app/src/main/res/values-ru/strings.xml
++++ b/app/src/main/res/values-ru/strings.xml
+@@ -2287,4 +2287,25 @@
+   <string name="ytdlp_install_failed">Не удалось установить yt-dlp. Проверьте соединение и повторите попытку.</string>
+   <string name="ytdlp_install_prompt_subtitle">Для воспроизведения этой ссылки нужен yt-dlp. Установите его сейчас или настройте позже в настройках.</string>
+   <string name="ytdlp_installing">Установка yt-dlp…</string>
++  <string name="video_swipe_play_next">Воспроизвести следующим</string>
++  <string name="video_swipe_add_queue">Добавить в очередь</string>
++  <string name="pref_video_swipe_title">Смахивания видео и папок</string>
++  <string name="pref_video_swipe_right">Смахивание вправо</string>
++  <string name="pref_video_swipe_left">Смахивание влево</string>
++  <string name="pref_video_swipe_choose_right">Действие при смахивании вправо</string>
++  <string name="pref_video_swipe_choose_left">Действие при смахивании влево</string>
++  <string name="pref_video_swipe_toggle_watched">Отметить просмотренным / непросмотренным</string>
++  <string name="pref_video_swipe_change">Изменить</string>
++  <string name="video_swipe_delete_title">Удалить видео?</string>
++  <string name="video_swipe_delete_message">Удалить \"%1$s\" безвозвратно? Это действие нельзя отменить.</string>
++  <string name="video_swipe_delete_folder_message">Безвозвратно удалить видео из \"%2$s\" и её подпапок? Количество: %1$d. Остальные файлы и папки сохранятся. Это действие нельзя отменить.</string>
++  <string name="video_swipe_delete_result">Удалено: %1$d. Ошибки или отмены: %2$d.</string>
++  <string name="video_swipe_loading">Поиск видео</string>
++  <string name="video_swipe_folder_videos">Папка и подпапки</string>
++  <string name="video_swipe_folder_empty">В этой папке видео не найдены</string>
++  <string name="video_swipe_mark_new">Новое</string>
++  <string name="video_swipe_last_played">Последнее воспроизведение</string>
++  <string name="video_swipe_finished">Просмотрено полностью</string>
++  <string name="video_swipe_clear_history">Удалить отметки и историю</string>
++  <string name="video_swipe_recent_disabled">История недавних воспроизведений отключена в настройках</string>
+ </resources>
+diff --git a/app/src/main/res/values-zh-rCN/strings.xml b/app/src/main/res/values-zh-rCN/strings.xml
+index a7de8c97..c5efb617 100644
+--- a/app/src/main/res/values-zh-rCN/strings.xml
++++ b/app/src/main/res/values-zh-rCN/strings.xml
+@@ -2275,4 +2275,25 @@
+   <string name="ytdlp_install_failed">无法安装 yt-dlp。请检查网络连接后重试。</string>
+   <string name="ytdlp_install_prompt_subtitle">播放此链接需要 yt-dlp。你可以立即安装，也可以稍后在设置中配置。</string>
+   <string name="ytdlp_installing">正在安装 yt-dlp…</string>
++  <string name="video_swipe_play_next">接下来播放</string>
++  <string name="video_swipe_add_queue">添加到队列</string>
++  <string name="pref_video_swipe_title">视频和文件夹滑动操作</string>
++  <string name="pref_video_swipe_right">向右滑动</string>
++  <string name="pref_video_swipe_left">向左滑动</string>
++  <string name="pref_video_swipe_choose_right">向右滑动时执行</string>
++  <string name="pref_video_swipe_choose_left">向左滑动时执行</string>
++  <string name="pref_video_swipe_toggle_watched">标记为已观看 / 未观看</string>
++  <string name="pref_video_swipe_change">更改</string>
++  <string name="video_swipe_delete_title">删除视频？</string>
++  <string name="video_swipe_delete_message">永久删除“%1$s”？此操作无法撤销。</string>
++  <string name="video_swipe_delete_folder_message">永久删除“%2$s”及其子文件夹中的 %1$d 个视频？其他文件和文件夹将保留。此操作无法撤销。</string>
++  <string name="video_swipe_delete_result">已删除：%1$d。失败或已取消：%2$d。</string>
++  <string name="video_swipe_loading">正在查找视频</string>
++  <string name="video_swipe_folder_videos">文件夹及其子文件夹</string>
++  <string name="video_swipe_folder_empty">此文件夹中未找到视频</string>
++  <string name="video_swipe_mark_new">新视频</string>
++  <string name="video_swipe_last_played">最后播放</string>
++  <string name="video_swipe_finished">已看完</string>
++  <string name="video_swipe_clear_history">清除标记和观看历史</string>
++  <string name="video_swipe_recent_disabled">设置中已禁用最近播放记录</string>
+ </resources>
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index 49d5a524..90a833d7 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -2307,4 +2307,25 @@
+   <string name="pp_on">Post-processing on</string>
+   <string name="pp_off">Post-processing off</string>
+   <string name="oss_kmp_vibrate_description">Haptic feedback library by WonDDak (jmseb3).</string>
++  <string name="video_swipe_play_next">Play next</string>
++  <string name="video_swipe_add_queue">Add to queue</string>
++  <string name="pref_video_swipe_title">Video and folder swipe actions</string>
++  <string name="pref_video_swipe_right">Right swipe</string>
++  <string name="pref_video_swipe_left">Left swipe</string>
++  <string name="pref_video_swipe_choose_right">Use right swipe for</string>
++  <string name="pref_video_swipe_choose_left">Use left swipe for</string>
++  <string name="pref_video_swipe_toggle_watched">Mark watched / unwatched</string>
++  <string name="pref_video_swipe_change">Change</string>
++  <string name="video_swipe_delete_title">Delete videos?</string>
++  <string name="video_swipe_delete_message">Permanently delete \"%1$s\"? This cannot be undone.</string>
++  <string name="video_swipe_delete_folder_message">Permanently delete %1$d videos in \"%2$s\" and its subfolders? Other files and folders will be kept. This cannot be undone.</string>
++  <string name="video_swipe_delete_result">Deleted: %1$d. Failed or cancelled: %2$d.</string>
++  <string name="video_swipe_loading">Collecting videos</string>
++  <string name="video_swipe_folder_videos">Folder and subfolders</string>
++  <string name="video_swipe_folder_empty">No videos found in this folder</string>
++  <string name="video_swipe_mark_new">New</string>
++  <string name="video_swipe_last_played">Last played</string>
++  <string name="video_swipe_finished">Finished</string>
++  <string name="video_swipe_clear_history">Clear marks and history</string>
++  <string name="video_swipe_recent_disabled">Recently Played is disabled in settings</string>
+ </resources>
+-- 
+2.25.1
+

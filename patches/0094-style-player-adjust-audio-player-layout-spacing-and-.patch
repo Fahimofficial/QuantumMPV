@@ -1,0 +1,44 @@
+From a49648331b2eb020cd53c84d7500e32f95cf4f00 Mon Sep 17 00:00:00 2001
+From: Arnab Sadhukhan <arnab@Arnabs-Mac-Mini.local>
+Date: Mon, 14 Sep 2026 20:42:52 +0530
+Subject: [PATCH 094/140] style(player): adjust audio player layout spacing and
+ cover art scale
+
+---
+ .../mpvrx/ui/player/controls/AudioPlayerControls.kt    | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/AudioPlayerControls.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/AudioPlayerControls.kt
+index b59da168..942b43bd 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/AudioPlayerControls.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/AudioPlayerControls.kt
+@@ -1288,7 +1288,7 @@ fun AudioPlayerControls(
+               contentTransform.using(SizeTransform(clip = false))
+             },
+             label = "visualizer_toggle",
+-            modifier = Modifier.fillMaxHeight().fillMaxWidth(if (isTabletPortrait) 0.65f else 1.0f),
++            modifier = Modifier.fillMaxHeight().fillMaxWidth(if (isTabletPortrait) 0.65f else if (isPortrait) 0.88f else 1.0f),
+           ) { isVisualizerActive ->
+           if (isVisualizerActive) {
+             AudioVisualizerViewport(
+@@ -2018,13 +2018,13 @@ fun AudioPlayerControls(
+           exit = fadeOut(animationSpec = tween(300)) + androidx.compose.animation.shrinkVertically(animationSpec = tween(300)),
+         ) {
+           Column(horizontalAlignment = Alignment.CenterHorizontally) {
+-            Spacer(modifier = Modifier.height(16.dp))
++            Spacer(modifier = Modifier.height(4.dp))
+             trackMetadataView()
+-            Spacer(modifier = Modifier.height(16.dp))
++            Spacer(modifier = Modifier.height(10.dp))
+             seekbarView()
+-            Spacer(modifier = Modifier.height(16.dp))
++            Spacer(modifier = Modifier.height(14.dp))
+             playbackControlsRow()
+-            Spacer(modifier = Modifier.height(24.dp))
++            Spacer(modifier = Modifier.height(48.dp))
+             bottomActionRow()
+           }
+         }
+-- 
+2.25.1
+

@@ -1,0 +1,33 @@
+From e4dceb0e7ce5d273c5bd717215c26219b22d0b85 Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <riteshp2001@gmail.com>
+Date: Tue, 8 Sep 2026 16:02:42 +0530
+Subject: [PATCH 059/140] docs: show repository contributors
+
+---
+ README.md | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/README.md b/README.md
+index d56a40b6..d0912ca3 100644
+--- a/README.md
++++ b/README.md
+@@ -475,6 +475,16 @@ Thank you to the player projects, music apps, libraries, and individual contribu
+ 
+ [Full acknowledgments & citation information](CITATION.md) · [All contributors](https://github.com/Riteshp2001/mpvRx/graphs/contributors)
+ 
++### Contributors
++
++Thank you to everyone who helps build and improve mpvRx.
++
++<div align="center">
++  <a href="https://github.com/Riteshp2001/mpvRx/graphs/contributors">
++    <img src="https://contrib.rocks/image?repo=Riteshp2001/mpvRx" alt="mpvRx contributors" width="800" />
++  </a>
++</div>
++
+ ---
+ 
+ ## Community
+-- 
+2.25.1
+

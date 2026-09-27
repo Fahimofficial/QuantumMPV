@@ -1,0 +1,35 @@
+From 6518bc09094ec60152aeba4be4b939b08cf1aeb1 Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <87899750+Riteshp2001@users.noreply.github.com>
+Date: Sun, 6 Sep 2026 09:21:44 +0000
+Subject: [PATCH 025/140] fix(player): keep non-precise double-tap seeks fast
+
+Refs #610
+---
+ .../com/quantummpv/app/ui/player/PlayerViewModel.kt     | 10 ++++------
+ 1 file changed, 4 insertions(+), 6 deletions(-)
+
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt b/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
+index f1dc123c..7a8e4107 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
+@@ -4249,13 +4249,11 @@ val isBrightnessSliderShown = MutableStateFlow(false)
+             return@launch
+           }
+ 
+-          // A backward keyframe seek can expose pre-target video while audio still starts at the
+-          // requested timestamp. Exact seeking decodes through that gap and keeps A/V aligned.
+-          // A clamped forward seek uses an absolute target, but non-precise mode must still let
+-          // MPV choose a safe keyframe instead of HR-seeking into the EOF boundary.
++          // Keep non-precise double-taps on MPV's fast keyframe path in both directions. Only a
++          // boundary-clamped seek needs an absolute target; it can still remain keyframe-based.
+           val targetWasClamped = targetPosition != null && targetPosition < requestedTarget
+-          val useRelativeKeyframeSeek = !preciseSeeking && toApply > 0 && !targetWasClamped
+-          val useExactSeeking = toApply < 0 || preciseSeeking
++          val useRelativeKeyframeSeek = !preciseSeeking && !targetWasClamped
++          val useExactSeeking = preciseSeeking
+           val seekMode =
+             if (useRelativeKeyframeSeek) {
+               "relative+keyframes"
+-- 
+2.25.1
+

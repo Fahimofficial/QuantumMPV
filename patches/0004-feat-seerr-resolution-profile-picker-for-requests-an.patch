@@ -1,0 +1,734 @@
+From eabf257340bbab1d907f923dfe289428065de60f Mon Sep 17 00:00:00 2001
+From: Arnab Sadhukhan <arnab@Arnabs-Mac-Mini.local>
+Date: Wed, 2 Sep 2026 21:46:03 +0530
+Subject: [PATCH 004/140] feat(seerr): resolution profile picker for requests
+ and proper deleted media status
+
+- Add Radarr and Sonarr quality profile fetching (/api/v1/service/radarr and /api/v1/service/sonarr)
+---
+ .../gyrolet/mpvrx/domain/seerr/SeerrModels.kt |  90 ++++++-
+ .../mpvrx/repository/SeerrRepository.kt       |  50 ++++
+ .../ui/browser/jellyfin/seerr/SeerrCards.kt   |  83 ++++++-
+ .../ui/browser/jellyfin/seerr/SeerrContent.kt |   3 +
+ .../jellyfin/seerr/SeerrDetailSheet.kt        | 233 ++++++++++++++++--
+ .../browser/jellyfin/seerr/SeerrViewModel.kt  |  28 +++
+ app/src/main/res/values/strings.xml           |   2 +
+ 7 files changed, 453 insertions(+), 36 deletions(-)
+
+diff --git a/app/src/main/java/com/quantummpv/app/domain/seerr/SeerrModels.kt b/app/src/main/java/com/quantummpv/app/domain/seerr/SeerrModels.kt
+index 44b0a540..9358f004 100644
+--- a/app/src/main/java/com/quantummpv/app/domain/seerr/SeerrModels.kt
++++ b/app/src/main/java/com/quantummpv/app/domain/seerr/SeerrModels.kt
+@@ -31,10 +31,20 @@ enum class MediaStatus(val value: Int) {
+   PROCESSING(3),
+   PARTIALLY_AVAILABLE(4),
+   AVAILABLE(5),
+-  DELETED(6);
++  BLACKLISTED(6),
++  DELETED(7);
+ 
+   companion object {
+-    fun fromValue(value: Int?): MediaStatus = entries.firstOrNull { it.value == value } ?: UNKNOWN
++    fun fromValue(value: Int?): MediaStatus = when (value) {
++      1 -> UNKNOWN
++      2 -> PENDING
++      3 -> PROCESSING
++      4 -> PARTIALLY_AVAILABLE
++      5 -> AVAILABLE
++      6 -> BLACKLISTED
++      7 -> DELETED
++      else -> UNKNOWN
++    }
+   }
+ }
+ 
+@@ -98,7 +108,9 @@ data class SearchResultItem(
+     }
+ 
+   fun hasExistingRequest(): Boolean =
+-    mediaInfo?.status != null && mediaInfo.status != MediaStatus.UNKNOWN.value
++    mediaInfo?.status != null &&
++      mediaInfo.status != MediaStatus.UNKNOWN.value &&
++      mediaInfo.status != MediaStatus.DELETED.value
+ 
+   fun getMediaStatus(): MediaStatus? {
+     val standardStatus = mediaInfo?.status
+@@ -203,6 +215,28 @@ data class MediaDetails(
+ 
+   fun getDirector(): String? =
+     credits?.crew?.firstOrNull { it.job == "Director" }?.name
++ 
++  fun getMediaStatus(): MediaStatus? {
++    val standardStatus = mediaInfo?.status
++    val status4k = mediaInfo?.status4k
++    fun isValid(status: Int?) = status != null && status != 1
++    return when {
++      isValid(standardStatus) -> MediaStatus.fromValue(standardStatus)
++      isValid(status4k) -> MediaStatus.fromValue(status4k)
++      else -> mediaInfo?.status?.let { MediaStatus.fromValue(it) }
++    }
++  }
++
++  fun getDisplayStatus(): MediaStatus? {
++    val status = getMediaStatus() ?: return null
++    if (status == MediaStatus.PENDING) {
++      val hasApprovedRequest = mediaInfo?.requests?.any { it.status == RequestStatus.APPROVED.value } == true
++      if (hasApprovedRequest) {
++        return MediaStatus.PROCESSING
++      }
++    }
++    return status
++  }
+ }
+ 
+ @Serializable
+@@ -408,6 +442,56 @@ data class ApproveRequestBody(
+   @SerialName("rootFolder") val rootFolder: String? = null,
+ )
+ 
++@Serializable
++data class SeerrServiceProfile(
++  @SerialName("id") val id: Int? = null,
++  @SerialName("name") val name: String? = null,
++)
++
++@Serializable
++data class SeerrRootFolder(
++  @SerialName("id") val id: Int? = null,
++  @SerialName("path") val path: String? = null,
++)
++
++@Serializable
++data class SeerrRadarrServer(
++  @SerialName("id") val id: Int? = null,
++  @SerialName("name") val name: String? = null,
++  @SerialName("is4k") val is4k: Boolean? = false,
++  @SerialName("isDefault") val isDefault: Boolean? = false,
++  @SerialName("activeProfileId") val activeProfileId: Int? = null,
++  @SerialName("activeDirectory") val activeDirectory: String? = null,
++  @SerialName("profiles") val profiles: List<SeerrServiceProfile> = emptyList(),
++  @SerialName("rootFolders") val rootFolders: List<SeerrRootFolder> = emptyList(),
++)
++
++@Serializable
++data class SeerrRadarrServerResponse(
++  @SerialName("server") val server: SeerrRadarrServer? = null,
++  @SerialName("profiles") val profiles: List<SeerrServiceProfile> = emptyList(),
++  @SerialName("rootFolders") val rootFolders: List<SeerrRootFolder> = emptyList(),
++)
++
++@Serializable
++data class SeerrSonarrServer(
++  @SerialName("id") val id: Int? = null,
++  @SerialName("name") val name: String? = null,
++  @SerialName("is4k") val is4k: Boolean? = false,
++  @SerialName("isDefault") val isDefault: Boolean? = false,
++  @SerialName("activeProfileId") val activeProfileId: Int? = null,
++  @SerialName("activeDirectory") val activeDirectory: String? = null,
++  @SerialName("profiles") val profiles: List<SeerrServiceProfile> = emptyList(),
++  @SerialName("rootFolders") val rootFolders: List<SeerrRootFolder> = emptyList(),
++)
++
++@Serializable
++data class SeerrSonarrServerResponse(
++  @SerialName("server") val server: SeerrSonarrServer? = null,
++  @SerialName("profiles") val profiles: List<SeerrServiceProfile> = emptyList(),
++  @SerialName("rootFolders") val rootFolders: List<SeerrRootFolder> = emptyList(),
++)
++
+ @Serializable
+ data class DiscoverSlider(
+   @SerialName("id") val id: Int,
+diff --git a/app/src/main/java/com/quantummpv/app/repository/SeerrRepository.kt b/app/src/main/java/com/quantummpv/app/repository/SeerrRepository.kt
+index ab3b8e4d..e4a60697 100644
+--- a/app/src/main/java/com/quantummpv/app/repository/SeerrRepository.kt
++++ b/app/src/main/java/com/quantummpv/app/repository/SeerrRepository.kt
+@@ -23,6 +23,10 @@ import com.quantummpv.app.domain.seerr.MediaType
+ import com.quantummpv.app.domain.seerr.PublicSettings
+ import com.quantummpv.app.domain.seerr.RequestsResponse
+ import com.quantummpv.app.domain.seerr.SearchResultItem
++import com.quantummpv.app.domain.seerr.SeerrRadarrServer
++import com.quantummpv.app.domain.seerr.SeerrRadarrServerResponse
++import com.quantummpv.app.domain.seerr.SeerrSonarrServer
++import com.quantummpv.app.domain.seerr.SeerrSonarrServerResponse
+ import com.quantummpv.app.domain.seerr.UserQuotaResponse
+ import com.quantummpv.app.network.awaitResponse
+ import com.quantummpv.app.preferences.SeerrPreferences
+@@ -537,17 +541,63 @@ class SeerrRepository(
+     }
+   }
+ 
++  suspend fun getRadarrServers(): Result<List<SeerrRadarrServer>> = withContext(Dispatchers.IO) {
++    val req = buildRequest(path = "api/v1/service/radarr")
++    val res = executeCall<List<SeerrRadarrServer>>(req, "Failed to load Radarr servers")
++    res.map { servers ->
++      servers.map { server ->
++        val serverId = server.id ?: return@map server
++        val detailReq = buildRequest(path = "api/v1/service/radarr/$serverId")
++        val detailRes = executeCall<SeerrRadarrServerResponse>(detailReq, "Failed to load Radarr server details").getOrNull()
++        if (detailRes != null) {
++          server.copy(
++            profiles = detailRes.profiles,
++            rootFolders = detailRes.rootFolders,
++          )
++        } else {
++          server
++        }
++      }
++    }
++  }
++
++  suspend fun getSonarrServers(): Result<List<SeerrSonarrServer>> = withContext(Dispatchers.IO) {
++    val req = buildRequest(path = "api/v1/service/sonarr")
++    val res = executeCall<List<SeerrSonarrServer>>(req, "Failed to load Sonarr servers")
++    res.map { servers ->
++      servers.map { server ->
++        val serverId = server.id ?: return@map server
++        val detailReq = buildRequest(path = "api/v1/service/sonarr/$serverId")
++        val detailRes = executeCall<SeerrSonarrServerResponse>(detailReq, "Failed to load Sonarr server details").getOrNull()
++        if (detailRes != null) {
++          server.copy(
++            profiles = detailRes.profiles,
++            rootFolders = detailRes.rootFolders,
++          )
++        } else {
++          server
++        }
++      }
++    }
++  }
++
+   suspend fun createRequest(
+     mediaId: Int,
+     mediaType: MediaType,
+     seasons: List<Int>? = null,
+     is4k: Boolean = false,
++    serverId: Int? = null,
++    profileId: Int? = null,
++    rootFolder: String? = null,
+   ): Result<JellyseerrRequest> = withContext(Dispatchers.IO) {
+     val body = CreateRequestBody(
+       mediaType = mediaType.value,
+       mediaId = mediaId,
+       seasons = seasons,
+       is4k = is4k,
++      serverId = serverId,
++      profileId = profileId,
++      rootFolder = rootFolder,
+     )
+     val payload = json.encodeToString(CreateRequestBody.serializer(), body)
+     val req = buildRequest(path = "api/v1/request", method = "POST", bodyJson = payload)
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/seerr/SeerrCards.kt b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/seerr/SeerrCards.kt
+index 61e928b0..622124de 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/seerr/SeerrCards.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/seerr/SeerrCards.kt
+@@ -213,6 +213,16 @@ fun SeerrStatusChip(
+       Color(0xFFF3E5F5),
+       R.string.seerr_status_pending,
+     )
++    MediaStatus.DELETED -> Triple(
++      Color(0xFFD32F2F).copy(alpha = 0.9f),
++      Color(0xFFFFEBEE),
++      R.string.seerr_status_deleted,
++    )
++    MediaStatus.BLACKLISTED -> Triple(
++      Color(0xFF37474F).copy(alpha = 0.85f),
++      Color(0xFFECEFF1),
++      R.string.seerr_status_blacklisted,
++    )
+     else -> Triple(
+       Color.Black.copy(alpha = 0.7f),
+       Color.White,
+@@ -361,12 +371,73 @@ fun SeerrRequestCard(
+       }
+ 
+       // Top-Left status badge
+-      SeerrRequestStatusChip(
+-        status = request.getRequestStatus(),
+-        modifier = Modifier
+-          .align(Alignment.TopStart)
+-          .padding(8.dp),
+-      )
++      val mediaStatus = MediaStatus.fromValue(request.media.status)
++      when {
++        mediaStatus == MediaStatus.DELETED -> {
++          SeerrStatusChip(
++            status = MediaStatus.DELETED,
++            modifier = Modifier
++              .align(Alignment.TopStart)
++              .padding(8.dp),
++          )
++        }
++        mediaStatus == MediaStatus.PARTIALLY_AVAILABLE -> {
++          SeerrStatusChip(
++            status = MediaStatus.PARTIALLY_AVAILABLE,
++            modifier = Modifier
++              .align(Alignment.TopStart)
++              .padding(8.dp),
++          )
++        }
++        request.getRequestStatus() == RequestStatus.PENDING -> {
++          SeerrRequestStatusChip(
++            status = RequestStatus.PENDING,
++            modifier = Modifier
++              .align(Alignment.TopStart)
++              .padding(8.dp),
++          )
++        }
++        request.getRequestStatus() == RequestStatus.DECLINED -> {
++          SeerrRequestStatusChip(
++            status = RequestStatus.DECLINED,
++            modifier = Modifier
++              .align(Alignment.TopStart)
++              .padding(8.dp),
++          )
++        }
++        request.getRequestStatus() == RequestStatus.FAILED -> {
++          SeerrRequestStatusChip(
++            status = RequestStatus.FAILED,
++            modifier = Modifier
++              .align(Alignment.TopStart)
++              .padding(8.dp),
++          )
++        }
++        mediaStatus == MediaStatus.AVAILABLE -> {
++          SeerrStatusChip(
++            status = MediaStatus.AVAILABLE,
++            modifier = Modifier
++              .align(Alignment.TopStart)
++              .padding(8.dp),
++          )
++        }
++        mediaStatus == MediaStatus.PROCESSING || request.getRequestStatus() == RequestStatus.APPROVED -> {
++          SeerrStatusChip(
++            status = MediaStatus.PROCESSING,
++            modifier = Modifier
++              .align(Alignment.TopStart)
++              .padding(8.dp),
++          )
++        }
++        else -> {
++          SeerrRequestStatusChip(
++            status = request.getRequestStatus(),
++            modifier = Modifier
++              .align(Alignment.TopStart)
++              .padding(8.dp),
++          )
++        }
++      }
+ 
+       // Requester Photo on Bottom Left of Thumbnail
+       val rawAvatar = request.requestedBy.avatar
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/seerr/SeerrContent.kt b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/seerr/SeerrContent.kt
+index e27be2cf..dc722639 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/seerr/SeerrContent.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/seerr/SeerrContent.kt
+@@ -450,6 +450,9 @@ fun SeerrContent(
+         isLoading = uiState.isDetailLoading,
+         isRequesting = uiState.isRequesting,
+         isAdmin = uiState.currentUser?.isAdmin() == true,
++        radarrServers = uiState.radarrServers,
++        sonarrServers = uiState.sonarrServers,
++        isLoadingServers = uiState.isLoadingServers,
+         onDismiss = viewModel::closeDetail,
+         onRequest = viewModel::requestMedia,
+         onApprove = viewModel::approveRequest,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/seerr/SeerrDetailSheet.kt b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/seerr/SeerrDetailSheet.kt
+index a2170b88..be16d36e 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/seerr/SeerrDetailSheet.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/seerr/SeerrDetailSheet.kt
+@@ -10,6 +10,7 @@
+ package com.quantummpv.app.ui.browser.jellyfin.seerr
+ 
+ import androidx.compose.animation.AnimatedVisibility
++import androidx.compose.foundation.BorderStroke
+ import androidx.compose.foundation.background
+ import androidx.compose.foundation.clickable
+ import androidx.compose.foundation.horizontalScroll
+@@ -38,6 +39,8 @@ import androidx.compose.material3.ButtonDefaults
+ import androidx.compose.material3.Card
+ import androidx.compose.material3.CardDefaults
+ import androidx.compose.material3.CircularProgressIndicator
++import androidx.compose.material3.DropdownMenu
++import androidx.compose.material3.DropdownMenuItem
+ import androidx.compose.material3.ExperimentalMaterial3Api
+ import androidx.compose.material3.FilledTonalButton
+ import androidx.compose.material3.FilterChip
+@@ -82,6 +85,14 @@ import com.quantummpv.app.presentation.components.RemoteImage
+ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
+ 
++data class ResolutionOption(
++  val label: String,
++  val is4k: Boolean,
++  val serverId: Int?,
++  val profileId: Int?,
++  val rootFolder: String?,
++)
++
+ @OptIn(ExperimentalMaterial3Api::class)
+ @Composable
+ fun SeerrDetailSheet(
+@@ -90,8 +101,11 @@ fun SeerrDetailSheet(
+   isLoading: Boolean,
+   isRequesting: Boolean,
+   isAdmin: Boolean,
++  radarrServers: List<com.quantummpv.app.domain.seerr.SeerrRadarrServer> = emptyList(),
++  sonarrServers: List<com.quantummpv.app.domain.seerr.SeerrSonarrServer> = emptyList(),
++  isLoadingServers: Boolean = false,
+   onDismiss: () -> Unit,
+-  onRequest: (seasons: List<Int>?, is4k: Boolean) -> Unit,
++  onRequest: (seasons: List<Int>?, is4k: Boolean, serverId: Int?, profileId: Int?, rootFolder: String?) -> Unit,
+   onApprove: (requestId: Int) -> Unit,
+   onDecline: (requestId: Int) -> Unit,
+   onDeleteRequest: ((requestId: Int) -> Unit)? = null,
+@@ -118,9 +132,9 @@ fun SeerrDetailSheet(
+   val runtime = details?.runtime
+ 
+   val mediaInfo = details?.mediaInfo ?: searchItem?.mediaInfo
+-  val mediaStatus = MediaStatus.fromValue(mediaInfo?.status ?: searchItem?.getDisplayStatus()?.value ?: MediaStatus.UNKNOWN.value)
++  val mediaStatus = details?.getDisplayStatus() ?: searchItem?.getDisplayStatus() ?: MediaStatus.fromValue(mediaInfo?.status ?: MediaStatus.UNKNOWN.value)
+   val jellyfinId = mediaInfo?.getJellyfinItemId()
+-  val isAvailableInJellyfin = mediaStatus == MediaStatus.AVAILABLE || !jellyfinId.isNullOrBlank()
++  val isAvailableInJellyfin = mediaStatus == MediaStatus.AVAILABLE && !jellyfinId.isNullOrBlank()
+ 
+   val seasons = details?.seasons?.filter { (it.seasonNumber ?: 0) > 0 } ?: emptyList()
+   val seasonStatusMap = remember(details?.mediaInfo, searchItem?.mediaInfo) {
+@@ -138,7 +152,79 @@ fun SeerrDetailSheet(
+       addAll(unrequestedSeasons)
+     }
+   }
+-  var is4kRequested by remember { mutableStateOf(false) }
++
++  val isTv = mediaType == MediaType.TV
++  val resolutionOptions = remember(isTv, radarrServers, sonarrServers) {
++    val options = mutableListOf<ResolutionOption>()
++    if (isTv) {
++      sonarrServers.forEach { server ->
++        server.profiles.forEach { profile ->
++          val label = buildString {
++            append(profile.name ?: "Default")
++            if (server.is4k == true) append(" (4K)")
++            else if (sonarrServers.size > 1) append(" (${server.name})")
++          }
++          options.add(
++            ResolutionOption(
++              label = label,
++              is4k = server.is4k == true,
++              serverId = server.id,
++              profileId = profile.id,
++              rootFolder = server.activeDirectory,
++            ),
++          )
++        }
++      }
++    } else {
++      radarrServers.forEach { server ->
++        server.profiles.forEach { profile ->
++          val label = buildString {
++            append(profile.name ?: "Default")
++            if (server.is4k == true) append(" (4K)")
++            else if (radarrServers.size > 1) append(" (${server.name})")
++          }
++          options.add(
++            ResolutionOption(
++              label = label,
++              is4k = server.is4k == true,
++              serverId = server.id,
++              profileId = profile.id,
++              rootFolder = server.activeDirectory,
++            ),
++          )
++        }
++      }
++    }
++
++    if (options.isEmpty()) {
++      options.add(
++        ResolutionOption(
++          label = "Standard (1080p)",
++          is4k = false,
++          serverId = null,
++          profileId = null,
++          rootFolder = null,
++        ),
++      )
++      options.add(
++        ResolutionOption(
++          label = "4K Ultra HD",
++          is4k = true,
++          serverId = null,
++          profileId = null,
++          rootFolder = null,
++        ),
++      )
++    }
++    options
++  }
++
++  var selectedResolution by remember(resolutionOptions) {
++    mutableStateOf(
++      resolutionOptions.firstOrNull { !it.is4k } ?: resolutionOptions.first(),
++    )
++  }
++  var isResolutionDropdownExpanded by remember { mutableStateOf(false) }
+   var isOverviewExpanded by remember { mutableStateOf(false) }
+ 
+   ModalBottomSheet(
+@@ -348,7 +434,7 @@ fun SeerrDetailSheet(
+         verticalArrangement = Arrangement.spacedBy(8.dp),
+       ) {
+         // 1. Play in Jellyfin (if available and ID present)
+-        if (!jellyfinId.isNullOrBlank() && onOpenJellyfinItem != null) {
++        if (isAvailableInJellyfin && !jellyfinId.isNullOrBlank() && onOpenJellyfinItem != null) {
+           Button(
+             onClick = { onOpenJellyfinItem(jellyfinId) },
+             colors = ButtonDefaults.buttonColors(
+@@ -440,10 +526,25 @@ fun SeerrDetailSheet(
+ 
+           // Unrequested / Partially Available
+           else -> {
++            // Resolution Profile Dropdown
++            ResolutionProfileDropdown(
++              selectedResolution = selectedResolution,
++              onSelectResolution = { selectedResolution = it },
++              resolutionOptions = resolutionOptions,
++              isLoading = isLoadingServers,
++              modifier = Modifier.padding(bottom = 6.dp),
++            )
++
+             Button(
+               onClick = {
+                 val seasonsToRequest = if (mediaType == MediaType.TV) selectedSeasons.toList() else null
+-                onRequest(seasonsToRequest, is4kRequested)
++                onRequest(
++                  seasonsToRequest,
++                  selectedResolution.is4k,
++                  selectedResolution.serverId,
++                  selectedResolution.profileId,
++                  selectedResolution.rootFolder,
++                )
+               },
+               enabled = !isRequesting && (mediaType != MediaType.TV || selectedSeasons.isNotEmpty()),
+               colors = ButtonDefaults.buttonColors(
+@@ -485,7 +586,7 @@ fun SeerrDetailSheet(
+           }
+         }
+ 
+-        // TV Show Season Selection & 4K Toggle (Only when unrequested / partially available and not already processing/pending/available)
++        // TV Show Season Selection (Only when unrequested / partially available and not already processing/pending/available)
+         if (mediaType == MediaType.TV && seasons.isNotEmpty() && unrequestedSeasons.isNotEmpty() && mediaStatus != MediaStatus.AVAILABLE && mediaStatus != MediaStatus.PROCESSING && mediaStatus != MediaStatus.PENDING) {
+           Spacer(modifier = Modifier.height(4.dp))
+           Row(
+@@ -570,26 +671,6 @@ fun SeerrDetailSheet(
+           }
+         }
+ 
+-        // 4K Toggle (Only if requesting)
+-        if (mediaStatus != MediaStatus.AVAILABLE && mediaStatus != MediaStatus.PROCESSING && mediaStatus != MediaStatus.PENDING) {
+-          Row(
+-            modifier = Modifier
+-              .fillMaxWidth()
+-              .padding(vertical = 2.dp),
+-            horizontalArrangement = Arrangement.SpaceBetween,
+-            verticalAlignment = Alignment.CenterVertically,
+-          ) {
+-            Text(
+-              text = stringResource(R.string.seerr_request_4k),
+-              style = MaterialTheme.typography.bodyMedium,
+-            )
+-            Switch(
+-              checked = is4kRequested,
+-              onCheckedChange = { is4kRequested = it },
+-            )
+-          }
+-        }
+-
+         // Admin Approval Actions if Pending Request exists
+         val pendingRequest = mediaInfo?.requests?.firstOrNull { it.status == RequestStatus.PENDING.value }
+         if (pendingRequest != null && isAdmin) {
+@@ -799,3 +880,101 @@ fun SeerrDetailSheet(
+     }
+   }
+ }
++
++@Composable
++private fun ResolutionProfileDropdown(
++  selectedResolution: ResolutionOption,
++  onSelectResolution: (ResolutionOption) -> Unit,
++  resolutionOptions: List<ResolutionOption>,
++  isLoading: Boolean,
++  modifier: Modifier = Modifier,
++) {
++  var expanded by remember { mutableStateOf(false) }
++
++  Column(
++    modifier = modifier.fillMaxWidth(),
++    verticalArrangement = Arrangement.spacedBy(6.dp),
++  ) {
++    Text(
++      text = "Resolution Profile",
++      style = MaterialTheme.typography.labelLarge,
++      fontWeight = FontWeight.SemiBold,
++      color = MaterialTheme.colorScheme.onSurface,
++    )
++
++    Box(modifier = Modifier.fillMaxWidth()) {
++      Surface(
++        onClick = { expanded = true },
++        shape = RoundedCornerShape(12.dp),
++        color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.7f),
++        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
++        modifier = Modifier.fillMaxWidth(),
++      ) {
++        Row(
++          modifier = Modifier
++            .fillMaxWidth()
++            .padding(horizontal = 14.dp, vertical = 12.dp),
++          horizontalArrangement = Arrangement.SpaceBetween,
++          verticalAlignment = Alignment.CenterVertically,
++        ) {
++          Row(
++            verticalAlignment = Alignment.CenterVertically,
++            horizontalArrangement = Arrangement.spacedBy(8.dp),
++          ) {
++            if (isLoading) {
++              CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
++            }
++            Text(
++              text = selectedResolution.label,
++              style = MaterialTheme.typography.bodyMedium,
++              fontWeight = FontWeight.SemiBold,
++              color = MaterialTheme.colorScheme.onSurface,
++            )
++          }
++          Icon(
++            Icons.RoundedFilled.ArrowDropDown,
++            contentDescription = "Select Resolution",
++            modifier = Modifier.size(20.dp),
++            tint = MaterialTheme.colorScheme.onSurfaceVariant,
++          )
++        }
++      }
++
++      DropdownMenu(
++        expanded = expanded,
++        onDismissRequest = { expanded = false },
++      ) {
++        resolutionOptions.forEach { option ->
++          val isSelected = option == selectedResolution
++          DropdownMenuItem(
++            text = {
++              Row(
++                modifier = Modifier.fillMaxWidth(),
++                horizontalArrangement = Arrangement.SpaceBetween,
++                verticalAlignment = Alignment.CenterVertically,
++              ) {
++                Text(
++                  text = option.label,
++                  fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
++                  color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
++                )
++                if (isSelected) {
++                  Icon(
++                    Icons.RoundedFilled.Check,
++                    contentDescription = null,
++                    tint = MaterialTheme.colorScheme.primary,
++                    modifier = Modifier.size(18.dp),
++                  )
++                }
++              }
++            },
++            onClick = {
++              onSelectResolution(option)
++              expanded = false
++            },
++          )
++        }
++      }
++    }
++  }
++}
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/seerr/SeerrViewModel.kt b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/seerr/SeerrViewModel.kt
+index a853fe4e..aefe0343 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/seerr/SeerrViewModel.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/seerr/SeerrViewModel.kt
+@@ -68,6 +68,9 @@ data class SeerrUiState(
+   val isDetailLoading: Boolean = false,
+   val isDetailSheetOpen: Boolean = false,
+   val isRequesting: Boolean = false,
++  val radarrServers: List<com.quantummpv.app.domain.seerr.SeerrRadarrServer> = emptyList(),
++  val sonarrServers: List<com.quantummpv.app.domain.seerr.SeerrSonarrServer> = emptyList(),
++  val isLoadingServers: Boolean = false,
+   val actionMessage: String? = null,
+ )
+ 
+@@ -329,6 +332,10 @@ class SeerrViewModel(
+       )
+     }
+ 
++    if (_uiState.value.radarrServers.isEmpty() || _uiState.value.sonarrServers.isEmpty()) {
++      loadServerConfigs()
++    }
++
+     detailJob = viewModelScope.launch {
+       val res = if (item.getMediaType() == MediaType.TV) {
+         seerrRepository.getTvDetails(item.id)
+@@ -344,6 +351,21 @@ class SeerrViewModel(
+     }
+   }
+ 
++  fun loadServerConfigs() {
++    viewModelScope.launch {
++      _uiState.update { it.copy(isLoadingServers = true) }
++      val radarr = seerrRepository.getRadarrServers().getOrDefault(emptyList())
++      val sonarr = seerrRepository.getSonarrServers().getOrDefault(emptyList())
++      _uiState.update {
++        it.copy(
++          radarrServers = radarr,
++          sonarrServers = sonarr,
++          isLoadingServers = false,
++        )
++      }
++    }
++  }
++
+   fun openDetailFromRequest(request: JellyseerrRequest) {
+     val tmdbId = request.media.tmdbId ?: return
+     val mediaType = request.getMediaType()
+@@ -373,6 +395,9 @@ class SeerrViewModel(
+   fun requestMedia(
+     seasons: List<Int>?,
+     is4k: Boolean,
++    serverId: Int? = null,
++    profileId: Int? = null,
++    rootFolder: String? = null,
+   ) {
+     val searchItem = _uiState.value.selectedSearchItem ?: return
+     val mediaType = searchItem.getMediaType()
+@@ -385,6 +410,9 @@ class SeerrViewModel(
+         mediaType = mediaType,
+         seasons = seasons,
+         is4k = is4k,
++        serverId = serverId,
++        profileId = profileId,
++        rootFolder = rootFolder,
+       )
+       res.fold(
+         onSuccess = { req ->
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index f2d3a1b7..6a5476a3 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -2009,6 +2009,8 @@
+   <string name="seerr_status_partially_available">Partially Available</string>
+   <string name="seerr_status_requested">Requested</string>
+   <string name="seerr_status_not_requested">Not Requested</string>
++  <string name="seerr_status_deleted">Deleted</string>
++  <string name="seerr_status_blacklisted">Blacklisted</string>
+   <string name="seerr_approve">Approve</string>
+   <string name="seerr_decline">Decline</string>
+   <string name="seerr_delete">Delete</string>
+-- 
+2.25.1
+

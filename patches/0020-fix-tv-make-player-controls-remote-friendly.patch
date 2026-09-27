@@ -1,0 +1,627 @@
+From 51c4c77bf51f9646d9154b09ab9c6751f808a5c2 Mon Sep 17 00:00:00 2001
+From: Brandon Presley <brandon@presley.nz>
+Date: Sun, 6 Sep 2026 11:50:45 +1200
+Subject: [PATCH 020/140] fix(tv): make player controls remote-friendly
+
+---
+ .../gyrolet/mpvrx/ui/player/PlayerActivity.kt | 48 +++++++++++++
+ .../mpvrx/ui/player/PlayerViewModel.kt        |  9 +++
+ .../mpvrx/ui/player/TvPlayerRemotePolicy.kt   | 67 ++++++++++++++++++
+ .../ui/player/controls/PlayerControls.kt      | 23 +++++--
+ .../mpvrx/ui/player/controls/PlayerSheets.kt  | 18 ++++-
+ .../controls/components/ControlsButton.kt     |  1 +
+ .../ui/player/controls/components/TvFocus.kt  | 68 +++++++++++++++++++
+ .../components/sheets/AudioTracksSheet.kt     | 13 +++-
+ .../components/sheets/SubtitleTracksSheet.kt  | 24 ++++++-
+ .../mpvrx/utils/device/DeviceFormFactor.kt    | 26 +++++++
+ 10 files changed, 287 insertions(+), 10 deletions(-)
+ create mode 100644 app/src/main/java/com/quantummpv/app/ui/player/TvPlayerRemotePolicy.kt
+ create mode 100644 app/src/main/java/com/quantummpv/app/ui/player/controls/components/TvFocus.kt
+ create mode 100644 app/src/main/java/com/quantummpv/app/utils/device/DeviceFormFactor.kt
+
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt b/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt
+index 7f0b7670..1216b87c 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt
+@@ -111,6 +111,7 @@ import com.quantummpv.app.ui.player.components.rememberVideoAmbientFrame
+ import com.quantummpv.app.ui.player.ytdlp.YtdlpManager
+ import com.quantummpv.app.ui.theme.MpvrxTheme
+ import com.quantummpv.app.ui.torrent.TorrentSelectionActivity
++import com.quantummpv.app.utils.device.DeviceFormFactor
+ import com.quantummpv.app.utils.device.VulkanCapabilities
+ import com.quantummpv.app.utils.history.RecentlyPlayedOps
+ import com.quantummpv.app.utils.media.HttpUtils
+@@ -191,6 +192,8 @@ class PlayerActivity :
+    * Binding for the player layout.
+    */
+   private val binding by lazy { PlayerLayoutBinding.inflate(layoutInflater) }
++  private val isTelevision by lazy(LazyThreadSafetyMode.NONE) { DeviceFormFactor.isTelevision(this) }
++  private val consumedTvRemoteKeys = mutableSetOf<Int>()
+ 
+   /**
+    * Observer for MPV events.
+@@ -951,6 +954,11 @@ class PlayerActivity :
+       return
+     }
+ 
++    if (isTelevision && viewModel.controlsShown.value) {
++      viewModel.hideControls()
++      return
++    }
++
+     // If mini player is enabled, back press within the app hands off playback to the mini player
+     // rather than entering PiP. If mini player is disabled, auto-PiP retains priority on Back
+     // unless the user restricted auto-PiP to the home gesture.
+@@ -6056,6 +6064,42 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
+       }
+     val hasModifiers = modifierEvent != null
+ 
++    if (isTelevision && !hasModifiers) {
++      val overlayVisible = viewModel.sheetShown.value != Sheets.None || viewModel.panelShown.value != Panels.None
++      when (
++        TvPlayerRemotePolicy.actionFor(
++          keyCode = keyCode,
++          controlsVisible = viewModel.controlsShown.value,
++          overlayVisible = overlayVisible,
++        )
++      ) {
++        TvPlayerRemoteAction.SHOW_CONTROLS -> {
++          consumedTvRemoteKeys += keyCode
++          viewModel.showControls()
++          return true
++        }
++        TvPlayerRemoteAction.SEEK_BACKWARD -> {
++          consumedTvRemoteKeys += keyCode
++          viewModel.handleLeftDoubleTap()
++          return true
++        }
++        TvPlayerRemoteAction.SEEK_FORWARD -> {
++          consumedTvRemoteKeys += keyCode
++          viewModel.handleRightDoubleTap()
++          return true
++        }
++        TvPlayerRemoteAction.TOGGLE_PLAYBACK -> {
++          consumedTvRemoteKeys += keyCode
++          if ((event?.repeatCount ?: 0) == 0) viewModel.pauseUnpause()
++          viewModel.showControls()
++          return true
++        }
++        TvPlayerRemoteAction.DELEGATE -> {
++          if (TvPlayerRemotePolicy.isNavigationKey(keyCode)) return super.onKeyDown(keyCode, event)
++        }
++      }
++    }
++
+     if (!viewModel.isAudioOnly.value &&
+       event?.isShiftPressed == true &&
+       (event.isCtrlPressed || event.isMetaPressed)
+@@ -6211,6 +6255,10 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
+     keyCode: Int,
+     event: KeyEvent?,
+   ): Boolean {
++    if (isTelevision && consumedTvRemoteKeys.remove(keyCode)) return true
++    if (isTelevision && TvPlayerRemotePolicy.isNavigationKey(keyCode)) {
++      return super.onKeyUp(keyCode, event)
++    }
+     event?.let {
+       if (player.onKey(it)) return true
+     }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt b/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
+index f1dc123c..806d5f28 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
+@@ -3974,6 +3974,15 @@ val isBrightnessSliderShown = MutableStateFlow(false)
+     syncSubtitleLayout()
+   }
+ 
++  fun selectPrimarySubtitle(id: Int) {
++    setTrackSelectionId("sid", id)
++    setTrackSelectionId("secondary-sid", null)
++    if (!subtitlesPreferences.autoEnableSubtitles.get()) {
++      subtitlesPreferences.autoEnableSubtitles.set(true)
++    }
++    syncSubtitleLayout()
++  }
++
+   fun isSubtitleSelected(id: Int): Boolean {
+     val primarySid = getTrackSelectionId("sid")
+     val secondarySid = getTrackSelectionId("secondary-sid")
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/TvPlayerRemotePolicy.kt b/app/src/main/java/com/quantummpv/app/ui/player/TvPlayerRemotePolicy.kt
+new file mode 100644
+index 00000000..2213e164
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/ui/player/TvPlayerRemotePolicy.kt
+@@ -0,0 +1,67 @@
++/*
++ * SPDX-License-Identifier: AGPL-3.0-or-later
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Affero General Public License as published by
++ * the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ */
++
++package com.quantummpv.app.ui.player
++
++import android.view.KeyEvent
++
++internal enum class TvPlayerRemoteAction {
++  DELEGATE,
++  SHOW_CONTROLS,
++  SEEK_BACKWARD,
++  SEEK_FORWARD,
++  TOGGLE_PLAYBACK,
++}
++
++internal object TvPlayerRemotePolicy {
++  fun actionFor(
++    keyCode: Int,
++    controlsVisible: Boolean,
++    overlayVisible: Boolean,
++  ): TvPlayerRemoteAction =
++    when (keyCode) {
++      KeyEvent.KEYCODE_DPAD_UP,
++      KeyEvent.KEYCODE_SYSTEM_NAVIGATION_UP,
++      KeyEvent.KEYCODE_DPAD_DOWN,
++      KeyEvent.KEYCODE_SYSTEM_NAVIGATION_DOWN,
++      -> if (controlsVisible || overlayVisible) TvPlayerRemoteAction.DELEGATE else TvPlayerRemoteAction.SHOW_CONTROLS
++
++      KeyEvent.KEYCODE_DPAD_LEFT,
++      KeyEvent.KEYCODE_SYSTEM_NAVIGATION_LEFT,
++      -> if (controlsVisible || overlayVisible) TvPlayerRemoteAction.DELEGATE else TvPlayerRemoteAction.SEEK_BACKWARD
++
++      KeyEvent.KEYCODE_DPAD_RIGHT,
++      KeyEvent.KEYCODE_SYSTEM_NAVIGATION_RIGHT,
++      -> if (controlsVisible || overlayVisible) TvPlayerRemoteAction.DELEGATE else TvPlayerRemoteAction.SEEK_FORWARD
++
++      KeyEvent.KEYCODE_DPAD_CENTER,
++      KeyEvent.KEYCODE_ENTER,
++      KeyEvent.KEYCODE_NUMPAD_ENTER,
++      KeyEvent.KEYCODE_BUTTON_A,
++      KeyEvent.KEYCODE_BUTTON_START,
++      -> if (controlsVisible || overlayVisible) TvPlayerRemoteAction.DELEGATE else TvPlayerRemoteAction.TOGGLE_PLAYBACK
++
++      else -> TvPlayerRemoteAction.DELEGATE
++    }
++
++  fun isNavigationKey(keyCode: Int): Boolean =
++    keyCode == KeyEvent.KEYCODE_DPAD_UP ||
++      keyCode == KeyEvent.KEYCODE_SYSTEM_NAVIGATION_UP ||
++      keyCode == KeyEvent.KEYCODE_DPAD_DOWN ||
++      keyCode == KeyEvent.KEYCODE_SYSTEM_NAVIGATION_DOWN ||
++      keyCode == KeyEvent.KEYCODE_DPAD_LEFT ||
++      keyCode == KeyEvent.KEYCODE_SYSTEM_NAVIGATION_LEFT ||
++      keyCode == KeyEvent.KEYCODE_DPAD_RIGHT ||
++      keyCode == KeyEvent.KEYCODE_SYSTEM_NAVIGATION_RIGHT ||
++      keyCode == KeyEvent.KEYCODE_DPAD_CENTER ||
++      keyCode == KeyEvent.KEYCODE_ENTER ||
++      keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER ||
++      keyCode == KeyEvent.KEYCODE_BUTTON_A ||
++      keyCode == KeyEvent.KEYCODE_BUTTON_START
++}
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControls.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControls.kt
+index 604280d7..173fe8f5 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControls.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControls.kt
+@@ -161,8 +161,12 @@ import com.quantummpv.app.ui.player.controls.components.playerButtonBorderColor
+ import com.quantummpv.app.ui.player.controls.components.playerButtonContainerColor
+ import com.quantummpv.app.ui.player.controls.components.playerButtonContentColor
+ import com.quantummpv.app.ui.player.controls.components.rememberBufferingState
++import com.quantummpv.app.ui.player.controls.components.rememberTvInitialFocusRequester
++import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
++import com.quantummpv.app.ui.player.controls.components.tvInitialFocus
+ import com.quantummpv.app.ui.player.controls.components.sheets.toFixed
+ import com.quantummpv.app.ui.theme.controlColor
++import com.quantummpv.app.utils.device.DeviceFormFactor
+ import com.quantummpv.app.ui.theme.playerRippleConfiguration
+ import com.quantummpv.app.ui.theme.spacing
+ import dev.vivvvek.seeker.Segment
+@@ -198,6 +202,7 @@ fun PlayerControls(
+   modifier: Modifier = Modifier,
+ ) {
+   val spacing = MaterialTheme.spacing
++  val isTelevision = DeviceFormFactor.isTelevision(LocalContext.current)
+   val advancedPreferences = koinInject<AdvancedPreferences>()
+   val appearancePreferences = koinInject<AppearancePreferences>()
+   val aiPreferences = koinInject<AiPreferences>()
+@@ -214,6 +219,7 @@ fun PlayerControls(
+   val showControlsDrawer by playerPreferences.showControlsDrawer.collectAsState()
+   val interactionSource = remember { MutableInteractionSource() }
+   val controlsShown by viewModel.controlsShown.collectAsState()
++  val tvPlayFocusRequester = rememberTvInitialFocusRequester(enabled = controlsShown)
+   val statisticsPage by advancedPreferences.enabledStatisticsPage.collectAsState()
+   val areControlsLocked by viewModel.areControlsLocked.collectAsState()
+   val seekBarShown by viewModel.seekBarShown.collectAsState()
+@@ -519,7 +525,8 @@ fun PlayerControls(
+     isPlayerDrawerShown,
+     showControlsDrawer,
+   ) {
+-    if (!isAudioOnly &&
++    if (!isTelevision &&
++      !isAudioOnly &&
+       controlsShown &&
+       paused == false &&
+       !isSeeking &&
+@@ -1419,6 +1426,7 @@ is PlayerUpdates.FrameInfo -> {
+                   modifier =
+                     Modifier
+                       .size(56.dp)
++                      .tvFocusHighlight(CircleShape, enabled = viewModel.hasPrevious())
+                       .clip(CircleShape)
+                       .clickable(
+                         enabled = viewModel.hasPrevious(),
+@@ -1475,10 +1483,12 @@ is PlayerUpdates.FrameInfo -> {
+ 
+                 Surface(
+                   modifier =
+-                    Modifier
+-                      .size(64.dp)
+-                      .clip(CircleShape)
+-                      .clickable(interaction, ripple(), onClick = {
++                  Modifier
++                    .size(64.dp)
++                    .tvInitialFocus(tvPlayFocusRequester)
++                    .tvFocusHighlight(CircleShape)
++                    .clip(CircleShape)
++                    .clickable(interaction, ripple(), onClick = {
+                         resetControlsTimestamp = System.currentTimeMillis()
+                         viewModel.pauseUnpause()
+                       })
+@@ -1520,6 +1530,7 @@ is PlayerUpdates.FrameInfo -> {
+                   modifier =
+                     Modifier
+                       .size(56.dp)
++                      .tvFocusHighlight(CircleShape, enabled = viewModel.hasNext())
+                       .clip(CircleShape)
+                       .clickable(
+                         enabled = viewModel.hasNext(),
+@@ -1579,6 +1590,8 @@ is PlayerUpdates.FrameInfo -> {
+                 modifier =
+                   Modifier
+                     .size(64.dp)
++                    .tvInitialFocus(tvPlayFocusRequester)
++                    .tvFocusHighlight(CircleShape)
+                     .clip(CircleShape)
+                     .clickable(interaction, ripple(), onClick = {
+                       resetControlsTimestamp = System.currentTimeMillis()
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerSheets.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerSheets.kt
+index 4b3a97b6..2f90896c 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerSheets.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerSheets.kt
+@@ -19,6 +19,7 @@ import androidx.compose.runtime.getValue
+ import androidx.compose.runtime.mutableStateOf
+ import androidx.compose.runtime.remember
+ import androidx.compose.runtime.setValue
++import androidx.compose.ui.platform.LocalContext
+ import com.quantummpv.app.preferences.AdvancedPreferences
+ import com.quantummpv.app.preferences.MpvConfigControlledFeatures
+ import com.quantummpv.app.preferences.MpvConfigOverride
+@@ -44,6 +45,7 @@ import com.quantummpv.app.ui.player.controls.components.sheets.VideoZoomSheet
+ import com.quantummpv.app.ui.player.controls.components.sheets.VideoQualitySheet
+ import com.quantummpv.app.ui.player.controls.components.sheets.VisualizerStyleSheet
+ import com.quantummpv.app.ui.player.setTrackSelectionId
++import com.quantummpv.app.utils.device.DeviceFormFactor
+ import dev.vivvvek.seeker.Segment
+ import kotlinx.collections.immutable.ImmutableList
+ import kotlinx.collections.immutable.toImmutableList
+@@ -88,6 +90,7 @@ fun PlayerSheets(
+   onShowSheet: (Sheets) -> Unit,
+   onDismissRequest: () -> Unit,
+ ) {
++  val isTelevision = DeviceFormFactor.isTelevision(LocalContext.current)
+   val advancedPreferences = koinInject<AdvancedPreferences>()
+   val storedConfigOverrides by advancedPreferences.mpvConfOverrides.collectAsState()
+   val configOwnedOptions =
+@@ -180,7 +183,14 @@ fun PlayerSheets(
+ 
+       SubtitlesSheet(
+         tracks = subtitles.toImmutableList(),
+-        onToggleSubtitle = onToggleSubtitle,
++        onToggleSubtitle = { id ->
++          if (isTelevision) {
++            viewModel.selectPrimarySubtitle(id)
++            onDismissRequest()
++          } else {
++            onToggleSubtitle(id)
++          }
++        },
+         isSubtitleSelected = isSubtitleSelected,
+         subtitleSelectionIndicator = subtitleSelectionIndicator,
+         onAddSubtitle = { showFilePicker = true },
+@@ -210,6 +220,7 @@ fun PlayerSheets(
+           setTrackSelectionId("sid", null)
+           setTrackSelectionId("secondary-sid", null)
+           subtitlesPreferences.autoEnableSubtitles.set(false)
++          if (isTelevision) onDismissRequest()
+         },
+       )
+     }
+@@ -337,7 +348,10 @@ fun PlayerSheets(
+ 
+       AudioTracksSheet(
+         tracks = audioTracks,
+-        onSelect = onSelectAudio,
++        onSelect = { track ->
++          onSelectAudio(track)
++          if (isTelevision) onDismissRequest()
++        },
+         onAddAudioTrack = { showAudioFilePicker = true },
+         onOpenDelayPanel = { onOpenPanel(Panels.AudioDelay) },
+         onOpenEqualizerSheet = { onShowSheet(Sheets.Equalizer) },
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/ControlsButton.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/ControlsButton.kt
+index 81c35e32..d360ada7 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/ControlsButton.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/ControlsButton.kt
+@@ -82,6 +82,7 @@ fun ControlsButton(
+   Surface(
+     modifier =
+       modifier
++        .tvFocusHighlight(CircleShape, enabled)
+         .clip(CircleShape)
+         .combinedClickable(
+           enabled = enabled,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/TvFocus.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/TvFocus.kt
+new file mode 100644
+index 00000000..f9f7a3b5
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/TvFocus.kt
+@@ -0,0 +1,68 @@
++/*
++ * SPDX-License-Identifier: AGPL-3.0-or-later
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Affero General Public License as published by
++ * the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ */
++
++package com.quantummpv.app.ui.player.controls.components
++
++import androidx.compose.foundation.border
++import androidx.compose.foundation.shape.RoundedCornerShape
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.LaunchedEffect
++import androidx.compose.runtime.getValue
++import androidx.compose.runtime.mutableStateOf
++import androidx.compose.runtime.remember
++import androidx.compose.runtime.setValue
++import androidx.compose.runtime.withFrameNanos
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.composed
++import androidx.compose.ui.focus.FocusRequester
++import androidx.compose.ui.focus.focusRequester
++import androidx.compose.ui.focus.onFocusChanged
++import androidx.compose.ui.graphics.Shape
++import androidx.compose.ui.platform.LocalContext
++import androidx.compose.ui.unit.dp
++import com.quantummpv.app.utils.device.DeviceFormFactor
++
++fun Modifier.tvFocusHighlight(
++  shape: Shape = RoundedCornerShape(8.dp),
++  enabled: Boolean = true,
++): Modifier =
++  composed {
++    val isTelevision = DeviceFormFactor.isTelevision(LocalContext.current)
++    if (!isTelevision || !enabled) return@composed this
++
++    var focused by remember { mutableStateOf(false) }
++    this
++      .onFocusChanged { state -> focused = state.isFocused || state.hasFocus }
++      .then(
++        if (focused) {
++          Modifier.border(3.dp, MaterialTheme.colorScheme.primary, shape)
++        } else {
++          Modifier
++        },
++      )
++  }
++
++@Composable
++fun rememberTvInitialFocusRequester(enabled: Boolean = true): FocusRequester {
++  val isTelevision = DeviceFormFactor.isTelevision(LocalContext.current)
++  val requester = remember { FocusRequester() }
++  LaunchedEffect(isTelevision, enabled) {
++    if (isTelevision && enabled) {
++      withFrameNanos { }
++      runCatching { requester.requestFocus() }
++    }
++  }
++  return requester
++}
++
++fun Modifier.tvInitialFocus(requester: FocusRequester): Modifier =
++  composed {
++    if (DeviceFormFactor.isTelevision(LocalContext.current)) this.focusRequester(requester) else this
++  }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/AudioTracksSheet.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/AudioTracksSheet.kt
+index 6a52f99a..b6a6e46d 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/AudioTracksSheet.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/AudioTracksSheet.kt
+@@ -33,6 +33,7 @@ import androidx.compose.runtime.getValue
+ import androidx.compose.runtime.remember
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
++import androidx.compose.ui.platform.LocalContext
+ import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.text.font.FontStyle
+ import androidx.compose.ui.text.font.FontWeight
+@@ -44,7 +45,11 @@ import com.quantummpv.app.presentation.components.PlayerSheet
+ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
+ import com.quantummpv.app.ui.player.TrackNode
++import com.quantummpv.app.ui.player.controls.components.rememberTvInitialFocusRequester
++import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
++import com.quantummpv.app.ui.player.controls.components.tvInitialFocus
+ import com.quantummpv.app.ui.theme.spacing
++import com.quantummpv.app.utils.device.DeviceFormFactor
+ import kotlinx.collections.immutable.ImmutableList
+ import org.koin.compose.koinInject
+ 
+@@ -65,6 +70,8 @@ fun AudioTracksSheet(
+ ) {
+   val audioPreferences = koinInject<AudioPreferences>()
+   val audioChannels by audioPreferences.audioChannels.collectAsState()
++  val initialFocusRequester = rememberTvInitialFocusRequester(tracks.isNotEmpty())
++  val initialTrackId = remember(tracks) { tracks.firstOrNull { it.isSelected }?.id ?: tracks.firstOrNull()?.id }
+   val (embeddedTracks, externalTracks) =
+     remember(tracks) {
+       tracks.partition { track -> track.external != true }
+@@ -99,6 +106,7 @@ fun AudioTracksSheet(
+             details = audioTrackDetails(it),
+             isSelected = it.isSelected,
+             onClick = { onSelect(it) },
++            modifier = if (it.id == initialTrackId) Modifier.tvInitialFocus(initialFocusRequester) else Modifier,
+           )
+         }
+         if (externalTracks.isNotEmpty()) {
+@@ -112,6 +120,7 @@ fun AudioTracksSheet(
+             details = audioTrackDetails(it),
+             isSelected = it.isSelected,
+             onClick = { onSelect(it) },
++            modifier = if (it.id == initialTrackId) Modifier.tvInitialFocus(initialFocusRequester) else Modifier,
+           )
+         }
+         item {
+@@ -211,10 +220,12 @@ fun AudioTrackRow(
+   enabled: Boolean = true,
+   details: String? = null,
+ ) {
++  val isTelevision = DeviceFormFactor.isTelevision(LocalContext.current)
+   Row(
+     modifier =
+       modifier
+         .fillMaxWidth()
++        .tvFocusHighlight(enabled = enabled)
+         .clickable(enabled = enabled, onClick = onClick)
+         .padding(horizontal = MaterialTheme.spacing.medium, vertical = MaterialTheme.spacing.extraSmall),
+     verticalAlignment = Alignment.CenterVertically,
+@@ -222,7 +233,7 @@ fun AudioTrackRow(
+   ) {
+     RadioButton(
+       selected = isSelected,
+-      onClick = onClick,
++      onClick = if (isTelevision) null else onClick,
+       enabled = enabled,
+     )
+     Column(modifier = Modifier.weight(1f)) {
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/SubtitleTracksSheet.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/SubtitleTracksSheet.kt
+index 88bc6c5e..706f8435 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/SubtitleTracksSheet.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/SubtitleTracksSheet.kt
+@@ -30,6 +30,7 @@ import androidx.compose.material3.IconButtonDefaults
+ import androidx.compose.material3.LinearProgressIndicator
+ import androidx.compose.material3.MaterialTheme
+ import androidx.compose.material3.OutlinedTextField
++import androidx.compose.material3.RadioButton
+ import androidx.compose.material3.Surface
+ import androidx.compose.material3.Text
+ import androidx.compose.runtime.Composable
+@@ -39,6 +40,7 @@ import androidx.compose.runtime.remember
+ import androidx.compose.runtime.setValue
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
++import androidx.compose.ui.platform.LocalContext
+ import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.text.font.FontWeight
+ import androidx.compose.ui.text.style.TextOverflow
+@@ -48,7 +50,11 @@ import com.quantummpv.app.presentation.components.PlayerSheet
+ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
+ import com.quantummpv.app.ui.player.TrackNode
++import com.quantummpv.app.ui.player.controls.components.rememberTvInitialFocusRequester
++import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
++import com.quantummpv.app.ui.player.controls.components.tvInitialFocus
+ import com.quantummpv.app.ui.theme.spacing
++import com.quantummpv.app.utils.device.DeviceFormFactor
+ import kotlinx.collections.immutable.ImmutableList
+ import kotlinx.collections.immutable.toImmutableList
+ 
+@@ -98,6 +104,8 @@ fun SubtitlesSheet(
+   delayControlEnabled: Boolean = true,
+   modifier: Modifier = Modifier,
+ ) {
++  val isTelevision = DeviceFormFactor.isTelevision(LocalContext.current)
++  val initialFocusRequester = rememberTvInitialFocusRequester()
+   val items =
+     remember(tracks, subtitlesOff) {
+       val list = mutableListOf<SubtitleItem>()
+@@ -465,12 +473,18 @@ fun SubtitlesSheet(
+                 modifier =
+                   Modifier
+                     .fillMaxWidth()
++                    .tvInitialFocus(initialFocusRequester)
++                    .tvFocusHighlight()
+                     .clickable(onClick = onDisableSubtitles)
+                     .padding(horizontal = MaterialTheme.spacing.medium, vertical = MaterialTheme.spacing.extraSmall),
+                 verticalAlignment = Alignment.CenterVertically,
+                 horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.smaller),
+               ) {
+-                Checkbox(checked = subtitlesOff, onCheckedChange = { onDisableSubtitles() })
++                if (isTelevision) {
++                  RadioButton(selected = subtitlesOff, onClick = null)
++                } else {
++                  Checkbox(checked = subtitlesOff, onCheckedChange = { onDisableSubtitles() })
++                }
+                 Text(
+                   stringResource(R.string.player_sheets_off),
+                   fontWeight = if (subtitlesOff) FontWeight.Bold else FontWeight.Normal,
+@@ -511,16 +525,22 @@ fun SubtitleTrackRow(
+   isCurrentlyTranslating: Boolean = false,
+   modifier: Modifier = Modifier,
+ ) {
++  val isTelevision = DeviceFormFactor.isTelevision(LocalContext.current)
+   Row(
+     modifier =
+       modifier
+         .fillMaxWidth()
++        .tvFocusHighlight()
+         .clickable(onClick = onToggle)
+         .padding(horizontal = MaterialTheme.spacing.medium, vertical = MaterialTheme.spacing.extraSmall),
+     verticalAlignment = Alignment.CenterVertically,
+     horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.smaller),
+   ) {
+-    Checkbox(checked = isSelected, onCheckedChange = { onToggle() })
++    if (isTelevision) {
++      RadioButton(selected = isSelected, onClick = null)
++    } else {
++      Checkbox(checked = isSelected, onCheckedChange = { onToggle() })
++    }
+     Text(title, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal, modifier = Modifier.weight(1f))
+ 
+     if (selectionIndicator != null) {
+diff --git a/app/src/main/java/com/quantummpv/app/utils/device/DeviceFormFactor.kt b/app/src/main/java/com/quantummpv/app/utils/device/DeviceFormFactor.kt
+new file mode 100644
+index 00000000..ae88d592
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/utils/device/DeviceFormFactor.kt
+@@ -0,0 +1,26 @@
++/*
++ * SPDX-License-Identifier: AGPL-3.0-or-later
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Affero General Public License as published by
++ * the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ */
++
++package com.quantummpv.app.utils.device
++
++import android.app.UiModeManager
++import android.content.Context
++import android.content.pm.PackageManager
++import android.content.res.Configuration
++
++object DeviceFormFactor {
++  fun isTelevision(context: Context): Boolean {
++    val packageManager = context.packageManager
++    val uiModeManager = context.getSystemService(Context.UI_MODE_SERVICE) as? UiModeManager
++    return uiModeManager?.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION ||
++      packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK) ||
++      packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK_ONLY) ||
++      packageManager.hasSystemFeature(PackageManager.FEATURE_TELEVISION)
++  }
++}
+-- 
+2.25.1
+

@@ -1,0 +1,3715 @@
+From d7b60e363bb41732e1d01c987e5d3da3770efd75 Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <riteshp2001@gmail.com>
+Date: Thu, 17 Sep 2026 19:20:58 +0530
+Subject: [PATCH 122/140] feat(player): unify audiobook controls, add shared
+ bookmarks, and fix script reloads
+
+Shared audiobook and audio playback UI
+- Replace the standalone audiobook player with the existing audio controls,
+  shared seekbar/timers, speed sheet, playlist, up-next panel, and visualizers.
+- Present book title, author/narrator, whole-book progress, file titles, and
+  original-URI artwork. Fit portrait book covers without cropping and keep
+  book queues in their established file order.
+- Reuse the common playback speed range and host audiobook rewind and sleep
+  timer settings in the standard player-sheet presentation.
+- Route artwork/visualizer double taps through configured player gestures.
+  Book-relative seeks can cross files while retaining the pause state.
+- Add dedicated backward/forward seek controls beside play/pause, with live
+  configured seek amounts, localized tooltips, accessible targets, and a
+  scrollable control row for constrained widths. Remove the stale lazy
+  seek-duration cache. Do not introduce a second add-bookmark button.
+
+Persistent bookmarks across video, music, and audiobooks
+- Keep the existing video bookmark/current-chapter controls and the audio
+  bookmark control: tap opens the chapter/bookmark list; long press captures
+  a named point at the playback timestamp before the editor is opened.
+- Use one shared bookmark entity, DAO, editor, and add/rename/delete/seek flow.
+  Capture the actually loaded media identity under the session lock so a
+  queue transition cannot assign the outgoing timestamp to the next item.
+- Merge custom points and book/native chapters for the displayed timeline
+  and seekbar markers, while preserving native chapter data for automatic
+  intro/credits behavior. Determine chapter selection by timestamp and keep
+  differently named points even when they share a timestamp.
+- Advance Room from version 23 to 24. Migrate existing audiobook bookmark
+  IDs, titles, positions, creation times, and track references before
+  removing the old table; retain cascading book-track ownership.
+
+Audiobook text and localization
+- Reuse the lyrics view for supplied embedded/local audiobook text without
+  automatic online song lookup or translation. Include online-lookup policy
+  in lyrics cache identity and hide unsupported online book-text controls.
+- Add bookmark empty/error, audiobook-text empty, and seek-direction labels
+  in the default resources and every existing translated locale.
+- Update the README feature table to describe the shared playback behavior.
+
+Frame navigation feedback
+- Remove the large centered frame-seek overlay and place a signed frame
+  delta beside the bottom frame counter instead.
+- Show forward deltas in green and backward deltas in red for swipes,
+  frame-step buttons, and slider changes. Fade feedback after 1.5 seconds
+  once interaction/stepping settles, and hide it on play/pause.
+- Preserve snapshot handling and constrain counter/timestamp layout.
+
+Script disable/re-enable lifecycle (issue #679)
+- Include the master script switch, selected Lua/JS filenames, and configured
+  directory in native core identity, with applied script state owned by the
+  process-wide playback session.
+- Replace add-only runtime script loading with a debounced lifecycle-aware
+  player recreation when the script selection changes. Rebuild the native
+  runtime instead of leaving removed scripts alive or loading duplicates.
+- Stage the current media/queue and restore position/pause through recreation;
+  protect lifecycle teardown, notification re-entry, and replacement media
+  requests from discarding the prepared source or retaining stale playback.
+- Prevent direct mini-player launches from bypassing a required runtime
+  refresh. Prune disabled cached scripts even when the configured document
+  tree is unavailable, and serialize asset synchronization with initialization.
+- Remove obsolete script-disable warnings that advised reopening the video.
+
+Requested history change
+- Remove b9f1aeb240bc7b7ba6fd5877b1bb9d4f83470f24 and its stream-aware
+  auto-crop changes from master, while retaining the earlier #680 fixes.
+- Preserve the pending bookmark and script-session work when resolving the
+  overlapping playback-session shutdown block.
+
+Validation and remaining gates
+- Per standing instructions, validation was static only: focused editor
+  diagnostics, source/reference and resource inspection, staged whitespace
+  checks, and a refreshed source graph. No Android build, tests, emulator,
+  device playback, or UI verification was run.
+- Room 24 schema export/migration execution and runtime checks for playback
+  restoration, script toggles, bookmarks, and responsive layouts remain
+  required. Generated schemas and changelog files were not manually edited.
+
+CI compilation follow-up (run 35229713407)
+- Import kotlinx.coroutines.flow.first for the script runtime observer,
+  resolving the missing extension and cascading lambda/phase errors.
+- Explicitly call the top-level AnimatedVisibility for frame feedback inside
+  the nested Box/Row layout, and remove its now-unused import.
+---
+ README.md                                     |   4 +-
+ .../gyrolet/mpvrx/database/MpvRxDatabase.kt   |   9 +-
+ .../mpvrx/database/dao/AudiobookDao.kt        |  14 -
+ .../mpvrx/database/dao/PlaybackBookmarkDao.kt |  22 +
+ .../database/entities/AudiobookEntity.kt      |  46 ++-
+ .../entities/PlaybackBookmarkEntity.kt        |  24 ++
+ .../com/quantummpv/app/di/DatabaseModule.kt    |  18 +
+ .../mpvrx/preferences/AdvancedPreferences.kt  |  11 +
+ .../repository/lyrics/LyricsRepository.kt     |  19 +-
+ .../java/com/quantummpv/app/ui/icons/Icons.kt  |   4 +
+ .../mpvrx/ui/player/AudiobookPlayback.kt      |  58 ++-
+ .../com/quantummpv/app/ui/player/MPVView.kt    |   7 +-
+ .../mpvrx/ui/player/PlaybackSession.kt        |  52 ++-
+ .../gyrolet/mpvrx/ui/player/PlayerActivity.kt | 211 ++++++----
+ .../gyrolet/mpvrx/ui/player/PlayerEnums.kt    |   3 +
+ .../mpvrx/ui/player/PlayerViewModel.kt        | 182 +++++++--
+ .../ui/player/controls/AudioPlayerControls.kt | 328 +++++++++------
+ .../controls/AudiobookPlayerControls.kt       | 384 ------------------
+ .../ui/player/controls/PlayerControls.kt      |  37 +-
+ .../player/controls/PlayerControlsShared.kt   |  46 ++-
+ .../mpvrx/ui/player/controls/PlayerSheets.kt  |  48 ++-
+ .../controls/components/ControlsButton.kt     |   2 +
+ .../controls/components/CurrentChapter.kt     |  10 +-
+ .../player/controls/components/LyricsView.kt  |   8 +-
+ .../components/panels/LuaScriptsPanel.kt      |  13 +-
+ .../components/sheets/AudiobookSheet.kt       |  90 ++++
+ .../components/sheets/ChaptersSheet.kt        |  79 +++-
+ .../components/sheets/FrameNavigationSheet.kt | 114 +++---
+ .../mpvrx/ui/preferences/LuaScriptsScreen.kt  |  13 +-
+ .../gyrolet/mpvrx/utils/media/MediaUtils.kt   |  19 +
+ app/src/main/res/values-ar/strings.xml        |   5 +
+ app/src/main/res/values-de/strings.xml        |   5 +
+ app/src/main/res/values-es/strings.xml        |   5 +
+ app/src/main/res/values-fr/strings.xml        |   5 +
+ app/src/main/res/values-hi/strings.xml        |   5 +
+ app/src/main/res/values-ja/strings.xml        |   5 +
+ app/src/main/res/values-pt-rBR/strings.xml    |   5 +
+ app/src/main/res/values-ru/strings.xml        |   5 +
+ app/src/main/res/values-zh-rCN/strings.xml    |   5 +
+ app/src/main/res/values/strings.xml           |   5 +
+ 40 files changed, 1138 insertions(+), 787 deletions(-)
+ create mode 100644 app/src/main/java/com/quantummpv/app/database/dao/PlaybackBookmarkDao.kt
+ create mode 100644 app/src/main/java/com/quantummpv/app/database/entities/PlaybackBookmarkEntity.kt
+ delete mode 100644 app/src/main/java/com/quantummpv/app/ui/player/controls/AudiobookPlayerControls.kt
+ create mode 100644 app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/AudiobookSheet.kt
+
+diff --git a/README.md b/README.md
+index 2797dd2a..2c8a7659 100644
+--- a/README.md
++++ b/README.md
+@@ -232,7 +232,9 @@ mpvRx pushes the mpv-android experience further with deep customization, thermal
+ | **Audio Playlists & Favorites** | Create local audio playlists, keep favorite tracks together, and start normal or shuffled playback |
+ | **Audiobook Library** | Open the book icon in Music to import a file, selected files, or one book folder including disc subfolders; M4B is recognized |
+ | **Book Metadata** | Covers, author, narrator, series and edition details from embedded tags or optional metadata.json/OPF sidecars, with editable book details |
+-| **Audiobook Listening** | Separate book progress/resume, ordered files, chapter navigation, named bookmarks, per-book speed, pause rewind and duration/chapter-end sleep timers |
++| **Audiobook Listening** | Book progress/resume through the normal audio player, shared playlist/speed controls, a whole-book seekbar with chapter markers, artwork, visualizers, configured seek gestures, pause rewind and sleep timers |
++| **Playback Bookmarks** | In video and audio player layouts, tap the bookmark icon to open chapters/bookmarks; long-press it to add a named point. Custom points persist and appear on the existing seekbar, with rename and delete actions |
++| **Audiobook Text** | Display supplied embedded lyrics or readable local LRC text in the existing lyrics view, without automatic online song matching |
+ 
+ </details>
+ 
+diff --git a/app/src/main/java/com/quantummpv/app/database/MpvRxDatabase.kt b/app/src/main/java/com/quantummpv/app/database/MpvRxDatabase.kt
+index 4f8a3db1..69400d8c 100644
+--- a/app/src/main/java/com/quantummpv/app/database/MpvRxDatabase.kt
++++ b/app/src/main/java/com/quantummpv/app/database/MpvRxDatabase.kt
+@@ -20,6 +20,7 @@ import com.quantummpv.app.database.dao.DownloadItemDao
+ import com.quantummpv.app.database.dao.NetworkConnectionDao
+ import com.quantummpv.app.database.dao.NetworkStreamEntryDao
+ import com.quantummpv.app.database.dao.PlaybackStateDao
++import com.quantummpv.app.database.dao.PlaybackBookmarkDao
+ import com.quantummpv.app.database.dao.PlaylistDao
+ import com.quantummpv.app.database.dao.RecentlyPlayedDao
+ import com.quantummpv.app.database.dao.SecureMediaDao
+@@ -30,12 +31,12 @@ import com.quantummpv.app.database.entities.DirectoryScanEntity
+ import com.quantummpv.app.database.entities.AudiobookEntity
+ import com.quantummpv.app.database.entities.AudiobookTrackEntity
+ import com.quantummpv.app.database.entities.AudiobookChapterEntity
+-import com.quantummpv.app.database.entities.AudiobookBookmarkEntity
+ import com.quantummpv.app.database.entities.DownloadItemEntity
+ import com.quantummpv.app.database.entities.JellyfinServerEntity
+ import com.quantummpv.app.database.entities.NavidromeServerEntity
+ import com.quantummpv.app.database.entities.NetworkStreamEntryEntity
+ import com.quantummpv.app.database.entities.PlaybackStateEntity
++import com.quantummpv.app.database.entities.PlaybackBookmarkEntity
+ import com.quantummpv.app.database.entities.PlaylistEntity
+ import com.quantummpv.app.database.entities.PlaylistItemEntity
+ import com.quantummpv.app.database.entities.RecentlyPlayedEntity
+@@ -60,9 +61,9 @@ import com.quantummpv.app.domain.network.NetworkConnection
+     AudiobookEntity::class,
+     AudiobookTrackEntity::class,
+     AudiobookChapterEntity::class,
+-    AudiobookBookmarkEntity::class,
++    PlaybackBookmarkEntity::class,
+   ],
+-  version = 23,
++  version = 24,
+   exportSchema = true,
+ )
+ @TypeConverters(NetworkProtocolConverter::class, NetworkStreamEntryTypeConverter::class)
+@@ -90,4 +91,6 @@ abstract class MpvRxDatabase : RoomDatabase() {
+   abstract fun navidromeServerDao(): NavidromeServerDao
+ 
+   abstract fun audiobookDao(): AudiobookDao
++
++  abstract fun playbackBookmarkDao(): PlaybackBookmarkDao
+ }
+diff --git a/app/src/main/java/com/quantummpv/app/database/dao/AudiobookDao.kt b/app/src/main/java/com/quantummpv/app/database/dao/AudiobookDao.kt
+index d8e32cf2..edbc5b30 100644
+--- a/app/src/main/java/com/quantummpv/app/database/dao/AudiobookDao.kt
++++ b/app/src/main/java/com/quantummpv/app/database/dao/AudiobookDao.kt
+@@ -6,7 +6,6 @@ import androidx.room.OnConflictStrategy
+ import androidx.room.Query
+ import androidx.room.Transaction
+ import com.quantummpv.app.database.entities.Audiobook
+-import com.quantummpv.app.database.entities.AudiobookBookmarkEntity
+ import com.quantummpv.app.database.entities.AudiobookChapterEntity
+ import com.quantummpv.app.database.entities.AudiobookEntity
+ import com.quantummpv.app.database.entities.AudiobookTrackEntity
+@@ -113,17 +112,4 @@ abstract class AudiobookDao {
+     if (chapters.isNotEmpty()) insertChapters(chapters.distinctBy { it.startMs })
+   }
+ 
+-  @Query("""SELECT bookmark.* FROM audiobook_bookmarks AS bookmark
+-    INNER JOIN audiobook_tracks AS track ON track.id = bookmark.trackId
+-    WHERE bookmark.bookId = :bookId ORDER BY track.position, bookmark.positionMs, bookmark.createdAt""")
+-  abstract fun observeBookmarks(bookId: Long): Flow<List<AudiobookBookmarkEntity>>
+-
+-  @Insert
+-  abstract suspend fun addBookmark(bookmark: AudiobookBookmarkEntity): Long
+-
+-  @Query("UPDATE audiobook_bookmarks SET title = :title WHERE id = :id")
+-  abstract suspend fun renameBookmark(id: Long, title: String)
+-
+-  @Query("DELETE FROM audiobook_bookmarks WHERE id = :id")
+-  abstract suspend fun deleteBookmark(id: Long)
+ }
+\ No newline at end of file
+diff --git a/app/src/main/java/com/quantummpv/app/database/dao/PlaybackBookmarkDao.kt b/app/src/main/java/com/quantummpv/app/database/dao/PlaybackBookmarkDao.kt
+new file mode 100644
+index 00000000..e3c9e3b2
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/database/dao/PlaybackBookmarkDao.kt
+@@ -0,0 +1,22 @@
++package com.quantummpv.app.database.dao
++
++import androidx.room.Dao
++import androidx.room.Insert
++import androidx.room.Query
++import com.quantummpv.app.database.entities.PlaybackBookmarkEntity
++import kotlinx.coroutines.flow.Flow
++
++@Dao
++interface PlaybackBookmarkDao {
++  @Query("SELECT * FROM playback_bookmarks WHERE mediaId = :mediaId ORDER BY positionMs, createdAt")
++  fun observe(mediaId: String): Flow<List<PlaybackBookmarkEntity>>
++
++  @Insert
++  suspend fun add(bookmark: PlaybackBookmarkEntity): Long
++
++  @Query("UPDATE playback_bookmarks SET title = :title WHERE id = :id")
++  suspend fun rename(id: Long, title: String)
++
++  @Query("DELETE FROM playback_bookmarks WHERE id = :id")
++  suspend fun delete(id: Long)
++}
+\ No newline at end of file
+diff --git a/app/src/main/java/com/quantummpv/app/database/entities/AudiobookEntity.kt b/app/src/main/java/com/quantummpv/app/database/entities/AudiobookEntity.kt
+index 42e5a80a..0df6d4ff 100644
+--- a/app/src/main/java/com/quantummpv/app/database/entities/AudiobookEntity.kt
++++ b/app/src/main/java/com/quantummpv/app/database/entities/AudiobookEntity.kt
+@@ -65,23 +65,6 @@ data class AudiobookChapterEntity(
+   val title: String,
+ )
+ 
+-@Entity(
+-  tableName = "audiobook_bookmarks",
+-  foreignKeys = [
+-    ForeignKey(entity = AudiobookEntity::class, parentColumns = ["id"], childColumns = ["bookId"], onDelete = ForeignKey.CASCADE),
+-    ForeignKey(entity = AudiobookTrackEntity::class, parentColumns = ["id"], childColumns = ["trackId"], onDelete = ForeignKey.CASCADE),
+-  ],
+-  indices = [Index(value = ["bookId"]), Index(value = ["trackId"])],
+-)
+-data class AudiobookBookmarkEntity(
+-  @PrimaryKey(autoGenerate = true) val id: Long = 0,
+-  val bookId: Long,
+-  val trackId: Long,
+-  val positionMs: Long,
+-  val title: String,
+-  val createdAt: Long = System.currentTimeMillis(),
+-)
+-
+ data class Audiobook(
+   @Embedded val book: AudiobookEntity,
+   @Relation(parentColumn = "id", entityColumn = "bookId") val tracks: List<AudiobookTrackEntity>,
+@@ -100,4 +83,33 @@ data class Audiobook(
+     return orderedTracks.takeWhile { it.id != trackId }.sumOf { it.durationMs.coerceAtLeast(0) } +
+       positionMs.coerceIn(0, track.durationMs.coerceAtLeast(0))
+   }
++
++  fun resolvePosition(positionMs: Long): Pair<AudiobookTrackEntity, Long>? {
++    val ordered = orderedTracks
++    var remaining = positionMs.coerceIn(0, durationMs)
++    ordered.forEachIndexed { index, track ->
++      val duration = track.durationMs.coerceAtLeast(0)
++      if (remaining < duration || index == ordered.lastIndex) return track to remaining.coerceAtMost(duration)
++      remaining -= duration
++    }
++    return null
++  }
++
++  fun chapterTimeline(stored: List<AudiobookChapterEntity>): List<AudiobookChapter> {
++    var offset = 0L
++    return orderedTracks.flatMap { track ->
++      val duration = track.durationMs.coerceAtLeast(0)
++      val chapters = stored.filter { it.trackId == track.id && it.startMs in 0 until duration && it.endMs > it.startMs }
++        .sortedBy { it.startMs }.ifEmpty { listOf(AudiobookChapterEntity(track.id, 0, duration, track.title)) }
++      val result = chapters.map { chapter ->
++        AudiobookChapter(track.id, chapter.startMs, chapter.endMs.coerceAtMost(duration), offset, chapter.title.ifBlank { track.title })
++      }
++      offset += duration
++      result
++    }
++  }
++}
++
++data class AudiobookChapter(val trackId: Long, val startMs: Long, val endMs: Long, val bookOffsetMs: Long, val title: String) {
++  val bookStartMs: Long get() = bookOffsetMs + startMs
+ }
+\ No newline at end of file
+diff --git a/app/src/main/java/com/quantummpv/app/database/entities/PlaybackBookmarkEntity.kt b/app/src/main/java/com/quantummpv/app/database/entities/PlaybackBookmarkEntity.kt
+new file mode 100644
+index 00000000..b584fbcc
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/database/entities/PlaybackBookmarkEntity.kt
+@@ -0,0 +1,24 @@
++package com.quantummpv.app.database.entities
++
++import androidx.room.Entity
++import androidx.room.ForeignKey
++import androidx.room.Index
++import androidx.room.PrimaryKey
++
++@Entity(
++  tableName = "playback_bookmarks",
++  foreignKeys = [ForeignKey(entity = AudiobookTrackEntity::class, parentColumns = ["id"], childColumns = ["bookTrackId"], onDelete = ForeignKey.CASCADE)],
++  indices = [Index(value = ["mediaId"]), Index(value = ["bookTrackId"])],
++)
++data class PlaybackBookmarkEntity(
++  @PrimaryKey(autoGenerate = true) val id: Long = 0,
++  val mediaId: String,
++  val positionMs: Long,
++  val title: String,
++  val createdAt: Long = System.currentTimeMillis(),
++  val bookTrackId: Long? = null,
++) {
++  companion object {
++    fun audiobookMediaId(bookId: Long): String = "audiobook:$bookId"
++  }
++}
+\ No newline at end of file
+diff --git a/app/src/main/java/com/quantummpv/app/di/DatabaseModule.kt b/app/src/main/java/com/quantummpv/app/di/DatabaseModule.kt
+index 66de2499..21884968 100644
+--- a/app/src/main/java/com/quantummpv/app/di/DatabaseModule.kt
++++ b/app/src/main/java/com/quantummpv/app/di/DatabaseModule.kt
+@@ -868,6 +868,22 @@ val MIGRATION_22_23 =
+     }
+   }
+ 
++val MIGRATION_23_24 =
++  object : Migration(23, 24) {
++    override fun migrate(db: SupportSQLiteDatabase) {
++      db.execSQL("""CREATE TABLE IF NOT EXISTS `playback_bookmarks` (
++        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `mediaId` TEXT NOT NULL,
++        `positionMs` INTEGER NOT NULL, `title` TEXT NOT NULL, `createdAt` INTEGER NOT NULL,
++        `bookTrackId` INTEGER,
++        FOREIGN KEY(`bookTrackId`) REFERENCES `audiobook_tracks`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE)""")
++      db.execSQL("CREATE INDEX IF NOT EXISTS `index_playback_bookmarks_mediaId` ON `playback_bookmarks` (`mediaId`)")
++      db.execSQL("CREATE INDEX IF NOT EXISTS `index_playback_bookmarks_bookTrackId` ON `playback_bookmarks` (`bookTrackId`)")
++      db.execSQL("""INSERT INTO `playback_bookmarks` (`id`, `mediaId`, `positionMs`, `title`, `createdAt`, `bookTrackId`)
++        SELECT `id`, 'audiobook:' || `bookId`, `positionMs`, `title`, `createdAt`, `trackId` FROM `audiobook_bookmarks`""")
++      db.execSQL("DROP TABLE `audiobook_bookmarks`")
++    }
++  }
++
+ val DatabaseModule =
+   module {
+     single<Json> {
+@@ -906,6 +922,7 @@ val DatabaseModule =
+           MIGRATION_19_21,
+           MIGRATION_21_22,
+           MIGRATION_22_23,
++          MIGRATION_23_24,
+         ).build()
+     }
+ 
+@@ -918,6 +935,7 @@ val DatabaseModule =
+     single { ThumbnailRepository(androidContext()) }
+ 
+     single { get<MpvRxDatabase>().audiobookDao() }
++    single { get<MpvRxDatabase>().playbackBookmarkDao() }
+ 
+     single {
+       com.quantummpv.app.database.repository.VideoMetadataCacheRepository(
+diff --git a/app/src/main/java/com/quantummpv/app/preferences/AdvancedPreferences.kt b/app/src/main/java/com/quantummpv/app/preferences/AdvancedPreferences.kt
+index a5d68c8c..3e0dd03d 100644
+--- a/app/src/main/java/com/quantummpv/app/preferences/AdvancedPreferences.kt
++++ b/app/src/main/java/com/quantummpv/app/preferences/AdvancedPreferences.kt
+@@ -31,6 +31,17 @@ class AdvancedPreferences(
+   val enableLuaScripts = preferenceStore.getBoolean("enable_lua_scripts", false)
+   val selectedLuaScripts = preferenceStore.getStringSet("selected_lua_scripts", emptySet())
+ 
++  fun userScriptsConfigurationKey(): String {
++    if (!enableLuaScripts.get()) return "disabled"
++    return buildString {
++      val location = mpvConfStorageUri.get()
++      append(location.length).append(':').append(location)
++      selectedLuaScripts.get().sorted().forEach { script ->
++        append('|').append(script.length).append(':').append(script)
++      }
++    }
++  }
++
+   val enableP2pStreaming = preferenceStore.getBoolean("enable_p2p_streaming", true)
+ 
+   val enableHlsProxy = preferenceStore.getBoolean("enable_hls_proxy", true)
+diff --git a/app/src/main/java/com/quantummpv/app/repository/lyrics/LyricsRepository.kt b/app/src/main/java/com/quantummpv/app/repository/lyrics/LyricsRepository.kt
+index 5637bb10..8d37159d 100644
+--- a/app/src/main/java/com/quantummpv/app/repository/lyrics/LyricsRepository.kt
++++ b/app/src/main/java/com/quantummpv/app/repository/lyrics/LyricsRepository.kt
+@@ -44,7 +44,8 @@ class LyricsRepository(
+   }
+ 
+   // Cache by media path -> LyricsResult
+-  private val cache = LruCache<String, LyricsResult>(64)
++  private data class CacheKey(val mediaPath: String, val allowOnline: Boolean)
++  private val cache = LruCache<CacheKey, LyricsResult>(64)
+ 
+   private fun cleanTitle(title: String): String {
+     return title
+@@ -91,9 +92,11 @@ class LyricsRepository(
+     artist: String?,
+     durationSeconds: Int = 0,
+     forceRefresh: Boolean = false,
++    allowOnline: Boolean = true,
+   ): LyricsResult = withContext(Dispatchers.IO) {
++    val cacheKey = CacheKey(mediaPath, allowOnline)
+     if (!forceRefresh) {
+-      cache.get(mediaPath)?.let { return@withContext it }
++      cache.get(cacheKey)?.let { return@withContext it }
+     }
+ 
+     Log.d(TAG, "Loading lyrics for: $title by $artist ($mediaPath)")
+@@ -102,7 +105,7 @@ class LyricsRepository(
+     val embedded = EmbeddedLyricsExtractor.extractEmbeddedLyrics(context, mediaPath)
+ 
+     // 2. Fetch online lyrics from LRCLIB
+-    val online = fetchOnlineLyrics(title, artist, durationSeconds)
++    val online = if (allowOnline) fetchOnlineLyrics(title, artist, durationSeconds) else null
+ 
+     // 3. Determine available sources and default preference (Embedded first if available)
+     val sources = mutableListOf<LyricsSourceType>()
+@@ -132,7 +135,7 @@ class LyricsRepository(
+       availableSources = sources.distinct(),
+     )
+ 
+-    cache.put(mediaPath, result)
++    cache.put(cacheKey, result)
+     result
+   }
+ 
+@@ -276,8 +279,10 @@ class LyricsRepository(
+     return if (parsed.isValid()) parsed else null
+   }
+ 
+-  fun switchSource(mediaPath: String, sourceType: LyricsSourceType): LyricsResult? {
+-    val existing = cache.get(mediaPath) ?: return null
++  fun switchSource(mediaPath: String, sourceType: LyricsSourceType, allowOnline: Boolean = true): LyricsResult? {
++    if (!allowOnline && sourceType == LyricsSourceType.ONLINE) return null
++    val cacheKey = CacheKey(mediaPath, allowOnline)
++    val existing = cache.get(cacheKey) ?: return null
+     val newActive = when (sourceType) {
+       LyricsSourceType.EMBEDDED, LyricsSourceType.LOCAL -> existing.embeddedLyrics ?: existing.onlineLyrics
+       LyricsSourceType.ONLINE -> existing.onlineLyrics ?: existing.embeddedLyrics
+@@ -286,7 +291,7 @@ class LyricsRepository(
+       selectedSource = sourceType,
+       activeLyrics = newActive,
+     )
+-    cache.put(mediaPath, updated)
++    cache.put(cacheKey, updated)
+     return updated
+   }
+ }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/icons/Icons.kt b/app/src/main/java/com/quantummpv/app/ui/icons/Icons.kt
+index 7325c617..3f04b313 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/icons/Icons.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/icons/Icons.kt
+@@ -42,6 +42,7 @@ object Icons {
+     val BlurOff by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Blur_off) }
+     val BlurOn by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Blur_on) }
+     val Bookmarks by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Bookmarks) }
++    val Bookmark by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Bookmark) }
+     val BorderColor by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Border_color) }
+     val BorderStyle by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Border_style) }
+     val BrandFamily by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Brand_family) }
+@@ -202,6 +203,7 @@ object Icons {
+     val Repeat by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Repeat) }
+     val RepeatOn by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Repeat_on) }
+     val RepeatOne by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Repeat_one) }
++    val Replay by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Replay) }
+     val ResetIso by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Reset_iso) }
+     val Restore by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Undo) }
+     val RoundedCorner by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Rounded_corner) }
+@@ -289,6 +291,7 @@ object Icons {
+     val BlurOff get() = Shared.BlurOff
+     val BlurOn get() = Shared.BlurOn
+     val Bookmarks get() = Shared.Bookmarks
++    val Bookmark get() = Shared.Bookmark
+     val BorderColor get() = Shared.BorderColor
+     val BorderStyle get() = Shared.BorderStyle
+     val BrandFamily get() = Shared.BrandFamily
+@@ -421,6 +424,7 @@ object Icons {
+     val Repeat get() = Shared.Repeat
+     val RepeatOn get() = Shared.RepeatOn
+     val RepeatOne get() = Shared.RepeatOne
++    val Replay get() = Shared.Replay
+     val ResetIso get() = Shared.ResetIso
+     val Restore get() = Shared.Restore
+     val RoundedCorner get() = Shared.RoundedCorner
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/AudiobookPlayback.kt b/app/src/main/java/com/quantummpv/app/ui/player/AudiobookPlayback.kt
+index 3ef8c612..932f3fce 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/AudiobookPlayback.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/AudiobookPlayback.kt
+@@ -7,6 +7,7 @@ import android.os.SystemClock
+ import android.util.Log
+ import com.quantummpv.app.database.dao.AudiobookDao
+ import com.quantummpv.app.database.entities.Audiobook
++import com.quantummpv.app.database.entities.AudiobookChapter
+ import com.quantummpv.app.database.entities.AudiobookChapterEntity
+ import java.util.concurrent.atomic.AtomicBoolean
+ import kotlinx.coroutines.CancellationException
+@@ -20,6 +21,7 @@ import kotlinx.coroutines.delay
+ import kotlinx.coroutines.flow.MutableStateFlow
+ import kotlinx.coroutines.flow.asStateFlow
+ import kotlinx.coroutines.flow.collectLatest
++import kotlinx.coroutines.flow.combine
+ import kotlinx.coroutines.flow.distinctUntilChanged
+ import kotlinx.coroutines.flow.first
+ import kotlinx.coroutines.flow.map
+@@ -54,6 +56,8 @@ internal object AudiobookPlayback {
+   private val saves = Channel<SaveWork>(Channel.UNLIMITED)
+   private val _book = MutableStateFlow<Audiobook?>(null)
+   val book = _book.asStateFlow()
++  private val _chapters = MutableStateFlow<List<AudiobookChapter>>(emptyList())
++  val chapters = _chapters.asStateFlow()
+   private val _saveFailed = MutableStateFlow(false)
+   val saveFailed = _saveFailed.asStateFlow()
+   private val _timer = MutableStateFlow<SleepTimer?>(null)
+@@ -63,7 +67,7 @@ internal object AudiobookPlayback {
+   @Volatile private var sleepStoppedTrack: Long? = null
+ 
+   data class SleepTimer(val bookId: Long, val deadline: Long? = null, val trackId: Long? = null, val chapterEndMs: Long? = null,
+-    val remainingSeconds: Int = 0)
++    val remainingSeconds: Int = 0, val durationMinutes: Int? = null)
+ 
+   fun ensureStarted() {
+     if (!started.compareAndSet(false, true)) return
+@@ -92,7 +96,12 @@ internal object AudiobookPlayback {
+       PlaybackSession.state.map { it.currentItem?.audiobook?.bookId }.distinctUntilChanged().collectLatest { id ->
+         if (_timer.value?.bookId != id) _timer.value = null
+         _book.value = null
+-        if (id != null) dao.observeBook(id).collect { _book.value = it }
++        _chapters.value = emptyList()
++        if (id != null) combine(dao.observeBook(id), dao.observeChapters(id)) { book, chapters -> book to chapters }
++          .collect { (book, chapters) ->
++            _book.value = book
++            _chapters.value = book?.chapterTimeline(chapters).orEmpty()
++          }
+       }
+     }
+     scope.launch {
+@@ -170,8 +179,44 @@ internal object AudiobookPlayback {
+ 
+   fun seekBy(seconds: Int) {
+     val progress = PlaybackSession.audiobookProgress() ?: return
+-    val duration = _book.value?.tracks?.firstOrNull { it.id == progress.item.trackId }?.durationMs ?: Long.MAX_VALUE
+-    seek((progress.positionMs + seconds * 1000L).coerceIn(0, duration.coerceAtLeast(0)))
++    val book = _book.value?.takeIf { it.book.id == progress.item.bookId } ?: return
++    seekInBook(book.positionInBook(progress.item.trackId, progress.positionMs) + seconds * 1000L)
++  }
++
++  fun seekInBook(positionMs: Long, resumePlayback: Boolean = false) {
++    val state = PlaybackSession.state.value
++    val info = state.currentItem?.audiobook ?: return
++    val book = _book.value?.takeIf { it.book.id == info.bookId } ?: return
++    val (track, localPosition) = book.resolvePosition(positionMs) ?: return
++    pausedAt = 0
++    sleepStoppedTrack = null
++    if (track.id == info.trackId) {
++      seek(localPosition)
++      if (resumePlayback) PlaybackSession.setPropertyBoolean("pause", false)
++    } else {
++      scope.launch(Dispatchers.IO) {
++        PlaybackSession.seekAudiobookTrack(info.bookId, track.id, localPosition, state.generation, resumePlayback)
++      }
++    }
++  }
++
++  fun seekToBookmark(trackId: Long, positionMs: Long) {
++    val current = _book.value ?: return
++    if (current.tracks.none { it.id == trackId }) return
++    seekInBook(current.positionInBook(trackId, positionMs))
++  }
++
++  fun currentChapter(): AudiobookChapter? {
++    val progress = PlaybackSession.audiobookProgress() ?: return null
++    return chapters.value.lastOrNull { it.trackId == progress.item.trackId && it.startMs <= progress.positionMs }
++  }
++
++  fun resumeAtEnd() {
++    val info = PlaybackSession.state.value.currentItem?.audiobook ?: return
++    val book = _book.value?.takeIf { it.book.id == info.bookId } ?: return
++    val track = book.tracks.firstOrNull { it.id == info.trackId } ?: return
++    val nextPosition = book.positionInBook(track.id, track.durationMs)
++    seekInBook(if (nextPosition >= book.durationMs) 0 else nextPosition, resumePlayback = true)
+   }
+ 
+   fun onFileLoaded(item: PlaybackItem, generation: Long) {
+@@ -230,7 +275,7 @@ internal object AudiobookPlayback {
+       chapterEndMs != null && chapterEndMs > progress.positionMs -> SleepTimer(progress.item.bookId, trackId = progress.item.trackId,
+         chapterEndMs = chapterEndMs)
+       minutes != null && minutes > 0 -> SleepTimer(progress.item.bookId,
+-        deadline = SystemClock.elapsedRealtime() + minutes * 60_000L, remainingSeconds = minutes * 60)
++        deadline = SystemClock.elapsedRealtime() + minutes * 60_000L, remainingSeconds = minutes * 60, durationMinutes = minutes)
+       else -> null
+     }
+   }
+@@ -241,8 +286,9 @@ internal object AudiobookPlayback {
+   }
+ 
+   fun setSpeed(speed: Float) {
++    if (!speed.isFinite()) return
+     val id = PlaybackSession.state.value.currentItem?.audiobook?.bookId ?: return
+-    val safeSpeed = speed.coerceIn(0.5f, 3f)
++    val safeSpeed = speed.coerceIn(0.1f, 4f)
+     scope.launch {
+       dao.setSpeed(id, safeSpeed)
+       if (PlaybackSession.state.value.currentItem?.audiobook?.bookId == id) PlaybackSession.setPropertyFloat("speed", safeSpeed)
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/MPVView.kt b/app/src/main/java/com/quantummpv/app/ui/player/MPVView.kt
+index 664f9f74..bf9abbe5 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/MPVView.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/MPVView.kt
+@@ -84,9 +84,10 @@ class MPVView(
+     // selection, but recreate the core when gpu-next/Vulkan selection actually changes.
+     MpvConfigOverridePolicy.configure(advancedPreferences.mpvConfOverrides.get())
+     val requestedBackend = selectRenderBackend(ignoreForcedOpenGlFallback = true)
++    val scriptsKey = advancedPreferences.userScriptsConfigurationKey()
+     val coreConfigurationKey =
+       "${requestedBackend.configurationKey}|conf=${MpvConfigOverridePolicy.configurationKey()}" +
+-        "|mpv=${mpvConfigCache.configurationKey()}"
++        "|mpv=${mpvConfigCache.configurationKey()}|scripts=$scriptsKey"
+     val result =
+       PlaybackSession.initialize(
+         context = context.applicationContext,
+@@ -96,6 +97,7 @@ class MPVView(
+         initOptions = ::initOptions,
+         postInitOptions = ::postInitOptions,
+         observeProperties = ::observeProperties,
++        userScriptsKey = scriptsKey,
+       )
+     if (result.isSuccess) {
+       holder.removeCallback(this)
+@@ -105,6 +107,9 @@ class MPVView(
+     return result
+   }
+ 
++  internal fun userScriptsNeedReload(): Boolean =
++    PlaybackSession.userScriptsNeedReload(advancedPreferences.userScriptsConfigurationKey())
++
+   fun releaseSurface() {
+     holder.removeCallback(this)
+     if (isSurfaceReady || PlaybackSession.state.value.surfaceAttached) {
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/PlaybackSession.kt b/app/src/main/java/com/quantummpv/app/ui/player/PlaybackSession.kt
+index 5bfe38db..3fffcc46 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/PlaybackSession.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/PlaybackSession.kt
+@@ -177,6 +177,7 @@ object PlaybackSession : MPVLib.EventObserver {
+   private var applicationContext: Context? = null
+   private var desiredVideoOutput = "gpu"
+   private var activeCoreConfigurationKey: String? = null
++  private var activeUserScriptsKey: String? = null
+   private var attachedSurfaceOwner: Any? = null
+   private var activeNetworkStream: NetworkStreamRegistration? = null
+   private val auxiliaryNetworkStreams = linkedMapOf<String, NetworkStreamRegistration>()
+@@ -186,7 +187,7 @@ object PlaybackSession : MPVLib.EventObserver {
+   private var supersededStopGeneration = 0L
+   private var desiredPaused = true
+   private var loadedGeneration = 0L
+-  private var loadedAudiobook: AudiobookPlaybackInfo? = null
++  private var loadedPlaybackItem: PlaybackItem? = null
+   private var loadedAudiobookDurationMs = 0L
+   private var loadedAudiobookEnded = false
+   private var speedBeforeAudiobook: Float? = null
+@@ -210,6 +211,10 @@ object PlaybackSession : MPVLib.EventObserver {
+     nativeLock.withLock { activeCoreConfigurationKey = null }
+   }
+ 
++  internal fun userScriptsNeedReload(currentKey: String): Boolean = nativeLock.withLock {
++    initialized && activeUserScriptsKey != currentKey
++  }
++
+   fun reloadMpvConfig(configPath: String): Boolean =
+     nativeLock.withLock {
+       activeCoreConfigurationKey = null
+@@ -239,6 +244,7 @@ object PlaybackSession : MPVLib.EventObserver {
+     initOptions: () -> Unit,
+     postInitOptions: () -> Unit,
+     observeProperties: () -> Unit,
++    userScriptsKey: String? = null,
+   ): Result<Boolean> =
+     runCatching {
+       nativeLock.withLock {
+@@ -291,6 +297,7 @@ object PlaybackSession : MPVLib.EventObserver {
+           observeProperties()
+           initialized = true
+           activeCoreConfigurationKey = coreConfigurationKey
++          activeUserScriptsKey = userScriptsKey
+           updateState { it.copy(phase = PlaybackPhase.IDLE, paused = true, error = null) }
+           true
+         } catch (error: Throwable) {
+@@ -299,6 +306,7 @@ object PlaybackSession : MPVLib.EventObserver {
+           initialized = false
+           nativeCoreReady = false
+           activeCoreConfigurationKey = null
++          activeUserScriptsKey = null
+           suspendedVideoTrack = null
+           deferredVideoSelectionGeneration = null
+           pendingStopClearQueue = false
+@@ -421,7 +429,7 @@ object PlaybackSession : MPVLib.EventObserver {
+   fun stop(clearQueue: Boolean = true) {
+     withCore(Unit) {
+       AudiobookPlayback.capture()
+-      loadedAudiobook = null
++      loadedPlaybackItem = null
+       AudiobookPlayback.clearTimer()
+       val previousPhase = _state.value.phase
+       if (previousPhase == PlaybackPhase.STOPPING) {
+@@ -575,7 +583,7 @@ object PlaybackSession : MPVLib.EventObserver {
+ 
+   private fun destroyLocked() {
+     AudiobookPlayback.capture()
+-    loadedAudiobook = null
++    loadedPlaybackItem = null
+     speedBeforeAudiobook = null
+     AudiobookPlayback.clearTimer()
+     updateState { it.copy(phase = PlaybackPhase.STOPPING) }
+@@ -610,6 +618,7 @@ object PlaybackSession : MPVLib.EventObserver {
+     initialized = false
+     nativeCoreReady = false
+     activeCoreConfigurationKey = null
++    activeUserScriptsKey = null
+     clearTimelinePropertiesLocked()
+     updateState { PlaybackSessionState(phase = PlaybackPhase.UNINITIALIZED) }
+   }
+@@ -707,6 +716,21 @@ object PlaybackSession : MPVLib.EventObserver {
+       next.currentItem
+     }
+ 
++  internal fun seekAudiobookTrack(bookId: Long, trackId: Long, positionMs: Long, expectedGeneration: Long, resumePlayback: Boolean = false): Boolean =
++    nativeLock.withLock {
++      val current = _state.value
++      if (current.generation != expectedGeneration || current.currentItem?.audiobook?.bookId != bookId ||
++        current.phase !in setOf(PlaybackPhase.READY, PlaybackPhase.BACKGROUND)
++      ) return@withLock false
++      val index = _queue.value.items.indexOfFirst { it.audiobook == AudiobookPlaybackInfo(bookId, trackId) }
++      if (index < 0) return@withLock false
++      val paused = !resumePlayback && (MPVLib.getPropertyBoolean("pause") ?: current.paused)
++      val item = selectQueueItem(index) ?: return@withLock false
++      if (load(item, initialPositionSeconds = positionMs.coerceAtLeast(0) / 1000.0) < 0) return@withLock false
++      setPropertyBoolean("pause", paused)
++      true
++    }
++
+   fun playQueueItem(index: Int): PlaybackItem? =
+     nativeLock.withLock {
+       // Unresolved torrent episodes need the player screen's streaming engine; loading the raw
+@@ -804,7 +828,7 @@ object PlaybackSession : MPVLib.EventObserver {
+     withCore(default = -1L) {
+       if (_state.value.phase == PlaybackPhase.STOPPING) return@withCore -1L
+       AudiobookPlayback.capture()
+-      loadedAudiobook = null
++      loadedPlaybackItem = null
+       val resolvedItem = item ?: PlaybackItem.fromUri(playableUri)
+       if (resolvedItem.audiobook != null) AudiobookPlayback.ensureStarted()
+       if (resolvedItem.audiobook == null && speedBeforeAudiobook != null) {
+@@ -1053,7 +1077,7 @@ object PlaybackSession : MPVLib.EventObserver {
+   fun getPropertyBoolean(property: String): Boolean? = withReadyCore(null) { MPVLib.getPropertyBoolean(property) }
+ 
+   internal fun audiobookProgress(reachedEnd: Boolean = false): AudiobookProgress? = withCore(null) {
+-    val book = loadedAudiobook ?: return@withCore null
++    val book = loadedPlaybackItem?.audiobook ?: return@withCore null
+     val current = _state.value
+     if (loadedGeneration != current.generation || current.phase == PlaybackPhase.STOPPING) return@withCore null
+     if (!reachedEnd && current.phase !in setOf(PlaybackPhase.READY, PlaybackPhase.BACKGROUND)) return@withCore null
+@@ -1066,12 +1090,23 @@ object PlaybackSession : MPVLib.EventObserver {
+       android.os.SystemClock.elapsedRealtimeNanos())
+   }
+ 
++  internal fun bookmarkSnapshot(): Pair<PlaybackItem, Long>? = withReadyCore(null) {
++    val state = _state.value
++    val item = loadedPlaybackItem ?: return@withReadyCore null
++    if (state.phase !in setOf(PlaybackPhase.READY, PlaybackPhase.BACKGROUND) || loadedGeneration != state.generation ||
++      state.currentItem?.stableId != item.stableId || state.currentItem?.audiobook != item.audiobook ||
++      MPVLib.getPropertyBoolean("seekable") == false
++    ) return@withReadyCore null
++    val position = MPVLib.getPropertyDouble("time-pos")?.takeIf { it.isFinite() && it >= 0 } ?: return@withReadyCore null
++    item to (position * 1000).toLong()
++  }
++
+   internal fun applyAudiobookSpeed(generation: Long, speed: Float) = withCore(Unit) {
+     if (_state.value.generation != generation || _state.value.currentItem?.audiobook == null || MpvConfigOverridePolicy.isOwnedByMpvConf("speed")) {
+       return@withCore
+     }
+     if (speedBeforeAudiobook == null) speedBeforeAudiobook = MPVLib.getPropertyDouble("speed")?.toFloat() ?: 1f
+-    MPVLib.setPropertyDouble("speed", speed.coerceIn(0.5f, 3f).toDouble())
++    MPVLib.setPropertyDouble("speed", speed.coerceIn(0.1f, 4f).toDouble())
+   }
+ 
+   fun setPropertyBoolean(
+@@ -1119,6 +1154,7 @@ object PlaybackSession : MPVLib.EventObserver {
+           MPVLib.getPropertyBoolean("pause") ?: desiredPaused
+         }
+       val nextPaused = !currentPaused
++      AudiobookPlayback.onPauseRequested(nextPaused)
+       desiredPaused = nextPaused
+       if (_state.value.phase != PlaybackPhase.LOADING) {
+         MPVLib.setPropertyBoolean("pause", nextPaused)
+@@ -1310,7 +1346,7 @@ object PlaybackSession : MPVLib.EventObserver {
+             }
+             supersededStopGeneration = 0L
+             loadedGeneration = current.generation
+-            loadedAudiobook = current.currentItem?.audiobook
++            loadedPlaybackItem = current.currentItem
+             loadedAudiobookEnded = false
+             loadedAudiobookDurationMs = ((MPVLib.getPropertyDouble("duration") ?: 0.0) * 1000).toLong().coerceAtLeast(0)
+             current.currentItem?.let { AudiobookPlayback.onFileLoaded(it, current.generation) }
+@@ -1422,6 +1458,8 @@ object PlaybackSession : MPVLib.EventObserver {
+             true
+           }
+           MPVLib.MpvEvent.MPV_EVENT_SHUTDOWN -> {
++            activeUserScriptsKey = null
++            loadedPlaybackItem = null
+             releaseActiveNetworkStream()
+             releaseAuxiliaryNetworkStreams()
+             suspendedVideoTrack = null
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt b/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt
+index 0528c8c0..3c2add56 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt
+@@ -139,8 +139,10 @@ import kotlinx.coroutines.Job
+ import kotlinx.coroutines.delay
+ import kotlinx.coroutines.flow.collect
+ import kotlinx.coroutines.flow.combine
++import kotlinx.coroutines.flow.collectLatest
+ import kotlinx.coroutines.flow.distinctUntilChanged
+ import kotlinx.coroutines.flow.drop
++import kotlinx.coroutines.flow.first
+ import kotlinx.coroutines.flow.map
+ import kotlinx.coroutines.flow.update
+ import kotlinx.coroutines.ensureActive
+@@ -384,6 +386,7 @@ class PlayerActivity :
+ 
+   private var pendingSavedPlaylistSelection: SavedPlaylistSelection? = null
+   private var acceptedPreparedPlaybackLaunch: PreparedPlaybackLaunch? = null
++  private var scriptRuntimeRestartPending = false
+ 
+   /**
+    * Playlist ID for tracking play history (optional, only for custom playlists)
+@@ -624,13 +627,18 @@ class PlayerActivity :
+   override fun onCreate(savedInstanceState: Bundle?) {
+     enableEdgeToEdge()
+     super.onCreate(savedInstanceState)
++    if (intent.action == MediaPlaybackService.ACTION_OPEN_PLAYER && player.userScriptsNeedReload()) {
++      currentPlaybackIntentForScriptReload()?.let(::setIntent)
++    }
+     if (redirectUnselectedTorrentToPicker(intent, finishCurrent = true)) return
+     if (!acceptPreparedPlaybackLaunch(intent)) {
+       finish()
+       return
+     }
+     playbackOwnerToken = PlaybackActivityOwner.claim()
+-    pendingSavedPlaylistSelection = savedInstanceState?.toSavedPlaylistSelection()
++    pendingSavedPlaylistSelection = savedInstanceState?.takeUnless { intent.getBooleanExtra(EXTRA_SCRIPT_RUNTIME_RESTART, false) }
++      ?.toSavedPlaylistSelection()
++    intent.removeExtra(EXTRA_SCRIPT_RUNTIME_RESTART)
+     if (!beginMediaRequest()) {
+       finish()
+       return
+@@ -802,34 +810,21 @@ class PlayerActivity :
+     // Apply persisted shuffle state after playlist is loaded
+     viewModel.applyPersistedShuffleState()
+ 
+-    // Observe selected Lua scripts for runtime loading
+-    lifecycleScope.launch {
+-      var previousScripts = advancedPreferences.selectedLuaScripts.get()
+-      advancedPreferences.selectedLuaScripts.changes().collect { newScripts ->
+-        if (!advancedPreferences.enableLuaScripts.get()) {
+-          previousScripts = newScripts
+-          return@collect
+-        }
+-        val addedScripts = newScripts - previousScripts
+-        addedScripts.forEach { scriptName ->
+-          loadScriptAtRuntime(scriptName)
+-        }
+-        previousScripts = newScripts
+-      }
+-    }
+-
+     lifecycleScope.launch {
+-      advancedPreferences.enableLuaScripts.changes().drop(1).collect { enabled ->
+-        if (enabled) {
+-          advancedPreferences.selectedLuaScripts.get().forEach { scriptName ->
+-            loadScriptAtRuntime(scriptName)
+-          }
+-          if (advancedPreferences.selectedLuaScripts.get().isEmpty()) {
+-            viewModel.showToast("Scripts enabled")
++      repeatOnLifecycle(Lifecycle.State.STARTED) {
++        combine(
++          advancedPreferences.selectedLuaScripts.changes(),
++          advancedPreferences.enableLuaScripts.changes(),
++          advancedPreferences.mpvConfStorageUri.changes(),
++        ) { scripts, enabled, directory -> Triple(scripts, enabled, directory) }
++          .collectLatest {
++            delay(200)
++            if (!mpvInitialized || !player.userScriptsNeedReload()) return@collectLatest
++            PlaybackSession.state.first { state ->
++              state.phase !in setOf(PlaybackPhase.INITIALIZING, PlaybackPhase.LOADING, PlaybackPhase.STOPPING)
++            }
++            restartForUserScriptChanges()
+           }
+-        } else {
+-          viewModel.showToast("Scripts disabled. Reopen the video if a script stays active.")
+-        }
+       }
+     }
+ 
+@@ -1477,7 +1472,7 @@ class PlayerActivity :
+   }
+ 
+   override fun onSaveInstanceState(outState: Bundle) {
+-    if (!ownsPlaybackSession()) {
++    if (scriptRuntimeRestartPending || !ownsPlaybackSession()) {
+       super.onSaveInstanceState(outState)
+       return
+     }
+@@ -1504,7 +1499,7 @@ class PlayerActivity :
+     val pipDismissalCommitted = handledPipDismissal
+     pendingPipExitResolution = false
+     val keepBackgroundPlaybackAlive =
+-      ownsPlaybackSession && !pipDismissalCommitted && PlayerLifecyclePolicy.shouldKeepBackgroundPlaybackAliveOnDestroy(
++      ownsPlaybackSession && !scriptRuntimeRestartPending && !pipDismissalCommitted && PlayerLifecyclePolicy.shouldKeepBackgroundPlaybackAliveOnDestroy(
+         backgroundPlaybackEnabled = playbackWasInitialized && isBackgroundPlaybackEnabled(),
+         backgroundPlaybackSessionActive = isBackgroundPlaybackSessionActive,
+       )
+@@ -1517,12 +1512,12 @@ class PlayerActivity :
+       cancelPlaybackLoadRecovery()
+       if (::castPlaybackController.isInitialized) castPlaybackController.release()
+       cancelSystemBarsAutoHide()
+-      if (playbackWasInitialized && ownsPlaybackSession) saveVideoPlaybackState(fileName, immediate = true)
++      if (playbackWasInitialized && ownsPlaybackSession && !scriptRuntimeRestartPending) saveVideoPlaybackState(fileName, immediate = true)
+       if (playbackWasInitialized && ownsPlaybackSession && !keepBackgroundPlaybackAlive) {
+         reportJellyfinStop()
+       }
+ 
+-      if ((isUserFinishing || isFinishing) && !keepBackgroundPlaybackAlive) {
++      if ((isUserFinishing || isFinishing || scriptRuntimeRestartPending) && !keepBackgroundPlaybackAlive) {
+         if (serviceBound) {
+           runCatching { unbindService(serviceConnection) }
+           serviceBound = false
+@@ -1742,7 +1737,7 @@ class PlayerActivity :
+   }
+ 
+   override fun onPause() {
+-    if (!mpvInitialized || !ownsPlaybackSession()) {
++    if (scriptRuntimeRestartPending || !mpvInitialized || !ownsPlaybackSession()) {
+       super.onPause()
+       return
+     }
+@@ -1841,6 +1836,10 @@ class PlayerActivity :
+   }
+ 
+   override fun onStop() {
++    if (scriptRuntimeRestartPending) {
++      super.onStop()
++      return
++    }
+     if (viewModelHostAttached) viewModel.setAmbientLifecycleActive(false)
+     if (isVideoAmbientPresentationActive) setVideoAmbientPresentationActive(false)
+     if (!ownsPlaybackSession()) {
+@@ -2488,7 +2487,13 @@ class PlayerActivity :
+     }
+ 
+     // NOW initialize MPV - it will find and load the scripts we just copied
+-    val initError = initializePlayerWithRendererFallback()
++    val initError = synchronized(USER_MPV_ASSET_LOCK) {
++      val cleanupFailure = runCatching { removeDisabledCachedScripts() }.exceptionOrNull()
++      if (cleanupFailure != null) {
++        Log.e(TAG, "Could not remove disabled cached scripts", cleanupFailure)
++        cleanupFailure.message ?: getString(R.string.toast_playback_load_failed)
++      } else initializePlayerWithRendererFallback()
++    }
+     if (initError != null) return initError
+     runCatching { PlaybackSession.setThumbnailJavaVM(applicationContext) }
+     mpvInitialized = true
+@@ -2513,7 +2518,7 @@ class PlayerActivity :
+         cachedConfigsMatchPreferences() &&
+         cachedScriptsMatchSelection()
+ 
+-    if (cacheReady && (storedSelection == currentSelection || canAdoptExistingCache)) {
++    if (cacheReady && cachedScriptsMatchSelection() && (storedSelection == currentSelection || canAdoptExistingCache)) {
+       if (canAdoptExistingCache) rememberUserMpvAssetSelection(syncPreferences)
+       Log.d(TAG, "Using cached MPV user assets for startup")
+       return
+@@ -2613,6 +2618,7 @@ class PlayerActivity :
+    * shaders/, and fonts/.
+    */
+   private fun syncFromUserMpvDirectory() {
++    synchronized(USER_MPV_ASSET_LOCK) {
+     val mpvConfStorageUri = advancedPreferences.mpvConfStorageUri.get()
+ 
+     // Try to open the user's MPV directory
+@@ -2637,6 +2643,8 @@ class PlayerActivity :
+       Log.d(TAG, "No MPV directory configured, using preferences fallback")
+       copyMPVConfigFromPreferences()
+     }
++    removeDisabledCachedScripts()
++    }
+   }
+ 
+   // ==================== Config Files Sync ====================
+@@ -3123,59 +3131,59 @@ class PlayerActivity :
+    * Finds the script in the user's MPV directory, copies it to internal storage,
+    * and commands MPV to load it.
+    */
+-  private fun loadScriptAtRuntime(scriptName: String) {
+-    if (!mpvInitialized || isFinishing) return
+-
+-    val mpvConfStorageUri = advancedPreferences.mpvConfStorageUri.get()
+-    if (mpvConfStorageUri.isBlank()) return
+-
+-    lifecycleScope.launch(Dispatchers.IO) {
+-      runCatching {
+-        val tree = openPersistedTreeDocument(this@PlayerActivity, mpvConfStorageUri)
+-        if (tree != null) {
+-          val rootChildren = listTreeFilesSafely(tree)
+-          // Look for scripts/ subfolder first (case-insensitive), fall back to root
+-          val scriptsSubdir = findSubdirCaseInsensitive(tree, "scripts", rootChildren)
+-          val scriptsDir = scriptsSubdir ?: tree
+-          syncScriptSupportDirectories(scriptsSubdir)
+-          syncScriptOpts(tree, rootChildren)
+-
+-          val scriptFile =
+-            listTreeFilesSafely(scriptsDir).firstOrNull {
+-              it.name == scriptName
+-            }
+-
+-          if (scriptFile != null) {
+-            val internalScriptsDir = File(filesDir, "scripts")
+-            if (!internalScriptsDir.exists()) internalScriptsDir.mkdirs()
+-
+-            val targetFile = File(internalScriptsDir, scriptName)
+-
+-            contentResolver.openInputStream(scriptFile.uri)?.use { input ->
+-              targetFile.outputStream().use { output ->
+-                input.copyTo(output)
+-              }
+-            }
++  private fun currentPlaybackIntentForScriptReload(): Intent? {
++    val session = PlaybackSession.state.value
++    val queue = PlaybackSession.queue.value
++    val items = queue.items.ifEmpty { listOfNotNull(session.currentItem) }
++    if (items.isEmpty()) return null
++    val index = queue.currentIndex.coerceIn(items.indices)
++    val item = items[index]
++    val position = PlaybackSession.getPropertyDouble("time-pos")?.takeIf {
++      it.isFinite() && it >= 0 && session.phase in setOf(PlaybackPhase.READY, PlaybackPhase.BACKGROUND)
++    }
++    val token = PreparedPlaybackLaunchStore.stage(items, index, queue.isExplicitQueue, queue.isM3u)
++    return Intent(intent).apply {
++      action = Intent.ACTION_VIEW
++      setDataAndType(Uri.parse(item.originalUri), item.mimeType)
++      removeExtra("playlist")
++      putExtra("internal_launch", true)
++      putExtra(EXTRA_PREPARED_PLAYBACK_QUEUE, true)
++      putExtra(EXTRA_PREPARED_PLAYBACK_TOKEN, token)
++      putExtra("playlist_index", index)
++      putExtra("title", item.title)
++      putExtra("is_audio", item.declaredMediaKind() == DeclaredPlaybackMediaKind.AUDIO)
++      putExtra(EXTRA_SCRIPT_RUNTIME_RESTART, true)
++      putExtra(EXTRA_SCRIPT_RESTORE_MEDIA_ID, item.stableId)
++      putExtra(EXTRA_SCRIPT_RESTORE_PAUSED, PlaybackSession.getPropertyBoolean("pause") ?: session.paused)
++      if (position != null) putExtra(EXTRA_SCRIPT_RESTORE_POSITION, position)
++      else removeExtra(EXTRA_SCRIPT_RESTORE_POSITION)
++    }
++  }
++
++  private fun restartForUserScriptChanges(replacementIntent: Intent? = null): Boolean {
++    if (!mpvInitialized || !ownsPlaybackSession() || isFinishing || scriptRuntimeRestartPending || !player.userScriptsNeedReload()) return false
++    val nextIntent = replacementIntent?.let(::Intent) ?: currentPlaybackIntentForScriptReload() ?: return false
++    saveVideoPlaybackState(fileName, immediate = true)
++    if (!beginMediaRequest()) return false
++    mediaLoadJob?.cancel()
++    cancelPlaybackLoadRecovery()
++    scriptRuntimeRestartPending = true
++    nextIntent.putExtra(EXTRA_SCRIPT_RUNTIME_RESTART, true)
++    setIntent(nextIntent)
++    MediaPlaybackService.prepareForActivityHandoff()
++    recreate()
++    return true
++  }
+ 
+-            withContext(Dispatchers.Main) {
+-              if (!canIssueMpvCommands()) return@withContext
+-              PlaybackSession.command("load-script", targetFile.absolutePath)
+-              viewModel.showToast("Loaded script: $scriptName")
+-            }
+-          }
+-        }
+-      }.onFailure { e ->
+-        Log.e(TAG, "Error loading script at runtime: $scriptName", e)
+-        withContext(Dispatchers.Main) {
+-          android.widget.Toast
+-            .makeText(
+-              this@PlayerActivity,
+-              "Failed to load script: ${e.message}",
+-              android.widget.Toast.LENGTH_LONG,
+-            ).show()
+-        }
++  private fun removeDisabledCachedScripts() {
++    val enabled = advancedPreferences.enableLuaScripts.get()
++    val selected = if (enabled) advancedPreferences.selectedLuaScripts.get() else emptySet()
++    File(filesDir, "scripts").listFiles()?.forEach { file ->
++      if (!enabled || file.isFile && file.extension.lowercase() in setOf("lua", "js") && file.name !in selected) {
++        check(file.deleteRecursively()) { "Could not remove cached script ${file.name}" }
+       }
+     }
++    if (!enabled) clearDirectoryContents(File(filesDir, "script-modules"))
+   }
+ 
+   // ==================== Helpers ====================
+@@ -5240,6 +5248,23 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
+    */
+   override fun onNewIntent(intent: Intent) {
+     super.onNewIntent(intent)
++    if (scriptRuntimeRestartPending) {
++      if (intent.action !in setOf(
++          MediaPlaybackService.ACTION_OPEN_PLAYER,
++          MediaPlaybackService.ACTION_NOTIFICATION_PREVIOUS,
++          MediaPlaybackService.ACTION_NOTIFICATION_NEXT,
++        )
++      ) {
++        setIntent(Intent(intent).putExtra(EXTRA_SCRIPT_RUNTIME_RESTART, true))
++      }
++      return
++    }
++    if (intent.action !in setOf(MediaPlaybackService.ACTION_NOTIFICATION_PREVIOUS, MediaPlaybackService.ACTION_NOTIFICATION_NEXT)) {
++      val replacement = intent.takeUnless {
++        it.action == MediaPlaybackService.ACTION_OPEN_PLAYER && PlaybackSession.state.value.currentItem != null
++      }
++      if (restartForUserScriptChanges(replacement)) return
++    }
+     handleNewIntent(intent)
+   }
+ 
+@@ -5732,7 +5757,13 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
+     positionRestoreOverride: PlaybackPositionRestoreOverride? = null,
+   ) {
+     ensureCurrentMediaRequest(requestGeneration)
+-    val effectivePositionOverride = positionRestoreOverride ?: AudiobookPlayback.positionForLoad(item, intent)
++    val scriptRestore = if (intent.getStringExtra(EXTRA_SCRIPT_RESTORE_MEDIA_ID) == item.stableId) {
++      PlaybackPositionRestoreOverride(
++        positionSeconds = intent.getDoubleExtra(EXTRA_SCRIPT_RESTORE_POSITION, Double.NaN).takeIf { it.isFinite() && it >= 0 },
++        paused = intent.getBooleanExtra(EXTRA_SCRIPT_RESTORE_PAUSED, false),
++      )
++    } else null
++    val effectivePositionOverride = positionRestoreOverride ?: scriptRestore ?: AudiobookPlayback.positionForLoad(item, intent)
+     val restoreSavedPosition = playerPreferences.savePositionOnQuit.get()
+     val resumeMode = playerPreferences.resumePlaybackMode.get()
+     // Only Always Resume may use the fast load-local start option. Never starts at zero.
+@@ -5786,6 +5817,11 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
+       throw IllegalStateException("libmpv core is unavailable")
+     }
+     if (item.audiobook != null) intent.removeExtra(AudiobookPlayback.EXTRA_POSITION_MS)
++    if (scriptRestore != null) {
++      intent.removeExtra(EXTRA_SCRIPT_RESTORE_MEDIA_ID)
++      intent.removeExtra(EXTRA_SCRIPT_RESTORE_POSITION)
++      intent.removeExtra(EXTRA_SCRIPT_RESTORE_PAUSED)
++    }
+ 
+     val request =
+       PendingMediaLoadRecovery(
+@@ -8187,6 +8223,7 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
+   }
+ 
+   companion object {
++    private val USER_MPV_ASSET_LOCK = Any()
+     /**
+      * Intent action used to return playback result data to the calling activity.
+      */
+@@ -8251,6 +8288,10 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
+ 
+     const val EXTRA_PREPARED_PLAYBACK_QUEUE = "prepared_playback_queue"
+     const val EXTRA_PREPARED_PLAYBACK_TOKEN = "prepared_playback_token"
++    private const val EXTRA_SCRIPT_RUNTIME_RESTART = "script_runtime_restart"
++    private const val EXTRA_SCRIPT_RESTORE_MEDIA_ID = "script_restore_media_id"
++    private const val EXTRA_SCRIPT_RESTORE_POSITION = "script_restore_position"
++    private const val EXTRA_SCRIPT_RESTORE_PAUSED = "script_restore_paused"
+     const val EXTRA_VIDEO_WIDTH = "video_width"
+     const val EXTRA_VIDEO_HEIGHT = "video_height"
+     private const val STATE_PLAYLIST_INDEX = "player_state_playlist_index"
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/PlayerEnums.kt b/app/src/main/java/com/quantummpv/app/ui/player/PlayerEnums.kt
+index 0404c979..3f077eb7 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/PlayerEnums.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/PlayerEnums.kt
+@@ -150,6 +150,9 @@ enum class Sheets {
+   Lyrics,
+   Scopes,
+   PostProcessingConfig,
++  BookmarkEditor,
++  AudiobookRewind,
++  AudiobookSleepTimer,
+ }
+ 
+ enum class Panels {
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt b/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
+index 785f12bb..4ccd83c6 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
+@@ -111,6 +111,9 @@ import kotlinx.coroutines.flow.combine
+ import kotlinx.coroutines.flow.distinctUntilChanged
+ import kotlinx.coroutines.flow.drop
+ import kotlinx.coroutines.flow.first
++import kotlinx.coroutines.flow.flatMapLatest
++import kotlinx.coroutines.flow.flowOf
++import kotlinx.coroutines.flow.onStart
+ import kotlinx.coroutines.flow.map
+ import kotlinx.coroutines.flow.stateIn
+ import kotlinx.coroutines.flow.update
+@@ -200,6 +203,7 @@ class PlayerViewModel : ViewModel(),
+   private val hdrToysManager: HdrToysManager by inject()
+   private val json: Json by inject()
+   private val playbackStateDao: com.quantummpv.app.database.dao.PlaybackStateDao by inject()
++  private val playbackBookmarkDao: com.quantummpv.app.database.dao.PlaybackBookmarkDao by inject()
+   private val aiService: com.quantummpv.app.repository.ai.AiService by inject()
+   private val subtitleGenerationService: SubtitleGenerationService by inject()
+   private val realtimeSubtitleService: com.quantummpv.app.repository.ai.RealtimeSubtitleService by inject()
+@@ -974,6 +978,45 @@ class PlayerViewModel : ViewModel(),
+           ?: persistentListOf()
+       }.stateIn(viewModelScope, SharingStarted.Eagerly, persistentListOf())
+ 
++  private fun bookmarkMediaId(item: PlaybackItem?): String? = item?.audiobook?.let {
++    com.quantummpv.app.database.entities.PlaybackBookmarkEntity.audiobookMediaId(it.bookId)
++  } ?: item?.stableId
++
++  val bookmarkMediaId: StateFlow<String?> = PlaybackSession.state.map { bookmarkMediaId(it.currentItem) }
++    .distinctUntilChanged().stateIn(viewModelScope, SharingStarted.Eagerly, null)
++
++  @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
++  val playbackBookmarks: StateFlow<List<com.quantummpv.app.database.entities.PlaybackBookmarkEntity>> =
++    bookmarkMediaId.flatMapLatest { mediaId ->
++      if (mediaId == null) flowOf(emptyList()) else playbackBookmarkDao.observe(mediaId).onStart { emit(emptyList()) }
++    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
++
++  val playbackChapters: StateFlow<List<dev.vivvvek.seeker.Segment>> =
++    combine(chapters, AudiobookPlayback.book, AudiobookPlayback.chapters, playbackBookmarks, PlaybackSession.state) { native, book, bookChapters, bookmarks, state ->
++      val item = state.currentItem
++      val mediaId = bookmarkMediaId(item)
++      val currentBook = book?.takeIf { it.book.id == item?.audiobook?.bookId }
++      val sourceChapters = if (item?.audiobook == null) native else if (currentBook == null) emptyList() else {
++        bookChapters.map { dev.vivvvek.seeker.Segment(it.title, it.bookStartMs / 1000f) }
++      }
++      val customChapters = bookmarks.filter { it.mediaId == mediaId }.mapNotNull { bookmark ->
++        val positionMs = if (bookmark.bookTrackId == null) bookmark.positionMs else {
++          currentBook?.takeIf { book -> book.tracks.any { it.id == bookmark.bookTrackId } }
++            ?.positionInBook(bookmark.bookTrackId, bookmark.positionMs) ?: return@mapNotNull null
++        }
++        dev.vivvvek.seeker.Segment(bookmark.title, positionMs / 1000f)
++      }
++      val customStarts = customChapters.mapTo(hashSetOf()) { (it.start * 1000).toLong() }
++      (customChapters + sourceChapters.distinctBy { (it.start * 1000).toLong() }.filter { (it.start * 1000).toLong() !in customStarts })
++        .filter { it.start.isFinite() && it.start >= 0 }.sortedBy { it.start }
++    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
++
++  fun seekAudioTo(positionSeconds: Float) {
++    if (!positionSeconds.isFinite()) return
++    if (PlaybackSession.state.value.currentItem?.audiobook != null) AudiobookPlayback.seekInBook((positionSeconds * 1000).toLong())
++    else seekTo(positionSeconds.toInt(), fast = false)
++  }
++
+   // Audio player UI state
+   val albumArtBounds = MutableStateFlow<android.graphics.Rect?>(null)
+   // The style and artwork/visualizer display choice are persisted via audioPreferences.
+@@ -1055,6 +1098,7 @@ class PlayerViewModel : ViewModel(),
+     val title: String,
+     val artist: String,
+     val durationSeconds: Int,
++    val allowOnline: Boolean,
+   )
+ 
+   private var lyricsLoadJob: Job? = null
+@@ -1092,9 +1136,12 @@ class PlayerViewModel : ViewModel(),
+     }
+   }
+ 
++  private fun currentLyricsPath(): String? = PlaybackSession.state.value.currentItem?.originalUri?.takeIf(String::isNotBlank)
++    ?: PlaybackSession.getPropertyString("path") ?: PlaybackSession.getPropertyString("stream-open-filename")
++
+   fun loadLyricsForCurrentTrack(forceRefresh: Boolean = false) {
+-    if (PlaybackSession.state.value.currentItem?.audiobook != null) return
+-    val path = PlaybackSession.getPropertyString("path") ?: PlaybackSession.getPropertyString("stream-open-filename") ?: return
++    val allowOnline = PlaybackSession.state.value.currentItem?.audiobook == null
++    val path = currentLyricsPath() ?: return
+     if (path.isBlank()) return
+     val generation = PlaybackSession.state.value.generation
+ 
+@@ -1109,9 +1156,9 @@ class PlayerViewModel : ViewModel(),
+       ?: ""
+ 
+     val duration = PlaybackSession.getPropertyInt("duration") ?: 0
+-    val request = LyricsLoadRequest(path, title, artist, duration)
++    val request = LyricsLoadRequest(path, title, artist, duration, allowOnline)
+     if (
+-      !forceRefresh && lastLyricsLoadRequest?.path == path &&
++      !forceRefresh && lastLyricsLoadRequest?.path == path && lastLyricsLoadRequest?.allowOnline == allowOnline &&
+       (lyricsLoadJob?.isActive == true || request == lastLyricsLoadRequest)
+     ) return
+     lastLyricsLoadRequest = request
+@@ -1131,12 +1178,12 @@ class PlayerViewModel : ViewModel(),
+         artist = artist,
+         durationSeconds = duration,
+         forceRefresh = forceRefresh,
++        allowOnline = allowOnline,
+       )
+ 
+       // The track may have changed again while this fetch was in-flight; only apply the
+       // result if we're still on the same track (extra guard on top of job cancellation).
+-      val stillCurrentPath = PlaybackSession.getPropertyString("path")
+-        ?: PlaybackSession.getPropertyString("stream-open-filename")
++      val stillCurrentPath = currentLyricsPath()
+       if (!PlaybackSession.isCurrentGeneration(generation) || stillCurrentPath != path) return@launch
+ 
+       val activeIndex = com.quantummpv.app.utils.media.LyricsUtils.getActiveLineIndex(
+@@ -1144,7 +1191,7 @@ class PlayerViewModel : ViewModel(),
+         positionMs = (precisePosition.value * 1000).toLong(),
+         offsetMs = 0,
+       )
+-      val autoTranslate = audioPreferences.lyricsAutoTranslate.get()
++      val autoTranslate = allowOnline && audioPreferences.lyricsAutoTranslate.get()
+       val defaultTargetLang = audioPreferences.lyricsTargetLanguage.get().ifBlank { "en" }
+ 
+       lyricsUiState.value = lyricsUiState.value.copy(
+@@ -1170,11 +1217,13 @@ class PlayerViewModel : ViewModel(),
+   }
+ 
+   fun switchLyricsSource(sourceType: com.quantummpv.app.domain.lyrics.LyricsSourceType) {
+-    val path = PlaybackSession.getPropertyString("path") ?: PlaybackSession.getPropertyString("stream-open-filename") ?: return
++    val allowOnline = PlaybackSession.state.value.currentItem?.audiobook == null
++    if (!allowOnline && sourceType == com.quantummpv.app.domain.lyrics.LyricsSourceType.ONLINE) return
++    val path = currentLyricsPath() ?: return
+     if (path.isBlank()) return
+ 
+     val current = lyricsUiState.value
+-    val autoTranslate = audioPreferences.lyricsAutoTranslate.get()
++    val autoTranslate = allowOnline && audioPreferences.lyricsAutoTranslate.get()
+     val defaultTargetLang = audioPreferences.lyricsTargetLanguage.get().ifBlank { "en" }
+ 
+     if (sourceType == com.quantummpv.app.domain.lyrics.LyricsSourceType.ONLINE && current.onlineLyrics == null) {
+@@ -1194,8 +1243,7 @@ class PlayerViewModel : ViewModel(),
+ 
+         val online = lyricsRepository.fetchOnlineLyrics(title, artist, duration)
+ 
+-        val stillCurrentPath = PlaybackSession.getPropertyString("path")
+-          ?: PlaybackSession.getPropertyString("stream-open-filename")
++        val stillCurrentPath = currentLyricsPath()
+         if (stillCurrentPath != path) return@launch
+ 
+         val updatedSources = (current.availableSources + com.quantummpv.app.domain.lyrics.LyricsSourceType.ONLINE).distinct()
+@@ -1225,7 +1273,7 @@ class PlayerViewModel : ViewModel(),
+       return
+     }
+ 
+-    val updatedResult = lyricsRepository.switchSource(path, sourceType)
++    val updatedResult = lyricsRepository.switchSource(path, sourceType, allowOnline)
+     if (updatedResult != null) {
+       val activeLyrics = updatedResult.activeLyrics
+       val activeIndex = com.quantummpv.app.utils.media.LyricsUtils.getActiveLineIndex(
+@@ -1609,6 +1657,78 @@ val isBrightnessSliderShown = MutableStateFlow(false)
+     )
+ 
+   val sheetShown = MutableStateFlow(Sheets.None)
++  private val _bookmarkDraft = MutableStateFlow<com.quantummpv.app.database.entities.PlaybackBookmarkEntity?>(null)
++  val bookmarkDraft = _bookmarkDraft.asStateFlow()
++
++  fun preparePlaybackBookmark(existing: com.quantummpv.app.database.entities.PlaybackBookmarkEntity? = null): Boolean {
++    val mediaId = bookmarkMediaId(PlaybackSession.state.value.currentItem) ?: return false
++    if (existing != null) {
++      if (existing.mediaId != mediaId) return false
++      _bookmarkDraft.value = existing
++    } else {
++      val (item, positionMs) = PlaybackSession.bookmarkSnapshot() ?: return false
++      if (bookmarkMediaId(item) != mediaId) return false
++      val timelinePosition = item.audiobook?.let { info ->
++        AudiobookPlayback.book.value?.takeIf { it.book.id == info.bookId }?.positionInBook(info.trackId, positionMs)
++      } ?: positionMs
++      val chapter = playbackChapters.value.lastOrNull { it.start * 1000 <= timelinePosition }?.name ?: currentMediaTitle
++      val time = android.text.format.DateUtils.formatElapsedTime(timelinePosition / 1000)
++      _bookmarkDraft.value = com.quantummpv.app.database.entities.PlaybackBookmarkEntity(
++        mediaId = mediaId, bookTrackId = item.audiobook?.trackId, positionMs = positionMs, title = "$chapter $time".trim(),
++      )
++    }
++    return true
++  }
++
++  fun bookmarkPositionMs(bookmark: com.quantummpv.app.database.entities.PlaybackBookmarkEntity): Long {
++    val trackId = bookmark.bookTrackId ?: return bookmark.positionMs
++    return AudiobookPlayback.book.value?.positionInBook(trackId, bookmark.positionMs) ?: bookmark.positionMs
++  }
++
++  suspend fun savePlaybackBookmark(bookmark: com.quantummpv.app.database.entities.PlaybackBookmarkEntity, title: String) {
++    require(title.isNotBlank())
++    if (bookmark.id == 0L) playbackBookmarkDao.add(bookmark.copy(title = title.trim())) else playbackBookmarkDao.rename(bookmark.id, title.trim())
++  }
++
++  suspend fun deletePlaybackBookmark(bookmark: com.quantummpv.app.database.entities.PlaybackBookmarkEntity) {
++    playbackBookmarkDao.delete(bookmark.id)
++  }
++
++  fun seekToBookmark(bookmark: com.quantummpv.app.database.entities.PlaybackBookmarkEntity) {
++    if (bookmark.mediaId != bookmarkMediaId(PlaybackSession.state.value.currentItem)) return
++    if (bookmark.bookTrackId != null) AudiobookPlayback.seekToBookmark(bookmark.bookTrackId, bookmark.positionMs)
++    else PlaybackSession.command("seek", (bookmark.positionMs / 1000.0).toString(), "absolute+exact")
++  }
++
++  fun seekToPlaybackChapter(chapter: dev.vivvvek.seeker.Segment) {
++    if (!chapter.start.isFinite() || chapter.start < 0) return
++    if (PlaybackSession.state.value.currentItem?.audiobook != null) AudiobookPlayback.seekInBook((chapter.start * 1000).toLong())
++    else PlaybackSession.command("seek", chapter.start.toString(), "absolute+exact")
++  }
++
++  fun stepPlaybackChapter(direction: Int) {
++    if (direction !in setOf(-1, 1)) return
++    val (item, positionMs) = PlaybackSession.bookmarkSnapshot() ?: return
++    val position = item.audiobook?.let { info ->
++      AudiobookPlayback.book.value?.takeIf { it.book.id == info.bookId }?.positionInBook(info.trackId, positionMs)
++    } ?: positionMs
++    val chapters = playbackChapters.value
++    val index = chapters.indexOfLast { it.start * 1000 <= position }
++    val current = chapters.getOrNull(index)
++    val target = if (direction < 0 && current != null && position - current.start * 1000 > 3000) current else chapters.getOrNull(index + direction)
++    target?.let(::seekToPlaybackChapter)
++  }
++
++  fun sleepAtCurrentChapterEnd() {
++    val progress = PlaybackSession.audiobookProgress() ?: return
++    val book = AudiobookPlayback.book.value?.takeIf { it.book.id == progress.item.bookId } ?: return
++    val track = book.tracks.firstOrNull { it.id == progress.item.trackId } ?: return
++    val offset = book.positionInBook(track.id, 0)
++    val position = offset + progress.positionMs
++    val nextStart = playbackChapters.value.firstOrNull { it.start * 1000 > position }?.start?.times(1000)?.toLong()
++    val localEnd = nextStart?.minus(offset)?.coerceAtMost(track.durationMs) ?: track.durationMs
++    AudiobookPlayback.setTimer(null, localEnd)
++  }
+   val isPlaylistSwipeActive = MutableStateFlow(false)
+   val playlistSwipeOffset = MutableStateFlow(0f)
+   val panelShown = MutableStateFlow(Panels.None)
+@@ -2737,8 +2857,10 @@ val isBrightnessSliderShown = MutableStateFlow(false)
+ 
+   private fun String.toScriptLiteral(): String = replace("\\", "\\\\").replace("'", "\\'")
+ 
++  private val doubleTapToSeekDuration: Int
++    get() = gesturePreferences.doubleTapToSeekDuration.get().coerceIn(1, 120)
++
+   // Cached values
+-  private val doubleTapToSeekDuration by lazy { gesturePreferences.doubleTapToSeekDuration.get() }
+   private val inputMethodManager by lazy {
+     appContext.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+   }
+@@ -4371,6 +4493,10 @@ val isBrightnessSliderShown = MutableStateFlow(false)
+       if (wasPaused) {
+         val focusGranted = withContext(Dispatchers.Main) { host.requestAudioFocus() }
+         if (!focusGranted) return@launch
++        if (PlaybackSession.state.value.currentItem?.audiobook != null && PlaybackSession.getPropertyBoolean("eof-reached") == true) {
++          AudiobookPlayback.resumeAtEnd()
++          return@launch
++        }
+         PlaybackSession.setPropertyBoolean("pause", false)
+         syncplayManager.updatePlayerState(precisePosition.value.toDouble(), false, doSeek = false)
+       } else {
+@@ -4566,6 +4692,10 @@ val isBrightnessSliderShown = MutableStateFlow(false)
+         pendingSeekOffset = 0
+ 
+         if (toApply != 0) {
++          if (PlaybackSession.state.value.currentItem?.audiobook != null) {
++            AudiobookPlayback.seekBy(toApply)
++            return@launch
++          }
+           val durationSeconds =
+             PlaybackSession
+               .getPropertyDouble("duration")
+@@ -4642,27 +4772,29 @@ val isBrightnessSliderShown = MutableStateFlow(false)
+   }
+ 
+   fun leftSeek() {
+-    _seekState.update { s ->
+-      s.copy(amount = if ((pos ?: 0) > 0) s.amount - doubleTapToSeekDuration else s.amount, isForwards = false)
++    val seconds = doubleTapToSeekDuration
++    _seekState.update { state ->
++      state.copy(amount = if ((pos ?: 0) > 0) state.amount - seconds else state.amount, isForwards = false)
+     }
+-    seekBy(-doubleTapToSeekDuration)
++    seekBy(-seconds)
+   }
+ 
+   fun rightSeek() {
+-    _seekState.update { s ->
+-      s.copy(
++    val seconds = doubleTapToSeekDuration
++    _seekState.update { state ->
++      state.copy(
+         amount =
+           if ((pos ?: 0) <
+             (duration ?: 0)
+           ) {
+-            s.amount + doubleTapToSeekDuration
++            state.amount + seconds
+           } else {
+-            s.amount
++            state.amount
+           },
+         isForwards = true,
+       )
+     }
+-    seekBy(doubleTapToSeekDuration)
++    seekBy(seconds)
+   }
+ 
+   fun updateSeekAmount(amount: Int) {
+@@ -5874,7 +6006,9 @@ val isBrightnessSliderShown = MutableStateFlow(false)
+ 
+     return queue.items.mapIndexed { index, item ->
+       val uri = Uri.parse(item.originalUri)
+-      val title = item.title?.takeIf { it.isNotBlank() } ?: uri.lastPathSegment.orEmpty()
++      val book = AudiobookPlayback.book.value?.takeIf { it.book.id == item.audiobook?.bookId }
++      val bookTrack = book?.tracks?.firstOrNull { it.id == item.audiobook?.trackId }
++      val title = bookTrack?.title?.takeIf(String::isNotBlank) ?: item.title?.takeIf { it.isNotBlank() } ?: uri.lastPathSegment.orEmpty()
+       val resolvedUri =
+         if (uri.scheme == "content") {
+           uri.extractLocalPath()?.let { Uri.fromFile(File(it)) } ?: uri
+@@ -5923,7 +6057,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
+         duration = durationStr,
+         resolution = resolutionStr,
+         isAudio = isAudio,
+-        tvgLogo = item.artworkUri.orEmpty(),
++        tvgLogo = book?.book?.coverUri ?: item.artworkUri.orEmpty(),
+         networkConnectionId = item.networkSource?.connectionId,
+         networkPath = item.networkSource?.relativePath.orEmpty(),
+       )
+@@ -6194,7 +6328,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
+ 
+         _playlistItems.value = updatedItems
+ 
+-        if (forceMetadata) {
++        if (forceMetadata && PlaybackSession.state.value.currentItem?.audiobook == null) {
+           // Load metadata only when the playlist sheet is actually in use.
+           loadPlaylistMetadataAsync(updatedItems)
+         }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/AudioPlayerControls.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/AudioPlayerControls.kt
+index 83ea5796..f1d63255 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/AudioPlayerControls.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/AudioPlayerControls.kt
+@@ -50,6 +50,7 @@ import androidx.compose.foundation.basicMarquee
+ import androidx.compose.foundation.clickable
+ import androidx.compose.foundation.combinedClickable
+ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
++import androidx.compose.foundation.gestures.detectTapGestures
+ import androidx.compose.foundation.interaction.MutableInteractionSource
+ import androidx.compose.foundation.interaction.collectIsPressedAsState
+ import androidx.compose.foundation.horizontalScroll
+@@ -82,7 +83,12 @@ import androidx.compose.material3.ExperimentalMaterial3Api
+ import androidx.compose.material3.Icon
+ import androidx.compose.material3.IconButton
+ import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.PlainTooltip
+ import androidx.compose.material3.Surface
++import androidx.compose.material3.TooltipAnchorPosition
++import androidx.compose.material3.TooltipBox
++import androidx.compose.material3.TooltipDefaults
++import androidx.compose.material3.rememberTooltipState
+ import androidx.compose.material3.ripple
+ import androidx.compose.material3.Text
+ import androidx.compose.runtime.Composable
+@@ -97,6 +103,7 @@ import androidx.compose.runtime.mutableLongStateOf
+ import androidx.compose.runtime.mutableStateOf
+ import androidx.compose.runtime.remember
+ import androidx.compose.runtime.rememberCoroutineScope
++import androidx.compose.runtime.rememberUpdatedState
+ import androidx.compose.runtime.produceState
+ import androidx.compose.runtime.saveable.rememberSaveable
+ import androidx.compose.runtime.setValue
+@@ -135,6 +142,11 @@ import androidx.compose.ui.platform.LocalConfiguration
+ import androidx.compose.ui.platform.LocalContext
+ import androidx.compose.ui.platform.LocalDensity
+ import androidx.compose.ui.res.stringResource
++import androidx.compose.ui.res.pluralStringResource
++import androidx.compose.ui.semantics.clearAndSetSemantics
++import androidx.compose.ui.semantics.onClick
++import androidx.compose.ui.semantics.onLongClick
++import androidx.compose.ui.semantics.semantics
+ import androidx.compose.ui.text.font.FontWeight
+ import androidx.compose.ui.text.style.TextOverflow
+ import androidx.compose.ui.unit.Dp
+@@ -154,6 +166,7 @@ import com.quantummpv.app.presentation.components.RemoteImage
+ import com.quantummpv.app.preferences.AppearancePreferences
+ import com.quantummpv.app.preferences.AudioPreferences
+ import com.quantummpv.app.preferences.AudioVisualizerStyle
++import com.quantummpv.app.preferences.GesturePreferences
+ import com.quantummpv.app.preferences.PlayerPreferences
+ import com.quantummpv.app.preferences.preference.collectAsState
+ import com.quantummpv.app.ui.icons.Icon
+@@ -161,6 +174,7 @@ import com.quantummpv.app.ui.icons.Icons
+ import com.quantummpv.app.ui.player.Panels
+ import com.quantummpv.app.ui.player.PlayerActivity
+ import com.quantummpv.app.ui.player.PlayerViewModel
++import com.quantummpv.app.ui.player.PlaybackPhase
+ import com.quantummpv.app.ui.player.RepeatMode
+ import com.quantummpv.app.ui.player.Sheets
+ import com.quantummpv.app.ui.player.controls.components.AbLoopIcon
+@@ -395,8 +409,33 @@ private fun artworkVisualizerPalette(
+   )
+ }
+ 
++@Composable
++private fun Modifier.audioPlaybackGestures(viewModel: PlayerViewModel, onTap: () -> Unit, onHold: () -> Unit): Modifier {
++  val tap by rememberUpdatedState(onTap)
++  val hold by rememberUpdatedState(onHold)
++  return this
++    .semantics {
++      onClick { tap(); true }
++      onLongClick { hold(); true }
++    }
++    .pointerInput(viewModel) {
++      detectTapGestures(
++        onTap = { tap() },
++        onLongPress = { hold() },
++        onDoubleTap = { position ->
++          when {
++            position.x < size.width / 3f -> viewModel.handleLeftDoubleTap()
++            position.x > size.width * 2f / 3f -> viewModel.handleRightDoubleTap()
++            else -> viewModel.handleCenterDoubleTap()
++          }
++        },
++      )
++    }
++}
++
+ @Composable
+ private fun AudioVisualizerViewport(
++  viewModel: PlayerViewModel,
+   style: AudioVisualizerStyle,
+   palette: VisualizerPalette,
+   isPlaying: Boolean,
+@@ -408,13 +447,7 @@ private fun AudioVisualizerViewport(
+ ) {
+   Box(
+     modifier =
+-      modifier
+-        .combinedClickable(
+-          interactionSource = remember { MutableInteractionSource() },
+-          indication = null,
+-          onClick = onClick,
+-          onLongClick = onLongClick,
+-        ),
++      modifier.audioPlaybackGestures(viewModel, onClick, onLongClick),
+     contentAlignment = Alignment.Center,
+   ) {
+     val rendererModifier =
+@@ -528,20 +561,21 @@ private fun AudioSpectrumCaptureEffect(
+ private fun CoverArtCardImage(
+   bitmap: Bitmap?,
+   artworkUrl: String? = null,
++  contentScale: ContentScale = ContentScale.Crop,
+ ) {
+   val imageBitmap = remember(bitmap) { bitmap?.asImageBitmap() }
+   if (imageBitmap != null) {
+     Image(
+       bitmap = imageBitmap,
+       contentDescription = null,
+-      contentScale = ContentScale.Crop,
++      contentScale = contentScale,
+       modifier = Modifier.fillMaxSize(),
+     )
+   } else if (!artworkUrl.isNullOrBlank() && (artworkUrl.startsWith("http://", ignoreCase = true) || artworkUrl.startsWith("https://", ignoreCase = true))) {
+     RemoteImage(
+       url = artworkUrl,
+       contentDescription = null,
+-      contentScale = ContentScale.Crop,
++      contentScale = contentScale,
+       modifier = Modifier.fillMaxSize(),
+     )
+   } else {
+@@ -582,6 +616,10 @@ fun AudioPlayerControls(
+   val playbackState by PlaybackSession.state.collectAsStateWithLifecycle()
+   val queueState by PlaybackSession.queue.collectAsStateWithLifecycle()
+   val currentItem = playbackState.currentItem ?: queueState.currentItem
++  val activeBook by com.quantummpv.app.ui.player.AudiobookPlayback.book.collectAsStateWithLifecycle()
++  val audiobook = activeBook?.takeIf { it.book.id == currentItem?.audiobook?.bookId }
++  val isAudiobook = currentItem?.audiobook != null
++  val filePosition = viewModel.precisePosition.collectAsStateWithLifecycle()
+   val playlistItems by viewModel.playlistItems.collectAsState()
+   val isAudioOnly by viewModel.isAudioOnly.collectAsState()
+   val filteredPlaylist =
+@@ -756,12 +794,13 @@ fun AudioPlayerControls(
+     }
+ 
+   val currentArtworkUri =
+-    currentItem?.artworkUri?.takeIf { it.isNotBlank() }
++    audiobook?.book?.coverUri?.takeIf(String::isNotBlank)
++      ?: currentItem?.artworkUri?.takeIf { it.isNotBlank() }
+       ?: filteredPlaylist.firstOrNull { it.isPlaying || it.path == mediaPath || it.uri.toString() == mediaPath }?.tvgLogo?.takeIf { it.isNotBlank() }
+ 
+   val currentAudioPresentation =
+     rememberAudioPresentationMetadata(
+-      pathOrUri = mediaPath?.takeIf { it.isNotBlank() } ?: currentMediaSource,
++      pathOrUri = currentMediaSource?.takeIf { isAudiobook } ?: mediaPath?.takeIf { it.isNotBlank() } ?: currentMediaSource,
+       artworkUri = currentArtworkUri,
+     )
+   val albumArtBitmap = currentAudioPresentation?.artwork
+@@ -810,8 +849,8 @@ fun AudioPlayerControls(
+   val retrievedArtist = currentAudioPresentation?.artist
+ 
+   val displayArtist =
+-    remember(currentItem?.artist, rawArtist, rawArtistAlt, rawAlbumArtist, rawPerformer, retrievedArtist) {
+-      sequenceOf(currentItem?.artist, rawArtist, rawArtistAlt, rawAlbumArtist, rawPerformer, retrievedArtist)
++    remember(audiobook?.book?.author, currentItem?.artist, rawArtist, rawArtistAlt, rawAlbumArtist, rawPerformer, retrievedArtist) {
++      sequenceOf(audiobook?.book?.author, currentItem?.artist, rawArtist, rawArtistAlt, rawAlbumArtist, rawPerformer, retrievedArtist)
+         .filterNotNull()
+         .firstOrNull { it.isNotBlank() } ?: "Unknown Artist"
+     }
+@@ -1016,14 +1055,21 @@ fun AudioPlayerControls(
+   val seekbarStyle by appearancePreferences.seekbarStyle.collectAsState()
+   val invertDuration by playerPreferences.invertDuration.collectAsState()
+   val showChapterIndicators by playerPreferences.showChapterIndicators.collectAsState()
+-  val chapters by viewModel.chapters.collectAsState()
++  val chapters by viewModel.playbackChapters.collectAsState()
++  val bookChapterIndex by remember(currentItem?.audiobook, chapters, audiobook?.tracks) {
++    derivedStateOf {
++      val seconds = currentItem?.audiobook?.let { info -> audiobook?.positionInBook(info.trackId, (filePosition.value * 1000).toLong())?.div(1000f) }
++        ?: filePosition.value
++      chapters.indexOfLast { it.start <= seconds }
++    }
++  }
+   val seekbarChapters =
+     remember(chapters, showChapterIndicators) {
+       if (showChapterIndicators) chapters.toImmutableList() else persistentListOf()
+     }
+ 
+-  LaunchedEffect(Unit) {
+-    viewModel.refreshPlaylistItems()
++  LaunchedEffect(audiobook?.book?.id, audiobook?.tracks) {
++    viewModel.refreshPlaylistItems(forceMetadata = !isAudiobook)
+   }
+ 
+   val configuration = LocalConfiguration.current
+@@ -1280,11 +1326,10 @@ fun AudioPlayerControls(
+               if (showVisualizer || showInPlaceLyrics) {
+                 Modifier
+               } else {
+-                Modifier.combinedClickable(
+-                  interactionSource = remember { MutableInteractionSource() },
+-                  indication = null,
+-                  onClick = { viewModel.toggleAudioVisualizer() },
+-                  onLongClick = { onOpenSheet(Sheets.VisualizerStyle) },
++                Modifier.audioPlaybackGestures(
++                  viewModel,
++                  onTap = { viewModel.toggleAudioVisualizer() },
++                  onHold = { onOpenSheet(Sheets.VisualizerStyle) },
+                 )
+               },
+             ),
+@@ -1328,6 +1373,7 @@ fun AudioPlayerControls(
+           ) { isVisualizerActive ->
+           if (isVisualizerActive) {
+             AudioVisualizerViewport(
++              viewModel = viewModel,
+               style = audioVisualizerStyle,
+               palette = visualizerPalette,
+               isPlaying = isPlaying,
+@@ -1347,8 +1393,8 @@ fun AudioPlayerControls(
+               modifier = Modifier
+                 .fillMaxHeight()
+                 .fillMaxWidth(if (isTabletPortrait) 0.65f else if (isPortrait) 0.88f else 1f)
+-                .pointerInput(showVisualizer, containerWidthPx) {
+-                  if (showVisualizer || containerWidthPx <= 0f) return@pointerInput
++                .pointerInput(showVisualizer, containerWidthPx, isAudiobook) {
++                  if (showVisualizer || isAudiobook || containerWidthPx <= 0f) return@pointerInput
+                   detectHorizontalDragGestures(
+                     onDragStart = {
+                       coroutineScope.launch { animatableOffsetX.snapTo(0f) }
+@@ -1443,7 +1489,8 @@ fun AudioPlayerControls(
+                 shape = coverShape,
+                 color = Color.Transparent,
+               ) {
+-                CoverArtCardImage(bitmap = activeCoverOverride ?: albumArtBitmap, artworkUrl = currentArtworkUri)
++                CoverArtCardImage(bitmap = activeCoverOverride ?: albumArtBitmap, artworkUrl = currentArtworkUri,
++                  contentScale = if (isAudiobook) ContentScale.Fit else ContentScale.Crop)
+               }
+             }
+           }
+@@ -1452,14 +1499,15 @@ fun AudioPlayerControls(
+     }
+     }
+ 
++    @OptIn(ExperimentalFoundationApi::class)
+     val trackMetadataView = @Composable {
+       Column(
+         modifier = Modifier.fillMaxWidth(),
+         horizontalAlignment = Alignment.Start,
+       ) {
+         val displayTitle =
+-          remember(lastValidTitle, displayArtist) {
+-            cleanSongTitle(lastValidTitle, displayArtist)
++          remember(audiobook?.book?.title, lastValidTitle, displayArtist) {
++            audiobook?.book?.title ?: cleanSongTitle(lastValidTitle, displayArtist)
+           }
+ 
+         // 1. Song Title Only
+@@ -1487,8 +1535,20 @@ fun AudioPlayerControls(
+         Spacer(modifier = Modifier.height(2.dp))
+ 
+         // 3. Track Info | A-B Loop Control
++        audiobook?.book?.narrator?.takeIf(String::isNotBlank)?.let { narrator ->
++          Text(
++            text = "${stringResource(R.string.audiobook_narrator)}: $narrator",
++            style = MaterialTheme.typography.bodySmall,
++            color = MaterialTheme.colorScheme.onSurfaceVariant,
++            maxLines = 1,
++            overflow = TextOverflow.Ellipsis,
++          )
++          Spacer(Modifier.height(4.dp))
++        }
+         val playlistInfo = viewModel.getPlaylistInfo()
+-        val trackText = if (playlistInfo != null) "Track $playlistInfo" else "Audio Media"
++        val trackText = if (isAudiobook && bookChapterIndex >= 0) {
++          "${stringResource(R.string.audiobook_chapter_number, bookChapterIndex + 1)} / ${chapters.size}"
++        } else if (playlistInfo != null) "Track $playlistInfo" else "Audio Media"
+ 
+         Row(
+           modifier = Modifier.fillMaxWidth(),
+@@ -1496,6 +1556,7 @@ fun AudioPlayerControls(
+           horizontalArrangement = Arrangement.SpaceBetween,
+         ) {
+           Row(
++            modifier = Modifier.weight(1f).horizontalScroll(rememberScrollState()),
+             verticalAlignment = Alignment.CenterVertically,
+             horizontalArrangement = Arrangement.spacedBy(8.dp),
+           ) {
+@@ -1505,6 +1566,12 @@ fun AudioPlayerControls(
+               color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+               maxLines = 1,
+               overflow = TextOverflow.Ellipsis,
++              modifier = Modifier.combinedClickable(
++                onClick = { onOpenSheet(Sheets.Chapters) },
++                onLongClick = {
++                  if (viewModel.preparePlaybackBookmark()) onOpenSheet(Sheets.BookmarkEditor)
++                },
++              ),
+             )
+             Text(
+               text = "|",
+@@ -1717,17 +1784,22 @@ fun AudioPlayerControls(
+       val precisePosition by viewModel.precisePosition.collectAsStateWithLifecycle()
+       val currentPosSec = if (precisePosition > 0f) precisePosition else position?.toFloat() ?: 0f
+       val isPaused = paused ?: false
++      val bookOffset = currentItem?.audiobook?.let { audiobook?.positionInBook(it.trackId, 0) }?.div(1000f) ?: 0f
++      val timelinePosition = if (audiobook != null) (bookOffset + currentPosSec).coerceIn(0f, audiobook.durationMs / 1000f) else currentPosSec
++      val timelineDuration = audiobook?.durationMs?.div(1000f) ?: currentDurSec
+       val effectiveRemaining =
+-        (remaining ?: 0f).takeIf { it > 0f }
++        if (audiobook != null) (timelineDuration - timelinePosition).coerceAtLeast(0f) / (playbackSpeed ?: 1f).coerceAtLeast(0.1f)
++        else (remaining ?: 0f).takeIf { it > 0f }
+           ?: (currentDurSec - currentPosSec).coerceAtLeast(0f)
+ 
++      androidx.compose.runtime.key(audiobook?.book?.id ?: currentItem?.stableId) {
+       SeekbarWithTimers(
+-        position = currentPosSec,
+-        committedPosition = currentPosSec,
+-        duration = currentDurSec.coerceAtLeast(1f),
++        position = timelinePosition,
++        committedPosition = timelinePosition,
++        duration = timelineDuration.coerceAtLeast(1f),
+         remaining = effectiveRemaining,
+-        onValueChange = { value -> viewModel.seekPreviewTo(value) },
+-        onValueChangeFinished = { targetPosition -> viewModel.seekTo(targetPosition.toInt(), fast = false) },
++        onValueChange = { value -> if (!isAudiobook) viewModel.seekPreviewTo(value) },
++        onValueChangeFinished = viewModel::seekAudioTo,
+         timersInverted = Pair(false, invertDuration),
+         durationTimerOnCLick = { playerPreferences.invertDuration.set(!invertDuration) },
+         positionTimerOnClick = {},
+@@ -1739,24 +1811,32 @@ fun AudioPlayerControls(
+         waveFeatures = if (audioWavySeekbar) visualizerFeatures else null,
+         wavePalette = visualizerPalette,
+         waveSheetOpen = isSheetOpen,
+-        loopStart = abLoopA?.toFloat(),
+-        loopEnd = abLoopB?.toFloat(),
++        loopStart = abLoopA?.toFloat()?.plus(bookOffset),
++        loopEnd = abLoopB?.toFloat()?.plus(bookOffset),
+         isPortrait = isPortrait,
+         applyHorizontalPadding = false,
+         modifier = Modifier.fillMaxWidth(),
+       )
++      }
+     }
+ 
+     val playbackControlsRow = @Composable {
++      val gesturePreferences = koinInject<GesturePreferences>()
++      val configuredSeekSeconds by gesturePreferences.doubleTapToSeekDuration.collectAsState()
++      val seekable by PlaybackSession.propBoolean["seekable"].collectAsStateWithLifecycle()
++      val seekSeconds = configuredSeekSeconds.coerceIn(1, 120)
++      val canSeek = seekable == true && playbackState.phase in setOf(PlaybackPhase.READY, PlaybackPhase.BACKGROUND)
+       Row(
+-        modifier = Modifier.fillMaxWidth(),
++        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+         horizontalArrangement = Arrangement.SpaceEvenly,
+         verticalAlignment = Alignment.CenterVertically,
+       ) {
+-        ReactiveIconButton(onClick = { viewModel.playPrevious() }, enabled = playlistModeEnabled) {
++        ReactiveIconButton(onClick = {
++          if (isAudiobook) viewModel.stepPlaybackChapter(-1) else viewModel.playPrevious()
++        }, enabled = if (isAudiobook) bookChapterIndex >= 0 else playlistModeEnabled) {
+           Icon(
+             imageVector = Icons.RoundedFilled.SkipPrevious,
+-            contentDescription = null,
++            contentDescription = if (isAudiobook) stringResource(R.string.audiobook_previous_chapter) else null,
+             tint =
+               if (playlistModeEnabled) {
+                 MaterialTheme.colorScheme.onSurface
+@@ -1769,6 +1849,10 @@ fun AudioPlayerControls(
+             modifier = Modifier.size(28.dp),
+           )
+         }
++        AudioSeekButton(forward = false, seconds = seekSeconds, enabled = canSeek) {
++          viewModel.leftSeek()
++          actionHaptics.confirm()
++        }
+         ReactiveSurfaceButton(
+           onClick = { viewModel.pauseUnpause() },
+           shape = CircleShape,
+@@ -1785,10 +1869,16 @@ fun AudioPlayerControls(
+             )
+           }
+         }
+-        ReactiveIconButton(onClick = { viewModel.playNext() }, enabled = playlistModeEnabled) {
++        AudioSeekButton(forward = true, seconds = seekSeconds, enabled = canSeek) {
++          viewModel.rightSeek()
++          actionHaptics.confirm()
++        }
++        ReactiveIconButton(onClick = {
++          if (isAudiobook) viewModel.stepPlaybackChapter(1) else viewModel.playNext()
++        }, enabled = if (isAudiobook) bookChapterIndex >= 0 && bookChapterIndex < chapters.lastIndex else playlistModeEnabled) {
+           Icon(
+             imageVector = Icons.RoundedFilled.SkipNext,
+-            contentDescription = null,
++            contentDescription = if (isAudiobook) stringResource(R.string.audiobook_next_chapter) else null,
+             tint =
+               if (playlistModeEnabled) {
+                 MaterialTheme.colorScheme.onSurface
+@@ -1804,6 +1894,46 @@ fun AudioPlayerControls(
+       }
+     }
+ 
++    val playbackModeButtons = @Composable {
++      ReactiveIconButton(
++        onClick = { onOpenSheet(Sheets.Chapters) },
++        onLongClick = {
++          if (viewModel.preparePlaybackBookmark()) {
++            actionHaptics.confirm()
++            onOpenSheet(Sheets.BookmarkEditor)
++          }
++        },
++        modifier = Modifier.size(40.dp),
++        onLongClickLabel = stringResource(R.string.audiobook_add_bookmark),
++      ) { Icon(Icons.RoundedFilled.Bookmark, stringResource(R.string.audiobook_bookmarks), tint = MaterialTheme.colorScheme.onSurfaceVariant) }
++      if (isAudiobook) {
++        val timer by com.quantummpv.app.ui.player.AudiobookPlayback.timer.collectAsStateWithLifecycle()
++        ReactiveIconButton(onClick = { onOpenSheet(Sheets.AudiobookRewind) }, modifier = Modifier.size(40.dp)) {
++          Icon(Icons.RoundedFilled.Replay, stringResource(R.string.audiobook_smart_rewind), tint = MaterialTheme.colorScheme.onSurfaceVariant)
++        }
++        ReactiveIconButton(onClick = { onOpenSheet(Sheets.AudiobookSleepTimer) }, modifier = Modifier.size(40.dp)) {
++          Icon(Icons.RoundedFilled.Timer, stringResource(R.string.audiobook_sleep_timer),
++            tint = if (timer != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
++        }
++      } else {
++        ReactiveIconButton(
++          onClick = { viewModel.toggleShuffle(); actionHaptics.selection(!shuffleEnabled) },
++          enabled = playlistModeEnabled,
++          modifier = Modifier.size(40.dp),
++        ) {
++          Icon(if (shuffleEnabled) Icons.RoundedFilled.ShuffleOn else Icons.RoundedFilled.Shuffle, null,
++            tint = if (shuffleEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
++        }
++        ReactiveIconButton(onClick = { viewModel.cycleRepeatMode(); actionHaptics.confirm() }, modifier = Modifier.size(40.dp)) {
++          Icon(when (repeatMode) {
++            RepeatMode.OFF -> Icons.RoundedFilled.Repeat
++            RepeatMode.ONE -> Icons.RoundedFilled.RepeatOne
++            RepeatMode.ALL -> Icons.RoundedFilled.RepeatOn
++          }, null, tint = if (repeatMode != RepeatMode.OFF) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
++        }
++      }
++    }
++
+     val bottomActionRow = @Composable {
+       Row(
+         modifier = Modifier.fillMaxWidth(),
+@@ -1845,45 +1975,7 @@ fun AudioPlayerControls(
+               verticalAlignment = Alignment.CenterVertically,
+               horizontalArrangement = Arrangement.spacedBy(4.dp),
+             ) {
+-              ReactiveIconButton(
+-                onClick = {
+-                  viewModel.toggleShuffle()
+-                  actionHaptics.selection(!shuffleEnabled)
+-                },
+-                enabled = playlistModeEnabled,
+-                modifier = Modifier.size(40.dp),
+-              ) {
+-                Icon(
+-                  imageVector = if (shuffleEnabled) Icons.RoundedFilled.ShuffleOn else Icons.RoundedFilled.Shuffle,
+-                  contentDescription = null,
+-                  tint = if (shuffleEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+-                )
+-              }
+-              ReactiveIconButton(
+-                onClick = {
+-                  viewModel.cycleRepeatMode()
+-                  actionHaptics.confirm()
+-                },
+-                modifier = Modifier.size(40.dp),
+-              ) {
+-                Icon(
+-                  imageVector =
+-                    when (repeatMode) {
+-                      RepeatMode.OFF -> Icons.RoundedFilled.Repeat
+-                      RepeatMode.ONE -> Icons.RoundedFilled.RepeatOne
+-                      RepeatMode.ALL -> Icons.RoundedFilled.RepeatOn
+-                    },
+-                  contentDescription = null,
+-                  tint =
+-                    if (repeatMode !=
+-                      RepeatMode.OFF
+-                    ) {
+-                      MaterialTheme.colorScheme.primary
+-                    } else {
+-                      MaterialTheme.colorScheme.onSurfaceVariant
+-                    },
+-                )
+-              }
++              playbackModeButtons()
+               ReactiveIconButton(
+                 onClick = { viewModel.toggleAudioVisualizer() },
+                 onLongClick = { onOpenSheet(Sheets.VisualizerStyle) },
+@@ -1895,7 +1987,7 @@ fun AudioPlayerControls(
+                   tint = if (showVisualizer) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                 )
+               }
+-              ReactiveIconButton(
++              if (!isAudiobook) ReactiveIconButton(
+                 onClick = {
+                   val act = context as? PlayerActivity
+                   if (act != null) {
+@@ -1932,45 +2024,7 @@ fun AudioPlayerControls(
+               verticalAlignment = Alignment.CenterVertically,
+               horizontalArrangement = Arrangement.spacedBy(4.dp),
+             ) {
+-              ReactiveIconButton(
+-                onClick = {
+-                  viewModel.toggleShuffle()
+-                  actionHaptics.selection(!shuffleEnabled)
+-                },
+-                enabled = playlistModeEnabled,
+-                modifier = Modifier.size(40.dp),
+-              ) {
+-                Icon(
+-                  imageVector = if (shuffleEnabled) Icons.RoundedFilled.ShuffleOn else Icons.RoundedFilled.Shuffle,
+-                  contentDescription = null,
+-                  tint = if (shuffleEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+-                )
+-              }
+-              ReactiveIconButton(
+-                onClick = {
+-                  viewModel.cycleRepeatMode()
+-                  actionHaptics.confirm()
+-                },
+-                modifier = Modifier.size(40.dp),
+-              ) {
+-                Icon(
+-                  imageVector =
+-                    when (repeatMode) {
+-                      RepeatMode.OFF -> Icons.RoundedFilled.Repeat
+-                      RepeatMode.ONE -> Icons.RoundedFilled.RepeatOne
+-                      RepeatMode.ALL -> Icons.RoundedFilled.RepeatOn
+-                    },
+-                  contentDescription = null,
+-                  tint =
+-                    if (repeatMode !=
+-                      RepeatMode.OFF
+-                    ) {
+-                      MaterialTheme.colorScheme.primary
+-                    } else {
+-                      MaterialTheme.colorScheme.onSurfaceVariant
+-                    },
+-                )
+-              }
++              playbackModeButtons()
+               ReactiveIconButton(
+                 onClick = { viewModel.toggleAudioVisualizer() },
+                 onLongClick = { onOpenSheet(Sheets.VisualizerStyle) },
+@@ -1992,7 +2046,7 @@ fun AudioPlayerControls(
+                   tint = if (showInPlaceLyrics) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                 )
+               }
+-              ReactiveIconButton(
++              if (!isAudiobook) ReactiveIconButton(
+                 onClick = {
+                   val act = context as? PlayerActivity
+                   if (act != null) {
+@@ -2321,13 +2375,14 @@ private fun UpNextPlaylistContent(
+ ) {
+   val lazyListState = rememberLazyListState()
+   val isM3U = viewModel.isPlaylistM3U()
++  val playbackState by PlaybackSession.state.collectAsStateWithLifecycle()
+ 
+   var displayPlaylist by remember(playlist) { mutableStateOf(playlist) }
+   LaunchedEffect(playlist) {
+     displayPlaylist = playlist
+   }
+ 
+-  val showDragHandle = !isM3U && displayPlaylist.size > 1
++  val showDragHandle = !isM3U && playbackState.currentItem?.audiobook == null && displayPlaylist.size > 1
+ 
+   val playingItemIndex by remember(displayPlaylist) {
+     derivedStateOf { displayPlaylist.indexOfFirst { it.isPlaying } }
+@@ -2593,6 +2648,35 @@ private fun formatSec(totalSeconds: Long): String {
+   }
+ }
+ 
++@OptIn(ExperimentalMaterial3Api::class)
++@Composable
++private fun AudioSeekButton(forward: Boolean, seconds: Int, enabled: Boolean, onClick: () -> Unit) {
++  val duration = pluralStringResource(R.plurals.seconds, seconds, seconds)
++  val label = stringResource(if (forward) R.string.player_seek_forward else R.string.player_seek_backward, duration)
++  TooltipBox(
++    positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
++    tooltip = { PlainTooltip { Text(label) } },
++    state = rememberTooltipState(),
++  ) {
++    ReactiveIconButton(onClick = onClick, enabled = enabled, modifier = Modifier.size(48.dp)) {
++      Column(horizontalAlignment = Alignment.CenterHorizontally) {
++        Icon(
++          imageVector = if (forward) Icons.RoundedFilled.FastForward else Icons.RoundedFilled.FastRewind,
++          contentDescription = label,
++          modifier = Modifier.size(20.dp),
++        )
++        Text(
++          text = if (forward) "+$seconds" else "-$seconds",
++          style = MaterialTheme.typography.labelSmall,
++          fontWeight = FontWeight.Bold,
++          maxLines = 1,
++          modifier = Modifier.clearAndSetSemantics {},
++        )
++      }
++    }
++  }
++}
++
+ @OptIn(ExperimentalFoundationApi::class)
+ @Composable
+ private fun ReactiveIconButton(
+@@ -2600,6 +2684,7 @@ private fun ReactiveIconButton(
+   modifier: Modifier = Modifier,
+   onLongClick: (() -> Unit)? = null,
+   enabled: Boolean = true,
++  onLongClickLabel: String? = null,
+   content: @Composable () -> Unit,
+ ) {
+   val interactionSource = remember { MutableInteractionSource() }
+@@ -2630,6 +2715,7 @@ private fun ReactiveIconButton(
+             enabled = enabled,
+             onClick = onClick,
+             onLongClick = onLongClick,
++            onLongClickLabel = onLongClickLabel,
+           )
+           .padding(8.dp),
+       contentAlignment = Alignment.Center,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/AudiobookPlayerControls.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/AudiobookPlayerControls.kt
+deleted file mode 100644
+index 834b71df..00000000
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/AudiobookPlayerControls.kt
++++ /dev/null
+@@ -1,384 +0,0 @@
+-package com.quantummpv.app.ui.player.controls
+-
+-import androidx.compose.foundation.horizontalScroll
+-import androidx.compose.foundation.interaction.DragInteraction
+-import androidx.compose.foundation.interaction.MutableInteractionSource
+-import androidx.compose.foundation.interaction.PressInteraction
+-import androidx.compose.foundation.layout.Arrangement
+-import androidx.compose.foundation.layout.Box
+-import androidx.compose.foundation.layout.BoxWithConstraints
+-import androidx.compose.foundation.layout.Column
+-import androidx.compose.foundation.layout.Row
+-import androidx.compose.foundation.layout.Spacer
+-import androidx.compose.foundation.layout.aspectRatio
+-import androidx.compose.foundation.layout.fillMaxHeight
+-import androidx.compose.foundation.layout.fillMaxSize
+-import androidx.compose.foundation.layout.fillMaxWidth
+-import androidx.compose.foundation.layout.height
+-import androidx.compose.foundation.layout.heightIn
+-import androidx.compose.foundation.layout.padding
+-import androidx.compose.foundation.layout.size
+-import androidx.compose.foundation.layout.widthIn
+-import androidx.compose.foundation.lazy.LazyColumn
+-import androidx.compose.foundation.lazy.items
+-import androidx.compose.foundation.rememberScrollState
+-import androidx.compose.foundation.selection.selectable
+-import androidx.compose.foundation.shape.RoundedCornerShape
+-import androidx.compose.foundation.verticalScroll
+-import androidx.compose.material3.AlertDialog
+-import androidx.compose.material3.CircularProgressIndicator
+-import androidx.compose.material3.ExperimentalMaterial3Api
+-import androidx.compose.material3.FilledIconButton
+-import androidx.compose.material3.IconButton
+-import androidx.compose.material3.LinearProgressIndicator
+-import androidx.compose.material3.MaterialTheme
+-import androidx.compose.material3.ModalBottomSheet
+-import androidx.compose.material3.OutlinedTextField
+-import androidx.compose.material3.RadioButton
+-import androidx.compose.material3.Scaffold
+-import androidx.compose.material3.Slider
+-import androidx.compose.material3.Surface
+-import androidx.compose.material3.Text
+-import androidx.compose.material3.TextButton
+-import androidx.compose.material3.TopAppBar
+-import androidx.compose.runtime.Composable
+-import androidx.compose.runtime.LaunchedEffect
+-import androidx.compose.runtime.getValue
+-import androidx.compose.runtime.mutableStateOf
+-import androidx.compose.runtime.remember
+-import androidx.compose.runtime.rememberCoroutineScope
+-import androidx.compose.runtime.saveable.rememberSaveable
+-import androidx.compose.runtime.setValue
+-import androidx.compose.ui.Alignment
+-import androidx.compose.ui.Modifier
+-import androidx.compose.ui.draw.clip
+-import androidx.compose.ui.platform.LocalContext
+-import androidx.compose.ui.res.stringResource
+-import androidx.compose.ui.semantics.Role
+-import androidx.compose.ui.text.style.TextOverflow
+-import androidx.compose.ui.unit.dp
+-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+-import com.quantummpv.app.R
+-import com.quantummpv.app.database.dao.AudiobookDao
+-import com.quantummpv.app.database.entities.AudiobookBookmarkEntity
+-import com.quantummpv.app.database.entities.AudiobookChapterEntity
+-import com.quantummpv.app.ui.browser.audiobooks.AudiobookArtwork
+-import com.quantummpv.app.ui.browser.audiobooks.AudiobookDetails
+-import com.quantummpv.app.ui.browser.audiobooks.AudiobookIconButton
+-import com.quantummpv.app.ui.browser.audiobooks.bookTime
+-import com.quantummpv.app.ui.icons.Icon
+-import com.quantummpv.app.ui.icons.Icons
+-import com.quantummpv.app.ui.player.AudiobookPlayback
+-import com.quantummpv.app.ui.player.PlaybackPhase
+-import com.quantummpv.app.ui.player.PlaybackSession
+-import com.quantummpv.app.ui.player.PlayerViewModel
+-import com.quantummpv.app.ui.utils.rememberAppHaptics
+-import com.quantummpv.app.ui.utils.isMpvOptionOwnedByConfig
+-import kotlinx.coroutines.CancellationException
+-import kotlinx.coroutines.launch
+-import org.koin.compose.koinInject
+-
+-@OptIn(ExperimentalMaterial3Api::class)
+-@Composable
+-internal fun AudiobookPlayerControls(viewModel: PlayerViewModel, onBack: () -> Unit, modifier: Modifier = Modifier) {
+-  val state by PlaybackSession.state.collectAsStateWithLifecycle()
+-  val info = state.currentItem?.audiobook ?: return
+-  val book by AudiobookPlayback.book.collectAsStateWithLifecycle()
+-  val timer by AudiobookPlayback.timer.collectAsStateWithLifecycle()
+-  val saveFailed by AudiobookPlayback.saveFailed.collectAsStateWithLifecycle()
+-  val position by viewModel.precisePosition.collectAsStateWithLifecycle()
+-  val rawPosition by PlaybackSession.propDouble["time-pos"].collectAsStateWithLifecycle()
+-  val paused by PlaybackSession.propBoolean["pause"].collectAsStateWithLifecycle()
+-  val eof by PlaybackSession.propBoolean["eof-reached"].collectAsStateWithLifecycle()
+-  val actualSpeed by PlaybackSession.propFloat["speed"].collectAsStateWithLifecycle()
+-  val dao = koinInject<AudiobookDao>()
+-  val chaptersFlow = remember(info.bookId) { dao.observeChapters(info.bookId) }
+-  val bookmarksFlow = remember(info.bookId) { dao.observeBookmarks(info.bookId) }
+-  val storedChapters by chaptersFlow.collectAsStateWithLifecycle(initialValue = emptyList())
+-  val bookmarks by bookmarksFlow.collectAsStateWithLifecycle(initialValue = emptyList())
+-  val context = LocalContext.current
+-  val scope = rememberCoroutineScope()
+-  val haptics = rememberAppHaptics()
+-  var sheet by rememberSaveable(info.bookId) { mutableStateOf<String?>(null) }
+-  var bookmarkEdit by remember(info.bookId) { mutableStateOf<AudiobookBookmarkEntity?>(null) }
+-  var error by remember(info.bookId) { mutableStateOf<String?>(null) }
+-  var opening by remember(info.bookId) { mutableStateOf(false) }
+-  var savingBookmark by remember(info.bookId) { mutableStateOf(false) }
+-  val currentBook = book?.takeIf { it.book.id == info.bookId }
+-  val tracks = currentBook?.orderedTracks.orEmpty()
+-  val track = tracks.firstOrNull { it.id == info.trackId }
+-  val positionMs = ((if (position > 0) position.toDouble() else rawPosition ?: 0.0) * 1000).toLong().coerceAtLeast(0)
+-  val chapters = remember(tracks, storedChapters) {
+-    tracks.flatMap { item ->
+-      storedChapters.filter { it.trackId == item.id }.sortedBy { it.startMs }.ifEmpty {
+-        listOf(AudiobookChapterEntity(item.id, 0, item.durationMs, item.title))
+-      }
+-    }
+-  }
+-  val currentChapterIndex = chapters.indexOfLast { it.trackId == info.trackId && it.startMs <= positionMs }
+-  val currentChapter = chapters.getOrNull(currentChapterIndex)
+-  val bookPosition = currentBook?.positionInBook(info.trackId, positionMs) ?: 0L
+-  val bookDuration = currentBook?.durationMs ?: 0L
+-  val speed = actualSpeed?.takeIf { it > 0 } ?: currentBook?.book?.playbackSpeed ?: 1f
+-  val ready = state.phase in setOf(PlaybackPhase.READY, PlaybackPhase.BACKGROUND) && currentBook != null
+-  val playing = paused == false && eof != true
+-  val title = currentBook?.book?.title ?: state.currentItem?.title.orEmpty()
+-  fun operation(action: suspend () -> Unit) {
+-    scope.launch {
+-      try { action() } catch (cancelled: CancellationException) { throw cancelled } catch (failure: Exception) {
+-        error = failure.localizedMessage ?: context.getString(R.string.audiobook_play_failed)
+-      }
+-    }
+-  }
+-  fun jump(trackId: Long, targetMs: Long) {
+-    if (opening) return
+-    sheet = null
+-    if (trackId == info.trackId) {
+-      AudiobookPlayback.seek(targetMs)
+-      haptics.confirm()
+-    } else {
+-      opening = true
+-      operation {
+-        try { AudiobookPlayback.launch(context, info.bookId, trackId, targetMs) } finally { opening = false }
+-      }
+-    }
+-  }
+-  fun addBookmark() {
+-    val progress = PlaybackSession.audiobookProgress() ?: return
+-    bookmarkEdit = AudiobookBookmarkEntity(bookId = info.bookId, trackId = info.trackId, positionMs = progress.positionMs,
+-      title = "${currentChapter?.title ?: track?.title.orEmpty()} ${bookTime(progress.positionMs)}".trim())
+-  }
+-  Scaffold(modifier = modifier.fillMaxSize(), topBar = {
+-    TopAppBar(title = { Text(stringResource(R.string.audiobooks_title), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+-      navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.RoundedFilled.ArrowBack, stringResource(R.string.generic_cancel)) } },
+-      actions = {
+-        AudiobookIconButton(Icons.RoundedFilled.Info, stringResource(R.string.audiobook_details), currentBook != null) { sheet = "details" }
+-        AudiobookIconButton(Icons.RoundedFilled.Close, stringResource(R.string.audiobook_stop)) {
+-          PlaybackSession.stop(clearQueue = true)
+-          onBack()
+-        }
+-      })
+-  }) { padding ->
+-    BoxWithConstraints(Modifier.fillMaxSize().padding(padding)) {
+-      val artwork: @Composable (Modifier) -> Unit = { layout ->
+-        Box(layout.padding(20.dp), contentAlignment = Alignment.Center) {
+-          AudiobookArtwork(currentBook?.book?.coverUri,
+-            Modifier.widthIn(max = 380.dp).fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(8.dp)))
+-          if (!ready && state.error == null) CircularProgressIndicator()
+-        }
+-      }
+-      val controls: @Composable (Modifier) -> Unit = { layout ->
+-        Column(layout.padding(horizontal = 20.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+-          Text(title, style = MaterialTheme.typography.titleLarge, maxLines = 3, overflow = TextOverflow.Ellipsis)
+-          currentBook?.book?.author?.takeIf(String::isNotBlank)?.let {
+-            Text(it, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant,
+-              maxLines = 2, overflow = TextOverflow.Ellipsis)
+-          }
+-          currentBook?.book?.narrator?.takeIf(String::isNotBlank)?.let {
+-            Text("${stringResource(R.string.audiobook_narrator)}: $it", style = MaterialTheme.typography.bodySmall,
+-              maxLines = 2, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.secondary)
+-          }
+-          (state.error ?: error)?.let { message ->
+-            Text(message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+-            TextButton(onClick = { operation { AudiobookPlayback.launch(context, info.bookId) } }, enabled = !opening) {
+-              Text(stringResource(R.string.audiobook_retry))
+-            }
+-          }
+-          if (saveFailed) Text(stringResource(R.string.audiobook_save_failed), color = MaterialTheme.colorScheme.error)
+-          TextButton(onClick = { sheet = "chapters" }, enabled = chapters.isNotEmpty(), modifier = Modifier.fillMaxWidth()) {
+-            Text(currentChapter?.title ?: track?.title.orEmpty(), maxLines = 2, overflow = TextOverflow.Ellipsis)
+-          }
+-          AudiobookSeekbar(info.trackId, positionMs, track?.durationMs ?: 0L, ready) { AudiobookPlayback.seek(it) }
+-          Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.SpaceEvenly,
+-            verticalAlignment = Alignment.CenterVertically) {
+-            AudiobookIconButton(Icons.RoundedFilled.SkipPrevious, stringResource(R.string.audiobook_previous_chapter), ready && currentChapterIndex >= 0) {
+-              val target = if (positionMs - (currentChapter?.startMs ?: 0) > 3000) currentChapter else chapters.getOrNull(currentChapterIndex - 1) ?: currentChapter
+-              target?.let { jump(it.trackId, it.startMs) }
+-            }
+-            AudiobookIconButton(Icons.RoundedFilled.FastRewind, stringResource(R.string.audiobook_rewind), ready) {
+-              AudiobookPlayback.seekBy(-15)
+-              haptics.confirm()
+-            }
+-            FilledIconButton(onClick = {
+-              if (eof == true) {
+-                operation { AudiobookPlayback.launch(context, info.bookId, fromBeginning = true) }
+-              } else PlaybackSession.setPropertyBoolean("pause", playing)
+-              haptics.selection(!playing)
+-            }, enabled = ready && !opening, modifier = Modifier.size(64.dp)) {
+-              Icon(if (playing) Icons.RoundedFilled.Pause else Icons.RoundedFilled.PlayArrow,
+-                stringResource(if (playing) R.string.audiobook_pause else R.string.audiobook_continue), modifier = Modifier.size(36.dp))
+-            }
+-            AudiobookIconButton(Icons.RoundedFilled.FastForward, stringResource(R.string.audiobook_forward), ready) {
+-              AudiobookPlayback.seekBy(30)
+-              haptics.confirm()
+-            }
+-            AudiobookIconButton(Icons.RoundedFilled.SkipNext, stringResource(R.string.audiobook_next_chapter),
+-              ready && currentChapterIndex >= 0 && currentChapterIndex < chapters.lastIndex) {
+-              chapters.getOrNull(currentChapterIndex + 1)?.let { jump(it.trackId, it.startMs) }
+-            }
+-          }
+-          Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+-            Text("${stringResource(R.string.audiobook_book_time)} ${bookTime(bookPosition)}", modifier = Modifier.weight(1f),
+-              style = MaterialTheme.typography.labelMedium)
+-            Text(bookTime(bookDuration), modifier = Modifier.padding(start = 8.dp), style = MaterialTheme.typography.labelMedium)
+-          }
+-          LinearProgressIndicator(progress = { if (bookDuration > 0) (bookPosition.toDouble() / bookDuration).toFloat().coerceIn(0f, 1f) else 0f },
+-            modifier = Modifier.fillMaxWidth())
+-          Text(stringResource(R.string.audiobook_remaining, bookTime(((bookDuration - bookPosition).coerceAtLeast(0) / speed).toLong())),
+-            style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.secondary)
+-          Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.SpaceEvenly) {
+-            AudiobookIconButton(Icons.RoundedFilled.MenuBook, stringResource(R.string.audiobook_chapters), chapters.isNotEmpty()) { sheet = "chapters" }
+-            AudiobookIconButton(Icons.RoundedFilled.Bookmarks, stringResource(R.string.audiobook_bookmarks), currentBook != null) { sheet = "bookmarks" }
+-            AudiobookIconButton(Icons.RoundedFilled.Add, stringResource(R.string.audiobook_add_bookmark), ready, ::addBookmark)
+-            AudiobookIconButton(Icons.RoundedFilled.Speed, "${stringResource(R.string.ui_playback_speed)} ${speed}x",
+-              ready && !isMpvOptionOwnedByConfig("speed")) { sheet = "speed" }
+-            AudiobookIconButton(Icons.RoundedFilled.Timer, stringResource(R.string.audiobook_sleep_timer), ready) { sheet = "timer" }
+-            AudiobookIconButton(Icons.RoundedFilled.Settings, stringResource(R.string.audiobook_smart_rewind), currentBook != null) { sheet = "rewind" }
+-          }
+-          timer?.let {
+-            TextButton(onClick = { sheet = "timer" }, modifier = Modifier.fillMaxWidth()) {
+-              Text(if (it.deadline == null) stringResource(R.string.audiobook_end_chapter)
+-                else "${stringResource(R.string.audiobook_sleep_timer)} ${bookTime(it.remainingSeconds * 1000L)}")
+-            }
+-          }
+-        }
+-      }
+-      if (maxWidth > maxHeight && maxHeight < 540.dp) {
+-        Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
+-          artwork(Modifier.weight(1f).fillMaxHeight())
+-          controls(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()))
+-        }
+-      } else {
+-        val controlsHeight = maxHeight * 0.7f
+-        Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
+-          artwork(Modifier.weight(1f).fillMaxWidth())
+-          controls(Modifier.widthIn(max = 720.dp).fillMaxWidth().heightIn(max = controlsHeight).verticalScroll(rememberScrollState()))
+-        }
+-      }
+-    }
+-  }
+-  if (sheet != null) ModalBottomSheet(onDismissRequest = { sheet = null }) {
+-    LazyColumn(Modifier.fillMaxWidth().heightIn(max = 600.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 32.dp)) {
+-      item {
+-        val label = when (sheet) {
+-          "chapters" -> R.string.audiobook_chapters
+-          "bookmarks" -> R.string.audiobook_bookmarks
+-          "speed" -> R.string.ui_playback_speed
+-          "timer" -> R.string.audiobook_sleep_timer
+-          "rewind" -> R.string.audiobook_smart_rewind
+-          else -> R.string.audiobook_details
+-        }
+-        Text(stringResource(label), modifier = Modifier.padding(20.dp), style = MaterialTheme.typography.titleLarge)
+-      }
+-      when (sheet) {
+-        "chapters" -> items(chapters, key = { "${it.trackId}:${it.startMs}" }) { chapter ->
+-          Surface(color = if (chapter == currentChapter) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface) {
+-            Row(Modifier.fillMaxWidth().selectable(chapter == currentChapter, enabled = !opening) { jump(chapter.trackId, chapter.startMs) }
+-              .padding(horizontal = 20.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+-              Column(Modifier.weight(1f)) {
+-                Text(chapter.title, maxLines = 2, overflow = TextOverflow.Ellipsis)
+-                val file = tracks.firstOrNull { it.id == chapter.trackId }
+-                Text(file?.fileName.orEmpty(), style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+-              }
+-              Text(bookTime(chapter.endMs - chapter.startMs), modifier = Modifier.padding(start = 8.dp), style = MaterialTheme.typography.labelMedium)
+-            }
+-          }
+-        }
+-        "bookmarks" -> {
+-          item { TextButton(onClick = ::addBookmark, enabled = ready, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.audiobook_add_bookmark)) } }
+-          if (bookmarks.isEmpty()) item { Text(stringResource(R.string.audiobook_no_bookmarks), modifier = Modifier.padding(20.dp)) }
+-          items(bookmarks, key = { it.id }) { bookmark ->
+-            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+-              TextButton(onClick = { jump(bookmark.trackId, bookmark.positionMs) }, modifier = Modifier.weight(1f), enabled = !opening) {
+-                Column(Modifier.fillMaxWidth()) {
+-                  Text(bookmark.title, maxLines = 2, overflow = TextOverflow.Ellipsis)
+-                  Text(bookTime(bookmark.positionMs), style = MaterialTheme.typography.labelSmall)
+-                }
+-              }
+-              AudiobookIconButton(Icons.RoundedFilled.Edit, stringResource(R.string.audiobook_bookmark_name)) { bookmarkEdit = bookmark }
+-              AudiobookIconButton(Icons.RoundedFilled.Delete, stringResource(R.string.audiobook_delete_bookmark)) { operation { dao.deleteBookmark(bookmark.id) } }
+-            }
+-          }
+-        }
+-        "speed" -> items(listOf(0.5f, 0.75f, 1f, 1.1f, 1.25f, 1.5f, 1.75f, 2f, 2.5f, 3f)) { option ->
+-          AudiobookOption("${option}x", speed == option) {
+-            if (speed != option) { AudiobookPlayback.setSpeed(option); haptics.selection(true) }
+-            sheet = null
+-          }
+-        }
+-        "timer" -> {
+-          item { AudiobookOption(stringResource(R.string.audiobook_timer_off), timer == null) { AudiobookPlayback.clearTimer(); sheet = null } }
+-          items(listOf(5, 10, 15, 30, 45, 60, 90)) { minutes ->
+-            AudiobookOption(stringResource(R.string.audiobook_minutes, minutes), false) { AudiobookPlayback.setTimer(minutes); sheet = null }
+-          }
+-          item { AudiobookOption(stringResource(R.string.audiobook_end_chapter), timer?.chapterEndMs != null,
+-            enabled = currentChapter != null && ready) { AudiobookPlayback.setTimer(null, currentChapter?.endMs); sheet = null } }
+-        }
+-        "rewind" -> items(listOf(0, 5, 10, 15, 30)) { seconds ->
+-          AudiobookOption(if (seconds == 0) stringResource(R.string.audiobook_timer_off) else stringResource(R.string.audiobook_seconds, seconds),
+-            currentBook?.book?.rewindSeconds == seconds) {
+-            if (currentBook?.book?.rewindSeconds != seconds) { AudiobookPlayback.setRewind(seconds); haptics.selection(true) }
+-            sheet = null
+-          }
+-        }
+-        "details" -> item { currentBook?.let { Column(Modifier.padding(horizontal = 20.dp)) { AudiobookDetails(it.book) } } }
+-      }
+-    }
+-  }
+-  bookmarkEdit?.let { bookmark ->
+-    var name by rememberSaveable(bookmark.id, bookmark.positionMs) { mutableStateOf(bookmark.title) }
+-    AlertDialog(onDismissRequest = { bookmarkEdit = null }, title = { Text(stringResource(R.string.audiobook_bookmark_name)) }, text = {
+-      OutlinedTextField(name, { name = it }, modifier = Modifier.fillMaxWidth(), maxLines = 3,
+-        label = { Text(stringResource(R.string.audiobook_bookmark_name)) })
+-    }, confirmButton = { TextButton(onClick = {
+-      if (savingBookmark) return@TextButton
+-      savingBookmark = true
+-      operation {
+-        try {
+-          if (bookmark.id == 0L) dao.addBookmark(bookmark.copy(title = name.trim())) else dao.renameBookmark(bookmark.id, name.trim())
+-          bookmarkEdit = null
+-          haptics.confirm()
+-        } finally {
+-          savingBookmark = false
+-        }
+-      }
+-    }, enabled = name.isNotBlank() && !savingBookmark) { Text(stringResource(R.string.audiobook_save)) } },
+-      dismissButton = { TextButton(onClick = { bookmarkEdit = null }) { Text(stringResource(R.string.generic_cancel)) } })
+-  }
+-}
+-
+-@Composable
+-private fun AudiobookOption(label: String, selected: Boolean, enabled: Boolean = true, onClick: () -> Unit) {
+-  Row(Modifier.fillMaxWidth().selectable(selected, enabled = enabled, role = Role.RadioButton, onClick = onClick)
+-    .padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+-    RadioButton(selected, enabled = enabled, onClick = null)
+-    Text(label, modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (enabled) 1f else 0.38f))
+-  }
+-}
+-
+-@Composable
+-private fun AudiobookSeekbar(trackId: Long, position: Long, duration: Long, enabled: Boolean, onSeek: (Long) -> Unit) {
+-  var seeking by remember(trackId) { mutableStateOf(false) }
+-  var target by remember(trackId) { mutableStateOf(0f) }
+-  val interaction = remember(trackId) { MutableInteractionSource() }
+-  val haptics = rememberAppHaptics()
+-  LaunchedEffect(interaction) {
+-    interaction.interactions.collect {
+-      if (it is DragInteraction.Cancel || it is PressInteraction.Cancel) seeking = false
+-    }
+-  }
+-  val maximum = duration.coerceAtLeast(1).toFloat()
+-  val value = (if (seeking) target else position.toFloat()).coerceIn(0f, maximum)
+-  Slider(value, onValueChange = { target = it; seeking = true }, enabled = enabled && duration > 0,
+-    valueRange = 0f..maximum, interactionSource = interaction, onValueChangeFinished = {
+-      if (seeking) {
+-        onSeek(target.toLong())
+-        seeking = false
+-        haptics.confirm()
+-      }
+-    })
+-  Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+-    Text(bookTime(value.toLong()), style = MaterialTheme.typography.labelMedium)
+-    Text(bookTime(duration), style = MaterialTheme.typography.labelMedium)
+-  }
+-}
+\ No newline at end of file
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControls.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControls.kt
+index eff003d2..b0fdeb6a 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControls.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControls.kt
+@@ -297,7 +297,6 @@ fun PlayerControls(
+   }
+   var resetControlsTimestamp by remember { mutableStateOf(0L) }
+   val seekText = seekState.text
+-  val currentChapter by PlaybackSession.propInt["chapter"].collectAsState()
+   val configuredDecoder by PlaybackSession.propString["hwdec"].collectAsState()
+   val activeDecoder by PlaybackSession.propString["hwdec-current"].collectAsState()
+   val decoder = remember(activeDecoder, configuredDecoder) {
+@@ -307,7 +306,11 @@ fun PlayerControls(
+     abs((playbackSpeed ?: 1f) - 1f) > 0.001f
+   }
+   val playerTimeToDisappear by playerPreferences.playerTimeToDisappear.collectAsState()
+-  val chapters by viewModel.chapters.collectAsState(persistentListOf())
++  val chapters by viewModel.playbackChapters.collectAsState(persistentListOf())
++  val chapterPositionState = viewModel.precisePosition.collectAsState()
++  val currentChapter by remember(chapters) {
++    androidx.compose.runtime.derivedStateOf { chapters.indexOfLast { it.start <= chapterPositionState.value }.takeIf { it >= 0 } }
++  }
+   val skipSegments by viewModel.skipSegments.collectAsState(persistentListOf())
+   val currentSkippableSegment by viewModel.currentSkippableSegment.collectAsState()
+   val showSkipChipAuto by viewModel.showSkipChipAuto.collectAsState()
+@@ -362,9 +365,13 @@ fun PlayerControls(
+       else -> isAudioOnly || activity?.isCurrentMediaKnownAudio() == true
+     }
+   if (useAudioPlayer) {
+-    if (currentPlaybackItem?.audiobook != null) {
+-      AudiobookPlayerControls(viewModel, onBackPress, modifier)
+-      return
++    val audioBook by com.quantummpv.app.ui.player.AudiobookPlayback.book.collectAsState()
++    val audioPosition by viewModel.precisePosition.collectAsState()
++    val audioTimelinePosition = currentPlaybackItem?.audiobook?.let { info ->
++      audioBook?.takeIf { it.book.id == info.bookId }?.positionInBook(info.trackId, (audioPosition * 1000).toLong())?.div(1000f)
++    } ?: audioPosition
++    val audioChapterIndex = chapters.indexOfLast {
++      it.start <= audioTimelinePosition
+     }
+     val rawMediaTitle by PlaybackSession.propString["media-title"].collectAsState()
+     val queuedTitle =
+@@ -404,23 +411,27 @@ fun PlayerControls(
+         audioTracks = audioTracks.toImmutableList(),
+         onAddAudio = viewModel::addAudio,
+         onSelectAudio = viewModel::selectAudioTrack,
+-        chapter = chapters.getOrNull(currentChapter ?: 0),
++        chapter = chapters.getOrNull(audioChapterIndex),
+         chapters = chapters.toImmutableList(),
+         onSeekToChapter = {
+-          PlaybackSession.setPropertyInt("chapter", it)
+-          viewModel.unpause()
++          chapters.getOrNull(it)?.let(viewModel::seekToPlaybackChapter)
+         },
+         decoder = decoder,
+         onUpdateDecoder = { PlaybackSession.setPropertyString("hwdec", it.value) },
+         speed = playbackSpeed ?: playerPreferences.defaultSpeed.get(),
+-        onSpeedChange = { PlaybackSession.setPropertyFloat("speed", it.toFixed(2)) },
++        onSpeedChange = {
++          if (currentPlaybackItem?.audiobook != null) com.quantummpv.app.ui.player.AudiobookPlayback.setSpeed(it.toFixed(2))
++          else PlaybackSession.setPropertyFloat("speed", it.toFixed(2))
++        },
+         onMakeDefaultSpeed = { playerPreferences.defaultSpeed.set(it.toFixed(2)) },
+         onAddSpeedPreset = { playerPreferences.speedPresets += it.toFixed(2).toString() },
+         onRemoveSpeedPreset = { playerPreferences.speedPresets -= it.toFixed(2).toString() },
+         onResetSpeedPresets = playerPreferences.speedPresets::delete,
+         speedPresets = sortedSpeedPresets,
+         onResetDefaultSpeed = {
+-          PlaybackSession.setPropertyFloat("speed", playerPreferences.defaultSpeed.deleteAndGet().toFixed(2))
++          val speed = playerPreferences.defaultSpeed.deleteAndGet().toFixed(2)
++          if (currentPlaybackItem?.audiobook != null) com.quantummpv.app.ui.player.AudiobookPlayback.setSpeed(speed)
++          else PlaybackSession.setPropertyFloat("speed", speed)
+         },
+         sleepTimerTimeRemaining = sleepTimerTimeRemaining,
+         onStartSleepTimer = viewModel::startTimer,
+@@ -493,7 +504,6 @@ fun PlayerControls(
+     ) {
+       allPlayerButtons.filter { button ->
+         when (button) {
+-          PlayerButton.CURRENT_CHAPTER -> chapters.isNotEmpty()
+           PlayerButton.PICTURE_IN_PICTURE -> !isAudioOnly
+           PlayerButton.VIDEO_QUALITY -> showVideoQualitySelector
+           PlayerButton.SHUFFLE -> hasPlaylistSupport
+@@ -2005,11 +2015,10 @@ is PlayerUpdates.FrameInfo -> {
+       audioTracks = audioTracks.toImmutableList(),
+       onAddAudio = viewModel::addAudio,
+       onSelectAudio = viewModel::selectAudioTrack,
+-      chapter = chapters.getOrNull(currentChapter ?: 0),
++      chapter = currentChapter?.let(chapters::getOrNull),
+       chapters = chapters.toImmutableList(),
+       onSeekToChapter = {
+-        PlaybackSession.setPropertyInt("chapter", it)
+-        viewModel.unpause()
++        chapters.getOrNull(it)?.let(viewModel::seekToPlaybackChapter)
+       },
+       decoder = decoder,
+       onUpdateDecoder = { PlaybackSession.setPropertyString("hwdec", it.value) },
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControlsShared.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControlsShared.kt
+index 512f19c6..e0b64fe3 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControlsShared.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControlsShared.kt
+@@ -115,6 +115,13 @@ fun RenderPlayerButton(
+     val controlColor =
+       if (compact) androidx.compose.material3.LocalContentColor.current else defaultControlColor
+     val clickEvent = LocalPlayerButtonsClickEvent.current
++    val bookmarkHaptics = com.quantummpv.app.ui.utils.rememberAppHaptics()
++    val addPlaybackBookmark = {
++      if (viewModel.preparePlaybackBookmark()) {
++        bookmarkHaptics.confirm()
++        onOpenSheet(Sheets.BookmarkEditor)
++      }
++    }
+     val advancedPreferences = koinInject<AdvancedPreferences>()
+     val playerPreferences = koinInject<PlayerPreferences>()
+     val statisticsPage by advancedPreferences.enabledStatisticsPage.collectAsState()
+@@ -204,6 +211,9 @@ fun RenderPlayerButton(
+       ControlsButton(
+         Icons.RoundedFilled.Bookmarks,
+         onClick = { onOpenSheet(Sheets.Chapters) },
++        onLongClick = addPlaybackBookmark,
++        onLongClickLabel = stringResource(R.string.audiobook_add_bookmark),
++        title = stringResource(R.string.btn_label_bookmarks),
+         color = if (hideBackground) controlColor else MaterialTheme.colorScheme.onSurface,
+         modifier = Modifier.size(buttonSize),
+       )
+@@ -772,28 +782,22 @@ fun RenderPlayerButton(
+     }
+ 
+     PlayerButton.CURRENT_CHAPTER -> {
+-      if (isPortrait) {
+-      } else if (compact) {
+-        if (chapters.getOrNull(currentChapter ?: 0) != null) {
+-          ControlsButton(
+-            icon = Icons.RoundedFilled.Bookmarks,
+-            onClick = { onOpenSheet(Sheets.Chapters) },
+-            modifier = Modifier.size(buttonSize),
+-          )
+-        }
++      val chapter = currentChapter?.let(chapters::getOrNull)
++      if (isPortrait || compact || chapter == null) {
++        ControlsButton(
++          icon = Icons.RoundedFilled.Bookmarks,
++          onClick = { onOpenSheet(Sheets.Chapters) },
++          onLongClick = addPlaybackBookmark,
++          onLongClickLabel = stringResource(R.string.audiobook_add_bookmark),
++          title = stringResource(R.string.btn_label_bookmarks),
++          modifier = Modifier.size(buttonSize),
++        )
+       } else {
+-        AnimatedVisibility(
+-          chapters.getOrNull(currentChapter ?: 0) != null,
+-          enter = fadeIn(),
+-          exit = fadeOut(),
+-        ) {
+-          chapters.getOrNull(currentChapter ?: 0)?.let { chapter ->
+-            CurrentChapter(
+-              chapter = chapter,
+-              onClick = { onOpenSheet(Sheets.Chapters) },
+-            )
+-          }
+-        }
++        CurrentChapter(
++          chapter = chapter,
++          onClick = { onOpenSheet(Sheets.Chapters) },
++          onLongClick = addPlaybackBookmark,
++        )
+       }
+     }
+ 
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerSheets.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerSheets.kt
+index 1c7dfb3f..dd95a556 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerSheets.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerSheets.kt
+@@ -20,6 +20,7 @@ import androidx.compose.runtime.collectAsState
+ import androidx.compose.runtime.getValue
+ import androidx.compose.runtime.mutableStateOf
+ import androidx.compose.runtime.remember
++import androidx.compose.runtime.rememberCoroutineScope
+ import androidx.compose.runtime.setValue
+ import androidx.compose.ui.platform.LocalContext
+ import com.quantummpv.app.R
+@@ -43,6 +44,7 @@ import com.quantummpv.app.ui.player.controls.components.sheets.PostProcessingShee
+ import com.quantummpv.app.ui.player.controls.components.sheets.AspectRatioSheet
+ import com.quantummpv.app.ui.player.controls.components.sheets.AudioTracksSheet
+ import com.quantummpv.app.ui.player.controls.components.sheets.ChaptersSheet
++import com.quantummpv.app.ui.player.controls.components.sheets.PlaybackBookmarkEditor
+ import com.quantummpv.app.ui.player.controls.components.sheets.DecodersSheet
+ import com.quantummpv.app.ui.player.controls.components.sheets.FrameNavigationSheet
+ import com.quantummpv.app.ui.player.controls.components.sheets.MoreSheet
+@@ -60,6 +62,7 @@ import dev.vivvvek.seeker.Segment
+ import kotlinx.collections.immutable.ImmutableList
+ import kotlinx.collections.immutable.toImmutableList
+ import org.koin.compose.koinInject
++import kotlinx.coroutines.launch
+ import androidx.compose.runtime.collectAsState as composeCollectAsState
+ 
+ @Composable
+@@ -121,6 +124,12 @@ fun PlayerSheets(
+ 
+   when (sheetShown) {
+     Sheets.None -> {}
++    Sheets.BookmarkEditor -> PlaybackBookmarkEditor(viewModel, { onShowSheet(Sheets.Chapters) }, onDismissRequest)
++    Sheets.AudiobookRewind,
++    Sheets.AudiobookSleepTimer,
++    -> com.quantummpv.app.ui.player.controls.components.sheets.AudiobookSheet(
++      sheetShown, viewModel::sleepAtCurrentChapterEnd, onDismissRequest,
++    )
+     Sheets.SubtitleTracks -> {
+       val subtitlesPicker =
+         rememberLauncherForActivityResult(
+@@ -394,11 +403,43 @@ fun PlayerSheets(
+     }
+ 
+     Sheets.Chapters -> {
++      val bookmarks by viewModel.playbackBookmarks.composeCollectAsState()
++      val mediaId by viewModel.bookmarkMediaId.composeCollectAsState()
++      val scope = rememberCoroutineScope()
++      val context = LocalContext.current
++      var deleting by remember(mediaId) { mutableStateOf(false) }
+       ChaptersSheet(
+-        chapters,
++        chapters = chapters,
+         currentChapter = chapter,
+         onClick = { onSeekToChapter(chapters.indexOf(it)) },
+-        onDismissRequest,
++        onDismissRequest = onDismissRequest,
++        itemActions = { segment ->
++          bookmarks.firstOrNull { it.mediaId == mediaId && it.title == segment.name && viewModel.bookmarkPositionMs(it) / 1000f == segment.start }?.let { bookmark ->
++            androidx.compose.material3.IconButton(enabled = !deleting, onClick = {
++              if (viewModel.preparePlaybackBookmark(bookmark)) onShowSheet(Sheets.BookmarkEditor)
++            }) {
++              com.quantummpv.app.ui.icons.Icon(com.quantummpv.app.ui.icons.Icons.RoundedFilled.Edit,
++                androidx.compose.ui.res.stringResource(R.string.audiobook_bookmark_name))
++            }
++            androidx.compose.material3.IconButton(enabled = !deleting, onClick = {
++              deleting = true
++              scope.launch {
++                try {
++                  viewModel.deletePlaybackBookmark(bookmark)
++                } catch (cancelled: kotlinx.coroutines.CancellationException) {
++                  throw cancelled
++                } catch (_: Exception) {
++                  Toast.makeText(context, R.string.playback_bookmark_update_failed, Toast.LENGTH_SHORT).show()
++                } finally {
++                  deleting = false
++                }
++              }
++            }) {
++              com.quantummpv.app.ui.icons.Icon(com.quantummpv.app.ui.icons.Icons.RoundedFilled.Delete,
++                androidx.compose.ui.res.stringResource(R.string.audiobook_delete_bookmark))
++            }
++          }
++        },
+       )
+     }
+ 
+@@ -532,6 +573,7 @@ fun PlayerSheets(
+     Sheets.Playlist -> {
+       // Observe playlist updates
+       val playlist by viewModel.playlistItems.collectAsState()
++      val playbackState by com.quantummpv.app.ui.player.PlaybackSession.state.composeCollectAsState()
+       val isAudioOnly by viewModel.isAudioOnly.collectAsState()
+       val playerPreferences = koinInject<com.quantummpv.app.preferences.PlayerPreferences>()
+       val isPlaylistSwipeActive by viewModel.isPlaylistSwipeActive.collectAsState()
+@@ -548,7 +590,7 @@ fun PlayerSheets(
+           onItemClick = { item ->
+             viewModel.playPlaylistItem(item.index)
+           },
+-          onReorder = { from, to ->
++          onReorder = if (playbackState.currentItem?.audiobook != null) null else { from, to ->
+             viewModel.reorderPlaylistItem(from, to)
+           },
+           totalCount = totalCount,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/ControlsButton.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/ControlsButton.kt
+index d360ada7..c17fead9 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/ControlsButton.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/ControlsButton.kt
+@@ -73,6 +73,7 @@ fun ControlsButton(
+   title: String? = null,
+   color: Color? = null,
+   enabled: Boolean = true,
++  onLongClickLabel: String? = null,
+ ) {
+   val interactionSource = remember { MutableInteractionSource() }
+   val hideBackground = LocalHidePlayerButtonsBackground.current
+@@ -94,6 +95,7 @@ fun ControlsButton(
+             clickEvent()
+             onLongClick()
+           },
++          onLongClickLabel = onLongClickLabel,
+           interactionSource = interactionSource,
+           indication = ripple(),
+         ),
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/CurrentChapter.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/CurrentChapter.kt
+index be7bf5cd..2924318a 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/CurrentChapter.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/CurrentChapter.kt
+@@ -18,7 +18,8 @@ import androidx.compose.animation.slideOutVertically
+ import androidx.compose.animation.togetherWith
+ import androidx.compose.foundation.BorderStroke
+ import androidx.compose.foundation.basicMarquee
+-import androidx.compose.foundation.clickable
++import androidx.compose.foundation.ExperimentalFoundationApi
++import androidx.compose.foundation.combinedClickable
+ import androidx.compose.foundation.layout.Arrangement
+ import androidx.compose.foundation.layout.Row
+ import androidx.compose.foundation.layout.height
+@@ -32,23 +33,27 @@ import androidx.compose.runtime.getValue
+ import androidx.compose.runtime.remember
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
++import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.draw.clip
+ import androidx.compose.ui.text.font.FontWeight
+ import androidx.compose.ui.text.style.TextAlign
+ import androidx.compose.ui.text.style.TextOverflow
+ import androidx.compose.ui.unit.dp
+ import com.quantummpv.app.preferences.AppearancePreferences
++import com.quantummpv.app.R
+ import com.quantummpv.app.ui.theme.AppShapeScale
+ import com.quantummpv.app.ui.theme.spacing
+ import dev.vivvvek.seeker.Segment
+ import `is`.xyz.mpv.Utils
+ import org.koin.compose.koinInject
+ 
++@OptIn(ExperimentalFoundationApi::class)
+ @Composable
+ fun CurrentChapter(
+   chapter: Segment,
+   modifier: Modifier = Modifier,
+   onClick: () -> Unit = {},
++  onLongClick: () -> Unit = {},
+ ) {
+   Surface(
+     modifier =
+@@ -56,7 +61,8 @@ fun CurrentChapter(
+         .height(45.dp)
+         .widthIn(max = 220.dp)
+         .clip(AppShapeScale.full)
+-        .clickable(onClick = onClick),
++        .combinedClickable(onClick = onClick, onLongClick = onLongClick,
++          onLongClickLabel = stringResource(R.string.audiobook_add_bookmark)),
+     shape = AppShapeScale.full,
+     color =
+       MaterialTheme.colorScheme.surfaceContainer.copy(
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/LyricsView.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/LyricsView.kt
+index bc841aa8..3ab2f7d7 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/LyricsView.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/LyricsView.kt
+@@ -111,6 +111,8 @@ fun LyricsView(
+   val audioPreferences = koinInject<AudioPreferences>()
+   val translationDisplayMode by audioPreferences.lyricsTranslationDisplayMode.collectAsState()
+   val state by viewModel.lyricsUiState.collectAsState()
++  val playbackState by PlaybackSession.state.collectAsState()
++  val isAudiobook = playbackState.currentItem?.audiobook != null
+   val precisePosition by viewModel.precisePosition.collectAsState()
+   val listState = rememberLazyListState()
+   val density = LocalDensity.current
+@@ -236,7 +238,7 @@ fun LyricsView(
+             ),
+           )
+ 
+-          FilterChip(
++          if (!isAudiobook) FilterChip(
+             selected = state.selectedSource == LyricsSourceType.ONLINE,
+             onClick = { viewModel.switchLyricsSource(LyricsSourceType.ONLINE) },
+             label = {
+@@ -515,14 +517,14 @@ fun LyricsView(
+               verticalArrangement = Arrangement.Center,
+             ) {
+               Text(
+-                text = "No lyrics available for this track.",
++                text = if (isAudiobook) stringResource(R.string.audiobook_no_text) else "No lyrics available for this track.",
+                 style = MaterialTheme.typography.bodyMedium,
+                 fontWeight = FontWeight.Bold,
+                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+               )
+               Spacer(modifier = Modifier.height(8.dp))
+               TextButton(onClick = { viewModel.loadLyricsForCurrentTrack(forceRefresh = true) }) {
+-                Text("Search Online", fontWeight = FontWeight.Bold)
++                Text(if (isAudiobook) stringResource(R.string.audiobook_retry) else "Search Online", fontWeight = FontWeight.Bold)
+               }
+             }
+           }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/panels/LuaScriptsPanel.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/panels/LuaScriptsPanel.kt
+index a3d3e87c..42b99773 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/panels/LuaScriptsPanel.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/panels/LuaScriptsPanel.kt
+@@ -64,18 +64,7 @@ fun LuaScriptsPanel(
+ 
+   fun toggleScriptSelection(scriptName: String) {
+     val isEnabled = selectedScripts.contains(scriptName)
+-    val newSelection =
+-      if (isEnabled) {
+-        Toast
+-          .makeText(
+-            context,
+-            "$scriptName disabled. Reopen the video if the script stays active.",
+-            Toast.LENGTH_LONG,
+-          ).show()
+-        selectedScripts - scriptName
+-      } else {
+-        selectedScripts + scriptName
+-      }
++    val newSelection = if (isEnabled) selectedScripts - scriptName else selectedScripts + scriptName
+     preferences.selectedLuaScripts.set(newSelection)
+   }
+ 
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/AudiobookSheet.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/AudiobookSheet.kt
+new file mode 100644
+index 00000000..671a58b0
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/AudiobookSheet.kt
+@@ -0,0 +1,90 @@
++package com.quantummpv.app.ui.player.controls.components.sheets
++
++import androidx.compose.foundation.layout.PaddingValues
++import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.lazy.LazyColumn
++import androidx.compose.foundation.lazy.items
++import androidx.compose.foundation.selection.selectable
++import androidx.compose.material3.ListItem
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.RadioButton
++import androidx.compose.material3.Text
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.getValue
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.res.stringResource
++import androidx.compose.ui.semantics.Role
++import androidx.compose.ui.unit.dp
++import androidx.lifecycle.compose.collectAsStateWithLifecycle
++import com.quantummpv.app.R
++import com.quantummpv.app.presentation.components.PlayerSheet
++import com.quantummpv.app.ui.player.AudiobookPlayback
++import com.quantummpv.app.ui.player.PlaybackSession
++import com.quantummpv.app.ui.player.PlaybackPhase
++import com.quantummpv.app.ui.player.Sheets
++import com.quantummpv.app.ui.utils.rememberAppHaptics
++
++@Composable
++internal fun AudiobookSheet(sheet: Sheets, onChapterEnd: () -> Unit, onDismiss: () -> Unit) {
++  val state by PlaybackSession.state.collectAsStateWithLifecycle()
++  val info = state.currentItem?.audiobook ?: return
++  val activeBook by AudiobookPlayback.book.collectAsStateWithLifecycle()
++  val book = activeBook?.takeIf { it.book.id == info.bookId }
++  val timer by AudiobookPlayback.timer.collectAsStateWithLifecycle()
++  val ready = state.phase in setOf(PlaybackPhase.READY, PlaybackPhase.BACKGROUND)
++  val haptics = rememberAppHaptics()
++  PlayerSheet(onDismissRequest = onDismiss) {
++      LazyColumn(contentPadding = PaddingValues(bottom = 20.dp)) {
++        item {
++          Text(stringResource(when (sheet) {
++            Sheets.AudiobookRewind -> R.string.audiobook_smart_rewind
++            else -> R.string.audiobook_sleep_timer
++          }), modifier = Modifier.padding(20.dp), style = MaterialTheme.typography.titleMedium)
++        }
++        when (sheet) {
++          Sheets.AudiobookRewind -> items(listOf(0, 5, 10, 15, 30)) { seconds ->
++            BookSettingOption(
++              label = if (seconds == 0) stringResource(R.string.audiobook_timer_off) else stringResource(R.string.audiobook_seconds, seconds),
++              selected = book?.book?.rewindSeconds == seconds,
++              enabled = book != null,
++            ) {
++              if (book?.book?.rewindSeconds != seconds) {
++                AudiobookPlayback.setRewind(seconds)
++                haptics.selection(true)
++              }
++              onDismiss()
++            }
++          }
++          Sheets.AudiobookSleepTimer -> {
++            item { BookSettingOption(stringResource(R.string.audiobook_timer_off), timer == null) { AudiobookPlayback.clearTimer(); onDismiss() } }
++            items(listOf(5, 10, 15, 30, 45, 60, 90)) { minutes ->
++              BookSettingOption(stringResource(R.string.audiobook_minutes, minutes), timer?.durationMinutes == minutes, enabled = ready) {
++                AudiobookPlayback.setTimer(minutes)
++                haptics.selection(true)
++                onDismiss()
++              }
++            }
++            item {
++              BookSettingOption(stringResource(R.string.audiobook_end_chapter), timer?.chapterEndMs != null,
++                enabled = ready && book != null) {
++                onChapterEnd()
++                haptics.selection(true)
++                onDismiss()
++              }
++            }
++          }
++          else -> Unit
++        }
++      }
++  }
++}
++
++@Composable
++private fun BookSettingOption(label: String, selected: Boolean, enabled: Boolean = true, onClick: () -> Unit) {
++  ListItem(
++    headlineContent = { Text(label, color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (enabled) 1f else 0.38f)) },
++    leadingContent = { RadioButton(selected, enabled = enabled, onClick = null) },
++    modifier = Modifier.fillMaxWidth().selectable(selected, enabled = enabled, role = Role.RadioButton, onClick = onClick),
++  )
++}
+\ No newline at end of file
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/ChaptersSheet.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/ChaptersSheet.kt
+index 6b83ec57..d114d97a 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/ChaptersSheet.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/ChaptersSheet.kt
+@@ -18,21 +18,38 @@ import androidx.compose.foundation.layout.padding
+ import androidx.compose.foundation.lazy.LazyColumn
+ import androidx.compose.foundation.lazy.itemsIndexed
+ import androidx.compose.foundation.lazy.rememberLazyListState
++import androidx.compose.foundation.rememberScrollState
++import androidx.compose.foundation.verticalScroll
+ import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.OutlinedTextField
+ import androidx.compose.material3.Text
++import androidx.compose.material3.TextButton
+ import androidx.compose.runtime.Composable
+ import androidx.compose.runtime.LaunchedEffect
++import androidx.compose.runtime.getValue
++import androidx.compose.runtime.mutableStateOf
++import androidx.compose.runtime.remember
++import androidx.compose.runtime.rememberCoroutineScope
++import androidx.compose.runtime.saveable.rememberSaveable
++import androidx.compose.runtime.setValue
++import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.text.font.FontStyle
+ import androidx.compose.ui.text.font.FontWeight
+ import androidx.compose.ui.text.style.TextOverflow
++import androidx.compose.ui.unit.dp
++import androidx.lifecycle.compose.collectAsStateWithLifecycle
+ import com.quantummpv.app.R
+ import com.quantummpv.app.presentation.components.PlayerSheet
++import com.quantummpv.app.ui.player.PlayerViewModel
++import com.quantummpv.app.ui.utils.rememberAppHaptics
+ import com.quantummpv.app.ui.theme.spacing
+ import dev.vivvvek.seeker.Segment
+ import `is`.xyz.mpv.Utils
+ import kotlinx.collections.immutable.ImmutableList
++import kotlinx.coroutines.CancellationException
++import kotlinx.coroutines.launch
+ 
+ @Composable
+ fun ChaptersSheet(
+@@ -41,13 +58,14 @@ fun ChaptersSheet(
+   onClick: (Segment) -> Unit,
+   onDismissRequest: () -> Unit,
+   modifier: Modifier = Modifier,
++  itemActions: @Composable (Segment) -> Unit = {},
+ ) {
+   val listState = rememberLazyListState()
+ 
+   LaunchedEffect(currentChapter, chapters) {
+     val index = if (currentChapter != null) chapters.indexOf(currentChapter) else -1
+     if (index >= 0) {
+-      listState.scrollToItem(index)
++      listState.scrollToItem(index + 1)
+     }
+   }
+ 
+@@ -58,12 +76,21 @@ fun ChaptersSheet(
+           .padding(vertical = MaterialTheme.spacing.medium),
+     ) {
+       LazyColumn(state = listState) {
++        item {
++          Text(stringResource(R.string.btn_label_bookmarks), Modifier.padding(horizontal = MaterialTheme.spacing.medium, vertical = MaterialTheme.spacing.small),
++            style = MaterialTheme.typography.titleMedium)
++        }
++        if (chapters.isEmpty()) item {
++          Text(stringResource(R.string.playback_bookmarks_empty), Modifier.padding(MaterialTheme.spacing.medium),
++            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
++        }
+         itemsIndexed(chapters) { index, chapter ->
+           ChapterTrack(
+             chapter = chapter,
+             index = index,
+             selected = currentChapter == chapter,
+             onClick = { onClick(chapter) },
++            trailingContent = { itemActions(chapter) },
+           )
+         }
+       }
+@@ -78,6 +105,7 @@ fun ChapterTrack(
+   selected: Boolean,
+   onClick: () -> Unit,
+   modifier: Modifier = Modifier,
++  trailingContent: @Composable () -> Unit = {},
+ ) {
+   Row(
+     modifier =
+@@ -86,6 +114,7 @@ fun ChapterTrack(
+         .clickable(onClick = onClick)
+         .padding(vertical = MaterialTheme.spacing.smaller, horizontal = MaterialTheme.spacing.medium),
+     horizontalArrangement = Arrangement.SpaceBetween,
++    verticalAlignment = Alignment.CenterVertically,
+   ) {
+     Text(
+       stringResource(R.string.player_sheets_track_title_wo_lang, index + 1, chapter.name),
+@@ -101,6 +130,54 @@ fun ChapterTrack(
+       fontStyle = if (selected) FontStyle.Italic else FontStyle.Normal,
+       fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.Normal,
+       color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
++      modifier = Modifier.padding(start = MaterialTheme.spacing.small),
+     )
++    trailingContent()
++  }
++}
++
++@Composable
++internal fun PlaybackBookmarkEditor(viewModel: PlayerViewModel, onSaved: () -> Unit, onDismiss: () -> Unit) {
++  val draft by viewModel.bookmarkDraft.collectAsStateWithLifecycle()
++  val mediaId by viewModel.bookmarkMediaId.collectAsStateWithLifecycle()
++  val bookmark = draft?.takeIf { it.mediaId == mediaId }
++  if (bookmark == null) {
++    LaunchedEffect(draft, mediaId) { onDismiss() }
++    return
++  }
++  var name by rememberSaveable(bookmark.mediaId, bookmark.id, bookmark.positionMs) { mutableStateOf(bookmark.title) }
++  var saving by remember(bookmark) { mutableStateOf(false) }
++  var failed by remember(bookmark) { mutableStateOf(false) }
++  val scope = rememberCoroutineScope()
++  val haptics = rememberAppHaptics()
++  PlayerSheet(onDismissRequest = { if (!saving) onDismiss() }) {
++    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
++      Text(stringResource(R.string.audiobook_bookmark_name), style = MaterialTheme.typography.titleMedium)
++      Text(Utils.prettyTime((viewModel.bookmarkPositionMs(bookmark) / 1000).toInt()),
++        style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
++      OutlinedTextField(name, { name = it }, modifier = Modifier.fillMaxWidth(), enabled = !saving, maxLines = 3,
++        label = { Text(stringResource(R.string.audiobook_bookmark_name)) })
++      if (failed) Text(stringResource(R.string.playback_bookmark_update_failed), color = MaterialTheme.colorScheme.error)
++      Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
++        TextButton(onClick = onDismiss, enabled = !saving) { Text(stringResource(R.string.generic_cancel)) }
++        TextButton(enabled = name.isNotBlank() && !saving, onClick = {
++          saving = true
++          failed = false
++          scope.launch {
++            try {
++              viewModel.savePlaybackBookmark(bookmark, name)
++              haptics.confirm()
++              onSaved()
++            } catch (cancelled: CancellationException) {
++              throw cancelled
++            } catch (_: Exception) {
++              failed = true
++            } finally {
++              saving = false
++            }
++          }
++        }) { Text(stringResource(R.string.audiobook_save)) }
++      }
++    }
+   }
+ }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/FrameNavigationSheet.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/FrameNavigationSheet.kt
+index 4d9446ef..a0e615cc 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/FrameNavigationSheet.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/FrameNavigationSheet.kt
+@@ -13,13 +13,10 @@ import com.quantummpv.app.ui.player.PlaybackSession
+ 
+ import android.widget.Toast
+ import androidx.activity.compose.BackHandler
+-import androidx.compose.animation.AnimatedVisibility
+ import androidx.compose.animation.core.animateFloatAsState
+ import androidx.compose.animation.core.tween
+ import androidx.compose.animation.fadeIn
+ import androidx.compose.animation.fadeOut
+-import androidx.compose.animation.scaleIn
+-import androidx.compose.animation.scaleOut
+ import androidx.compose.foundation.clickable
+ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+ import androidx.compose.foundation.layout.Arrangement
+@@ -31,10 +28,12 @@ import androidx.compose.foundation.layout.Spacer
+ import androidx.compose.foundation.layout.WindowInsets
+ import androidx.compose.foundation.layout.fillMaxSize
+ import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.heightIn
+ import androidx.compose.foundation.layout.navigationBars
+ import androidx.compose.foundation.layout.padding
+ import androidx.compose.foundation.layout.size
+ import androidx.compose.foundation.layout.statusBars
++import androidx.compose.foundation.layout.width
+ import androidx.compose.foundation.layout.widthIn
+ import androidx.compose.foundation.layout.windowInsetsPadding
+ import androidx.compose.foundation.shape.CircleShape
+@@ -62,12 +61,14 @@ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.draw.scale
+ import androidx.compose.ui.graphics.Color
++import androidx.compose.ui.graphics.luminance
+ import androidx.compose.ui.input.pointer.pointerInput
+ import androidx.compose.ui.platform.LocalConfiguration
+ import androidx.compose.ui.platform.LocalContext
+ import androidx.compose.ui.platform.LocalDensity
+ import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.text.font.FontWeight
++import androidx.compose.ui.text.style.TextOverflow
+ import androidx.compose.ui.unit.dp
+ import com.quantummpv.app.R
+ import com.quantummpv.app.preferences.PlayerPreferences
+@@ -299,6 +300,9 @@ private fun FrameReviewOverlay(
+   val pixelsPerFrame = with(density) { FrameSwipeDistancePerFrame.toPx() }
+   var accumulatedDrag by remember { mutableFloatStateOf(0f) }
+   var requestedFrameDelta by remember { mutableIntStateOf(0) }
++  var frameDeltaVisible by remember { mutableStateOf(false) }
++  var frameDeltaRevision by remember { mutableIntStateOf(0) }
++  var sliderStartFrame by remember { mutableIntStateOf(0) }
+   var isScrubbing by remember { mutableStateOf(false) }
+   var userSliderFrame by remember { mutableIntStateOf(0) }
+   var settlingFrame by remember { mutableStateOf<Int?>(null) }
+@@ -330,6 +334,19 @@ private fun FrameReviewOverlay(
+       settlingFrame = null
+     }
+   }
++  LaunchedEffect(frameDeltaRevision, isScrubbing, isFrameStepping, isSeeking) {
++    if (!isScrubbing && !isFrameStepping && !isSeeking) {
++      delay(1_500L)
++      frameDeltaVisible = false
++    }
++  }
++
++  fun showFrameDelta(delta: Int) {
++    requestedFrameDelta = delta
++    frameDeltaVisible = delta != 0
++    frameDeltaRevision++
++  }
++
+   BackHandler(onBack = onDismissRequest)
+ 
+   Box(
+@@ -345,6 +362,7 @@ private fun FrameReviewOverlay(
+               onDragStart = {
+                 accumulatedDrag = 0f
+                 requestedFrameDelta = 0
++                frameDeltaVisible = false
+                 isScrubbing = true
+               },
+               onDragCancel = {
+@@ -361,7 +379,7 @@ private fun FrameReviewOverlay(
+                 val steps = (accumulatedDrag / pixelsPerFrame).toInt()
+                 if (steps != 0) {
+                   accumulatedDrag -= steps * pixelsPerFrame
+-                  requestedFrameDelta += steps
++                  showFrameDelta(requestedFrameDelta + steps)
+                   settlingFrame = null
+                   haptic.tick()
+                   onFrameSteps(steps)
+@@ -411,45 +429,6 @@ private fun FrameReviewOverlay(
+       }
+     }
+ 
+-    AnimatedVisibility(
+-      visible = isScrubbing || (isFrameStepping && requestedFrameDelta != 0),
+-      modifier = Modifier.align(Alignment.Center),
+-      enter = fadeIn() + scaleIn(initialScale = 0.9f),
+-      exit = fadeOut() + scaleOut(targetScale = 0.9f),
+-    ) {
+-      Surface(
+-        shape = MaterialTheme.shapes.extraLarge,
+-        color = MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.9f),
+-        contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+-        tonalElevation = 6.dp,
+-      ) {
+-        Column(
+-          modifier = Modifier.padding(horizontal = 24.dp, vertical = 14.dp),
+-          horizontalAlignment = Alignment.CenterHorizontally,
+-          verticalArrangement = Arrangement.spacedBy(2.dp),
+-        ) {
+-          Text(
+-            text = String.format(Locale.US, "%+d", requestedFrameDelta),
+-            style = MaterialTheme.typography.headlineSmall,
+-            fontWeight = FontWeight.Bold,
+-          )
+-          Text(
+-            text =
+-              if (totalFrames > 0) {
+-                "${stringResource(R.string.ui_frame)} $displayedFrame / $totalFrames"
+-              } else {
+-                "${stringResource(R.string.ui_frame)} $displayedFrame"
+-              },
+-            style = MaterialTheme.typography.bodyMedium,
+-          )
+-          Text(
+-            text = displayedTimestamp,
+-            style = MaterialTheme.typography.labelMedium,
+-          )
+-        }
+-      }
+-    }
+-
+     Surface(
+       modifier =
+         Modifier
+@@ -488,22 +467,25 @@ private fun FrameReviewOverlay(
+                 currentFrame = displayedFrame,
+                 totalFrames = totalFrames,
+                 timestamp = displayedTimestamp,
++                frameDelta = requestedFrameDelta,
++                showFrameDelta = frameDeltaVisible,
++                modifier = Modifier.weight(1f),
+               )
+-              Spacer(Modifier.weight(1f))
+               ControlButtons(
+                 onPreviousFrame = {
+                   settlingFrame = null
+-                  requestedFrameDelta = 0
++                  showFrameDelta(if (actualFrame > 0) -1 else 0)
+                   onFrameSteps(-1)
+                 },
+                 onPlayPause = {
+                   settlingFrame = null
++                  frameDeltaVisible = false
+                   onPlayPause()
+                 },
+                 isPaused = isPaused,
+                 onNextFrame = {
+                   settlingFrame = null
+-                  requestedFrameDelta = 0
++                  showFrameDelta(if (actualFrame < lastFrame) 1 else 0)
+                   onFrameSteps(1)
+                 },
+                 onSnapshot = onSnapshot,
+@@ -525,6 +507,8 @@ private fun FrameReviewOverlay(
+                 currentFrame = displayedFrame,
+                 totalFrames = totalFrames,
+                 timestamp = displayedTimestamp,
++                frameDelta = requestedFrameDelta,
++                showFrameDelta = frameDeltaVisible,
+               )
+               IncludeSubsToggle(
+                 includeSubs = includeSubtitles,
+@@ -538,17 +522,18 @@ private fun FrameReviewOverlay(
+                 ControlButtons(
+                   onPreviousFrame = {
+                     settlingFrame = null
+-                    requestedFrameDelta = 0
++                    showFrameDelta(if (actualFrame > 0) -1 else 0)
+                     onFrameSteps(-1)
+                   },
+                   onPlayPause = {
+                     settlingFrame = null
++                    frameDeltaVisible = false
+                     onPlayPause()
+                   },
+                   isPaused = isPaused,
+                   onNextFrame = {
+                     settlingFrame = null
+-                    requestedFrameDelta = 0
++                    showFrameDelta(if (actualFrame < lastFrame) 1 else 0)
+                     onFrameSteps(1)
+                   },
+                   onSnapshot = onSnapshot,
+@@ -566,11 +551,15 @@ private fun FrameReviewOverlay(
+             val targetFrame = newValue.roundToInt().coerceIn(0, lastFrame)
+             val targetChanged = !isSeeking || targetFrame != userSliderFrame
+             if (!isSeeking) {
++              sliderStartFrame = displayedFrame
+               isSeeking = true
+               settlingFrame = null
+             }
+             userSliderFrame = targetFrame
+-            if (targetChanged) onSeekToFrame(targetFrame, false)
++            if (targetChanged) {
++              showFrameDelta(targetFrame - sliderStartFrame)
++              onSeekToFrame(targetFrame, false)
++            }
+           },
+           onValueChangeFinished = {
+             if (!isSeeking) return@Slider
+@@ -623,8 +612,12 @@ private fun FrameInfoDisplay(
+   currentFrame: Int,
+   totalFrames: Int,
+   timestamp: String,
++  frameDelta: Int,
++  showFrameDelta: Boolean,
++  modifier: Modifier = Modifier,
+ ) {
+   Column(
++    modifier = modifier,
+     verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.extraSmall),
+   ) {
+     Row(
+@@ -647,7 +640,27 @@ private fun FrameInfoDisplay(
+           },
+         style = MaterialTheme.typography.bodyMedium,
+         color = MaterialTheme.colorScheme.onSurface,
++        maxLines = 1,
++        overflow = TextOverflow.Ellipsis,
++        modifier = Modifier.weight(1f, fill = false),
+       )
++      Box(Modifier.width(64.dp).heightIn(min = 24.dp), contentAlignment = Alignment.CenterStart) {
++        androidx.compose.animation.AnimatedVisibility(visible = showFrameDelta, enter = fadeIn(), exit = fadeOut()) {
++          val darkSurface = MaterialTheme.colorScheme.surfaceContainerHigh.luminance() < 0.5f
++          Text(
++            text = String.format(Locale.US, "%+d", frameDelta),
++            style = MaterialTheme.typography.labelLarge,
++            fontWeight = FontWeight.Bold,
++            color = if (frameDelta > 0) {
++              if (darkSurface) Color(0xFF81C784) else Color(0xFF1B5E20)
++            } else {
++              if (darkSurface) Color(0xFFEF9A9A) else Color(0xFFB71C1C)
++            },
++            maxLines = 1,
++            overflow = TextOverflow.Ellipsis,
++          )
++        }
++      }
+     }
+     Row(
+       horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.extraSmall),
+@@ -664,6 +677,9 @@ private fun FrameInfoDisplay(
+         text = timestamp,
+         style = MaterialTheme.typography.bodyMedium,
+         color = MaterialTheme.colorScheme.onSurface,
++        maxLines = 1,
++        overflow = TextOverflow.Ellipsis,
++        modifier = Modifier.weight(1f, fill = false),
+       )
+     }
+   }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/LuaScriptsScreen.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/LuaScriptsScreen.kt
+index a59c225e..fadca5b6 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/LuaScriptsScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/LuaScriptsScreen.kt
+@@ -77,18 +77,7 @@ object LuaScriptsScreen : Screen {
+ 
+     fun toggleScriptSelection(scriptName: String) {
+       val isEnabled = selectedScripts.contains(scriptName)
+-      val newSelection =
+-        if (isEnabled) {
+-          Toast
+-            .makeText(
+-              context,
+-              "$scriptName disabled. Reopen the video if the script stays active.",
+-              Toast.LENGTH_LONG,
+-            ).show()
+-          selectedScripts - scriptName
+-        } else {
+-          selectedScripts + scriptName
+-        }
++      val newSelection = if (isEnabled) selectedScripts - scriptName else selectedScripts + scriptName
+       preferences.selectedLuaScripts.set(newSelection)
+     }
+ 
+diff --git a/app/src/main/java/com/quantummpv/app/utils/media/MediaUtils.kt b/app/src/main/java/com/quantummpv/app/utils/media/MediaUtils.kt
+index a81c80a2..f726760b 100644
+--- a/app/src/main/java/com/quantummpv/app/utils/media/MediaUtils.kt
++++ b/app/src/main/java/com/quantummpv/app/utils/media/MediaUtils.kt
+@@ -67,6 +67,7 @@ data class PlaybackSubtitleTrack(
+ object MediaUtils {
+   fun shouldPlayInMiniPlayerOnly(isAudio: Boolean): Boolean {
+     if (!isAudio) return false
++    if (userScriptRuntimeNeedsReload()) return false
+     val audioPreferences =
+       runCatching { org.koin.core.context.GlobalContext.get().get<com.quantummpv.app.preferences.AudioPreferences>() }.getOrNull()
+     if (audioPreferences?.miniPlayerTrackSwitching?.get() != true) return false
+@@ -86,6 +87,19 @@ object MediaUtils {
+   ) {
+     if (queueItems.isEmpty()) return
+     val selectedIndex = startIndex.coerceIn(queueItems.indices)
++    if (userScriptRuntimeNeedsReload()) {
++      val token = PreparedPlaybackLaunchStore.stage(queueItems, selectedIndex, isExplicitQueue = true)
++      context.startActivity(Intent(context, PlayerActivity::class.java)
++        .setAction(Intent.ACTION_VIEW)
++        .setData(Uri.parse(queueItems[selectedIndex].originalUri))
++        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_SINGLE_TOP)
++        .putExtra("internal_launch", true)
++        .putExtra("is_audio", true)
++        .putExtra(PlayerActivity.EXTRA_PREPARED_PLAYBACK_QUEUE, true)
++        .putExtra(PlayerActivity.EXTRA_PREPARED_PLAYBACK_TOKEN, token)
++        .putExtra("playlist_index", selectedIndex))
++      return
++    }
+     PlaybackSession.replaceQueue(queueItems, selectedIndex, isExplicitQueue = true)
+     val item = queueItems[selectedIndex]
+     PlaybackSession.load(item)
+@@ -107,6 +121,11 @@ object MediaUtils {
+     }
+   }
+ 
++  private fun userScriptRuntimeNeedsReload(): Boolean {
++    val preferences = org.koin.core.context.GlobalContext.get().get<com.quantummpv.app.preferences.AdvancedPreferences>()
++    return PlaybackSession.userScriptsNeedReload(preferences.userScriptsConfigurationKey())
++  }
++
+   fun playFiles(
+     videos: List<Video>,
+     context: Context,
+diff --git a/app/src/main/res/values-ar/strings.xml b/app/src/main/res/values-ar/strings.xml
+index e670648f..5daecf38 100644
+--- a/app/src/main/res/values-ar/strings.xml
++++ b/app/src/main/res/values-ar/strings.xml
+@@ -2375,4 +2375,9 @@
+   <string name="audiobook_save_failed">تعذر حفظ تقدم الاستماع.</string>
+   <string name="audiobook_play_failed">تعذر فتح هذا الكتاب. تحقق من إمكانية الوصول إلى ملفاته.</string>
+   <string name="audiobook_retry">إعادة المحاولة</string>
++  <string name="playback_bookmarks_empty">لا توجد إشارات مرجعية أو فصول</string>
++  <string name="playback_bookmark_update_failed">تعذر تحديث الإشارات المرجعية.</string>
++  <string name="audiobook_no_text">لا توجد كلمات أو نص مرفق</string>
++  <string name="player_seek_backward">الرجوع %1$s</string>
++  <string name="player_seek_forward">التقدم %1$s</string>
+ </resources>
+diff --git a/app/src/main/res/values-de/strings.xml b/app/src/main/res/values-de/strings.xml
+index 8b46b950..c538a2d1 100644
+--- a/app/src/main/res/values-de/strings.xml
++++ b/app/src/main/res/values-de/strings.xml
+@@ -2361,4 +2361,9 @@ Bitte starten Sie die App neu, damit alle Änderungen wirksam werden.</string>
+   <string name="audiobook_save_failed">Hörfortschritt konnte nicht gespeichert werden.</string>
+   <string name="audiobook_play_failed">Hörbuch konnte nicht geöffnet werden. Prüfe, ob seine Dateien noch zugänglich sind.</string>
+   <string name="audiobook_retry">Erneut versuchen</string>
++  <string name="playback_bookmarks_empty">Keine Lesezeichen oder Kapitel</string>
++  <string name="playback_bookmark_update_failed">Lesezeichen konnten nicht aktualisiert werden.</string>
++  <string name="audiobook_no_text">Kein Liedtext oder Transkript vorhanden</string>
++  <string name="player_seek_backward">%1$s zurückspulen</string>
++  <string name="player_seek_forward">%1$s vorspulen</string>
+ </resources>
+diff --git a/app/src/main/res/values-es/strings.xml b/app/src/main/res/values-es/strings.xml
+index b40395f9..c9f38c3c 100644
+--- a/app/src/main/res/values-es/strings.xml
++++ b/app/src/main/res/values-es/strings.xml
+@@ -2361,4 +2361,9 @@ Reinicia la aplicación para que se apliquen todos los cambios.</string>
+   <string name="audiobook_save_failed">No se pudo guardar el progreso.</string>
+   <string name="audiobook_play_failed">No se pudo abrir este libro. Comprueba que sus archivos sigan siendo accesibles.</string>
+   <string name="audiobook_retry">Reintentar</string>
++  <string name="playback_bookmarks_empty">No hay marcadores ni capítulos</string>
++  <string name="playback_bookmark_update_failed">No se pudieron actualizar los marcadores.</string>
++  <string name="audiobook_no_text">No hay letras ni transcripción adjuntas</string>
++  <string name="player_seek_backward">Retroceder %1$s</string>
++  <string name="player_seek_forward">Avanzar %1$s</string>
+ </resources>
+diff --git a/app/src/main/res/values-fr/strings.xml b/app/src/main/res/values-fr/strings.xml
+index 3f94f05f..03e768e2 100644
+--- a/app/src/main/res/values-fr/strings.xml
++++ b/app/src/main/res/values-fr/strings.xml
+@@ -2361,4 +2361,9 @@ Veuillez redémarrer l’application pour appliquer toutes les modifications.</s
+   <string name="audiobook_save_failed">Impossible d\'enregistrer la progression.</string>
+   <string name="audiobook_play_failed">Impossible d\'ouvrir ce livre. Vérifiez que ses fichiers sont toujours accessibles.</string>
+   <string name="audiobook_retry">Réessayer</string>
++  <string name="playback_bookmarks_empty">Aucun signet ni chapitre</string>
++  <string name="playback_bookmark_update_failed">Impossible de mettre à jour les signets.</string>
++  <string name="audiobook_no_text">Aucune parole ni transcription fournie</string>
++  <string name="player_seek_backward">Reculer de %1$s</string>
++  <string name="player_seek_forward">Avancer de %1$s</string>
+ </resources>
+diff --git a/app/src/main/res/values-hi/strings.xml b/app/src/main/res/values-hi/strings.xml
+index 5e7c33dc..d41fb1c3 100644
+--- a/app/src/main/res/values-hi/strings.xml
++++ b/app/src/main/res/values-hi/strings.xml
+@@ -2265,4 +2265,9 @@
+   <string name="audiobook_save_failed">सुनने की प्रगति सहेजी नहीं जा सकी।</string>
+   <string name="audiobook_play_failed">यह किताब खुल नहीं सकी। जाँचें कि इसकी फ़ाइलें अभी भी उपलब्ध हैं।</string>
+   <string name="audiobook_retry">फिर कोशिश करें</string>
++  <string name="playback_bookmarks_empty">कोई बुकमार्क या अध्याय नहीं है</string>
++  <string name="playback_bookmark_update_failed">बुकमार्क अपडेट नहीं किए जा सके।</string>
++  <string name="audiobook_no_text">कोई गीत या प्रतिलिपि उपलब्ध नहीं है</string>
++  <string name="player_seek_backward">%1$s पीछे जाएँ</string>
++  <string name="player_seek_forward">%1$s आगे जाएँ</string>
+ </resources>
+diff --git a/app/src/main/res/values-ja/strings.xml b/app/src/main/res/values-ja/strings.xml
+index 35db75f0..32e3994b 100644
+--- a/app/src/main/res/values-ja/strings.xml
++++ b/app/src/main/res/values-ja/strings.xml
+@@ -2357,4 +2357,9 @@
+   <string name="audiobook_save_failed">再生状況を保存できませんでした。</string>
+   <string name="audiobook_play_failed">この本を開けませんでした。ファイルにアクセスできるか確認してください。</string>
+   <string name="audiobook_retry">再試行</string>
++  <string name="playback_bookmarks_empty">ブックマークやチャプターはありません</string>
++  <string name="playback_bookmark_update_failed">ブックマークを更新できませんでした。</string>
++  <string name="audiobook_no_text">歌詞や書き起こしは提供されていません</string>
++  <string name="player_seek_backward">%1$s戻る</string>
++  <string name="player_seek_forward">%1$s進む</string>
+ </resources>
+diff --git a/app/src/main/res/values-pt-rBR/strings.xml b/app/src/main/res/values-pt-rBR/strings.xml
+index 583492cb..a244569f 100644
+--- a/app/src/main/res/values-pt-rBR/strings.xml
++++ b/app/src/main/res/values-pt-rBR/strings.xml
+@@ -2361,4 +2361,9 @@ Reinicie o aplicativo para que todas as alterações entrem em vigor.</string>
+   <string name="audiobook_save_failed">Não foi possível salvar o progresso.</string>
+   <string name="audiobook_play_failed">Não foi possível abrir este livro. Verifique se os arquivos ainda estão acessíveis.</string>
+   <string name="audiobook_retry">Tentar novamente</string>
++  <string name="playback_bookmarks_empty">Nenhum marcador ou capítulo</string>
++  <string name="playback_bookmark_update_failed">Não foi possível atualizar os marcadores.</string>
++  <string name="audiobook_no_text">Nenhuma letra ou transcrição fornecida</string>
++  <string name="player_seek_backward">Retroceder %1$s</string>
++  <string name="player_seek_forward">Avançar %1$s</string>
+ </resources>
+diff --git a/app/src/main/res/values-ru/strings.xml b/app/src/main/res/values-ru/strings.xml
+index 5b3ddcf6..57539040 100644
+--- a/app/src/main/res/values-ru/strings.xml
++++ b/app/src/main/res/values-ru/strings.xml
+@@ -2369,4 +2369,9 @@
+   <string name="audiobook_save_failed">Не удалось сохранить прогресс прослушивания.</string>
+   <string name="audiobook_play_failed">Не удалось открыть книгу. Убедитесь, что её файлы по-прежнему доступны.</string>
+   <string name="audiobook_retry">Повторить попытку</string>
++  <string name="playback_bookmarks_empty">Нет закладок или глав</string>
++  <string name="playback_bookmark_update_failed">Не удалось обновить закладки.</string>
++  <string name="audiobook_no_text">Текст или расшифровка не предоставлены</string>
++  <string name="player_seek_backward">Назад на %1$s</string>
++  <string name="player_seek_forward">Вперёд на %1$s</string>
+ </resources>
+diff --git a/app/src/main/res/values-zh-rCN/strings.xml b/app/src/main/res/values-zh-rCN/strings.xml
+index 63cc32f1..e5f81527 100644
+--- a/app/src/main/res/values-zh-rCN/strings.xml
++++ b/app/src/main/res/values-zh-rCN/strings.xml
+@@ -2357,4 +2357,9 @@
+   <string name="audiobook_save_failed">无法保存收听进度。</string>
+   <string name="audiobook_play_failed">无法打开此书。请检查其文件是否仍可访问。</string>
+   <string name="audiobook_retry">重试</string>
++  <string name="playback_bookmarks_empty">暂无书签或章节</string>
++  <string name="playback_bookmark_update_failed">无法更新书签。</string>
++  <string name="audiobook_no_text">未提供歌词或文字稿</string>
++  <string name="player_seek_backward">后退 %1$s</string>
++  <string name="player_seek_forward">前进 %1$s</string>
+ </resources>
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index bfb85cf6..d8b12fb5 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -2391,4 +2391,9 @@
+   <string name="audiobook_save_failed">Could not save listening progress.</string>
+   <string name="audiobook_play_failed">Could not open this book. Check that its files are still accessible.</string>
+   <string name="audiobook_retry">Retry</string>
++  <string name="playback_bookmarks_empty">No bookmarks or chapters</string>
++  <string name="playback_bookmark_update_failed">Could not update bookmarks.</string>
++  <string name="audiobook_no_text">No supplied lyrics or transcript</string>
++  <string name="player_seek_backward">Seek back %1$s</string>
++  <string name="player_seek_forward">Seek forward %1$s</string>
+ </resources>
+-- 
+2.25.1
+

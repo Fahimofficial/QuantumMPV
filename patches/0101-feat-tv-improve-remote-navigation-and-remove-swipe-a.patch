@@ -1,0 +1,1747 @@
+From d55e1cf29790958936c5de3e3707127bcb6e7892 Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <riteshp2001@gmail.com>
+Date: Tue, 15 Sep 2026 18:16:34 +0530
+Subject: [PATCH 101/140] feat(tv): improve remote navigation and remove swipe
+ actions
+
+---
+ .../mpvrx/ui/browser/cards/FolderCard.kt      |   2 +
+ .../mpvrx/ui/browser/cards/M3UVideoCard.kt    |   2 +
+ .../ui/browser/cards/NetworkFolderCard.kt     |   2 +
+ .../ui/browser/cards/NetworkVideoCard.kt      |   2 +
+ .../ui/browser/cards/SwipeableVideoActions.kt | 238 ------------------
+ .../mpvrx/ui/browser/cards/VideoCard.kt       |   2 +
+ .../ui/browser/components/BrowserTopBar.kt    |  43 ++--
+ .../mpvrx/ui/browser/dialogs/SortDialog.kt    |  16 +-
+ .../browser/dialogs/VideoCompressorOverlay.kt |   6 +-
+ .../filesystem/FileSystemBrowserScreen.kt     | 100 +++-----
+ .../ui/browser/jellyfin/JellyfinCards.kt      |   6 +
+ .../medialibrary/MediaLibraryContent.kt       |  74 +++---
+ .../ui/browser/music/MusicLibraryContent.kt   |  16 ++
+ .../ui/browser/music/SharedMusicComponents.kt |   3 +
+ .../browser/networkstreaming/TorrentCards.kt  |   6 +
+ .../ui/browser/videolist/VideoListScreen.kt   | 105 +++-----
+ .../ui/player/controls/components/TvFocus.kt  |  26 ++
+ .../ui/preferences/CustomThemeEditorScreen.kt |  32 ++-
+ .../ui/preferences/WallpaperEditorScreen.kt   |   6 +-
+ .../ui/preferences/components/ThemePicker.kt  |  10 +-
+ app/src/main/res/values-ar/strings.xml        |   1 +
+ app/src/main/res/values-de/strings.xml        |   1 +
+ app/src/main/res/values-es/strings.xml        |   1 +
+ app/src/main/res/values-fr/strings.xml        |   1 +
+ app/src/main/res/values-hi/strings.xml        |   1 +
+ app/src/main/res/values-ja/strings.xml        |   1 +
+ app/src/main/res/values-pt-rBR/strings.xml    |   1 +
+ app/src/main/res/values-ru/strings.xml        |   1 +
+ app/src/main/res/values-zh-rCN/strings.xml    |   1 +
+ app/src/main/res/values/strings.xml           |   2 +
+ 30 files changed, 258 insertions(+), 450 deletions(-)
+ delete mode 100644 app/src/main/java/com/quantummpv/app/ui/browser/cards/SwipeableVideoActions.kt
+
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/cards/FolderCard.kt b/app/src/main/java/com/quantummpv/app/ui/browser/cards/FolderCard.kt
+index b6f3c8f7..f7acc1e6 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/cards/FolderCard.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/cards/FolderCard.kt
+@@ -58,6 +58,7 @@ import com.quantummpv.app.ui.icons.AppIcon
+ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
+ import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
++import com.quantummpv.app.ui.player.controls.components.tvContextMenu
+ import com.quantummpv.app.ui.theme.AppShapeScale
+ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.withContext
+@@ -202,6 +203,7 @@ fun FolderCard(
+       modifier
+         .fillMaxWidth()
+         .clip(cardShape)
++        .tvContextMenu(onLongClick)
+         .combinedClickable(
+           interactionSource = cardInteractionSource,
+           indication = null,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/cards/M3UVideoCard.kt b/app/src/main/java/com/quantummpv/app/ui/browser/cards/M3UVideoCard.kt
+index f2a9e658..12939d6a 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/cards/M3UVideoCard.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/cards/M3UVideoCard.kt
+@@ -54,6 +54,7 @@ import com.quantummpv.app.presentation.components.RemoteImage
+ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
+ import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
++import com.quantummpv.app.ui.player.controls.components.tvContextMenu
+ import com.quantummpv.app.ui.theme.AppShapeScale
+ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.flow.filter
+@@ -199,6 +200,7 @@ fun M3UVideoCard(
+         .fillMaxWidth()
+         .tvFocusHighlight(AppShapeScale.large, focusedScale = 1.03f)
+         .clip(AppShapeScale.large)
++        .tvContextMenu(onLongClick)
+         .combinedClickable(
+           onClick = onClick,
+           onLongClick = onLongClick,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/cards/NetworkFolderCard.kt b/app/src/main/java/com/quantummpv/app/ui/browser/cards/NetworkFolderCard.kt
+index 0a12d693..c4c51d05 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/cards/NetworkFolderCard.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/cards/NetworkFolderCard.kt
+@@ -41,6 +41,7 @@ import com.quantummpv.app.preferences.AppearancePreferences
+ import com.quantummpv.app.preferences.preference.collectAsState
+ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
++import com.quantummpv.app.ui.player.controls.components.tvContextMenu
+ import com.quantummpv.app.ui.icons.Icons
+ import com.quantummpv.app.ui.theme.AppShapeScale
+ import org.koin.compose.koinInject
+@@ -72,6 +73,7 @@ fun NetworkFolderCard(
+         .fillMaxWidth()
+         .tvFocusHighlight(AppShapeScale.large, focusedScale = 1.03f)
+         .clip(AppShapeScale.large)
++        .tvContextMenu(onLongClick)
+         .combinedClickable(
+           interactionSource = interactionSource,
+           indication = null,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/cards/NetworkVideoCard.kt b/app/src/main/java/com/quantummpv/app/ui/browser/cards/NetworkVideoCard.kt
+index f49edcdf..30e01696 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/cards/NetworkVideoCard.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/cards/NetworkVideoCard.kt
+@@ -52,6 +52,7 @@ import com.quantummpv.app.preferences.preference.collectAsState
+ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
+ import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
++import com.quantummpv.app.ui.player.controls.components.tvContextMenu
+ import com.quantummpv.app.ui.theme.AppShapeScale
+ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.delay
+@@ -159,6 +160,7 @@ fun NetworkVideoCard(
+         .fillMaxWidth()
+         .tvFocusHighlight(AppShapeScale.large, focusedScale = 1.03f)
+         .clip(AppShapeScale.large)
++        .tvContextMenu(onLongClick)
+         .combinedClickable(
+           onClick = onClick,
+           onLongClick = onLongClick,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/cards/SwipeableVideoActions.kt b/app/src/main/java/com/quantummpv/app/ui/browser/cards/SwipeableVideoActions.kt
+deleted file mode 100644
+index e87f44fc..00000000
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/cards/SwipeableVideoActions.kt
++++ /dev/null
+@@ -1,238 +0,0 @@
+-/*
+- * SPDX-License-Identifier: AGPL-3.0-or-later
+- *
+- * This program is free software: you can redistribute it and/or modify
+- * it under the terms of the GNU Affero General Public License as published
+- * by the Free Software Foundation, either version 3 of the License, or
+- * (at your option) any later version.
+- */
+-
+-package com.quantummpv.app.ui.browser.cards
+-
+-import androidx.compose.animation.core.animateFloatAsState
+-import androidx.compose.animation.core.animate
+-import androidx.compose.foundation.background
+-import androidx.compose.foundation.clickable
+-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+-import androidx.compose.foundation.layout.Arrangement
+-import androidx.compose.foundation.layout.Box
+-import androidx.compose.foundation.layout.Row
+-import androidx.compose.foundation.layout.fillMaxHeight
+-import androidx.compose.foundation.layout.fillMaxWidth
+-import androidx.compose.foundation.layout.offset
+-import androidx.compose.foundation.layout.padding
+-import androidx.compose.foundation.layout.size
+-import androidx.compose.foundation.layout.width
+-import androidx.compose.foundation.shape.RoundedCornerShape
+-import androidx.compose.material3.MaterialTheme
+-import androidx.compose.runtime.Composable
+-import androidx.compose.runtime.LaunchedEffect
+-import androidx.compose.runtime.getValue
+-import androidx.compose.runtime.mutableFloatStateOf
+-import androidx.compose.runtime.remember
+-import androidx.compose.runtime.rememberCoroutineScope
+-import androidx.compose.runtime.rememberUpdatedState
+-import androidx.compose.runtime.setValue
+-import androidx.compose.ui.Alignment
+-import androidx.compose.ui.Modifier
+-import androidx.compose.ui.draw.clip
+-import androidx.compose.ui.graphics.Color
+-import androidx.compose.ui.graphics.graphicsLayer
+-import androidx.compose.ui.input.pointer.pointerInput
+-import androidx.compose.ui.platform.LocalDensity
+-import androidx.compose.ui.unit.IntOffset
+-import androidx.compose.ui.unit.dp
+-import com.quantummpv.app.ui.icons.Icon
+-import com.quantummpv.app.ui.icons.Icons
+-import com.quantummpv.app.ui.theme.AppMotion
+-import com.quantummpv.app.ui.theme.AppShapeScale
+-import com.quantummpv.app.ui.theme.LocalMotionPolicy
+-import kotlinx.coroutines.Job
+-import kotlinx.coroutines.launch
+-import kotlin.math.abs
+-import kotlin.math.roundToInt
+-
+-@Composable
+-fun SwipeableVideoActions(
+-  itemKey: String,
+-  enabled: Boolean,
+-  isWatched: Boolean,
+-  onWatchedChange: (Boolean) -> Unit,
+-  onRename: () -> Unit,
+-  onDelete: () -> Unit,
+-  content: @Composable () -> Unit,
+-) {
+-  val actionWidth = 88.dp
+-  val density = LocalDensity.current
+-  val leftRevealPx = with(density) { actionWidth.toPx() }
+-  val rightRevealPx = with(density) { actionWidth.toPx() }
+-  val thresholdPx = with(density) { 56.dp.toPx() }
+-  val scope = rememberCoroutineScope()
+-  val reduceMotion = LocalMotionPolicy.current.reduceMotion
+-  val currentIsWatched by rememberUpdatedState(isWatched)
+-  val currentOnWatchedChange by rememberUpdatedState(onWatchedChange)
+-  var offsetX by remember(itemKey) { mutableFloatStateOf(0f) }
+-  var settleJob by remember(itemKey) { androidx.compose.runtime.mutableStateOf<Job?>(null) }
+-
+-  fun settle(
+-    target: Float,
+-    action: (() -> Unit)? = null,
+-  ) {
+-    settleJob?.cancel()
+-    action?.invoke()
+-    if (reduceMotion) {
+-      offsetX = target
+-      return
+-    }
+-    settleJob =
+-      scope.launch {
+-        animate(
+-          initialValue = offsetX,
+-          targetValue = target,
+-          animationSpec = AppMotion.Spatial.StandardDefault,
+-        ) { value, _ -> offsetX = value }
+-      }
+-  }
+-
+-  LaunchedEffect(enabled) {
+-    if (!enabled) {
+-      settleJob?.cancel()
+-      offsetX = 0f
+-    }
+-  }
+-
+-  val shape = AppShapeScale.large
+-  Box(
+-    modifier =
+-      Modifier
+-        .fillMaxWidth()
+-        .clip(shape),
+-  ) {
+-    // Swipe right → reveal left action (Watched/Unwatch)
+-    if (offsetX > 0f) {
+-      val progress = (offsetX / leftRevealPx).coerceIn(0f, 1f)
+-      Box(
+-        modifier = Modifier.matchParentSize(),
+-        contentAlignment = Alignment.CenterStart,
+-      ) {
+-        SwipePillAction(
+-          label = if (isWatched) "Unwatch" else "Watched",
+-          icon = if (isWatched) Icons.RoundedFilled.RemoveCircle else Icons.RoundedFilled.CheckCircle,
+-          background = MaterialTheme.colorScheme.primaryContainer,
+-          contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+-          width = actionWidth,
+-          progress = progress,
+-          onClick = null,
+-        )
+-      }
+-    }
+-
+-    // Swipe left → reveal right actions (Rename + Delete)
+-    if (offsetX < 0f) {
+-      val progress = (abs(offsetX) / rightRevealPx).coerceIn(0f, 1f)
+-      Row(
+-        modifier = Modifier.matchParentSize(),
+-        horizontalArrangement = Arrangement.End,
+-      ) {
+-        SwipePillAction(
+-          label = "Rename",
+-          icon = Icons.RoundedFilled.Edit,
+-          background = MaterialTheme.colorScheme.secondaryContainer,
+-          contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+-          width = actionWidth,
+-          progress = progress,
+-          onClick = { settle(0f, onRename) },
+-        )
+-        SwipePillAction(
+-          label = "Delete",
+-          icon = Icons.RoundedFilled.Delete,
+-          background = MaterialTheme.colorScheme.errorContainer,
+-          contentColor = MaterialTheme.colorScheme.onErrorContainer,
+-          width = actionWidth,
+-          progress = progress,
+-          onClick = { settle(0f, onDelete) },
+-        )
+-      }
+-    }
+-
+-    // Draggable content
+-    Box(
+-      modifier =
+-        Modifier
+-          .fillMaxWidth()
+-          .offset { IntOffset(offsetX.roundToInt(), 0) }
+-          .then(
+-            if (enabled) {
+-              Modifier.pointerInput(itemKey, leftRevealPx, rightRevealPx) {
+-                detectHorizontalDragGestures(
+-                  onDragStart = { settleJob?.cancel() },
+-                  onHorizontalDrag = { change, dragAmount ->
+-                    change.consume()
+-                    offsetX = (offsetX + dragAmount).coerceIn(-leftRevealPx, rightRevealPx)
+-                  },
+-                  onDragEnd = {
+-                    when {
+-                      offsetX >= thresholdPx -> {
+-                        val targetWatched = !currentIsWatched
+-                        settle(0f) { currentOnWatchedChange(targetWatched) }
+-                      }
+-                      offsetX <= -thresholdPx -> settle(-rightRevealPx)
+-                      else -> settle(0f)
+-                    }
+-                  },
+-                  onDragCancel = { settle(0f) },
+-                )
+-              }
+-            } else {
+-              Modifier
+-            },
+-          ),
+-    ) {
+-      content()
+-    }
+-  }
+-}
+-
+-@Composable
+-private fun SwipePillAction(
+-  label: String,
+-  icon: com.quantummpv.app.ui.icons.AppIcon,
+-  background: Color,
+-  contentColor: Color,
+-  width: androidx.compose.ui.unit.Dp,
+-  progress: Float,
+-  onClick: (() -> Unit)?,
+-) {
+-  val iconScale by animateFloatAsState(
+-    targetValue = if (progress > 0.5f) 1f else 0.6f,
+-    label = "iconScale",
+-  )
+-  val alpha by animateFloatAsState(
+-    targetValue = progress.coerceIn(0.3f, 1f),
+-    label = "alpha",
+-  )
+-
+-  Box(
+-    modifier =
+-      Modifier
+-        .width(width)
+-        .fillMaxHeight()
+-        .graphicsLayer {
+-          scaleX = iconScale
+-          scaleY = iconScale
+-          this.alpha = alpha
+-        }
+-        .padding(8.dp)
+-        .clip(RoundedCornerShape(28.dp))
+-        .background(background)
+-        .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+-    contentAlignment = Alignment.Center,
+-  ) {
+-    Icon(
+-      icon,
+-      contentDescription = label,
+-      tint = contentColor,
+-      modifier = Modifier.size(28.dp),
+-    )
+-  }
+-}
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/cards/VideoCard.kt b/app/src/main/java/com/quantummpv/app/ui/browser/cards/VideoCard.kt
+index 49f0dd0c..549b7c40 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/cards/VideoCard.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/cards/VideoCard.kt
+@@ -61,6 +61,7 @@ import com.quantummpv.app.preferences.preference.collectAsState
+ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
+ import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
++import com.quantummpv.app.ui.player.controls.components.tvContextMenu
+ import com.quantummpv.app.ui.theme.AppShapeScale
+ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.flow.filter
+@@ -211,6 +212,7 @@ fun VideoCard(
+           if (isGridMode) Modifier.fillMaxWidth() else Modifier.fillMaxWidth(),
+         ).tvFocusHighlight(cardShape, focusedScale = 1.03f)
+         .clip(cardShape)
++        .tvContextMenu(onLongClick)
+         .combinedClickable(
+           onClick = onClick,
+           onLongClick = onLongClick,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/components/BrowserTopBar.kt b/app/src/main/java/com/quantummpv/app/ui/browser/components/BrowserTopBar.kt
+index 458ed693..4a78e1f1 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/components/BrowserTopBar.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/components/BrowserTopBar.kt
+@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Row
+ import androidx.compose.foundation.layout.RowScope
+ import androidx.compose.foundation.layout.padding
+ import androidx.compose.foundation.layout.size
++import androidx.compose.foundation.shape.CircleShape
+ import androidx.compose.foundation.shape.RoundedCornerShape
+ import androidx.compose.material3.DropdownMenu
+ import androidx.compose.material3.DropdownMenuItem
+@@ -55,6 +56,7 @@ import com.quantummpv.app.preferences.AppearancePreferences
+ import com.quantummpv.app.preferences.preference.collectAsState
+ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
++import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
+ import com.quantummpv.app.ui.theme.DarkMode
+ import com.quantummpv.app.ui.theme.LocalThemeTransitionState
+ import com.quantummpv.app.ui.theme.LocalAppWallpaperActive
+@@ -62,6 +64,9 @@ import kotlinx.coroutines.delay
+ import kotlinx.coroutines.launch
+ import org.koin.compose.koinInject
+ 
++private fun Modifier.browserTopBarFocus(enabled: Boolean = true): Modifier =
++  tvFocusHighlight(CircleShape, enabled = enabled, focusedScale = 1.06f)
++
+ /**
+  * Unified top bar for browser screens that switches between normal and selection modes
+  */
+@@ -300,7 +305,7 @@ private fun NormalTopBar(
+       if (onBackClick != null) {
+         IconButton(
+           onClick = onBackClick,
+-          modifier = Modifier.padding(horizontal = 2.dp),
++          modifier = Modifier.padding(horizontal = 2.dp).browserTopBarFocus(),
+         ) {
+           Icon(
+             Icons.RoundedFilled.ArrowBack,
+@@ -316,7 +321,7 @@ private fun NormalTopBar(
+       if (onSearchClick != null) {
+         IconButton(
+           onClick = onSearchClick,
+-          modifier = Modifier.padding(horizontal = 2.dp),
++          modifier = Modifier.padding(horizontal = 2.dp).browserTopBarFocus(),
+         ) {
+           Icon(
+             Icons.RoundedFilled.Search,
+@@ -333,7 +338,7 @@ private fun NormalTopBar(
+       if (onRequestClick != null) {
+         IconButton(
+           onClick = onRequestClick,
+-          modifier = Modifier.padding(horizontal = 2.dp),
++          modifier = Modifier.padding(horizontal = 2.dp).browserTopBarFocus(),
+         ) {
+           Icon(
+             Icons.RoundedFilled.Explore,
+@@ -349,7 +354,7 @@ private fun NormalTopBar(
+       if (onSortClick != null) {
+         IconButton(
+           onClick = onSortClick,
+-          modifier = Modifier.padding(horizontal = 2.dp),
++          modifier = Modifier.padding(horizontal = 2.dp).browserTopBarFocus(),
+         ) {
+           Icon(
+             Icons.RoundedFilled.SortByAlpha,
+@@ -363,7 +368,7 @@ private fun NormalTopBar(
+       if (onSettingsClick != null) {
+         IconButton(
+           onClick = onSettingsClick,
+-          modifier = Modifier.padding(horizontal = 2.dp),
++          modifier = Modifier.padding(horizontal = 2.dp).browserTopBarFocus(),
+         ) {
+           Icon(
+             Icons.RoundedFilled.Settings,
+@@ -426,7 +431,11 @@ private fun SelectionTopBar(
+     title = {
+       Row(
+         verticalAlignment = Alignment.CenterVertically,
+-        modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { showDropdown = true },
++        modifier =
++          Modifier
++            .clip(RoundedCornerShape(8.dp))
++            .tvFocusHighlight(RoundedCornerShape(8.dp), focusedScale = 1.02f)
++            .clickable { showDropdown = true },
+       ) {
+         Text(
+           stringResource(R.string.selected_items, selectedCount, totalCount),
+@@ -479,7 +488,7 @@ private fun SelectionTopBar(
+     navigationIcon = {
+       IconButton(
+         onClick = onCancel,
+-        modifier = Modifier.padding(horizontal = 2.dp),
++        modifier = Modifier.padding(horizontal = 2.dp).browserTopBarFocus(),
+       ) {
+         Icon(
+           Icons.RoundedFilled.Close,
+@@ -494,7 +503,7 @@ private fun SelectionTopBar(
+       if (onRestore != null) {
+         IconButton(
+           onClick = onRestore,
+-          modifier = Modifier.padding(horizontal = 1.dp),
++          modifier = Modifier.padding(horizontal = 1.dp).browserTopBarFocus(),
+         ) {
+           Icon(
+             Icons.RoundedFilled.Restore,
+@@ -508,7 +517,7 @@ private fun SelectionTopBar(
+       if (onPlay != null) {
+         IconButton(
+           onClick = onPlay,
+-          modifier = Modifier.padding(horizontal = 1.dp),
++          modifier = Modifier.padding(horizontal = 1.dp).browserTopBarFocus(),
+         ) {
+           Icon(
+             Icons.RoundedFilled.PlayArrow,
+@@ -524,7 +533,7 @@ private fun SelectionTopBar(
+       if (onPin != null) {
+         IconButton(
+           onClick = onPin,
+-          modifier = Modifier.padding(horizontal = 1.dp),
++          modifier = Modifier.padding(horizontal = 1.dp).browserTopBarFocus(),
+         ) {
+           Icon(
+             Icons.RoundedFilled.PushPin,
+@@ -541,7 +550,7 @@ private fun SelectionTopBar(
+       if (onAddToPlaylist != null) {
+         IconButton(
+           onClick = onAddToPlaylist,
+-          modifier = Modifier.padding(horizontal = 1.dp),
++          modifier = Modifier.padding(horizontal = 1.dp).browserTopBarFocus(),
+         ) {
+           Icon(
+             Icons.RoundedFilled.PlaylistAdd,
+@@ -559,7 +568,7 @@ private fun SelectionTopBar(
+         IconButton(
+           onClick = onRename,
+           enabled = isSingleSelection,
+-          modifier = Modifier.padding(horizontal = 1.dp),
++          modifier = Modifier.padding(horizontal = 1.dp).browserTopBarFocus(enabled = isSingleSelection),
+         ) {
+           Icon(
+             Icons.RoundedFilled.DriveFileRenameOutline,
+@@ -580,7 +589,7 @@ private fun SelectionTopBar(
+         IconButton(
+           onClick = onInfo,
+           enabled = isSingleSelection,
+-          modifier = Modifier.padding(horizontal = 1.dp),
++          modifier = Modifier.padding(horizontal = 1.dp).browserTopBarFocus(enabled = isSingleSelection),
+         ) {
+           Icon(
+             Icons.RoundedFilled.Info,
+@@ -600,7 +609,7 @@ private fun SelectionTopBar(
+       if (onShare != null) {
+         IconButton(
+           onClick = onShare,
+-          modifier = Modifier.padding(horizontal = 1.dp),
++          modifier = Modifier.padding(horizontal = 1.dp).browserTopBarFocus(),
+         ) {
+           Icon(
+             Icons.RoundedFilled.Share,
+@@ -616,7 +625,7 @@ private fun SelectionTopBar(
+       if (onMoveToSecure != null) {
+         IconButton(
+           onClick = onMoveToSecure,
+-          modifier = Modifier.padding(horizontal = 1.dp),
++          modifier = Modifier.padding(horizontal = 1.dp).browserTopBarFocus(),
+         ) {
+           Icon(
+             Icons.RoundedFilled.Lock,
+@@ -631,7 +640,7 @@ private fun SelectionTopBar(
+       if (onBlacklist != null) {
+         IconButton(
+           onClick = onBlacklist,
+-          modifier = Modifier.padding(horizontal = 1.dp),
++          modifier = Modifier.padding(horizontal = 1.dp).browserTopBarFocus(),
+         ) {
+           Icon(
+             Icons.RoundedFilled.Block,
+@@ -646,7 +655,7 @@ private fun SelectionTopBar(
+       if (onDelete != null) {
+         IconButton(
+           onClick = onDelete,
+-          modifier = Modifier.padding(horizontal = 2.dp),
++          modifier = Modifier.padding(horizontal = 2.dp).browserTopBarFocus(),
+         ) {
+           Icon(
+             imageVector = if (useRemoveIcon) Icons.RoundedFilled.RemoveCircle else Icons.RoundedFilled.Delete,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/dialogs/SortDialog.kt b/app/src/main/java/com/quantummpv/app/ui/browser/dialogs/SortDialog.kt
+index 94def681..ad16215c 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/dialogs/SortDialog.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/dialogs/SortDialog.kt
+@@ -65,6 +65,10 @@ import com.quantummpv.app.ui.components.themedSegmentedButtonColors
+ import com.quantummpv.app.ui.icons.AppIcon
+ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
++import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
++import com.quantummpv.app.ui.player.controls.components.rememberTvInitialFocusRequester
++import com.quantummpv.app.ui.player.controls.components.tvFocusGroup
++import com.quantummpv.app.ui.player.controls.components.tvInitialFocus
+ import com.quantummpv.app.ui.theme.AppShapeScale
+ import kotlin.math.roundToInt
+ 
+@@ -319,10 +323,12 @@ private fun SortTypeSelector(
+   icons: List<AppIcon>,
+   modifier: Modifier = Modifier,
+ ) {
++  val initialFocusRequester = rememberTvInitialFocusRequester(types.isNotEmpty(), requestKey = sortType)
+   Row(
+     modifier =
+       modifier
+         .fillMaxWidth()
++        .tvFocusGroup()
+         .horizontalScroll(rememberScrollState()),
+     horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+     verticalAlignment = Alignment.CenterVertically,
+@@ -346,7 +352,9 @@ private fun SortTypeSelector(
+                   } else {
+                     MaterialTheme.colorScheme.surfaceContainerHighest
+                   },
+-              ).clickable(
++              ).then(if (selected) Modifier.tvInitialFocus(initialFocusRequester) else Modifier)
++              .tvFocusHighlight(AppShapeScale.large, focusedScale = 1.04f)
++              .clickable(
+                 onClick = { onSortTypeChange(type) },
+                 interactionSource = remember { MutableInteractionSource() },
+                 indication = ripple(bounded = true),
+@@ -479,7 +487,7 @@ private fun GridColumnsNextSection(
+           },
+           valueRange = folderGridColumnSelector.valueRange,
+           steps = folderGridColumnSelector.steps,
+-          modifier = Modifier.fillMaxWidth(),
++          modifier = Modifier.fillMaxWidth().tvFocusHighlight(RoundedCornerShape(8.dp), focusedScale = 1.01f),
+         )
+       }
+ 
+@@ -514,7 +522,7 @@ private fun GridColumnsNextSection(
+           },
+           valueRange = videoGridColumnSelector.valueRange,
+           steps = videoGridColumnSelector.steps,
+-          modifier = Modifier.fillMaxWidth(),
++          modifier = Modifier.fillMaxWidth().tvFocusHighlight(RoundedCornerShape(8.dp), focusedScale = 1.01f),
+         )
+       }
+     }
+@@ -544,7 +552,7 @@ private fun GridColumnsNextSection(
+       },
+       valueRange = selector.valueRange,
+       steps = selector.steps,
+-      modifier = Modifier.fillMaxWidth(),
++      modifier = Modifier.fillMaxWidth().tvFocusHighlight(RoundedCornerShape(8.dp), focusedScale = 1.01f),
+     )
+   }
+ }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/dialogs/VideoCompressorOverlay.kt b/app/src/main/java/com/quantummpv/app/ui/browser/dialogs/VideoCompressorOverlay.kt
+index b162f7b1..efb3aa83 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/dialogs/VideoCompressorOverlay.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/dialogs/VideoCompressorOverlay.kt
+@@ -115,6 +115,7 @@ import com.quantummpv.app.R
+ import com.quantummpv.app.domain.media.model.Video
+ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
++import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
+ import com.quantummpv.app.ui.theme.AppShapeScale
+ import com.quantummpv.app.utils.clipboard.SafeClipboard
+ import kotlinx.coroutines.Dispatchers
+@@ -994,6 +995,7 @@ private fun CompressorVideoTab(
+         onSetTargetSize(it)
+       },
+       valueRange = 0.1f..maxOf(10f, state.targetSizeMb, (state.originalSize.toFloat() / (1024f * 1024f))),
++      modifier = Modifier.fillMaxWidth().tvFocusHighlight(MaterialTheme.shapes.small, focusedScale = 1.01f),
+     )
+ 
+     Text(
+@@ -1228,7 +1230,7 @@ private fun CompressorAudioTab(
+             onValueChange = onUpdateAudioVolume,
+             valueRange = 0f..2f,
+             steps = 19,
+-            modifier = Modifier.weight(1f),
++            modifier = Modifier.weight(1f).tvFocusHighlight(MaterialTheme.shapes.small, focusedScale = 1.01f),
+           )
+         }
+         Text(
+@@ -2272,7 +2274,7 @@ private fun DefaultAudioConfigEditor(
+               onValueChange = { volume = it },
+               valueRange = 0f..2f,
+               steps = 19,
+-              modifier = Modifier.weight(1f),
++              modifier = Modifier.weight(1f).tvFocusHighlight(MaterialTheme.shapes.small, focusedScale = 1.01f),
+             )
+           }
+         }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/filesystem/FileSystemBrowserScreen.kt b/app/src/main/java/com/quantummpv/app/ui/browser/filesystem/FileSystemBrowserScreen.kt
+index 0437a6fa..980f08d1 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/filesystem/FileSystemBrowserScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/filesystem/FileSystemBrowserScreen.kt
+@@ -43,6 +43,7 @@ import androidx.compose.foundation.lazy.grid.items
+ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+ import androidx.compose.foundation.lazy.items
+ import androidx.compose.foundation.shape.RoundedCornerShape
++import androidx.compose.foundation.shape.CircleShape
+ import androidx.compose.material3.CircularProgressIndicator
+ import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+ import androidx.compose.material3.FloatingActionButtonMenu
+@@ -95,7 +96,6 @@ import com.quantummpv.app.preferences.MediaLayoutMode
+ import com.quantummpv.app.preferences.preference.collectAsState
+ import com.quantummpv.app.presentation.components.pullrefresh.PullRefreshBox
+ import com.quantummpv.app.ui.browser.cards.FolderCard
+-import com.quantummpv.app.ui.browser.cards.SwipeableVideoActions
+ import com.quantummpv.app.ui.browser.cards.VideoCard
+ import com.quantummpv.app.ui.browser.cards.VideoCardUiConfig
+ import com.quantummpv.app.ui.browser.components.BrowserBottomBar
+@@ -116,6 +116,7 @@ import com.quantummpv.app.ui.browser.states.PermissionDeniedState
+ import com.quantummpv.app.ui.components.InlineSearchBar
+ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
++import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
+ import com.quantummpv.app.ui.theme.AppMotion
+ import com.quantummpv.app.ui.utils.LocalBackStack
+ import com.quantummpv.app.ui.utils.navigateTo
+@@ -216,8 +217,6 @@ fun FileSystemBrowserScreen(path: String? = null) {
+   val sortDialogOpen = rememberSaveable { mutableStateOf(false) }
+   var deleteDialogOpen by rememberSaveable { mutableStateOf(false) }
+   val renameDialogOpen = rememberSaveable { mutableStateOf(false) }
+-  var swipeRenameVideo by remember { mutableStateOf<com.quantummpv.app.domain.media.model.Video?>(null) }
+-  var swipeDeleteVideo by remember { mutableStateOf<com.quantummpv.app.domain.media.model.Video?>(null) }
+   val addToPlaylistDialogOpen = rememberSaveable { mutableStateOf(false) }
+   val compressorDialogOpen = rememberSaveable { mutableStateOf(false) }
+ 
+@@ -297,6 +296,7 @@ fun FileSystemBrowserScreen(path: String? = null) {
+   val selectedCount = selectionManager.selectedCount
+   val totalCount = items.size
+   val onlyVideosSelected = selectedVideos.isNotEmpty() && selectedFolders.isEmpty()
++  val allSelectedVideosWatched = onlyVideosSelected && selectedVideos.all { it.id in watchedVideoIds }
+ 
+   suspend fun selectedPlayableVideos(): List<com.quantummpv.app.domain.media.model.Video> {
+     val videosFromFolders =
+@@ -604,6 +604,30 @@ fun FileSystemBrowserScreen(path: String? = null) {
+               } else {
+                 null
+               },
++            additionalActions = {
++              if (onlyVideosSelected) {
++                IconButton(
++                  onClick = {
++                    val markWatched = !allSelectedVideosWatched
++                    selectedVideos.forEach { video -> viewModel.setWatched(video, markWatched) }
++                    selectionManager.clear()
++                  },
++                  modifier = Modifier.tvFocusHighlight(CircleShape, focusedScale = 1.06f),
++                ) {
++                  Icon(
++                    imageVector = if (allSelectedVideosWatched) Icons.RoundedFilled.RemoveCircle else Icons.RoundedFilled.CheckCircle,
++                    contentDescription =
++                      stringResource(
++                        if (allSelectedVideosWatched) {
++                          R.string.video_action_mark_unwatched
++                        } else {
++                          R.string.video_action_mark_watched
++                        },
++                      ),
++                  )
++                }
++              }
++            },
+           )
+         }
+       },
+@@ -829,9 +853,6 @@ fun FileSystemBrowserScreen(path: String? = null) {
+                 onVideoLongClick = { videoFile ->
+                   selectionManager.handleLongClick(videoFile)
+                 },
+-                onWatchedChange = { videoFile, watched -> viewModel.setWatched(videoFile.video, watched) },
+-                onRename = { video -> swipeRenameVideo = video },
+-                onDelete = { video -> swipeDeleteVideo = video },
+                 onBreadcrumbClick = { component ->
+                   // Navigate to the breadcrumb by popping until we reach it
+                   // or pushing if it's a new path
+@@ -950,23 +971,6 @@ fun FileSystemBrowserScreen(path: String? = null) {
+       )
+     }
+ 
+-    swipeDeleteVideo?.let { video ->
+-      DeleteConfirmationDialog(
+-        isOpen = true,
+-        onDismiss = { swipeDeleteVideo = null },
+-        onConfirm = {
+-          swipeDeleteVideo = null
+-          coroutineScope.launch {
+-            viewModel.deleteVideos(listOf(video))
+-            viewModel.refresh()
+-          }
+-        },
+-        itemType = "video",
+-        itemCount = 1,
+-        itemNames = listOf(video.displayName),
+-      )
+-    }
+-
+     // Rename Dialog
+     if (renameDialogOpen.value) {
+       val selectedItem = selectedItems.firstOrNull()
+@@ -1005,27 +1009,6 @@ fun FileSystemBrowserScreen(path: String? = null) {
+       }
+     }
+ 
+-    swipeRenameVideo?.let { video ->
+-      val extension =
+-        video.displayName.substringAfterLast('.', "")
+-          .takeIf { it.isNotBlank() }
+-          ?.let { ".$it" }
+-      RenameDialog(
+-        isOpen = true,
+-        onDismiss = { swipeRenameVideo = null },
+-        onConfirm = { newName ->
+-          swipeRenameVideo = null
+-          coroutineScope.launch {
+-            viewModel.renameVideo(video, newName)
+-            viewModel.refresh()
+-          }
+-        },
+-        currentName = video.displayName.substringBeforeLast('.'),
+-        itemType = "video",
+-        extension = extension,
+-      )
+-    }
+-
+     // Video Compressor Overlay (for file system browser)
+     if (compressorDialogOpen.value) {
+       if (selectedVideos.isNotEmpty() && selectedVideos.none { it.isAudio }) {
+@@ -1275,9 +1258,6 @@ private fun FileSystemBrowserContent(
+   onFolderLongClick: (FileSystemItem.Folder) -> Unit,
+   onVideoClick: (FileSystemItem.VideoFile) -> Unit,
+   onVideoLongClick: (FileSystemItem.VideoFile) -> Unit,
+-  onWatchedChange: ((FileSystemItem.VideoFile, Boolean) -> Unit)? = null,
+-  onRename: ((com.quantummpv.app.domain.media.model.Video) -> Unit)? = null,
+-  onDelete: ((com.quantummpv.app.domain.media.model.Video) -> Unit)? = null,
+   onBreadcrumbClick: (com.quantummpv.app.domain.browser.PathComponent) -> Unit,
+   selectionManager: com.quantummpv.app.ui.browser.selection.SelectionManager<FileSystemItem, String>,
+   modifier: Modifier = Modifier,
+@@ -1519,15 +1499,7 @@ private fun FileSystemBrowserContent(
+                   contentType = { "video_item" },
+                   span = { GridItemSpan(spansInfo.videoSpan) },
+                 ) { videoFile ->
+-                  SwipeableVideoActions(
+-                    itemKey = videoFile.video.path,
+-                    enabled = !isInSelectionMode && onWatchedChange != null,
+-                    isWatched = watchedVideoIds.contains(videoFile.video.id),
+-                    onWatchedChange = { watched -> onWatchedChange?.invoke(videoFile, watched) },
+-                    onRename = { onRename?.invoke(videoFile.video) },
+-                    onDelete = { onDelete?.invoke(videoFile.video) },
+-                  ) {
+-                    VideoCard(
++                  VideoCard(
+                       video = videoFile.video,
+                       progressPercentage = videoFilesWithPlayback[videoFile.video.id],
+                       isRecentlyPlayed = false,
+@@ -1548,8 +1520,7 @@ private fun FileSystemBrowserContent(
+                       overrideShowResolutionChip = null,
+                       useFolderNameStyle = false,
+                       uiConfig = videoCardUiConfig,
+-                    )
+-                  }
++                  )
+                 }
+               }
+ 
+@@ -1637,15 +1608,7 @@ private fun FileSystemBrowserContent(
+                 key = { "${it.video.id}_${it.video.path}" },
+                 contentType = { "video_item" },
+               ) { videoFile ->
+-                SwipeableVideoActions(
+-                  itemKey = videoFile.video.path,
+-                  enabled = !isInSelectionMode && onWatchedChange != null,
+-                  isWatched = watchedVideoIds.contains(videoFile.video.id),
+-                  onWatchedChange = { watched -> onWatchedChange?.invoke(videoFile, watched) },
+-                  onRename = { onRename?.invoke(videoFile.video) },
+-                  onDelete = { onDelete?.invoke(videoFile.video) },
+-                ) {
+-                  VideoCard(
++                VideoCard(
+                     video = videoFile.video,
+                     progressPercentage = videoFilesWithPlayback[videoFile.video.id],
+                     isRecentlyPlayed = false,
+@@ -1666,8 +1629,7 @@ private fun FileSystemBrowserContent(
+                     overrideShowResolutionChip = null,
+                     useFolderNameStyle = false,
+                     uiConfig = videoCardUiConfig,
+-                  )
+-                }
++                )
+               }
+             }
+ 
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinCards.kt b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinCards.kt
+index aba946d0..28ede106 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinCards.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinCards.kt
+@@ -91,6 +91,7 @@ import com.quantummpv.app.presentation.components.RemoteImage
+ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
+ import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
++import com.quantummpv.app.ui.player.controls.components.tvContextMenu
+ import com.quantummpv.app.ui.theme.LocalDarkAppColorScheme
+ import kotlinx.coroutines.delay
+ import kotlin.math.roundToInt
+@@ -686,6 +687,7 @@ fun JellyfinResumeCard(
+           .tvFocusHighlight(RoundedCornerShape(10.dp), focusedScale = 1.03f)
+           .then(posterBorderModifier)
+           .background(MaterialTheme.colorScheme.surfaceContainerHighest)
++          .tvContextMenu(onLongClick)
+           .combinedClickable(
+             onClick = onClick,
+             onLongClick = onLongClick,
+@@ -895,6 +897,7 @@ fun JellyfinPosterCard(
+           .tvFocusHighlight(RoundedCornerShape(8.dp), focusedScale = 1.03f)
+           .then(posterBorderModifier)
+           .background(MaterialTheme.colorScheme.surfaceContainerHighest)
++          .tvContextMenu(onLongClick)
+           .combinedClickable(
+             onClick = onClick,
+             onLongClick = onLongClick,
+@@ -1094,6 +1097,7 @@ fun JellyfinMusicCard(
+           .tvFocusHighlight(RoundedCornerShape(8.dp), focusedScale = 1.03f)
+           .then(posterBorderModifier)
+           .background(MaterialTheme.colorScheme.surfaceContainerHighest)
++          .tvContextMenu(onLongClick)
+           .combinedClickable(
+             onClick = onClick,
+             onLongClick = onLongClick,
+@@ -1455,6 +1459,7 @@ fun JellyfinEpisodeCard(
+         .fillMaxWidth()
+         .tvFocusHighlight(RoundedCornerShape(8.dp), focusedScale = 1.02f)
+         .clip(RoundedCornerShape(8.dp))
++        .tvContextMenu(onLongClick)
+         .combinedClickable(
+           onClick = onPlay,
+           onLongClick = onLongClick,
+@@ -1685,6 +1690,7 @@ fun JellyfinListItemCard(
+         .fillMaxWidth()
+         .tvFocusHighlight(RoundedCornerShape(8.dp), focusedScale = 1.02f)
+         .clip(RoundedCornerShape(8.dp))
++        .tvContextMenu(onLongClick)
+         .combinedClickable(
+           onClick = onClick,
+           onLongClick = onLongClick,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/medialibrary/MediaLibraryContent.kt b/app/src/main/java/com/quantummpv/app/ui/browser/medialibrary/MediaLibraryContent.kt
+index acd3a618..e67ffd5f 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/medialibrary/MediaLibraryContent.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/medialibrary/MediaLibraryContent.kt
+@@ -34,6 +34,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
+ import androidx.compose.foundation.layout.padding
+ import androidx.compose.foundation.layout.systemBars
+ import androidx.compose.foundation.layout.windowInsetsPadding
++import androidx.compose.foundation.shape.CircleShape
+ import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+ import androidx.compose.material3.FloatingActionButton
+ import androidx.compose.material3.FloatingActionButtonMenu
+@@ -105,6 +106,7 @@ import com.quantummpv.app.ui.browser.videolist.VideoListContent
+ import com.quantummpv.app.ui.browser.videolist.VideoWithPlaybackInfo
+ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
++import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
+ import com.quantummpv.app.ui.player.PlaybackIdentity
+ import com.quantummpv.app.ui.player.PlaybackItem
+ import com.quantummpv.app.ui.player.PreparedPlaybackLaunchStore
+@@ -198,13 +200,16 @@ fun MediaLibraryContent(forceAudio: Boolean = false) {
+       },
+       onOperationComplete = { viewModel.refresh() },
+     )
++  val selectedVideos = selectionManager.getSelectedItems()
++  val watchedVideoIds = remember(filteredVideosWithInfo) {
++    filteredVideosWithInfo.filter(VideoWithPlaybackInfo::isWatched).mapTo(hashSetOf()) { it.video.id }
++  }
++  val allSelectedVideosWatched = selectedVideos.isNotEmpty() && selectedVideos.all { it.id in watchedVideoIds }
+ 
+   val isRefreshing = remember { mutableStateOf(false) }
+   val sortDialogOpen = rememberSaveable { mutableStateOf(false) }
+   val deleteDialogOpen = rememberSaveable { mutableStateOf(false) }
+   val renameDialogOpen = rememberSaveable { mutableStateOf(false) }
+-  var swipeRenameVideo by remember { mutableStateOf<Video?>(null) }
+-  var swipeDeleteVideo by remember { mutableStateOf<Video?>(null) }
+   val addToPlaylistDialogOpen = rememberSaveable { mutableStateOf(false) }
+   val isFabVisible = remember { mutableStateOf(true) }
+   val isFabExpanded = remember { mutableStateOf(false) }
+@@ -496,6 +501,30 @@ fun MediaLibraryContent(forceAudio: Boolean = false) {
+             }
+           },
+           onAddToPlaylistClick = { addToPlaylistDialogOpen.value = true },
++          additionalActions = {
++            if (mediaType == MediaLibraryType.Video && selectionManager.isInSelectionMode && selectedVideos.isNotEmpty()) {
++              IconButton(
++                onClick = {
++                  val markWatched = !allSelectedVideosWatched
++                  selectedVideos.forEach { video -> viewModel.setWatched(video, markWatched) }
++                  selectionManager.clear()
++                },
++                modifier = Modifier.tvFocusHighlight(CircleShape, focusedScale = 1.06f),
++              ) {
++                Icon(
++                  imageVector = if (allSelectedVideosWatched) Icons.RoundedFilled.RemoveCircle else Icons.RoundedFilled.CheckCircle,
++                  contentDescription =
++                    stringResource(
++                      if (allSelectedVideosWatched) {
++                        R.string.video_action_mark_unwatched
++                      } else {
++                        R.string.video_action_mark_watched
++                      },
++                    ),
++                )
++              }
++            }
++          },
+         )
+       }
+     },
+@@ -691,9 +720,6 @@ fun MediaLibraryContent(forceAudio: Boolean = false) {
+                 }
+               },
+               onVideoLongClick = { video -> selectionManager.handleLongClick(video) },
+-              onWatchedChange = viewModel::setWatched,
+-              onRename = { video -> swipeRenameVideo = video },
+-              onDelete = { video -> swipeDeleteVideo = video },
+               isFabVisible = isFabVisible,
+               modifier = Modifier.fillMaxSize(),
+               showFloatingBottomBar = showFloatingBottomBar,
+@@ -784,23 +810,6 @@ fun MediaLibraryContent(forceAudio: Boolean = false) {
+       )
+     }
+ 
+-    swipeDeleteVideo?.let { video ->
+-      DeleteConfirmationDialog(
+-        isOpen = true,
+-        onDismiss = { swipeDeleteVideo = null },
+-        onConfirm = {
+-          swipeDeleteVideo = null
+-          coroutineScope.launch {
+-            viewModel.deleteVideos(listOf(video))
+-            viewModel.refresh()
+-          }
+-        },
+-        itemType = if (mediaType == MediaLibraryType.Audio) "audio file" else "video",
+-        itemCount = 1,
+-        itemNames = listOf(video.displayName),
+-      )
+-    }
+-
+     if (renameDialogOpen.value) {
+       val video = selectionManager.getSelectedItems().firstOrNull()
+       if (video != null) {
+@@ -817,27 +826,6 @@ fun MediaLibraryContent(forceAudio: Boolean = false) {
+       }
+     }
+ 
+-    swipeRenameVideo?.let { video ->
+-      val extension =
+-        video.displayName.substringAfterLast('.', "")
+-          .takeIf { it.isNotBlank() }
+-          ?.let { ".$it" }
+-      RenameDialog(
+-        isOpen = true,
+-        onDismiss = { swipeRenameVideo = null },
+-        onConfirm = { newName ->
+-          swipeRenameVideo = null
+-          coroutineScope.launch {
+-            viewModel.renameVideo(video, newName)
+-            viewModel.refresh()
+-          }
+-        },
+-        currentName = video.displayName.substringBeforeLast('.'),
+-        itemType = if (mediaType == MediaLibraryType.Audio) "audio file" else "video",
+-        extension = extension,
+-      )
+-    }
+-
+     AddToPlaylistDialog(
+       isOpen = addToPlaylistDialogOpen.value,
+       videos = selectionManager.getSelectedItems(),
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryContent.kt b/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryContent.kt
+index c797f09e..9d085b30 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryContent.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryContent.kt
+@@ -151,6 +151,8 @@ import com.quantummpv.app.ui.components.InlineSearchBar
+ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
+ import com.quantummpv.app.ui.theme.AppShapeScale
++import com.quantummpv.app.ui.player.controls.components.tvContextMenu
++import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
+ import com.quantummpv.app.ui.utils.LocalBackStack
+ import com.quantummpv.app.ui.utils.navigateTo
+ import com.quantummpv.app.ui.utils.rememberTabNavigation
+@@ -1620,6 +1622,8 @@ private fun SongGridCard(
+     modifier = Modifier
+       .fillMaxWidth()
+       .clip(AppShapeScale.large)
++      .tvFocusHighlight(AppShapeScale.large, focusedScale = 1.03f)
++      .tvContextMenu(onLongClick)
+       .combinedClickable(onClick = onClick, onLongClick = onLongClick),
+     shape = AppShapeScale.large,
+     colors = CardDefaults.cardColors(
+@@ -1809,6 +1813,8 @@ private fun AlbumGridCard(
+     modifier = Modifier
+       .fillMaxWidth()
+       .clip(AppShapeScale.large)
++      .tvFocusHighlight(AppShapeScale.large, focusedScale = 1.03f)
++      .tvContextMenu(onLongClick)
+       .combinedClickable(onClick = onClick, onLongClick = onLongClick),
+     shape = AppShapeScale.large,
+     colors = CardDefaults.cardColors(
+@@ -1900,6 +1906,8 @@ private fun AlbumListCard(
+       .fillMaxWidth()
+       .padding(horizontal = 8.dp, vertical = 3.dp)
+       .clip(AppShapeScale.large)
++      .tvFocusHighlight(AppShapeScale.large, focusedScale = 1.03f)
++      .tvContextMenu(onLongClick)
+       .combinedClickable(onClick = onClick, onLongClick = onLongClick),
+     shape = AppShapeScale.large,
+     color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f) else Color.Transparent
+@@ -2034,6 +2042,8 @@ private fun ArtistGridCard(
+     modifier = Modifier
+       .fillMaxWidth()
+       .clip(AppShapeScale.large)
++      .tvFocusHighlight(AppShapeScale.large, focusedScale = 1.03f)
++      .tvContextMenu(onLongClick)
+       .combinedClickable(onClick = onClick, onLongClick = onLongClick),
+     shape = AppShapeScale.large,
+     colors = CardDefaults.cardColors(
+@@ -2109,6 +2119,8 @@ private fun ArtistListCard(
+       .fillMaxWidth()
+       .padding(horizontal = 8.dp, vertical = 3.dp)
+       .clip(AppShapeScale.large)
++      .tvFocusHighlight(AppShapeScale.large, focusedScale = 1.03f)
++      .tvContextMenu(onLongClick)
+       .combinedClickable(onClick = onClick, onLongClick = onLongClick),
+     shape = AppShapeScale.large,
+     color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f) else Color.Transparent
+@@ -2357,6 +2369,8 @@ private fun MusicPlaylistCard(
+       modifier = Modifier
+         .fillMaxWidth()
+         .clip(AppShapeScale.large)
++        .tvFocusHighlight(AppShapeScale.large, focusedScale = 1.03f)
++        .tvContextMenu(onLongClick)
+         .combinedClickable(onClick = onClick, onLongClick = onLongClick),
+       shape = AppShapeScale.large,
+       colors = CardDefaults.cardColors(
+@@ -2414,6 +2428,8 @@ private fun MusicPlaylistCard(
+       modifier = Modifier
+         .fillMaxWidth()
+         .clip(AppShapeScale.large)
++        .tvFocusHighlight(AppShapeScale.large, focusedScale = 1.03f)
++        .tvContextMenu(onLongClick)
+         .combinedClickable(onClick = onClick, onLongClick = onLongClick),
+       color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f) else Color.Transparent
+     ) {
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/music/SharedMusicComponents.kt b/app/src/main/java/com/quantummpv/app/ui/browser/music/SharedMusicComponents.kt
+index bd54e3d6..a216785b 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/music/SharedMusicComponents.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/music/SharedMusicComponents.kt
+@@ -60,6 +60,7 @@ import com.quantummpv.app.ui.icons.AppIcon
+ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
+ import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
++import com.quantummpv.app.ui.player.controls.components.tvContextMenu
+ import com.quantummpv.app.ui.player.PlaybackSession
+ import com.quantummpv.app.ui.player.controls.components.MiniAudioVisualizer
+ import com.quantummpv.app.ui.theme.AppShapeScale
+@@ -90,6 +91,7 @@ fun SharedMusicTrackListItem(
+       .fillMaxWidth()
+       .padding(horizontal = 8.dp, vertical = 3.dp)
+       .clip(AppShapeScale.large)
++      .tvContextMenu(onLongClick)
+       .then(
+         if (onLongClick != null) {
+           Modifier.combinedClickable(onClick = onClick, onLongClick = onLongClick)
+@@ -262,6 +264,7 @@ fun SharedMusicGridCard(
+       .then(if (cardWidth != null) Modifier.width(cardWidth) else Modifier.fillMaxWidth())
+       .tvFocusHighlight(AppShapeScale.large, focusedScale = 1.03f)
+       .clip(AppShapeScale.large)
++      .tvContextMenu(onLongClick)
+       .combinedClickable(onClick = onClick, onLongClick = onLongClick),
+     shape = AppShapeScale.large,
+     colors = CardDefaults.cardColors(
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/networkstreaming/TorrentCards.kt b/app/src/main/java/com/quantummpv/app/ui/browser/networkstreaming/TorrentCards.kt
+index 0f991de6..2f5ab2df 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/networkstreaming/TorrentCards.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/networkstreaming/TorrentCards.kt
+@@ -66,6 +66,8 @@ import com.quantummpv.app.domain.torrent.formatTorrentBytes
+ import com.quantummpv.app.presentation.components.RemoteImage
+ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
++import com.quantummpv.app.ui.player.controls.components.tvContextMenu
++import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
+ import com.quantummpv.app.utils.media.MediaInfoParser
+ import com.quantummpv.app.utils.media.MediaUtils
+ import kotlinx.coroutines.delay
+@@ -458,6 +460,8 @@ fun TorrentResumeCard(
+         .aspectRatio(16f / 9.5f)
+         .shadow(6.dp, RoundedCornerShape(18.dp))
+         .clip(RoundedCornerShape(18.dp))
++        .tvFocusHighlight(RoundedCornerShape(18.dp), focusedScale = 1.03f)
++        .tvContextMenu(onLongClick)
+         .combinedClickable(
+           onClick = onClick,
+           onLongClick = onLongClick,
+@@ -611,6 +615,8 @@ fun TorrentPosterCard(
+       modifier
+         .width(135.dp)
+         .clip(RoundedCornerShape(16.dp))
++        .tvFocusHighlight(RoundedCornerShape(16.dp), focusedScale = 1.03f)
++        .tvContextMenu(onLongClick)
+         .combinedClickable(
+           onClick = onClick,
+           onLongClick = onLongClick,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/videolist/VideoListScreen.kt b/app/src/main/java/com/quantummpv/app/ui/browser/videolist/VideoListScreen.kt
+index 14a79c6e..ceaf07d9 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/videolist/VideoListScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/videolist/VideoListScreen.kt
+@@ -32,6 +32,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
+ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+ import androidx.compose.foundation.lazy.rememberLazyListState
++import androidx.compose.foundation.shape.CircleShape
+ import androidx.compose.material3.CircularProgressIndicator
+ import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+ import androidx.compose.material3.FloatingActionButton
+@@ -86,7 +87,6 @@ import com.quantummpv.app.preferences.SecureFolderPreferences
+ import com.quantummpv.app.preferences.preference.collectAsState
+ import com.quantummpv.app.presentation.Screen
+ import com.quantummpv.app.presentation.components.pullrefresh.PullRefreshBox
+-import com.quantummpv.app.ui.browser.cards.SwipeableVideoActions
+ import com.quantummpv.app.ui.browser.cards.VideoCard
+ import com.quantummpv.app.ui.browser.cards.VideoCardUiConfig
+ import com.quantummpv.app.ui.browser.components.BrowserBottomBar
+@@ -108,6 +108,7 @@ import com.quantummpv.app.ui.browser.states.EmptyState
+ import com.quantummpv.app.ui.components.InlineSearchBar
+ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
++import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
+ import com.quantummpv.app.ui.securefolder.SecureConfirmDialog
+ import com.quantummpv.app.ui.securefolder.SecureFolderGateScreen
+ import com.quantummpv.app.ui.securefolder.SecureFolderProgressDialog
+@@ -213,6 +214,11 @@ data class VideoListScreen(
+         onRenameItem = { video, newName -> viewModel.renameVideo(video, newName) },
+         onOperationComplete = { viewModel.refresh() },
+       )
++    val selectedVideos = selectionManager.getSelectedItems()
++    val watchedVideoIds = remember(sortedVideosWithInfo) {
++      sortedVideosWithInfo.filter(VideoWithPlaybackInfo::isWatched).mapTo(hashSetOf()) { it.video.id }
++    }
++    val allSelectedVideosWatched = selectedVideos.isNotEmpty() && selectedVideos.all { it.id in watchedVideoIds }
+ 
+     // UI State
+     val isRefreshing = remember { mutableStateOf(false) }
+@@ -221,8 +227,6 @@ data class VideoListScreen(
+     val renameDialogOpen = rememberSaveable { mutableStateOf(false) }
+     val addToPlaylistDialogOpen = rememberSaveable { mutableStateOf(false) }
+     val compressorDialogOpen = rememberSaveable { mutableStateOf(false) }
+-    var swipeRenameVideo by remember { mutableStateOf<Video?>(null) }
+-    var swipeDeleteVideo by remember { mutableStateOf<Video?>(null) }
+ 
+     // Copy/Move state
+     val folderPickerOpen = rememberSaveable { mutableStateOf(false) }
+@@ -427,6 +431,30 @@ data class VideoListScreen(
+             }
+           },
+           onAddToPlaylistClick = { addToPlaylistDialogOpen.value = true },
++          additionalActions = {
++            if (selectionManager.isInSelectionMode && selectedVideos.isNotEmpty()) {
++              IconButton(
++                onClick = {
++                  val markWatched = !allSelectedVideosWatched
++                  selectedVideos.forEach { video -> viewModel.setWatched(video, markWatched) }
++                  selectionManager.clear()
++                },
++                modifier = Modifier.tvFocusHighlight(CircleShape, focusedScale = 1.06f),
++              ) {
++                Icon(
++                  imageVector = if (allSelectedVideosWatched) Icons.RoundedFilled.RemoveCircle else Icons.RoundedFilled.CheckCircle,
++                  contentDescription =
++                    stringResource(
++                      if (allSelectedVideosWatched) {
++                        R.string.video_action_mark_unwatched
++                      } else {
++                        R.string.video_action_mark_watched
++                      },
++                    ),
++                )
++              }
++            }
++          },
+           )
+         }
+       },
+@@ -517,9 +545,6 @@ data class VideoListScreen(
+             }
+           },
+           onVideoLongClick = { video -> selectionManager.handleLongClick(video) },
+-          onWatchedChange = viewModel::setWatched,
+-          onRename = { video -> swipeRenameVideo = video },
+-          onDelete = { video -> swipeDeleteVideo = video },
+           isFabVisible = isFabVisible,
+           modifier = Modifier.padding(padding),
+           showFloatingBottomBar = showFloatingBottomBar,
+@@ -631,23 +656,6 @@ data class VideoListScreen(
+         itemNames = selectionManager.getSelectedItems().map { it.displayName },
+       )
+ 
+-      swipeDeleteVideo?.let { video ->
+-        DeleteConfirmationDialog(
+-          isOpen = true,
+-          onDismiss = { swipeDeleteVideo = null },
+-          onConfirm = {
+-            swipeDeleteVideo = null
+-            coroutineScope.launch {
+-              viewModel.deleteVideos(listOf(video))
+-              viewModel.refresh()
+-            }
+-          },
+-          itemType = "video",
+-          itemCount = 1,
+-          itemNames = listOf(video.displayName),
+-        )
+-      }
+-
+       // Rename Dialogs
+       if (renameDialogOpen.value) {
+         if (selectionManager.isSingleSelection) {
+@@ -674,28 +682,6 @@ data class VideoListScreen(
+         }
+       }
+ 
+-      swipeRenameVideo?.let { video ->
+-        val extension =
+-          video.displayName
+-            .substringAfterLast('.', "")
+-            .takeIf { it.isNotBlank() }
+-            ?.let { ".$it" }
+-        RenameDialog(
+-          isOpen = true,
+-          onDismiss = { swipeRenameVideo = null },
+-          onConfirm = { newName ->
+-            swipeRenameVideo = null
+-            coroutineScope.launch {
+-              viewModel.renameVideo(video, newName)
+-              viewModel.refresh()
+-            }
+-          },
+-          currentName = video.displayName.substringBeforeLast('.'),
+-          itemType = "file",
+-          extension = extension,
+-        )
+-      }
+-
+       // Folder Picker Dialog
+       FolderPickerDialog(
+         isOpen = folderPickerOpen.value,
+@@ -857,9 +843,6 @@ internal fun VideoListContent(
+   selectionManager: SelectionManager<Video, Long>,
+   onVideoClick: (Video) -> Unit,
+   onVideoLongClick: (Video) -> Unit,
+-  onWatchedChange: ((Video, Boolean) -> Unit)? = null,
+-  onRename: ((Video) -> Unit)? = null,
+-  onDelete: ((Video) -> Unit)? = null,
+   isFabVisible: androidx.compose.runtime.MutableState<Boolean>,
+   modifier: Modifier = Modifier,
+   showFloatingBottomBar: Boolean = false,
+@@ -1190,15 +1173,7 @@ internal fun VideoListContent(
+                   val videoWithInfo = videosWithInfo[index]
+                   val isRecentlyPlayed = recentlyPlayedFilePath?.let { videoWithInfo.video.path == it } ?: false
+ 
+-                  SwipeableVideoActions(
+-                    itemKey = videoWithInfo.video.path,
+-                    enabled = !selectionManager.isInSelectionMode && onWatchedChange != null,
+-                    isWatched = videoWithInfo.isWatched,
+-                    onWatchedChange = { watched -> onWatchedChange?.invoke(videoWithInfo.video, watched) },
+-                    onRename = { onRename?.invoke(videoWithInfo.video) },
+-                    onDelete = { onDelete?.invoke(videoWithInfo.video) },
+-                  ) {
+-                    VideoCard(
++                  VideoCard(
+                       video = videoWithInfo.video,
+                       progressPercentage = videoWithInfo.progressPercentage,
+                       isRecentlyPlayed = isRecentlyPlayed,
+@@ -1221,8 +1196,7 @@ internal fun VideoListContent(
+                       allowThumbnailGeneration = false,
+                       allowThumbnailLoading = allowThumbnailLoading,
+                       uiConfig = videoCardUiConfig,
+-                    )
+-                  }
++                  )
+                 }
+               }
+ 
+@@ -1265,15 +1239,7 @@ internal fun VideoListContent(
+                   val videoWithInfo = videosWithInfo[index]
+                   val isRecentlyPlayed = recentlyPlayedFilePath?.let { videoWithInfo.video.path == it } ?: false
+ 
+-                  SwipeableVideoActions(
+-                    itemKey = videoWithInfo.video.path,
+-                    enabled = !selectionManager.isInSelectionMode && onWatchedChange != null,
+-                    isWatched = videoWithInfo.isWatched,
+-                    onWatchedChange = { watched -> onWatchedChange?.invoke(videoWithInfo.video, watched) },
+-                    onRename = { onRename?.invoke(videoWithInfo.video) },
+-                    onDelete = { onDelete?.invoke(videoWithInfo.video) },
+-                  ) {
+-                    VideoCard(
++                  VideoCard(
+                       video = videoWithInfo.video,
+                       progressPercentage = videoWithInfo.progressPercentage,
+                       isRecentlyPlayed = isRecentlyPlayed,
+@@ -1295,8 +1261,7 @@ internal fun VideoListContent(
+                       uiConfig = videoCardUiConfig,
+                       thumbnailWidthPx = if (isAudio) with(density) { musicCoverArtSize.dp.roundToPx() } else null,
+                       thumbnailHeightPx = if (isAudio) with(density) { musicCoverArtSize.dp.roundToPx() } else null,
+-                    )
+-                  }
++                  )
+                 }
+               }
+ 
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/TvFocus.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/TvFocus.kt
+index 90773d61..d6548792 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/TvFocus.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/TvFocus.kt
+@@ -20,6 +20,7 @@ import androidx.compose.runtime.LaunchedEffect
+ import androidx.compose.runtime.getValue
+ import androidx.compose.runtime.mutableStateOf
+ import androidx.compose.runtime.remember
++import androidx.compose.runtime.rememberUpdatedState
+ import androidx.compose.runtime.setValue
+ import androidx.compose.runtime.withFrameNanos
+ import androidx.compose.ui.Modifier
+@@ -29,6 +30,11 @@ import androidx.compose.ui.focus.focusRequester
+ import androidx.compose.ui.focus.onFocusChanged
+ import androidx.compose.ui.graphics.Shape
+ import androidx.compose.ui.graphics.graphicsLayer
++import androidx.compose.ui.input.key.Key
++import androidx.compose.ui.input.key.KeyEventType
++import androidx.compose.ui.input.key.key
++import androidx.compose.ui.input.key.onPreviewKeyEvent
++import androidx.compose.ui.input.key.type
+ import androidx.compose.ui.platform.LocalContext
+ import androidx.compose.ui.unit.dp
+ import com.quantummpv.app.utils.device.DeviceFormFactor
+@@ -88,3 +94,23 @@ fun Modifier.tvFocusGroup(): Modifier =
+   composed {
+     if (DeviceFormFactor.isTelevision(LocalContext.current)) this.focusGroup() else this
+   }
++
++fun Modifier.tvContextMenu(onContextMenu: (() -> Unit)?): Modifier =
++  composed {
++    val isTelevision = DeviceFormFactor.isTelevision(LocalContext.current)
++    val currentOnContextMenu by rememberUpdatedState(onContextMenu)
++    if (!isTelevision || currentOnContextMenu == null) return@composed this
++
++    this.onPreviewKeyEvent { event ->
++      val isContextMenuKey = event.key == Key.Menu || event.key == Key.Info
++      if (!isContextMenuKey) return@onPreviewKeyEvent false
++      when (event.type) {
++        KeyEventType.KeyUp -> {
++          currentOnContextMenu?.invoke()
++          true
++        }
++        KeyEventType.KeyDown -> true
++        else -> false
++      }
++    }
++  }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/CustomThemeEditorScreen.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/CustomThemeEditorScreen.kt
+index a509d1d4..d3d2772b 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/CustomThemeEditorScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/CustomThemeEditorScreen.kt
+@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.size
+ import androidx.compose.foundation.lazy.LazyColumn
+ import androidx.compose.foundation.lazy.rememberLazyListState
+ import androidx.compose.foundation.shape.CircleShape
++import androidx.compose.foundation.shape.RoundedCornerShape
+ import androidx.compose.material3.ExperimentalMaterial3Api
+ import androidx.compose.material3.IconButton
+ import androidx.compose.material3.MaterialTheme
+@@ -56,6 +57,10 @@ import com.quantummpv.app.presentation.Screen
+ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
+ import com.quantummpv.app.ui.preferences.components.ThemePreviewCard
++import com.quantummpv.app.ui.player.controls.components.rememberTvInitialFocusRequester
++import com.quantummpv.app.ui.player.controls.components.tvFocusGroup
++import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
++import com.quantummpv.app.ui.player.controls.components.tvInitialFocus
+ import com.quantummpv.app.ui.theme.CustomThemeDefinition
+ import com.quantummpv.app.ui.utils.LocalBackStack
+ import com.quantummpv.app.ui.utils.popSafely
+@@ -75,8 +80,15 @@ data class CustomThemeEditorScreen(
+     val serializedThemes by preferences.customTheme.collectAsState()
+     val savedThemes = remember(serializedThemes) { CustomThemeDefinition.parseCollection(serializedThemes) }
+     val existingTheme = remember(savedThemes, themeName) { savedThemes.firstOrNull { it.name == themeName } }
++    val customThemeLabel = stringResource(R.string.pref_appearance_custom_theme_title)
++    val defaultThemeName =
++      remember(savedThemes, customThemeLabel) {
++        generateSequence(1) { it + 1 }
++          .map { index -> "$customThemeLabel $index" }
++          .first { candidate -> savedThemes.none { it.name.equals(candidate, ignoreCase = true) } }
++      }
+ 
+-    var name by rememberSaveable(themeName) { mutableStateOf(existingTheme?.name.orEmpty()) }
++    var name by rememberSaveable(themeName) { mutableStateOf(existingTheme?.name ?: defaultThemeName) }
+     var primaryLight by rememberSaveable(themeName) { mutableStateOf(existingTheme?.primaryLight.toEditorHex("#6750A4")) }
+     var primaryDark by rememberSaveable(themeName) { mutableStateOf(existingTheme?.primaryDark.toEditorHex("#D0BCFF")) }
+     var secondaryLight by rememberSaveable(themeName) { mutableStateOf(existingTheme?.secondaryLight.toEditorHex("#625B71")) }
+@@ -88,6 +100,7 @@ data class CustomThemeEditorScreen(
+     var editorMode by rememberSaveable { mutableStateOf(CustomThemeEditorMode.Light) }
+     var showValidationErrors by rememberSaveable { mutableStateOf(false) }
+     val editorListState = rememberLazyListState()
++    val modeFocusRequester = rememberTvInitialFocusRequester(requestKey = editorMode)
+ 
+     LaunchedEffect(editorMode) {
+       editorListState.scrollToItem(0)
+@@ -208,7 +221,7 @@ data class CustomThemeEditorScreen(
+               fontWeight = FontWeight.SemiBold,
+             )
+             Row(
+-              modifier = Modifier.fillMaxWidth(),
++              modifier = Modifier.fillMaxWidth().tvFocusGroup(),
+               horizontalArrangement = Arrangement.SpaceEvenly,
+             ) {
+               ThemePreviewCard(
+@@ -216,12 +229,24 @@ data class CustomThemeEditorScreen(
+                 colorScheme = previewTheme.lightColorScheme(),
+                 isSelected = editorMode == CustomThemeEditorMode.Light,
+                 onClick = { editorMode = CustomThemeEditorMode.Light },
++                modifier =
++                  if (editorMode == CustomThemeEditorMode.Light) {
++                    Modifier.tvInitialFocus(modeFocusRequester)
++                  } else {
++                    Modifier
++                  },
+               )
+               ThemePreviewCard(
+                 label = stringResource(R.string.pref_appearance_darkmode_dark),
+                 colorScheme = previewTheme.darkColorScheme(),
+                 isSelected = editorMode == CustomThemeEditorMode.Dark,
+                 onClick = { editorMode = CustomThemeEditorMode.Dark },
++                modifier =
++                  if (editorMode == CustomThemeEditorMode.Dark) {
++                    Modifier.tvInitialFocus(modeFocusRequester)
++                  } else {
++                    Modifier
++                  },
+               )
+             }
+           }
+@@ -229,7 +254,7 @@ data class CustomThemeEditorScreen(
+ 
+         LazyColumn(
+           state = editorListState,
+-          modifier = Modifier.weight(1f),
++          modifier = Modifier.weight(1f).tvFocusGroup(),
+           contentPadding = PaddingValues(bottom = 16.dp),
+           verticalArrangement = Arrangement.spacedBy(4.dp),
+         ) {
+@@ -417,6 +442,7 @@ private fun ColorChannelSlider(
+       value = value.toFloat(),
+       onValueChange = { onValueChange(it.roundToInt().coerceIn(0, 255)) },
+       valueRange = 0f..255f,
++      modifier = Modifier.fillMaxWidth().tvFocusHighlight(RoundedCornerShape(12.dp), focusedScale = 1.01f),
+       colors =
+         SliderDefaults.colors(
+           thumbColor = tint,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/WallpaperEditorScreen.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/WallpaperEditorScreen.kt
+index 4a5fbc8d..958a1609 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/WallpaperEditorScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/WallpaperEditorScreen.kt
+@@ -58,6 +58,8 @@ import com.quantummpv.app.ui.icons.Icons
+ import com.quantummpv.app.ui.theme.WallpaperImage
+ import com.quantummpv.app.ui.theme.WallpaperScaleMode
+ import com.quantummpv.app.ui.theme.loadWallpaperBitmap
++import com.quantummpv.app.ui.player.controls.components.tvFocusGroup
++import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
+ import com.quantummpv.app.ui.utils.LocalBackStack
+ import com.quantummpv.app.ui.utils.popSafely
+ import kotlinx.coroutines.Dispatchers
+@@ -135,7 +137,7 @@ data class WallpaperEditorScreen(
+       },
+     ) { padding ->
+       LazyColumn(
+-        modifier = Modifier.fillMaxSize().padding(padding),
++        modifier = Modifier.fillMaxSize().padding(padding).tvFocusGroup(),
+         contentPadding = PaddingValues(16.dp),
+         verticalArrangement = Arrangement.spacedBy(12.dp),
+       ) {
+@@ -230,6 +232,7 @@ data class WallpaperEditorScreen(
+                 offsetY = 0f
+                 scaleMode = WallpaperScaleMode.Fit
+               },
++              modifier = Modifier.tvFocusHighlight(RoundedCornerShape(12.dp), focusedScale = 1.03f),
+             ) {
+               Icon(Icons.RoundedFilled.Restore, contentDescription = null)
+               Text(
+@@ -257,6 +260,7 @@ private fun WallpaperSlider(
+       value = value,
+       onValueChange = onValueChange,
+       valueRange = valueRange,
++      modifier = Modifier.fillMaxWidth().tvFocusHighlight(RoundedCornerShape(12.dp), focusedScale = 1.01f),
+     )
+   }
+ }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/components/ThemePicker.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/components/ThemePicker.kt
+index a0872f6d..1283d4f1 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/components/ThemePicker.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/components/ThemePicker.kt
+@@ -126,7 +126,10 @@ fun ThemePicker(
+           onClick = { position -> onCustomThemeSelected(theme, position) },
+           modifier = if (isSelected) Modifier.tvInitialFocus(initialFocusRequester) else Modifier,
+           actionOverlay = {
+-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
++            Column(
++              modifier = Modifier.tvFocusGroup(),
++              verticalArrangement = Arrangement.spacedBy(2.dp),
++            ) {
+               ThemeCardAction(
+                 icon = Icons.RoundedFilled.Edit,
+                 contentDescription = stringResource(R.string.pref_appearance_custom_theme_edit),
+@@ -193,7 +196,8 @@ private fun ThemeCardAction(
+   Box(
+     modifier =
+       Modifier
+-        .size(24.dp)
++        .size(30.dp)
++        .tvFocusHighlight(CircleShape, focusedScale = 1.12f)
+         .background(Color.Black.copy(alpha = 0.68f), CircleShape)
+         .clickable(onClick = onClick),
+     contentAlignment = Alignment.Center,
+@@ -201,7 +205,7 @@ private fun ThemeCardAction(
+     Icon(
+       imageVector = icon,
+       contentDescription = contentDescription,
+-      modifier = Modifier.size(15.dp),
++      modifier = Modifier.size(18.dp),
+       tint = Color.White,
+     )
+   }
+diff --git a/app/src/main/res/values-ar/strings.xml b/app/src/main/res/values-ar/strings.xml
+index cd1e1552..2746133c 100644
+--- a/app/src/main/res/values-ar/strings.xml
++++ b/app/src/main/res/values-ar/strings.xml
+@@ -74,6 +74,7 @@
+   <string name="toast_playback_load_failed">تعذر تحميل هذا الرابط</string>
+   <string name="video_label_new">جديد</string>
+   <string name="video_label_watched">تمت المشاهدة</string>
++  <string name="video_action_mark_watched">وضع علامة تمت المشاهدة</string><string name="video_action_mark_unwatched">وضع علامة لم تتم المشاهدة</string>
+   <!-- Theme names -->
+   <string name="theme_default">افتراضي</string>
+   <string name="theme_dynamic">ديناميكي</string>
+diff --git a/app/src/main/res/values-de/strings.xml b/app/src/main/res/values-de/strings.xml
+index e1f102de..ff35aff6 100644
+--- a/app/src/main/res/values-de/strings.xml
++++ b/app/src/main/res/values-de/strings.xml
+@@ -74,6 +74,7 @@
+   <string name="toast_playback_load_failed">Dieser Link konnte nicht geladen werden</string>
+   <string name="video_label_new">NEU</string>
+   <string name="video_label_watched">Gesehen</string>
++  <string name="video_action_mark_watched">Als gesehen markieren</string><string name="video_action_mark_unwatched">Als ungesehen markieren</string>
+   <!-- Theme names -->
+   <string name="theme_default">Standard</string>
+   <string name="theme_dynamic">Dynamisch</string>
+diff --git a/app/src/main/res/values-es/strings.xml b/app/src/main/res/values-es/strings.xml
+index cabb9842..6ea5a93b 100644
+--- a/app/src/main/res/values-es/strings.xml
++++ b/app/src/main/res/values-es/strings.xml
+@@ -74,6 +74,7 @@
+   <string name="toast_playback_load_failed">No se pudo cargar este enlace</string>
+   <string name="video_label_new">NUEVO</string>
+   <string name="video_label_watched">Visto</string>
++  <string name="video_action_mark_watched">Marcar como visto</string><string name="video_action_mark_unwatched">Marcar como no visto</string>
+   <!-- Theme names -->
+   <string name="theme_default">Predeterminado</string>
+   <string name="theme_dynamic">Dinámico</string>
+diff --git a/app/src/main/res/values-fr/strings.xml b/app/src/main/res/values-fr/strings.xml
+index cc382a28..68494efd 100644
+--- a/app/src/main/res/values-fr/strings.xml
++++ b/app/src/main/res/values-fr/strings.xml
+@@ -74,6 +74,7 @@
+   <string name="toast_playback_load_failed">Impossible de charger ce lien</string>
+   <string name="video_label_new">NOUVEAU</string>
+   <string name="video_label_watched">Vu</string>
++  <string name="video_action_mark_watched">Marquer comme vu</string><string name="video_action_mark_unwatched">Marquer comme non vu</string>
+   <!-- Theme names -->
+   <string name="theme_default">Par défaut</string>
+   <string name="theme_dynamic">Dynamique</string>
+diff --git a/app/src/main/res/values-hi/strings.xml b/app/src/main/res/values-hi/strings.xml
+index 6fcd77a3..48a9b03a 100644
+--- a/app/src/main/res/values-hi/strings.xml
++++ b/app/src/main/res/values-hi/strings.xml
+@@ -74,6 +74,7 @@
+   <string name="toast_playback_load_failed">यह लिंक लोड नहीं हो सका</string>
+   <string name="video_label_new">नया</string>
+   <string name="video_label_watched">देखा गया</string>
++  <string name="video_action_mark_watched">देखा गया चिह्नित करें</string><string name="video_action_mark_unwatched">नहीं देखा गया चिह्नित करें</string>
+   <string name="theme_default">डिफ़ॉल्ट</string>
+   <string name="theme_dynamic">डायनामिक</string>
+   <string name="theme_aurora">Aurora</string>
+diff --git a/app/src/main/res/values-ja/strings.xml b/app/src/main/res/values-ja/strings.xml
+index 4792ead3..8904890a 100644
+--- a/app/src/main/res/values-ja/strings.xml
++++ b/app/src/main/res/values-ja/strings.xml
+@@ -74,6 +74,7 @@
+   <string name="toast_playback_load_failed">このリンクを読み込めませんでした</string>
+   <string name="video_label_new">新着</string>
+   <string name="video_label_watched">視聴済み</string>
++  <string name="video_action_mark_watched">視聴済みにする</string><string name="video_action_mark_unwatched">未視聴にする</string>
+   <!-- Theme names -->
+   <string name="theme_default">デフォルト</string>
+   <string name="theme_dynamic">ダイナミック</string>
+diff --git a/app/src/main/res/values-pt-rBR/strings.xml b/app/src/main/res/values-pt-rBR/strings.xml
+index cb0783b9..ab7ab23f 100644
+--- a/app/src/main/res/values-pt-rBR/strings.xml
++++ b/app/src/main/res/values-pt-rBR/strings.xml
+@@ -74,6 +74,7 @@
+   <string name="toast_playback_load_failed">Não foi possível carregar este link</string>
+   <string name="video_label_new">NOVO</string>
+   <string name="video_label_watched">Assistido</string>
++  <string name="video_action_mark_watched">Marcar como assistido</string><string name="video_action_mark_unwatched">Marcar como não assistido</string>
+   <!-- Theme names -->
+   <string name="theme_default">Padrão</string>
+   <string name="theme_dynamic">Dinâmico</string>
+diff --git a/app/src/main/res/values-ru/strings.xml b/app/src/main/res/values-ru/strings.xml
+index be5bf37b..03a3d7dd 100644
+--- a/app/src/main/res/values-ru/strings.xml
++++ b/app/src/main/res/values-ru/strings.xml
+@@ -74,6 +74,7 @@
+   <string name="toast_playback_load_failed">Не удалось загрузить эту ссылку</string>
+   <string name="video_label_new">НОВОЕ</string>
+   <string name="video_label_watched">Просмотрено</string>
++  <string name="video_action_mark_watched">Отметить как просмотренное</string><string name="video_action_mark_unwatched">Отметить как непросмотренное</string>
+   <!-- Theme names -->
+   <string name="theme_default">По умолчанию</string>
+   <string name="theme_dynamic">Динамическая</string>
+diff --git a/app/src/main/res/values-zh-rCN/strings.xml b/app/src/main/res/values-zh-rCN/strings.xml
+index 3592c282..26386509 100644
+--- a/app/src/main/res/values-zh-rCN/strings.xml
++++ b/app/src/main/res/values-zh-rCN/strings.xml
+@@ -74,6 +74,7 @@
+   <string name="toast_playback_load_failed">无法加载此链接</string>
+   <string name="video_label_new">新</string>
+   <string name="video_label_watched">已观看</string>
++  <string name="video_action_mark_watched">标记为已观看</string><string name="video_action_mark_unwatched">标记为未观看</string>
+   <!-- Theme names -->
+   <string name="theme_default">默认</string>
+   <string name="theme_dynamic">动态</string>
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index e686d5bb..98519de4 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -83,6 +83,8 @@
+   <string name="toast_playback_load_failed">Could not load this link</string>
+   <string name="video_label_new">NEW</string>
+   <string name="video_label_watched">Watched</string>
++  <string name="video_action_mark_watched">Mark watched</string>
++  <string name="video_action_mark_unwatched">Mark unwatched</string>
+   <!-- Theme names -->
+   <string name="theme_default">Default</string>
+   <string name="theme_dynamic">Dynamic</string>
+-- 
+2.25.1
+

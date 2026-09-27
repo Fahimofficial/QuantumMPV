@@ -1,0 +1,870 @@
+From 4c95028e70db7fc5a347d96781b747f4fd1266d2 Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <riteshp2001@gmail.com>
+Date: Wed, 16 Sep 2026 12:26:36 +0530
+Subject: [PATCH 108/140] feat(visualizer): refactor visualizer components and
+ enhance rendering logic
+
+---
+ .../visualizer/blob/blob_fragment.glsl        |   7 +-
+ .../visualizer/blob/composite_fragment.glsl   |  10 +-
+ .../visualizer/galaxy/galaxy_fragment.glsl    |   2 +-
+ .../particle/particle_comp_fragment.glsl      |  24 +-
+ .../filesystem/FileSystemBrowserScreen.kt     |   2 +
+ .../ui/browser/folderlist/FolderListScreen.kt |   1 +
+ .../ui/browser/videolist/VideoListScreen.kt   |   1 +
+ .../ui/player/controls/AudioPlayerControls.kt | 112 ++++----
+ .../ui/player/visualizer/BlobComposable.kt    |   2 +-
+ .../ui/player/visualizer/BlobRenderer.kt      |   7 +-
+ .../player/visualizer/BlobVisualizerView.kt   |  13 +-
+ .../ui/player/visualizer/CuboidComposable.kt  |  33 +--
+ .../ui/player/visualizer/GalaxyRenderer.kt    |   7 +-
+ .../player/visualizer/GalaxyVisualizerView.kt |  13 +-
+ .../visualizer/ParticleFeedbackRenderer.kt    |  13 +-
+ .../visualizer/ParticleVisualizerView.kt      |  13 +-
+ .../visualizer/VisualizerTextureView.kt       | 248 ++++++++++++++++++
+ 17 files changed, 363 insertions(+), 145 deletions(-)
+ create mode 100644 app/src/main/java/com/quantummpv/app/ui/player/visualizer/VisualizerTextureView.kt
+
+diff --git a/app/src/main/assets/shaders/visualizer/blob/blob_fragment.glsl b/app/src/main/assets/shaders/visualizer/blob/blob_fragment.glsl
+index 6d6c6267..aab7c076 100644
+--- a/app/src/main/assets/shaders/visualizer/blob/blob_fragment.glsl
++++ b/app/src/main/assets/shaders/visualizer/blob/blob_fragment.glsl
+@@ -8,11 +8,6 @@ in float vSpectrum;
+ out vec4 fragColor;
+ 
+ void main() {
+-    // Shift color hue based on local spectral content: low bins (bass) stay warm, high bins (treble) shift cool
+-    vec3 warmShift = uColor * (1.0 + vSpectrum * 0.35);
+-    vec3 coolShift = vec3(uColor.r * 0.6 + vSpectrum * 0.2, uColor.g * 0.85 + vSpectrum * 0.15, uColor.b * 1.15 + vSpectrum * 0.25);
+-    vec3 spectralColor = mix(warmShift, coolShift, vSpectrum);
+-
+-    vec3 emissive = spectralColor * uIntensity * (0.62 + vEnergy * 0.32);
++    vec3 emissive = uColor * uIntensity * (0.62 + vEnergy * 0.32 + vSpectrum * 0.2);
+     fragColor = vec4(emissive, 0.72);
+ }
+diff --git a/app/src/main/assets/shaders/visualizer/blob/composite_fragment.glsl b/app/src/main/assets/shaders/visualizer/blob/composite_fragment.glsl
+index 22676609..51a5d8fb 100644
+--- a/app/src/main/assets/shaders/visualizer/blob/composite_fragment.glsl
++++ b/app/src/main/assets/shaders/visualizer/blob/composite_fragment.glsl
+@@ -9,12 +9,14 @@ in vec2 vUv;
+ out vec4 fragColor;
+ 
+ void main() {
+-    vec3 scene = texture(uScene, vUv).rgb;
++    vec4 scene = texture(uScene, vUv);
+     vec3 bloom = texture(uBloom, vUv).rgb;
+-    vec3 hdr = scene + bloom * uBloomStrength;
++    vec3 hdr = scene.rgb + bloom * uBloomStrength;
+     vec3 mapped = vec3(1.0) - exp(-hdr * uExposure);
+     mapped = pow(mapped, vec3(1.0 / 2.2));
+-    float visualCoverage = clamp(max(max(hdr.r, hdr.g), hdr.b) * 1.8, 0.0, 1.0);
++    float bloomCoverage = max(max(hdr.r, hdr.g), hdr.b) * 1.8;
++    float visualCoverage = clamp(max(scene.a, bloomCoverage), 0.0, 1.0);
+     float bottomFade = smoothstep(0.0, 0.22, vUv.y);
+-    fragColor = vec4(mapped, visualCoverage * bottomFade);
++    float alpha = visualCoverage * bottomFade;
++    fragColor = vec4(mapped * alpha, alpha);
+ }
+diff --git a/app/src/main/assets/shaders/visualizer/galaxy/galaxy_fragment.glsl b/app/src/main/assets/shaders/visualizer/galaxy/galaxy_fragment.glsl
+index 00173d93..f6dfd445 100644
+--- a/app/src/main/assets/shaders/visualizer/galaxy/galaxy_fragment.glsl
++++ b/app/src/main/assets/shaders/visualizer/galaxy/galaxy_fragment.glsl
+@@ -28,7 +28,7 @@ void main() {
+     float halo = 1.0 - smoothstep(0.08, 0.75, radiusSquared);
+ 
+     vec3 color = mix(themeColor * 0.85, uTertiaryColor, halo * 0.25);
+-    color = mix(color, vec3(1.0), hotCore * 0.55);
++    color = mix(color, uPrimaryColor, hotCore * 0.55);
+     float bottomFade = smoothstep(0.0, 0.22, vVerticalPosition);
+     float alpha = softEdge * clamp(vBrightness * (0.85 + halo * 0.28), 0.0, 1.5) * bottomFade;
+     fragColor = vec4(color * vBrightness, alpha);
+diff --git a/app/src/main/assets/shaders/visualizer/particle/particle_comp_fragment.glsl b/app/src/main/assets/shaders/visualizer/particle/particle_comp_fragment.glsl
+index c26a2de9..f0419d47 100644
+--- a/app/src/main/assets/shaders/visualizer/particle/particle_comp_fragment.glsl
++++ b/app/src/main/assets/shaders/visualizer/particle/particle_comp_fragment.glsl
+@@ -1,7 +1,7 @@
+ #version 300 es
+ precision highp float;
+ uniform sampler2D uTrail;
+-uniform float uAspect, uFlare, uHue, uFrame, uGrain, uCA, uExposure, uVig, uIsDarkTheme;
++uniform float uAspect, uFlare, uHue, uFrame, uGrain, uCA, uExposure, uVig;
+ uniform vec3 uPrimaryColor;
+ uniform vec3 uSecondaryColor;
+ in vec2 vUv;
+@@ -31,30 +31,16 @@ void main(){
+   rawCol.g = trailCol(uv).g;
+   rawCol.b = trailCol(uv - ca).b;
+ 
+-  // Dynamic theme tinting using Primary and Secondary theme palette colors
+   vec3 themeTint = mix(uPrimaryColor, uSecondaryColor, clamp(rawCol.r * 2.0, 0.0, 1.0));
+-  vec3 col = mix(rawCol, rawCol * themeTint * 2.5, 0.70);
+-
+-  // Tonemap particle brightness
+-  col = 1.0 - exp(-col * uExposure);
+-
+-  // Calculate particle alpha based on brightness (0.0 = completely transparent background)
+-  float lum = dot(col, vec3(0.299, 0.587, 0.114));
++  float energy = max(max(rawCol.r, rawCol.g), rawCol.b);
++  float brightness = 1.0 - exp(-energy * uExposure);
+   float bottomFade = smoothstep(0.0, 0.22, vUv.y);
+-  float alpha = clamp(lum * 3.5, 0.0, 1.0) * bottomFade;
++  float alpha = clamp(brightness * 3.5, 0.0, 1.0) * bottomFade;
+ 
+   if (alpha < 0.005) {
+-    // 100% transparent background everywhere there are no particles
+     o = vec4(0.0, 0.0, 0.0, 0.0);
+     return;
+   }
+ 
+-  if (uIsDarkTheme < 0.5) {
+-    // Light Theme: render vivid particles tinted with theme colors for contrast against light backgrounds
+-    vec3 lightParticleCol = mix(themeTint * 0.85, col, 0.5);
+-    o = vec4(lightParticleCol, alpha * 0.90);
+-  } else {
+-    // Dark Theme: render vibrant glowing particles
+-    o = vec4(col, alpha);
+-  }
++  o = vec4(themeTint, alpha);
+ }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/filesystem/FileSystemBrowserScreen.kt b/app/src/main/java/com/quantummpv/app/ui/browser/filesystem/FileSystemBrowserScreen.kt
+index 1ffbc671..362bbb9d 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/filesystem/FileSystemBrowserScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/filesystem/FileSystemBrowserScreen.kt
+@@ -1411,6 +1411,7 @@ private fun FileSystemBrowserContent(
+                   PaddingValues(
+                     start = 8.dp,
+                     end = 8.dp,
++                    top = 4.dp,
+                     bottom = navigationBarHeight,
+                   ),
+                 horizontalArrangement = Arrangement.spacedBy(2.dp),
+@@ -1524,6 +1525,7 @@ private fun FileSystemBrowserContent(
+                 PaddingValues(
+                   start = 8.dp,
+                   end = 8.dp,
++                  top = 4.dp,
+                   bottom = navigationBarHeight,
+                 ),
+             ) {
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/folderlist/FolderListScreen.kt b/app/src/main/java/com/quantummpv/app/ui/browser/folderlist/FolderListScreen.kt
+index 2fe663db..babe17e9 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/folderlist/FolderListScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/folderlist/FolderListScreen.kt
+@@ -1439,6 +1439,7 @@ private fun ListContent(
+         PaddingValues(
+           start = 8.dp,
+           end = 8.dp,
++          top = 4.dp,
+           bottom = navigationBarHeight,
+         ),
+     ) {
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/videolist/VideoListScreen.kt b/app/src/main/java/com/quantummpv/app/ui/browser/videolist/VideoListScreen.kt
+index 99b5ad27..af463046 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/videolist/VideoListScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/videolist/VideoListScreen.kt
+@@ -1210,6 +1210,7 @@ internal fun VideoListContent(
+                   PaddingValues(
+                     start = 8.dp,
+                     end = 8.dp,
++                    top = 4.dp,
+                     bottom = bottomPadding,
+                   ),
+               ) {
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/AudioPlayerControls.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/AudioPlayerControls.kt
+index d190deb9..72b20271 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/AudioPlayerControls.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/AudioPlayerControls.kt
+@@ -327,67 +327,69 @@ private fun rememberAudioAlbumArt(
+ 
+ private fun contrastingVisualizerTone(
+   colorArgb: Int,
+-  backgroundArgb: Int,
+-  isDarkTheme: Boolean,
++  backgrounds: List<Int>,
+ ): Int {
+-  val hsv = FloatArray(3)
+-  AndroidColor.colorToHSV(colorArgb, hsv)
+-  hsv[1] = hsv[1].coerceAtLeast(if (isDarkTheme) 0.42f else 0.52f)
+-  hsv[2] =
+-    if (isDarkTheme) {
+-      hsv[2].coerceIn(0.72f, 0.98f)
++  fun contrast(candidate: Int): Double = backgrounds.minOf { ColorUtils.calculateContrast(candidate, it) }
++
++  val base = ColorUtils.setAlphaComponent(colorArgb, 255)
++  val contrastTarget =
++    if (contrast(AndroidColor.BLACK) >= contrast(AndroidColor.WHITE)) AndroidColor.BLACK else AndroidColor.WHITE
++  val minimumContrast = minOf(3.0, contrast(contrastTarget))
++  if (contrast(base) >= minimumContrast) return base
++
++  var insufficientFraction = 0f
++  var sufficientFraction = 1f
++  repeat(12) {
++    val fraction = (insufficientFraction + sufficientFraction) / 2f
++    val candidate = ColorUtils.blendARGB(base, contrastTarget, fraction)
++    if (contrast(candidate) >= minimumContrast) {
++      sufficientFraction = fraction
+     } else {
+-      hsv[2].coerceIn(0.28f, 0.56f)
++      insufficientFraction = fraction
+     }
+-  val base = AndroidColor.HSVToColor(hsv)
+-  val contrastTarget = if (isDarkTheme) AndroidColor.WHITE else AndroidColor.BLACK
+-  val minimumContrast = if (isDarkTheme) 2.4 else 3.2
+-  if (ColorUtils.calculateContrast(base, backgroundArgb) >= minimumContrast) return base
+-
+-  for (step in 1..9) {
+-    val adjusted = ColorUtils.blendARGB(base, contrastTarget, step * 0.08f)
+-    if (ColorUtils.calculateContrast(adjusted, backgroundArgb) >= minimumContrast) return adjusted
+   }
+-  return ColorUtils.blendARGB(base, contrastTarget, 0.72f)
++  return ColorUtils.blendARGB(base, contrastTarget, sufficientFraction)
+ }
+ 
+-private fun VisualizerPalette.withThemeContrast(): VisualizerPalette {
+-  val isDarkTheme = ColorUtils.calculateLuminance(background) < 0.5
+-  return copy(
+-    primary = contrastingVisualizerTone(primary, background, isDarkTheme),
+-    secondary = contrastingVisualizerTone(secondary, background, isDarkTheme),
+-    tertiary = contrastingVisualizerTone(tertiary, background, isDarkTheme),
++private fun VisualizerPalette.withThemeContrast(backgrounds: List<Int>): VisualizerPalette =
++  copy(
++    primary = contrastingVisualizerTone(primary, backgrounds),
++    secondary = contrastingVisualizerTone(secondary, backgrounds),
++    tertiary = contrastingVisualizerTone(tertiary, backgrounds),
+   )
+-}
+-
+-private fun visualizerPaletteFromAccent(
+-  materialPalette: VisualizerPalette,
+-  accentArgb: Int,
+-): VisualizerPalette =
+-  materialPalette.copy(
+-    primary = ColorUtils.blendARGB(materialPalette.primary, accentArgb, 0.56f),
+-    secondary = ColorUtils.blendARGB(materialPalette.secondary, accentArgb, 0.36f),
+-    tertiary = ColorUtils.blendARGB(materialPalette.tertiary, accentArgb, 0.28f),
+-  )
+-    .withThemeContrast()
+ 
+ private fun artworkVisualizerPalette(
+   bitmap: Bitmap,
+   materialPalette: VisualizerPalette,
+ ): VisualizerPalette {
+-  val extracted = Palette.from(bitmap).maximumColorCount(20).generate()
++  val extracted = Palette.from(bitmap).maximumColorCount(20).clearFilters().generate()
+   val maximumPopulation = extracted.swatches.maxOfOrNull { it.population }?.coerceAtLeast(1) ?: 1
+-  val accent =
++  val rankedSwatches =
+     extracted.swatches
+-      .asSequence()
+-      .filter { swatch -> swatch.hsl[1] >= 0.18f && swatch.hsl[2] in 0.12f..0.88f }
+-      .maxByOrNull { swatch ->
++      .sortedByDescending { swatch ->
+         val population = swatch.population.toFloat() / maximumPopulation
+         val centeredLightness = 1f - abs(swatch.hsl[2] - 0.52f)
+         swatch.hsl[1] * 0.58f + population * 0.27f + centeredLightness * 0.15f
+-      }?.rgb
+-      ?: materialPalette.primary
+-  return visualizerPaletteFromAccent(materialPalette, accent)
++      }
++  val accents = mutableListOf<Palette.Swatch>()
++  for (swatch in rankedSwatches) {
++    val similar =
++      accents.any { existing ->
++        val hueDistance = abs(existing.hsl[0] - swatch.hsl[0])
++        minOf(hueDistance, 360f - hueDistance) < 30f &&
++          abs(existing.hsl[1] - swatch.hsl[1]) < 0.25f &&
++          abs(existing.hsl[2] - swatch.hsl[2]) < 0.18f
++      }
++    if (!similar) accents += swatch
++    if (accents.size == 3) break
++  }
++  val primary = accents.firstOrNull()?.rgb ?: materialPalette.primary
++  val secondary = accents.getOrNull(1)?.rgb ?: primary
++  return materialPalette.copy(
++    primary = primary,
++    secondary = secondary,
++    tertiary = accents.getOrNull(2)?.rgb ?: secondary,
++  )
+ }
+ 
+ @Composable
+@@ -824,14 +826,15 @@ fun AudioPlayerControls(
+         primary = colorScheme.primary.toArgb(),
+         secondary = colorScheme.secondary.toArgb(),
+         tertiary = colorScheme.tertiary.toArgb(),
+-      ).withThemeContrast()
++      )
+     }
+-  val visualizerPalette by produceState(
++  val artworkPalette by produceState(
+     initialValue = palette,
+     key1 = albumArtBitmap,
+     key2 = palette,
+   ) {
+     val artwork = albumArtBitmap
++    value = palette
+     value =
+       if (artwork == null) {
+         palette
+@@ -1097,6 +1100,23 @@ fun AudioPlayerControls(
+     animationSpec = tween(durationMillis = 800),
+     label = "ambient_bottom_color",
+   )
++  val visualizerPalette =
++    remember(artworkPalette, animatedAmbientTop, animatedAmbientBottom) {
++      val surface = artworkPalette.background
++      val topBackdrop =
++        ColorUtils.compositeColors(
++          animatedAmbientTop.copy(alpha = animatedAmbientTop.alpha * 0.65f).toArgb(),
++          ColorUtils.compositeColors(animatedAmbientTop.toArgb(), surface),
++        )
++      val bottomBackdrop =
++        ColorUtils.compositeColors(
++          animatedAmbientBottom.copy(alpha = animatedAmbientBottom.alpha * 0.35f).toArgb(),
++          ColorUtils.compositeColors(animatedAmbientBottom.toArgb(), surface),
++        )
++      artworkPalette.withThemeContrast(
++        listOf(surface, topBackdrop, bottomBackdrop, ColorUtils.blendARGB(topBackdrop, bottomBackdrop, 0.5f)),
++      )
++    }
+   val edgeToEdgeVisualizer = showVisualizer && (!showInPlaceLyrics || isTabletLandscape)
+   val controlsSidePadding = if (edgeToEdgeVisualizer) 16.dp else 0.dp
+   Box(
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/visualizer/BlobComposable.kt b/app/src/main/java/com/quantummpv/app/ui/player/visualizer/BlobComposable.kt
+index 98377acb..b6f55812 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/visualizer/BlobComposable.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/visualizer/BlobComposable.kt
+@@ -78,7 +78,7 @@ private fun <T> VisualizerOverlay(
+   isSheetOpen: Boolean = false,
+   features: AudioFeatures,
+   factory: (android.content.Context, AudioFeatures, VisualizerPalette) -> T,
+-) where T : GLSurfaceView, T : PaletteConsumer {
++) where T : VisualizerTextureView, T : PaletteConsumer {
+   AndroidView(
+     factory = { ctx ->
+       factory(ctx, features, palette).apply {
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/visualizer/BlobRenderer.kt b/app/src/main/java/com/quantummpv/app/ui/player/visualizer/BlobRenderer.kt
+index ea508766..ef285450 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/visualizer/BlobRenderer.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/visualizer/BlobRenderer.kt
+@@ -470,7 +470,12 @@ internal class BlobRenderer(
+     GLES30.glViewport(0, 0, sceneTarget.width, sceneTarget.height)
+     GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT)
+     GLES30.glEnable(GLES30.GL_BLEND)
+-    GLES30.glBlendFunc(GLES30.GL_SRC_ALPHA, GLES30.GL_ONE)
++    GLES30.glBlendFuncSeparate(
++      GLES30.GL_SRC_ALPHA,
++      GLES30.GL_ONE,
++      GLES30.GL_ONE,
++      GLES30.GL_ONE_MINUS_SRC_ALPHA,
++    )
+ 
+     GLES30.glUseProgram(blobProgram)
+     GLES30.glUniformMatrix4fv(uBlobMvp, 1, false, mvp, 0)
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/visualizer/BlobVisualizerView.kt b/app/src/main/java/com/quantummpv/app/ui/player/visualizer/BlobVisualizerView.kt
+index 5c8c5f59..317d7dbf 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/visualizer/BlobVisualizerView.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/visualizer/BlobVisualizerView.kt
+@@ -10,9 +10,6 @@
+ package com.quantummpv.app.ui.player.visualizer
+ 
+ import android.content.Context
+-import android.graphics.Color
+-import android.graphics.PixelFormat
+-import android.opengl.GLSurfaceView
+ import android.view.MotionEvent
+ 
+ internal class BlobVisualizerView(
+@@ -20,7 +17,7 @@ internal class BlobVisualizerView(
+   features: AudioFeatures,
+   palette: VisualizerPalette,
+   reducedMotion: Boolean = false,
+-) : GLSurfaceView(context),
++) : VisualizerTextureView(context),
+   PaletteConsumer {
+   private val blobRenderer =
+     BlobRenderer(context.applicationContext, features, palette, reducedMotion)
+@@ -33,15 +30,7 @@ internal class BlobVisualizerView(
+   private var previousPointerCount = 0
+ 
+   init {
+-    setEGLContextClientVersion(3)
+-    setEGLConfigChooser(8, 8, 8, 8, 16, 0)
+-    holder.setFormat(PixelFormat.TRANSLUCENT)
+-    setBackgroundColor(Color.TRANSPARENT)
+-    setZOrderOnTop(false)
+-    setZOrderMediaOverlay(true)
+-    preserveEGLContextOnPause = true
+     setRenderer(blobRenderer)
+-    renderMode = RENDERMODE_WHEN_DIRTY
+   }
+ 
+   override fun onTouchEvent(event: MotionEvent): Boolean {
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/visualizer/CuboidComposable.kt b/app/src/main/java/com/quantummpv/app/ui/player/visualizer/CuboidComposable.kt
+index 1a7787eb..47a7fc95 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/visualizer/CuboidComposable.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/visualizer/CuboidComposable.kt
+@@ -31,7 +31,6 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
+ import androidx.compose.ui.graphics.drawscope.Stroke
+ import androidx.compose.ui.input.pointer.pointerInput
+ import kotlinx.coroutines.isActive
+-import kotlin.math.abs
+ import kotlin.math.cos
+ import kotlin.math.max
+ import kotlin.math.min
+@@ -303,9 +302,7 @@ private fun DrawScope.drawCuboidTunnel(
+       } else {
+         mixCuboidRgb(tones.secondary, tones.tertiary, (paletteDepth - 0.5f) * 2f)
+       }
+-    val ringR = max(state.slowColor.r, state.fastColor.r - depth) * 0.38f + paletteTone.r * 0.62f
+-    val ringG = max(state.slowColor.g, state.fastColor.g - depth) * 0.38f + paletteTone.g * 0.62f
+-    val ringB = max(state.slowColor.b, state.fastColor.b - depth) * 0.38f + paletteTone.b * 0.62f
++    val ringTone = mixCuboidRgb(paletteTone, tones.primary, state.invertValue / 255f)
+ 
+     for (bucket in 0 until COLOR_BUCKETS) {
+       ring.bucketPaths[bucket].reset()
+@@ -389,7 +386,7 @@ private fun DrawScope.drawCuboidTunnel(
+         } else {
+           ringIndex.toFloat() / ringCount.toFloat() * 200f
+         }
+-      val color = cuboidLineColor(ringR, ringG, ringB, lineValue, state.invertValue)
++      val color = cuboidLineColor(ringTone, lineValue)
+       drawPath(ring.bucketPaths[bucket], color = color, style = stroke)
+     }
+   }
+@@ -468,22 +465,12 @@ private fun Path.edge(
+ }
+ 
+ private fun cuboidLineColor(
+-  r: Float,
+-  g: Float,
+-  b: Float,
++  tone: CuboidRgb,
+   lineValue: Float,
+-  invertValue: Float,
+-): Color {
+-  var red = (r * lineValue).roundToInt().coerceIn(0, 255)
+-  var green = (g * lineValue).roundToInt().coerceIn(0, 255)
+-  var blue = (b * lineValue).roundToInt().coerceIn(0, 255)
+-
+-  if (invertValue > 0f) {
+-    val invert = invertValue.roundToInt().coerceIn(0, 255)
+-    red = abs(invert - red).coerceIn(0, 255)
+-    green = abs(invert - green).coerceIn(0, 255)
+-    blue = abs(invert - blue).coerceIn(0, 255)
+-  }
+-
+-  return Color(red = red, green = green, blue = blue, alpha = 255)
+-}
++): Color =
++  Color(
++    red = (tone.r * 255f).roundToInt().coerceIn(0, 255),
++    green = (tone.g * 255f).roundToInt().coerceIn(0, 255),
++    blue = (tone.b * 255f).roundToInt().coerceIn(0, 255),
++    alpha = lineValue.roundToInt().coerceIn(0, 255),
++  )
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/visualizer/GalaxyRenderer.kt b/app/src/main/java/com/quantummpv/app/ui/player/visualizer/GalaxyRenderer.kt
+index 159bb2ff..63c05bd9 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/visualizer/GalaxyRenderer.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/visualizer/GalaxyRenderer.kt
+@@ -203,7 +203,12 @@ internal class GalaxyRenderer(
+     GLES30.glClearColor(0f, 0f, 0f, 0f)
+     GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT)
+     GLES30.glEnable(GLES30.GL_BLEND)
+-    GLES30.glBlendFunc(GLES30.GL_SRC_ALPHA, GLES30.GL_ONE)
++    GLES30.glBlendFuncSeparate(
++      GLES30.GL_SRC_ALPHA,
++      GLES30.GL_ONE,
++      GLES30.GL_ONE,
++      GLES30.GL_ONE_MINUS_SRC_ALPHA,
++    )
+     GLES30.glDepthMask(false)
+ 
+     GLES30.glUseProgram(program)
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/visualizer/GalaxyVisualizerView.kt b/app/src/main/java/com/quantummpv/app/ui/player/visualizer/GalaxyVisualizerView.kt
+index 047f7cc0..752ea217 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/visualizer/GalaxyVisualizerView.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/visualizer/GalaxyVisualizerView.kt
+@@ -10,9 +10,6 @@
+ package com.quantummpv.app.ui.player.visualizer
+ 
+ import android.content.Context
+-import android.graphics.Color
+-import android.graphics.PixelFormat
+-import android.opengl.GLSurfaceView
+ import android.view.MotionEvent
+ 
+ internal class GalaxyVisualizerView(
+@@ -20,7 +17,7 @@ internal class GalaxyVisualizerView(
+   features: AudioFeatures,
+   palette: VisualizerPalette,
+   reducedMotion: Boolean = false,
+-) : GLSurfaceView(context),
++) : VisualizerTextureView(context),
+   PaletteConsumer {
+   private val galaxyRenderer =
+     GalaxyRenderer(
+@@ -34,15 +31,7 @@ internal class GalaxyVisualizerView(
+   private var previousY = 0f
+ 
+   init {
+-    setEGLContextClientVersion(3)
+-    setEGLConfigChooser(8, 8, 8, 8, 16, 0)
+-    holder.setFormat(PixelFormat.TRANSLUCENT)
+-    setBackgroundColor(Color.TRANSPARENT)
+-    setZOrderOnTop(false)
+-    setZOrderMediaOverlay(true)
+-    preserveEGLContextOnPause = true
+     setRenderer(galaxyRenderer)
+-    renderMode = RENDERMODE_WHEN_DIRTY
+     isClickable = true
+   }
+ 
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/visualizer/ParticleFeedbackRenderer.kt b/app/src/main/java/com/quantummpv/app/ui/player/visualizer/ParticleFeedbackRenderer.kt
+index 20a850c2..4469ce45 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/visualizer/ParticleFeedbackRenderer.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/visualizer/ParticleFeedbackRenderer.kt
+@@ -129,7 +129,6 @@ internal class ParticleFeedbackRenderer(
+   private var uCompCA = -1
+   private var uCompExposure = -1
+   private var uCompVig = -1
+-  private var uCompIsDarkTheme = -1
+   private var uCompPrimaryColor = -1
+   private var uCompSecondaryColor = -1
+ 
+@@ -286,16 +285,18 @@ internal class ParticleFeedbackRenderer(
+     /* 5. Composite Pass to Screen with Dynamic Colors & Theme Adaptation */
+     val primaryRgb = requestedPalette.primaryRgb()
+     val secondaryRgb = requestedPalette.secondaryRgb()
+-    val bgRgb = requestedPalette.backgroundRgb()
+-    val bgLuminance = 0.299f * bgRgb[0] + 0.587f * bgRgb[1] + 0.114f * bgRgb[2]
+-    val isDarkTheme = if (bgLuminance < 0.5f) 1.0f else 0.0f
+ 
+     GLES30.glViewport(0, 0, viewportWidth, viewportHeight)
+     GLES30.glClearColor(0f, 0f, 0f, 0f)
+     GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT)
+ 
+     GLES30.glEnable(GLES30.GL_BLEND)
+-    GLES30.glBlendFunc(GLES30.GL_SRC_ALPHA, GLES30.GL_ONE_MINUS_SRC_ALPHA)
++    GLES30.glBlendFuncSeparate(
++      GLES30.GL_SRC_ALPHA,
++      GLES30.GL_ONE_MINUS_SRC_ALPHA,
++      GLES30.GL_ONE,
++      GLES30.GL_ONE_MINUS_SRC_ALPHA,
++    )
+ 
+     GLES30.glUseProgram(pComp)
+     GLES30.glUniform1i(uCompTrail, 0)
+@@ -307,7 +308,6 @@ internal class ParticleFeedbackRenderer(
+     GLES30.glUniform1f(uCompCA, Cfg.CHROMATIC_ABERRATION)
+     GLES30.glUniform1f(uCompExposure, Cfg.EXPOSURE)
+     GLES30.glUniform1f(uCompVig, Cfg.VIGNETTE)
+-    GLES30.glUniform1f(uCompIsDarkTheme, isDarkTheme)
+     GLES30.glUniform3f(uCompPrimaryColor, primaryRgb[0], primaryRgb[1], primaryRgb[2])
+     GLES30.glUniform3f(uCompSecondaryColor, secondaryRgb[0], secondaryRgb[1], secondaryRgb[2])
+     GLES30.glDrawArrays(GLES30.GL_TRIANGLES, 0, 3)
+@@ -494,7 +494,6 @@ internal class ParticleFeedbackRenderer(
+     uCompCA = GLES30.glGetUniformLocation(pComp, "uCA")
+     uCompExposure = GLES30.glGetUniformLocation(pComp, "uExposure")
+     uCompVig = GLES30.glGetUniformLocation(pComp, "uVig")
+-    uCompIsDarkTheme = GLES30.glGetUniformLocation(pComp, "uIsDarkTheme")
+     uCompPrimaryColor = GLES30.glGetUniformLocation(pComp, "uPrimaryColor")
+     uCompSecondaryColor = GLES30.glGetUniformLocation(pComp, "uSecondaryColor")
+   }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/visualizer/ParticleVisualizerView.kt b/app/src/main/java/com/quantummpv/app/ui/player/visualizer/ParticleVisualizerView.kt
+index 2f95c4aa..eed06b33 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/visualizer/ParticleVisualizerView.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/visualizer/ParticleVisualizerView.kt
+@@ -10,9 +10,6 @@
+ package com.quantummpv.app.ui.player.visualizer
+ 
+ import android.content.Context
+-import android.graphics.Color
+-import android.graphics.PixelFormat
+-import android.opengl.GLSurfaceView
+ import android.view.MotionEvent
+ 
+ internal class ParticleVisualizerView(
+@@ -20,7 +17,7 @@ internal class ParticleVisualizerView(
+   features: AudioFeatures,
+   palette: VisualizerPalette,
+   reducedMotion: Boolean = false,
+-) : GLSurfaceView(context), PaletteConsumer {
++) : VisualizerTextureView(context), PaletteConsumer {
+   private val renderer = ParticleFeedbackRenderer(
+     context.applicationContext,
+     features,
+@@ -29,15 +26,7 @@ internal class ParticleVisualizerView(
+   )
+ 
+   init {
+-    setEGLContextClientVersion(3)
+-    setEGLConfigChooser(8, 8, 8, 8, 16, 0)
+-    holder.setFormat(PixelFormat.TRANSLUCENT)
+-    setBackgroundColor(Color.TRANSPARENT)
+-    setZOrderOnTop(false)
+-    setZOrderMediaOverlay(true)
+-    preserveEGLContextOnPause = true
+     setRenderer(renderer)
+-    renderMode = RENDERMODE_WHEN_DIRTY
+     isClickable = true
+   }
+ 
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/visualizer/VisualizerTextureView.kt b/app/src/main/java/com/quantummpv/app/ui/player/visualizer/VisualizerTextureView.kt
+new file mode 100644
+index 00000000..0f6e583a
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/ui/player/visualizer/VisualizerTextureView.kt
+@@ -0,0 +1,248 @@
++package com.quantummpv.app.ui.player.visualizer
++
++import android.content.Context
++import android.graphics.SurfaceTexture
++import android.opengl.EGL14
++import android.opengl.EGLConfig
++import android.opengl.EGLExt
++import android.opengl.GLSurfaceView
++import android.os.Handler
++import android.os.HandlerThread
++import android.util.Log
++import android.view.Choreographer
++import android.view.TextureView
++import android.view.View
++
++internal abstract class VisualizerTextureView(
++  context: Context,
++) : TextureView(context), TextureView.SurfaceTextureListener {
++  private var glRenderer: GLSurfaceView.Renderer? = null
++  private var renderSession: RenderSession? = null
++  private var retiringSession: RenderSession? = null
++
++  var renderMode: Int = GLSurfaceView.RENDERMODE_WHEN_DIRTY
++    set(value) {
++      require(value == GLSurfaceView.RENDERMODE_WHEN_DIRTY || value == GLSurfaceView.RENDERMODE_CONTINUOUSLY)
++      field = value
++      updateRendering()
++    }
++
++  init {
++    isOpaque = false
++    surfaceTextureListener = this
++  }
++
++  protected fun setRenderer(renderer: GLSurfaceView.Renderer) {
++    check(glRenderer == null)
++    glRenderer = renderer
++  }
++
++  override fun onSurfaceTextureAvailable(
++    surface: SurfaceTexture,
++    width: Int,
++    height: Int,
++  ) {
++    renderSession = RenderSession(surface, checkNotNull(glRenderer), width, height, retiringSession)
++    retiringSession = null
++    updateRendering()
++  }
++
++  override fun onSurfaceTextureSizeChanged(
++    surface: SurfaceTexture,
++    width: Int,
++    height: Int,
++  ) {
++    renderSession?.resize(width, height)
++  }
++
++  override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean {
++    val session = renderSession ?: return true
++    renderSession = null
++    retiringSession = session
++    session.release()
++    return false
++  }
++
++  override fun onSurfaceTextureUpdated(surface: SurfaceTexture) = Unit
++
++  override fun onVisibilityChanged(
++    changedView: View,
++    visibility: Int,
++  ) {
++    super.onVisibilityChanged(changedView, visibility)
++    updateRendering()
++  }
++
++  override fun onWindowVisibilityChanged(visibility: Int) {
++    super.onWindowVisibilityChanged(visibility)
++    updateRendering()
++  }
++
++  private fun updateRendering() {
++    renderSession?.setRenderingEnabled(
++      isShown && windowVisibility == VISIBLE && renderMode == GLSurfaceView.RENDERMODE_CONTINUOUSLY,
++    )
++  }
++
++  private class RenderSession(
++    private val texture: SurfaceTexture,
++    private val renderer: GLSurfaceView.Renderer,
++    width: Int,
++    height: Int,
++    previousSession: RenderSession?,
++  ) {
++    private val thread = HandlerThread("VisualizerGL").apply { start() }
++    private val handler = Handler(thread.looper)
++    private var display = EGL14.EGL_NO_DISPLAY
++    private var context = EGL14.EGL_NO_CONTEXT
++    private var surface = EGL14.EGL_NO_SURFACE
++    private var choreographer: Choreographer? = null
++    private val frameCallback = Choreographer.FrameCallback { drawFrame() }
++    private var surfaceWidth = width.coerceAtLeast(1)
++    private var surfaceHeight = height.coerceAtLeast(1)
++    private var sizeChanged = true
++    private var renderingEnabled = false
++    private var ready = false
++
++    @Volatile
++    private var stopping = false
++
++    init {
++      handler.post {
++        try {
++          previousSession?.thread?.join()
++          if (!stopping) {
++            createEgl()
++            renderer.onSurfaceCreated(null, null)
++            choreographer = Choreographer.getInstance()
++            ready = true
++            requestFrame()
++          }
++        } catch (error: Exception) {
++          if (error is InterruptedException) Thread.currentThread().interrupt()
++          fail(error)
++        }
++      }
++    }
++
++    fun resize(
++      width: Int,
++      height: Int,
++    ) {
++      handler.post {
++        surfaceWidth = width.coerceAtLeast(1)
++        surfaceHeight = height.coerceAtLeast(1)
++        sizeChanged = true
++        requestFrame()
++      }
++    }
++
++    fun setRenderingEnabled(enabled: Boolean) {
++      handler.post {
++        renderingEnabled = enabled
++        if (enabled) {
++          requestFrame()
++        } else {
++          choreographer?.removeFrameCallback(frameCallback)
++        }
++      }
++    }
++
++    fun release() {
++      stopping = true
++      handler.post {
++        try {
++          releaseEgl()
++        } finally {
++          texture.release()
++          thread.quitSafely()
++        }
++      }
++    }
++
++    private fun requestFrame() {
++      if (!ready || stopping) return
++      choreographer?.removeFrameCallback(frameCallback)
++      choreographer?.postFrameCallback(frameCallback)
++    }
++
++    private fun drawFrame() {
++      if (!ready || stopping) return
++      try {
++        if (sizeChanged) {
++          renderer.onSurfaceChanged(null, surfaceWidth, surfaceHeight)
++          sizeChanged = false
++        }
++        renderer.onDrawFrame(null)
++        check(EGL14.eglSwapBuffers(display, surface)) { "Unable to swap visualizer buffers" }
++        if (renderingEnabled) requestFrame()
++      } catch (error: RuntimeException) {
++        fail(error)
++      }
++    }
++
++    private fun createEgl() {
++      display = EGL14.eglGetDisplay(EGL14.EGL_DEFAULT_DISPLAY)
++      check(display != EGL14.EGL_NO_DISPLAY) { "Unable to get visualizer EGL display" }
++      val version = IntArray(2)
++      check(EGL14.eglInitialize(display, version, 0, version, 1)) { "Unable to initialize visualizer EGL" }
++      val attributes =
++        intArrayOf(
++          EGL14.EGL_RENDERABLE_TYPE,
++          EGLExt.EGL_OPENGL_ES3_BIT_KHR,
++          EGL14.EGL_SURFACE_TYPE,
++          EGL14.EGL_WINDOW_BIT,
++          EGL14.EGL_RED_SIZE,
++          8,
++          EGL14.EGL_GREEN_SIZE,
++          8,
++          EGL14.EGL_BLUE_SIZE,
++          8,
++          EGL14.EGL_ALPHA_SIZE,
++          8,
++          EGL14.EGL_DEPTH_SIZE,
++          16,
++          EGL14.EGL_NONE,
++        )
++      val configs = arrayOfNulls<EGLConfig>(1)
++      val configCount = IntArray(1)
++      check(EGL14.eglChooseConfig(display, attributes, 0, configs, 0, 1, configCount, 0) && configCount[0] > 0) {
++        "No transparent OpenGL ES 3 visualizer configuration"
++      }
++      val config = checkNotNull(configs[0])
++      context =
++        EGL14.eglCreateContext(
++          display,
++          config,
++          EGL14.EGL_NO_CONTEXT,
++          intArrayOf(EGL14.EGL_CONTEXT_CLIENT_VERSION, 3, EGL14.EGL_NONE),
++          0,
++        )
++      check(context != EGL14.EGL_NO_CONTEXT) { "Unable to create visualizer EGL context" }
++      surface = EGL14.eglCreateWindowSurface(display, config, texture, intArrayOf(EGL14.EGL_NONE), 0)
++      check(surface != EGL14.EGL_NO_SURFACE) { "Unable to create visualizer EGL surface" }
++      check(EGL14.eglMakeCurrent(display, surface, surface, context)) { "Unable to bind visualizer EGL context" }
++    }
++
++    private fun fail(error: Exception) {
++      Log.e("VisualizerTextureView", "Visualizer rendering failed", error)
++      releaseEgl()
++    }
++
++    private fun releaseEgl() {
++      ready = false
++      choreographer?.removeFrameCallback(frameCallback)
++      choreographer = null
++      if (display != EGL14.EGL_NO_DISPLAY) {
++        EGL14.eglMakeCurrent(display, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_CONTEXT)
++        if (surface != EGL14.EGL_NO_SURFACE) EGL14.eglDestroySurface(display, surface)
++        if (context != EGL14.EGL_NO_CONTEXT) EGL14.eglDestroyContext(display, context)
++        EGL14.eglTerminate(display)
++      }
++      EGL14.eglReleaseThread()
++      display = EGL14.EGL_NO_DISPLAY
++      context = EGL14.EGL_NO_CONTEXT
++      surface = EGL14.EGL_NO_SURFACE
++    }
++  }
++}
+\ No newline at end of file
+-- 
+2.25.1
+

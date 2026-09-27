@@ -1,0 +1,80 @@
+From 90a228ae6c99156495911965a7210d713c2b2a12 Mon Sep 17 00:00:00 2001
+From: "dependabot[bot]" <49699333+dependabot[bot]@users.noreply.github.com>
+Date: Tue, 8 Sep 2026 09:26:52 +0000
+Subject: [PATCH 052/140] chore(deps): bump actions/setup-java from 5 to 6
+
+Bumps [actions/setup-java](https://github.com/actions/setup-java) from 5 to 6.
+- [Release notes](https://github.com/actions/setup-java/releases)
+- [Commits](https://github.com/actions/setup-java/compare/v5...v6)
+
+---
+updated-dependencies:
+- dependency-name: actions/setup-java
+  dependency-version: '6'
+  dependency-type: direct:production
+  update-type: version-update:semver-major
+...
+
+Signed-off-by: dependabot[bot] <support@github.com>
+---
+ .github/workflows/build.yml       | 2 +-
+ .github/workflows/pre-release.yml | 2 +-
+ .github/workflows/preview.yml     | 2 +-
+ .github/workflows/release.yml     | 2 +-
+ 4 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/.github/workflows/build.yml b/.github/workflows/build.yml
+index 800ec59b..fa04ab51 100644
+--- a/.github/workflows/build.yml
++++ b/.github/workflows/build.yml
+@@ -50,7 +50,7 @@ jobs:
+           echo "COMMIT_COUNT=$(git rev-list --count HEAD)" >> "$GITHUB_ENV"
+ 
+       - name: Set up JDK 17
+-        uses: actions/setup-java@v5
++        uses: actions/setup-java@v6
+         with:
+           distribution: temurin
+           java-version: '17'
+diff --git a/.github/workflows/pre-release.yml b/.github/workflows/pre-release.yml
+index fc844fa7..8a2cc049 100644
+--- a/.github/workflows/pre-release.yml
++++ b/.github/workflows/pre-release.yml
+@@ -21,7 +21,7 @@ jobs:
+           fetch-depth: 0
+ 
+       - name: Set up JDK 17
+-        uses: actions/setup-java@v5
++        uses: actions/setup-java@v6
+         with:
+           distribution: temurin
+           java-version: '17'
+diff --git a/.github/workflows/preview.yml b/.github/workflows/preview.yml
+index ed64ce45..897b9e5e 100644
+--- a/.github/workflows/preview.yml
++++ b/.github/workflows/preview.yml
+@@ -116,7 +116,7 @@ jobs:
+ 
+       - name: Set up JDK 17
+         if: steps.activity.outputs.should_build == 'true'
+-        uses: actions/setup-java@v5
++        uses: actions/setup-java@v6
+         with:
+           distribution: temurin
+           java-version: '17'
+diff --git a/.github/workflows/release.yml b/.github/workflows/release.yml
+index 16023b9a..43490e0c 100644
+--- a/.github/workflows/release.yml
++++ b/.github/workflows/release.yml
+@@ -27,7 +27,7 @@ jobs:
+           fetch-depth: 0
+ 
+       - name: Set up JDK 17
+-        uses: actions/setup-java@v5
++        uses: actions/setup-java@v6
+         with:
+           distribution: temurin
+           java-version: '17'
+-- 
+2.25.1
+

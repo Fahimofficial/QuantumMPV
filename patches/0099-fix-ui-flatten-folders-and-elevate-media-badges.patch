@@ -1,0 +1,342 @@
+From 303df31e687ba8e70d08715ae81a4e17e1be09b0 Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <riteshp2001@gmail.com>
+Date: Tue, 15 Sep 2026 12:01:36 +0530
+Subject: [PATCH 099/140] fix(ui): flatten folders and elevate media badges
+
+---
+ .../mpvrx/ui/browser/cards/CardOverlay.kt     | 27 +++++++++
+ .../mpvrx/ui/browser/cards/FolderCard.kt      | 10 ++--
+ .../mpvrx/ui/browser/cards/VideoCard.kt       | 55 +++++++++++--------
+ .../mpvrx/ui/preferences/PreferencesScreen.kt |  2 +-
+ app/src/main/res/values-ar/strings.xml        |  1 +
+ app/src/main/res/values-de/strings.xml        |  1 +
+ app/src/main/res/values-es/strings.xml        |  1 +
+ app/src/main/res/values-fr/strings.xml        |  1 +
+ app/src/main/res/values-hi/strings.xml        |  1 +
+ app/src/main/res/values-ja/strings.xml        |  1 +
+ app/src/main/res/values-pt-rBR/strings.xml    |  1 +
+ app/src/main/res/values-ru/strings.xml        |  1 +
+ app/src/main/res/values-zh-rCN/strings.xml    |  1 +
+ app/src/main/res/values/strings.xml           |  1 +
+ 14 files changed, 75 insertions(+), 29 deletions(-)
+ create mode 100644 app/src/main/java/com/quantummpv/app/ui/browser/cards/CardOverlay.kt
+
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/cards/CardOverlay.kt b/app/src/main/java/com/quantummpv/app/ui/browser/cards/CardOverlay.kt
+new file mode 100644
+index 00000000..08fa8b7c
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/cards/CardOverlay.kt
+@@ -0,0 +1,27 @@
++/*
++ * SPDX-License-Identifier: AGPL-3.0-or-later
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Affero General Public License as published
++ * by the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ */
++
++package com.quantummpv.app.ui.browser.cards
++
++import androidx.compose.foundation.background
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.draw.clip
++import androidx.compose.ui.draw.shadow
++import androidx.compose.ui.graphics.Color
++import androidx.compose.ui.graphics.Shape
++import androidx.compose.ui.unit.dp
++import com.quantummpv.app.ui.theme.AppShapeScale
++
++internal fun Modifier.cardOverlay(
++  shape: Shape = AppShapeScale.extraSmall,
++  containerColor: Color = Color.Black.copy(alpha = 0.72f),
++): Modifier =
++  shadow(elevation = 3.dp, shape = shape, clip = false)
++    .clip(shape)
++    .background(containerColor)
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/cards/FolderCard.kt b/app/src/main/java/com/quantummpv/app/ui/browser/cards/FolderCard.kt
+index fda369b9..1d472ea3 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/cards/FolderCard.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/cards/FolderCard.kt
+@@ -177,6 +177,7 @@ fun FolderCard(
+       shape = AppShapeScale.full,
+       color = MaterialTheme.colorScheme.primary.copy(alpha = 0.94f),
+       contentColor = MaterialTheme.colorScheme.onPrimary,
++      shadowElevation = 3.dp,
+       modifier = modifier.rotate(-18f),
+     ) {
+       Icon(
+@@ -316,8 +317,7 @@ fun FolderCard(
+                   Modifier
+                     .align(Alignment.TopEnd)
+                     .padding(6.dp)
+-                    .clip(AppShapeScale.extraSmall)
+-                    .background(Color(0xFFD32F2F))
++                      .cardOverlay(containerColor = Color(0xFFD32F2F))
+                     .padding(horizontal = 6.dp, vertical = 2.dp),
+               ) {
+                 Text(
+@@ -346,8 +346,7 @@ fun FolderCard(
+                   Modifier
+                     .align(Alignment.BottomEnd)
+                     .padding(6.dp)
+-                    .clip(AppShapeScale.extraSmall)
+-                    .background(Color.Black.copy(alpha = 0.65f))
++                      .cardOverlay()
+                     .padding(horizontal = 6.dp, vertical = 2.dp),
+               ) {
+                 Text(
+@@ -431,8 +430,7 @@ fun FolderCard(
+                   Modifier
+                     .align(Alignment.TopEnd)
+                     .padding(4.dp)
+-                    .clip(AppShapeScale.extraSmall)
+-                    .background(Color(0xFFD32F2F)) // Warning red color
++                      .cardOverlay(containerColor = Color(0xFFD32F2F))
+                     .padding(horizontal = 6.dp, vertical = 2.dp),
+               ) {
+                 Text(
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/cards/VideoCard.kt b/app/src/main/java/com/quantummpv/app/ui/browser/cards/VideoCard.kt
+index 72c8d98b..dd79e4f5 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/cards/VideoCard.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/cards/VideoCard.kt
+@@ -369,8 +369,7 @@ fun VideoCard(
+                     Modifier
+                       .align(Alignment.TopStart)
+                       .padding(6.dp)
+-                      .clip(AppShapeScale.extraSmall)
+-                      .background(Color(0xFFD32F2F)) // Warning red color
++                      .cardOverlay(containerColor = Color(0xFFD32F2F))
+                       .padding(horizontal = 8.dp, vertical = 3.dp),
+                 ) {
+                   Text(
+@@ -392,12 +391,16 @@ fun VideoCard(
+                 verticalAlignment = Alignment.CenterVertically,
+               ) {
+                 if (isWatched) {
+-                  Icon(
+-                    imageVector = Icons.RoundedFilled.CheckCircle,
+-                    contentDescription = "Watched",
+-                    modifier = Modifier.size(26.dp),
+-                    tint = Color.White,
+-                  )
++                  Box(
++                    modifier = Modifier.cardOverlay(shape = AppShapeScale.full).padding(4.dp),
++                  ) {
++                    Icon(
++                      imageVector = Icons.RoundedFilled.CheckCircle,
++                      contentDescription = stringResource(R.string.video_label_watched),
++                      modifier = Modifier.size(18.dp),
++                      tint = Color.White,
++                    )
++                  }
+                 }
+                 if (showCodecSupportIndicator && !video.isAudio && video.videoCodec.isNotBlank()) {
+                   CodecSupportIndicator(video = video, compact = true)
+@@ -412,8 +415,7 @@ fun VideoCard(
+                   Modifier
+                     .align(Alignment.BottomEnd)
+                     .padding(6.dp)
+-                    .clip(AppShapeScale.extraSmall)
+-                    .background(Color.Black.copy(alpha = 0.65f))
++                      .cardOverlay()
+                     .padding(horizontal = 6.dp, vertical = 2.dp),
+               ) {
+                 Text(
+@@ -709,8 +711,7 @@ fun VideoCard(
+                     Modifier
+                       .align(Alignment.TopStart)
+                       .padding(6.dp)
+-                      .clip(AppShapeScale.extraSmall)
+-                      .background(Color(0xFFD32F2F)) // Warning red color
++                      .cardOverlay(containerColor = Color(0xFFD32F2F))
+                       .padding(horizontal = 8.dp, vertical = 3.dp),
+                 ) {
+                   Text(
+@@ -726,12 +727,21 @@ fun VideoCard(
+             }
+ 
+             if (isWatched) {
+-              Icon(
+-                imageVector = Icons.RoundedFilled.CheckCircle,
+-                contentDescription = "Watched",
+-                modifier = Modifier.align(Alignment.TopEnd).padding(6.dp).size(26.dp),
+-                tint = Color.White,
+-              )
++              Box(
++                modifier =
++                  Modifier
++                    .align(Alignment.TopEnd)
++                    .padding(6.dp)
++                    .cardOverlay(shape = AppShapeScale.full)
++                    .padding(4.dp),
++              ) {
++                Icon(
++                  imageVector = Icons.RoundedFilled.CheckCircle,
++                  contentDescription = stringResource(R.string.video_label_watched),
++                  modifier = Modifier.size(18.dp),
++                  tint = Color.White,
++                )
++              }
+             }
+ 
+             // Duration timestamp overlay at bottom-right of the thumbnail
+@@ -741,8 +751,7 @@ fun VideoCard(
+                   Modifier
+                     .align(Alignment.BottomEnd)
+                     .padding(6.dp)
+-                    .clip(AppShapeScale.extraSmall)
+-                    .background(Color.Black.copy(alpha = 0.65f))
++                      .cardOverlay()
+                     .padding(horizontal = 6.dp, vertical = 2.dp),
+               ) {
+                 Text(
+@@ -934,8 +943,10 @@ private fun CodecSupportIndicator(
+   Row(
+     modifier =
+       modifier
+-        .clip(AppShapeScale.small)
+-        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
++        .cardOverlay(
++          shape = AppShapeScale.small,
++          containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
++        )
+         .padding(horizontal = if (compact) 6.dp else 8.dp, vertical = if (compact) 3.dp else 4.dp),
+     verticalAlignment = Alignment.CenterVertically,
+   ) {
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/PreferencesScreen.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/PreferencesScreen.kt
+index f96d5a3b..60254341 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/PreferencesScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/PreferencesScreen.kt
+@@ -311,7 +311,7 @@ object PreferencesScreen : Screen {
+             SettingsDestination(
+               title = stringResource(R.string.ui_network),
+               summary = stringResource(R.string.pref_section_p2p_streaming),
+-              icon = Icons.RoundedFilled.SettingsEthernet,
++              icon = Icons.RoundedFilled.Language,
+               screen = NetworkConfigurationPreferencesScreen,
+             ),
+             SettingsDestination(
+diff --git a/app/src/main/res/values-ar/strings.xml b/app/src/main/res/values-ar/strings.xml
+index 7d963d5a..1eb57f39 100644
+--- a/app/src/main/res/values-ar/strings.xml
++++ b/app/src/main/res/values-ar/strings.xml
+@@ -73,6 +73,7 @@
+   <string name="ytdl_audio_quality_reload_summary">يُستخدم للرابط التالي أو عند إعادة تحميل الرابط الحالي.</string>
+   <string name="toast_playback_load_failed">تعذر تحميل هذا الرابط</string>
+   <string name="video_label_new">جديد</string>
++  <string name="video_label_watched">تمت المشاهدة</string>
+   <!-- Theme names -->
+   <string name="theme_default">افتراضي</string>
+   <string name="theme_dynamic">ديناميكي</string>
+diff --git a/app/src/main/res/values-de/strings.xml b/app/src/main/res/values-de/strings.xml
+index 57bffe69..a8f7cf0b 100644
+--- a/app/src/main/res/values-de/strings.xml
++++ b/app/src/main/res/values-de/strings.xml
+@@ -73,6 +73,7 @@
+   <string name="ytdl_audio_quality_reload_summary">Wird für den nächsten Link oder beim erneuten Laden des aktuellen Links verwendet.</string>
+   <string name="toast_playback_load_failed">Dieser Link konnte nicht geladen werden</string>
+   <string name="video_label_new">NEU</string>
++  <string name="video_label_watched">Gesehen</string>
+   <!-- Theme names -->
+   <string name="theme_default">Standard</string>
+   <string name="theme_dynamic">Dynamisch</string>
+diff --git a/app/src/main/res/values-es/strings.xml b/app/src/main/res/values-es/strings.xml
+index 8d5513af..3058b520 100644
+--- a/app/src/main/res/values-es/strings.xml
++++ b/app/src/main/res/values-es/strings.xml
+@@ -73,6 +73,7 @@
+   <string name="ytdl_audio_quality_reload_summary">Se usa para el siguiente enlace o cuando se vuelve a cargar el enlace actual.</string>
+   <string name="toast_playback_load_failed">No se pudo cargar este enlace</string>
+   <string name="video_label_new">NUEVO</string>
++  <string name="video_label_watched">Visto</string>
+   <!-- Theme names -->
+   <string name="theme_default">Predeterminado</string>
+   <string name="theme_dynamic">Dinámico</string>
+diff --git a/app/src/main/res/values-fr/strings.xml b/app/src/main/res/values-fr/strings.xml
+index 2b8b5e04..3a8277eb 100644
+--- a/app/src/main/res/values-fr/strings.xml
++++ b/app/src/main/res/values-fr/strings.xml
+@@ -73,6 +73,7 @@
+   <string name="ytdl_audio_quality_reload_summary">Utilisé pour le lien suivant ou lorsque le lien actuel est rechargé.</string>
+   <string name="toast_playback_load_failed">Impossible de charger ce lien</string>
+   <string name="video_label_new">NOUVEAU</string>
++  <string name="video_label_watched">Vu</string>
+   <!-- Theme names -->
+   <string name="theme_default">Par défaut</string>
+   <string name="theme_dynamic">Dynamique</string>
+diff --git a/app/src/main/res/values-hi/strings.xml b/app/src/main/res/values-hi/strings.xml
+index 836e049b..a35f89a9 100644
+--- a/app/src/main/res/values-hi/strings.xml
++++ b/app/src/main/res/values-hi/strings.xml
+@@ -73,6 +73,7 @@
+   <string name="ytdl_audio_quality_reload_summary">अगले लिंक के लिए या मौजूदा लिंक रीलोड होने पर इस्तेमाल होता है।</string>
+   <string name="toast_playback_load_failed">यह लिंक लोड नहीं हो सका</string>
+   <string name="video_label_new">नया</string>
++  <string name="video_label_watched">देखा गया</string>
+   <string name="theme_default">डिफ़ॉल्ट</string>
+   <string name="theme_dynamic">डायनामिक</string>
+   <string name="theme_aurora">Aurora</string>
+diff --git a/app/src/main/res/values-ja/strings.xml b/app/src/main/res/values-ja/strings.xml
+index 0e310bd3..c8f69e27 100644
+--- a/app/src/main/res/values-ja/strings.xml
++++ b/app/src/main/res/values-ja/strings.xml
+@@ -73,6 +73,7 @@
+   <string name="ytdl_audio_quality_reload_summary">次のリンク、または現在のリンクを再読み込みしたときに使用されます。</string>
+   <string name="toast_playback_load_failed">このリンクを読み込めませんでした</string>
+   <string name="video_label_new">新着</string>
++  <string name="video_label_watched">視聴済み</string>
+   <!-- Theme names -->
+   <string name="theme_default">デフォルト</string>
+   <string name="theme_dynamic">ダイナミック</string>
+diff --git a/app/src/main/res/values-pt-rBR/strings.xml b/app/src/main/res/values-pt-rBR/strings.xml
+index 5b45a2ac..fd8caee1 100644
+--- a/app/src/main/res/values-pt-rBR/strings.xml
++++ b/app/src/main/res/values-pt-rBR/strings.xml
+@@ -73,6 +73,7 @@
+   <string name="ytdl_audio_quality_reload_summary">Usado para o próximo link ou quando o link atual for recarregado.</string>
+   <string name="toast_playback_load_failed">Não foi possível carregar este link</string>
+   <string name="video_label_new">NOVO</string>
++  <string name="video_label_watched">Assistido</string>
+   <!-- Theme names -->
+   <string name="theme_default">Padrão</string>
+   <string name="theme_dynamic">Dinâmico</string>
+diff --git a/app/src/main/res/values-ru/strings.xml b/app/src/main/res/values-ru/strings.xml
+index 1efe341c..c04cfbb8 100644
+--- a/app/src/main/res/values-ru/strings.xml
++++ b/app/src/main/res/values-ru/strings.xml
+@@ -73,6 +73,7 @@
+   <string name="ytdl_audio_quality_reload_summary">Используется для следующей ссылки или после перезагрузки текущей.</string>
+   <string name="toast_playback_load_failed">Не удалось загрузить эту ссылку</string>
+   <string name="video_label_new">НОВОЕ</string>
++  <string name="video_label_watched">Просмотрено</string>
+   <!-- Theme names -->
+   <string name="theme_default">По умолчанию</string>
+   <string name="theme_dynamic">Динамическая</string>
+diff --git a/app/src/main/res/values-zh-rCN/strings.xml b/app/src/main/res/values-zh-rCN/strings.xml
+index ec94f221..23c9d795 100644
+--- a/app/src/main/res/values-zh-rCN/strings.xml
++++ b/app/src/main/res/values-zh-rCN/strings.xml
+@@ -73,6 +73,7 @@
+   <string name="ytdl_audio_quality_reload_summary">用于下一个链接，或重新加载当前链接时使用。</string>
+   <string name="toast_playback_load_failed">无法加载此链接</string>
+   <string name="video_label_new">新</string>
++  <string name="video_label_watched">已观看</string>
+   <!-- Theme names -->
+   <string name="theme_default">默认</string>
+   <string name="theme_dynamic">动态</string>
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index 2bd7ab7e..3de6fb45 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -82,6 +82,7 @@
+   <string name="ytdl_audio_quality_reload_summary">Used for the next link or when the current link is reloaded.</string>
+   <string name="toast_playback_load_failed">Could not load this link</string>
+   <string name="video_label_new">NEW</string>
++  <string name="video_label_watched">Watched</string>
+   <!-- Theme names -->
+   <string name="theme_default">Default</string>
+   <string name="theme_dynamic">Dynamic</string>
+-- 
+2.25.1
+

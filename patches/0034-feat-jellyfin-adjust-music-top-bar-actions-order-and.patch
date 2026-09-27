@@ -1,0 +1,160 @@
+From f56a6068215d800983ca4ace00d9c0a0f2b7d00c Mon Sep 17 00:00:00 2001
+From: Arnab Sadhukhan <arnab@Arnabs-Mac-Mini.local>
+Date: Sun, 6 Sep 2026 17:37:44 +0530
+Subject: [PATCH 034/140] feat(jellyfin): adjust music top bar actions order
+ and hide source switcher in jellyfin tab
+
+---
+ .../ui/browser/components/BrowserTopBar.kt    |  4 +
+ .../ui/browser/jellyfin/JellyfinContent.kt    | 81 ++++++++++---------
+ 2 files changed, 46 insertions(+), 39 deletions(-)
+
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/components/BrowserTopBar.kt b/app/src/main/java/com/quantummpv/app/ui/browser/components/BrowserTopBar.kt
+index 21c61a10..438ffbbe 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/components/BrowserTopBar.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/components/BrowserTopBar.kt
+@@ -90,6 +90,7 @@ fun BrowserTopBar(
+   onInvertSelection: (() -> Unit)? = null,
+   onDeselectAll: (() -> Unit)? = null,
+   preSearchActions: @Composable RowScope.() -> Unit = { },
++  postSearchActions: @Composable RowScope.() -> Unit = { },
+   additionalActions: @Composable RowScope.() -> Unit = { },
+   onTitleLongPress: (() -> Unit)? = null,
+   onTitleDoubleTap: (() -> Unit)? = null,
+@@ -134,6 +135,7 @@ fun BrowserTopBar(
+       onRequestClick = onRequestClick,
+       onSettingsClick = onSettingsClick,
+       preSearchActions = preSearchActions,
++      postSearchActions = postSearchActions,
+       additionalActions = additionalActions,
+       modifier = modifier,
+       onTitleLongPress = onTitleLongPress,
+@@ -158,6 +160,7 @@ private fun NormalTopBar(
+   onRequestClick: (() -> Unit)? = null,
+   onSettingsClick: (() -> Unit)?,
+   preSearchActions: @Composable RowScope.() -> Unit = { },
++  postSearchActions: @Composable RowScope.() -> Unit = { },
+   additionalActions: @Composable RowScope.() -> Unit,
+   modifier: Modifier = Modifier,
+   onTitleLongPress: (() -> Unit)?,
+@@ -322,6 +325,7 @@ private fun NormalTopBar(
+           )
+         }
+       }
++      postSearchActions()
+       if (onRequestClick != null) {
+         IconButton(
+           onClick = onRequestClick,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinContent.kt b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinContent.kt
+index 3b57cb79..2207ad2d 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinContent.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinContent.kt
+@@ -435,55 +435,55 @@ fun JellyfinContent(
+           },
+           preSearchActions = {
+             if (!selectionManager.isInSelectionMode) {
+-              if (currentMusicSource == MusicSourceProvider.JELLYFIN || uiState.openLibrary?.isMusic == true) {
++              if (isMusicOnlyMode) {
+                 var isSourceDropdownOpen by remember { mutableStateOf(false) }
+                 Box {
+-                Surface(
+-                  shape = RoundedCornerShape(16.dp),
+-                  color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.8f),
+-                  modifier = Modifier
+-                    .padding(horizontal = 4.dp, vertical = 6.dp)
+-                    .clickable { isSourceDropdownOpen = true },
+-                ) {
+-                  Row(
+-                    verticalAlignment = Alignment.CenterVertically,
+-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
++                  Surface(
++                    shape = RoundedCornerShape(16.dp),
++                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.8f),
++                    modifier = Modifier
++                      .padding(horizontal = 4.dp, vertical = 6.dp)
++                      .clickable { isSourceDropdownOpen = true },
+                   ) {
+-                    if (currentMusicSource == MusicSourceProvider.JELLYFIN) {
+-                      androidx.compose.material3.Icon(
+-                        painter = painterResource(R.drawable.ic_jellyfin),
+-                        contentDescription = null,
+-                        modifier = Modifier.size(16.dp),
+-                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
++                    Row(
++                      verticalAlignment = Alignment.CenterVertically,
++                      modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
++                    ) {
++                      if (currentMusicSource == MusicSourceProvider.JELLYFIN) {
++                        androidx.compose.material3.Icon(
++                          painter = painterResource(R.drawable.ic_jellyfin),
++                          contentDescription = null,
++                          modifier = Modifier.size(16.dp),
++                          tint = MaterialTheme.colorScheme.onSecondaryContainer,
++                        )
++                      } else {
++                        Icon(
++                          Icons.RoundedFilled.Folder,
++                          contentDescription = null,
++                          modifier = Modifier.size(16.dp),
++                          tint = MaterialTheme.colorScheme.onSecondaryContainer,
++                        )
++                      }
++                      Spacer(Modifier.width(6.dp))
++                      Text(
++                        text = if (currentMusicSource == MusicSourceProvider.JELLYFIN) {
++                          stringResource(R.string.pref_jellyfin_title)
++                        } else {
++                          stringResource(R.string.music_source_local)
++                        },
++                        style = MaterialTheme.typography.labelMedium,
++                        fontWeight = FontWeight.Bold,
++                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                       )
+-                    } else {
++                      Spacer(Modifier.width(2.dp))
+                       Icon(
+-                        Icons.RoundedFilled.Folder,
++                        Icons.RoundedFilled.ArrowDropDown,
+                         contentDescription = null,
+                         modifier = Modifier.size(16.dp),
+                         tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                       )
+                     }
+-                    Spacer(Modifier.width(6.dp))
+-                    Text(
+-                      text = if (currentMusicSource == MusicSourceProvider.JELLYFIN) {
+-                        stringResource(R.string.pref_jellyfin_title)
+-                      } else {
+-                        stringResource(R.string.music_source_local)
+-                      },
+-                      style = MaterialTheme.typography.labelMedium,
+-                      fontWeight = FontWeight.Bold,
+-                      color = MaterialTheme.colorScheme.onSecondaryContainer,
+-                    )
+-                    Spacer(Modifier.width(2.dp))
+-                    Icon(
+-                      Icons.RoundedFilled.ArrowDropDown,
+-                      contentDescription = null,
+-                      modifier = Modifier.size(16.dp),
+-                      tint = MaterialTheme.colorScheme.onSecondaryContainer,
+-                    )
+                   }
+-                }
+ 
+                   DropdownMenu(
+                     expanded = isSourceDropdownOpen,
+@@ -565,7 +565,10 @@ fun JellyfinContent(
+                   }
+                 }
+               }
+-
++            }
++          },
++          postSearchActions = {
++            if (!selectionManager.isInSelectionMode) {
+               IconButton(
+                 onClick = { backstack.add(com.quantummpv.app.ui.downloads.DownloadsScreen) },
+                 modifier = Modifier.padding(horizontal = 2.dp),
+-- 
+2.25.1
+

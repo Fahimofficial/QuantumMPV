@@ -1,0 +1,57 @@
+---
+title: mpv configuration
+description: Edit mpv.conf and input.conf safely, use profiles, and recover from problematic options.
+---
+
+mpvRx exposes mpv's configuration model without requiring every user to manage text files. The built-in editor supports `mpv.conf` and `input.conf` with syntax highlighting.
+
+:::warning
+Desktop mpv configuration snippets are not automatically appropriate for Android. GPU APIs, decoder names, paths, scripts, and performance assumptions differ.
+:::
+
+## Start from an empty file
+
+A reliable workflow is incremental:
+
+1. Confirm the media plays with the app defaults.
+2. Add one option or one profile.
+3. Reopen playback when the option is startup-only.
+4. Compare behavior and the statistics page.
+5. Remove the option if it does not solve a measured problem.
+
+## Profiles
+
+Use named profiles to keep specialized settings from affecting every file.
+
+```ini
+[low-power]
+profile=fast
+vo=gpu
+
+[anime-upscale]
+glsl-shaders-append=~~/shaders/Anime4K/example.glsl
+```
+
+The shader path above is illustrative. Select a shader that exists in your configured folder or use mpvRx's built-in shader controls.
+
+## Input bindings
+
+`input.conf` maps keys and input events to mpv commands. Keep custom bindings distinct from app gestures and generated custom-button messages.
+
+```text
+SPACE cycle pause
+RIGHT seek 10
+LEFT seek -10
+```
+
+## Recovery
+
+If playback fails after an edit:
+
+- Temporarily empty `mpv.conf`.
+- Disable user scripts and custom shaders.
+- Restore automatic decoding and rendering.
+- Reopen the same media.
+- Reintroduce changes one at a time.
+
+This isolates configuration errors from codec, driver, and source failures.

@@ -1,0 +1,33 @@
+---
+title: First playback
+description: Grant only the access you need, open your first file, and establish a clean playback baseline.
+---
+
+Begin with default rendering and gesture settings. A clean baseline makes device-specific decoder, shader, and subtitle problems much easier to isolate.
+
+<Steps>
+  <Step title="Choose media access">
+    Grant video or audio access when you want mpvRx to build a local library. You can still open individual files through Android's document picker without exposing unrelated folders.
+  </Step>
+  <Step title="Open a source">
+    Pick a file from **Home**, **Recents**, or Android's share/open-with flow. For a remote stream, use **Open URL**.
+  </Step>
+  <Step title="Confirm hardware decoding">
+    Play a representative file with default decoder and render settings. Open the statistics view if you need codec, frame-rate, dropped-frame, or power information.
+  </Step>
+  <Step title="Tune one layer at a time">
+    Configure gestures and controls first. Add shaders, Anime4K, custom profiles, or scripts only after normal playback is stable.
+  </Step>
+</Steps>
+
+## Player essentials
+
+- Tap once to show or hide controls.
+- Seek with the timeline, configured tap zones, or horizontal swipe.
+- Open the track controls to select audio and subtitle streams.
+- Use the More sheet for aspect ratio, filters, frame navigation, loops, and advanced actions.
+- Back navigation can return to browsing while unified background playback continues.
+
+## A reliable baseline
+
+For broad device compatibility, keep `mpv.conf` empty initially and use the app's defaults. If power use matters more than advanced rendering, prefer the classic `gpu` path, disable unnecessary shaders, and compare results using the statistics page.

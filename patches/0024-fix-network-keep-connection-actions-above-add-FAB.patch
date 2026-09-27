@@ -1,0 +1,33 @@
+From 9260479b64fe3dc9d647c44b790c74e98ecae7e9 Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <87899750+Riteshp2001@users.noreply.github.com>
+Date: Sun, 6 Sep 2026 09:21:22 +0000
+Subject: [PATCH 024/140] fix(network): keep connection actions above add FAB
+
+Refs #606
+---
+ .../ui/browser/networkstreaming/NetworkStreamingScreen.kt     | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/networkstreaming/NetworkStreamingScreen.kt b/app/src/main/java/com/quantummpv/app/ui/browser/networkstreaming/NetworkStreamingScreen.kt
+index 3029885d..f7c2ed60 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/networkstreaming/NetworkStreamingScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/networkstreaming/NetworkStreamingScreen.kt
+@@ -766,7 +766,7 @@ private fun LocalNetworkContent(
+   val navBarHeight = com.quantummpv.app.ui.browser.LocalNavigationBarHeight.current.takeIf { it > 0.dp } ?: 88.dp
+   LazyColumn(
+     modifier = Modifier.fillMaxSize(),
+-    contentPadding = PaddingValues(start = 16.dp, top = 12.dp, end = 16.dp, bottom = navBarHeight + 16.dp),
++    contentPadding = PaddingValues(start = 16.dp, top = 12.dp, end = 16.dp, bottom = navBarHeight + 88.dp),
+     verticalArrangement = Arrangement.spacedBy(16.dp),
+   ) {
+     // 1. Stream Link Section (URL input & recent streams with Save to Media action)
+@@ -1313,4 +1313,4 @@ private fun saveViewedFileIndices(
+     .edit()
+     .putStringSet(infoHash, indices.map(Int::toString).toSet())
+     .apply()
+-}
+\ No newline at end of file
++}
+-- 
+2.25.1
+

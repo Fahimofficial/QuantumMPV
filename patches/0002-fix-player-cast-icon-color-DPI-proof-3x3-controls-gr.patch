@@ -1,0 +1,110 @@
+From b73329105df8f81cd9981d9e3413db39a85b0eb5 Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <PanditRitesh@JohnDeere.com>
+Date: Wed, 2 Sep 2026 11:29:37 +0530
+Subject: [PATCH 002/140] fix(player): cast icon color, DPI-proof 3x3 controls
+ grid, standard auto-crop switch
+
+- Cast button now inherits the surrounding content color (drawer tiles pass
+  their LocalContentColor) instead of staying fixed white, matching sibling
+  controls in the More controls panel
+- More controls grid: floor tile width to whole pixels so Dp rounding at
+  certain densities can no longer wrap the third tile and leave a gap; the
+  panel stays a fixed 3-column grid on every screen
+- Aspect ratio sheet: replace the blur-thumb expressive switch in the
+  auto-crop row with the standard Material 3 switch
+
+Closes #590
+---
+ .../java/com/quantummpv/app/ui/cast/CastPlayerButton.kt   | 5 ++++-
+ .../mpvrx/ui/player/controls/PlayerControlDrawer.kt      | 9 ++++++++-
+ .../mpvrx/ui/player/controls/PlayerControlsShared.kt     | 1 +
+ .../controls/components/sheets/AspectRatioSheet.kt       | 4 ++--
+ 4 files changed, 15 insertions(+), 4 deletions(-)
+
+diff --git a/app/src/main/java/com/quantummpv/app/ui/cast/CastPlayerButton.kt b/app/src/main/java/com/quantummpv/app/ui/cast/CastPlayerButton.kt
+index aa3c2135..af04b53b 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/cast/CastPlayerButton.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/cast/CastPlayerButton.kt
+@@ -37,6 +37,7 @@ fun CastPlayerButton(
+   hideBackground: Boolean,
+   buttonSize: Dp,
+   onInvoked: () -> Unit = {},
++  contentColor: ComposeColor? = null,
+ ) {
+   val castContentDescription =
+     androidx.compose.ui.res
+@@ -49,7 +50,9 @@ fun CastPlayerButton(
+       } else {
+         MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.55f)
+       },
+-    contentColor = if (hideBackground) controlColor else MaterialTheme.colorScheme.onSurface,
++    // Callers pass the surrounding content color (e.g. drawer tiles) so the icon
++    // matches its sibling buttons instead of staying fixed white.
++    contentColor = contentColor ?: if (hideBackground) controlColor else MaterialTheme.colorScheme.onSurface,
+     border =
+       if (hideBackground) {
+         null
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControlDrawer.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControlDrawer.kt
+index b96c796f..30e49b9f 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControlDrawer.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControlDrawer.kt
+@@ -297,7 +297,14 @@ private fun PlayerControlPanelContent(
+         .fillMaxWidth()
+         .padding(start = 14.dp, end = 14.dp, bottom = 20.dp),
+   ) {
+-    val tileWidth = (maxWidth - PanelTileSpacing * (PanelColumnCount - 1)) / PanelColumnCount
++    // Floor to whole pixels: Dp rounding at some densities made 3 tiles + gaps
++    // exceed the row width, wrapping the grid to 2 columns (issue #590).
++    val density = LocalDensity.current
++    val tileWidth =
++      with(density) {
++        val availablePx = (maxWidth - PanelTileSpacing * (PanelColumnCount - 1)).toPx()
++        kotlin.math.floor(availablePx / PanelColumnCount).toDp()
++      }
+     FlowRow(
+       modifier = Modifier.fillMaxWidth(),
+       horizontalArrangement = Arrangement.spacedBy(PanelTileSpacing),
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControlsShared.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControlsShared.kt
+index d88832f9..a902a186 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControlsShared.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControlsShared.kt
+@@ -650,6 +650,7 @@ fun RenderPlayerButton(
+         hideBackground = hideBackground,
+         buttonSize = buttonSize,
+         onInvoked = clickEvent,
++        contentColor = if (hideBackground) controlColor else null,
+       )
+     }
+ 
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/AspectRatioSheet.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/AspectRatioSheet.kt
+index 6bcff21f..f372eca4 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/AspectRatioSheet.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/AspectRatioSheet.kt
+@@ -27,6 +27,7 @@ import androidx.compose.material3.InputChip
+ import androidx.compose.material3.ListItem
+ import androidx.compose.material3.MaterialTheme
+ import androidx.compose.material3.OutlinedTextField
++import androidx.compose.material3.Switch
+ import androidx.compose.material3.Text
+ import androidx.compose.runtime.Composable
+ import androidx.compose.runtime.getValue
+@@ -42,7 +43,6 @@ import androidx.compose.ui.text.style.TextAlign
+ import androidx.compose.ui.unit.dp
+ import com.quantummpv.app.presentation.components.PlayerSheet
+ import com.quantummpv.app.ui.player.AutoCropState
+-import com.quantummpv.app.ui.player.components.expressive.ExpressiveSwitch
+ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
+ import com.quantummpv.app.ui.theme.spacing
+@@ -115,7 +115,7 @@ fun AspectRatioSheet(
+         },
+         supportingContent = { Text(androidx.compose.ui.res.stringResource(autoCropSummary)) },
+         trailingContent = {
+-          ExpressiveSwitch(
++          Switch(
+             checked = autoCropEnabled,
+             onCheckedChange = onAutoCropChanged,
+             enabled = autoCropControlEnabled,
+-- 
+2.25.1
+

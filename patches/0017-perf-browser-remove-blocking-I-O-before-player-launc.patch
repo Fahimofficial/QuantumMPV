@@ -1,0 +1,91 @@
+From 84ca4386edbb8f184efc806a912626009dcb83b4 Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <87899750+Riteshp2001@users.noreply.github.com>
+Date: Sat, 5 Sep 2026 12:05:17 +0530
+Subject: [PATCH 017/140] perf(browser): remove blocking I/O before player
+ launch
+
+---
+ .../gyrolet/mpvrx/utils/media/MediaUtils.kt   | 22 ++++++++++++++-----
+ 1 file changed, 17 insertions(+), 5 deletions(-)
+
+diff --git a/app/src/main/java/com/quantummpv/app/utils/media/MediaUtils.kt b/app/src/main/java/com/quantummpv/app/utils/media/MediaUtils.kt
+index 39a09375..103bec22 100644
+--- a/app/src/main/java/com/quantummpv/app/utils/media/MediaUtils.kt
++++ b/app/src/main/java/com/quantummpv/app/utils/media/MediaUtils.kt
+@@ -20,6 +20,7 @@ import com.quantummpv.app.domain.media.model.Video
+ import com.quantummpv.app.domain.torrent.isTorrentSource
+ import com.quantummpv.app.ui.player.PlaybackIdentity
+ import com.quantummpv.app.ui.player.PlaybackItem
++import com.quantummpv.app.ui.player.PlaybackPerformanceTrace
+ import com.quantummpv.app.ui.player.PlayerActivity
+ import com.quantummpv.app.ui.player.PlayerLookupHints
+ import com.quantummpv.app.ui.player.PreparedPlaybackLaunchStore
+@@ -103,6 +104,7 @@ object MediaUtils {
+         putExtra(PlayerActivity.EXTRA_VIDEO_WIDTH, selected.width)
+         putExtra(PlayerActivity.EXTRA_VIDEO_HEIGHT, selected.height)
+       }
++    PlaybackPerformanceTrace.mark("OPEN_REQUEST", "source=$launchSource queue=${videos.size}")
+     context.startActivity(intent)
+   }
+ 
+@@ -143,14 +145,20 @@ object MediaUtils {
+     val uri =
+       when (source) {
+         is Video -> {
+-          val localPath = source.path.takeIf { File(it).isFile }
++          // Video.path is already MediaStore/library metadata. Avoid a synchronous filesystem
++          // stat on the UI click path before startActivity(); stale media will fail at the same
++          // playback/open stage where the content URI itself is validated.
++          val localPath = source.path.takeIf(String::isNotBlank)
+           // Recents stores a durable filesystem path, while normal library playback is usually
+           // launched with a MediaStore content:// URI. Playback state is keyed from the launch
+           // URI, so reopening the same file as file:// created a different key and restarted at 0.
+-          // Resolve the path back to its MediaStore URI for history/quick-play launches so the
+-          // existing playback-state key (and therefore the saved position) is reused.
++          // Resolve the path back to its MediaStore URI for history/quick-play launches only when
++          // the Video does not already carry a content URI.
+           val playbackUri =
+-            if (launchSource.isHistoryResumeLaunch() && localPath != null) {
++            if (launchSource.isHistoryResumeLaunch() &&
++              localPath != null &&
++              !source.uri.scheme.equals("content", ignoreCase = true)
++            ) {
+               resolveMediaStoreUri(context, localPath, source.isAudio) ?: source.uri
+             } else {
+               source.uri
+@@ -205,6 +213,7 @@ object MediaUtils {
+             isAudio = isAudio,
+             playlistDurationsSeconds = playlistDurationsSeconds,
+           )
++          PlaybackPerformanceTrace.mark("OPEN_REQUEST", "source=${launchSource ?: "library"} kind=video")
+           context.startActivity(intent)
+           return
+         }
+@@ -235,13 +244,15 @@ object MediaUtils {
+         }
+       }
+ 
++    // Keep the path handoff syntactic here. File existence is validated by the actual media open;
++    // probing storage before startActivity() adds avoidable main-thread I/O to every local launch.
+     val localPath =
+       when {
+         source is String && source.startsWith("file://", ignoreCase = true) -> source.removePrefix("file://")
+         source is String && source.startsWith("/") -> source
+         uri.scheme.equals("file", ignoreCase = true) -> uri.path
+         else -> null
+-      }?.takeIf { File(it).isFile }
++      }?.takeIf(String::isNotBlank)
+ 
+     val playbackUri =
+       if (launchSource.isHistoryResumeLaunch() && localPath != null) {
+@@ -292,6 +303,7 @@ object MediaUtils {
+       isAudio = isAudio,
+       playlistDurationsSeconds = playlistDurationsSeconds,
+     )
++    PlaybackPerformanceTrace.mark("OPEN_REQUEST", "source=${launchSource ?: "direct"} kind=${uri.scheme ?: "path"}")
+     context.startActivity(intent)
+   }
+ 
+-- 
+2.25.1
+

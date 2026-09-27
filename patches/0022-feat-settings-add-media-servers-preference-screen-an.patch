@@ -1,0 +1,3262 @@
+From 4eeec844d0ab47d88682c2b568b3c95826a4c7ff Mon Sep 17 00:00:00 2001
+From: Arnab Sadhukhan <arnab@Arnabs-Mac-Mini.local>
+Date: Sun, 6 Sep 2026 13:47:42 +0530
+Subject: [PATCH 022/140] feat(settings): add media servers preference screen
+ and music source switcher
+
+---
+ .../18.json                                   | 1031 ++++++++++++++++
+ .../19.json                                   | 1078 +++++++++++++++++
+ .../com/quantummpv/app/di/PreferencesModule.kt |    2 +
+ .../preferences/MediaServerPreferences.kt     |   30 +
+ .../gyrolet/mpvrx/ui/browser/MainScreen.kt    |   76 +-
+ .../ui/browser/components/BrowserTopBar.kt    |    4 +
+ .../ui/browser/jellyfin/JellyfinContent.kt    |  178 ++-
+ .../ui/browser/jellyfin/JellyfinViewModel.kt  |   11 +
+ .../ui/browser/music/MusicLibraryContent.kt   |  139 ++-
+ .../ui/preferences/AudioPreferencesScreen.kt  |   31 +
+ .../MediaServersPreferencesScreen.kt          |  284 +++++
+ .../mpvrx/ui/preferences/PreferencesScreen.kt |   13 +
+ .../ui/preferences/SearchablePreference.kt    |   20 +
+ .../preferences/SettingsSearchNavigation.kt   |    6 +
+ app/src/main/res/values/strings.xml           |   21 +
+ 15 files changed, 2916 insertions(+), 8 deletions(-)
+ create mode 100644 app/schemas/com.quantummpv.app.database.MpvRxDatabase/18.json
+ create mode 100644 app/schemas/com.quantummpv.app.database.MpvRxDatabase/19.json
+ create mode 100644 app/src/main/java/com/quantummpv/app/preferences/MediaServerPreferences.kt
+ create mode 100644 app/src/main/java/com/quantummpv/app/ui/preferences/MediaServersPreferencesScreen.kt
+
+diff --git a/app/schemas/com.quantummpv.app.database.MpvRxDatabase/18.json b/app/schemas/com.quantummpv.app.database.MpvRxDatabase/18.json
+new file mode 100644
+index 00000000..1464b315
+--- /dev/null
++++ b/app/schemas/com.quantummpv.app.database.MpvRxDatabase/18.json
+@@ -0,0 +1,1031 @@
++{
++  "formatVersion": 1,
++  "database": {
++    "version": 18,
++    "identityHash": "7b2a0a8b641a8f18e83e137971e5a3ef",
++    "entities": [
++      {
++        "tableName": "PlaybackStateEntity",
++        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`mediaTitle` TEXT NOT NULL, `lastPosition` INTEGER NOT NULL, `playbackSpeed` REAL NOT NULL, `videoZoom` REAL NOT NULL, `sid` INTEGER NOT NULL, `secondarySid` INTEGER NOT NULL, `subDelay` INTEGER NOT NULL, `subSpeed` REAL NOT NULL, `aid` INTEGER NOT NULL, `audioDelay` INTEGER NOT NULL, `timeRemaining` INTEGER NOT NULL, `externalSubtitles` TEXT NOT NULL, `hasBeenWatched` INTEGER NOT NULL, PRIMARY KEY(`mediaTitle`))",
++        "fields": [
++          {
++            "fieldPath": "mediaTitle",
++            "columnName": "mediaTitle",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "lastPosition",
++            "columnName": "lastPosition",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "playbackSpeed",
++            "columnName": "playbackSpeed",
++            "affinity": "REAL",
++            "notNull": true
++          },
++          {
++            "fieldPath": "videoZoom",
++            "columnName": "videoZoom",
++            "affinity": "REAL",
++            "notNull": true
++          },
++          {
++            "fieldPath": "sid",
++            "columnName": "sid",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "secondarySid",
++            "columnName": "secondarySid",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "subDelay",
++            "columnName": "subDelay",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "subSpeed",
++            "columnName": "subSpeed",
++            "affinity": "REAL",
++            "notNull": true
++          },
++          {
++            "fieldPath": "aid",
++            "columnName": "aid",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "audioDelay",
++            "columnName": "audioDelay",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "timeRemaining",
++            "columnName": "timeRemaining",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "externalSubtitles",
++            "columnName": "externalSubtitles",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "hasBeenWatched",
++            "columnName": "hasBeenWatched",
++            "affinity": "INTEGER",
++            "notNull": true
++          }
++        ],
++        "primaryKey": {
++          "autoGenerate": false,
++          "columnNames": [
++            "mediaTitle"
++          ]
++        }
++      },
++      {
++        "tableName": "RecentlyPlayedEntity",
++        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `filePath` TEXT NOT NULL, `fileName` TEXT NOT NULL, `videoTitle` TEXT, `duration` INTEGER NOT NULL, `fileSize` INTEGER NOT NULL, `width` INTEGER NOT NULL, `height` INTEGER NOT NULL, `timestamp` INTEGER NOT NULL, `launchSource` TEXT, `playlistId` INTEGER)",
++        "fields": [
++          {
++            "fieldPath": "id",
++            "columnName": "id",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "filePath",
++            "columnName": "filePath",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "fileName",
++            "columnName": "fileName",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "videoTitle",
++            "columnName": "videoTitle",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "duration",
++            "columnName": "duration",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "fileSize",
++            "columnName": "fileSize",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "width",
++            "columnName": "width",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "height",
++            "columnName": "height",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "timestamp",
++            "columnName": "timestamp",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "launchSource",
++            "columnName": "launchSource",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "playlistId",
++            "columnName": "playlistId",
++            "affinity": "INTEGER"
++          }
++        ],
++        "primaryKey": {
++          "autoGenerate": true,
++          "columnNames": [
++            "id"
++          ]
++        },
++        "indices": [
++          {
++            "name": "index_RecentlyPlayedEntity_filePath",
++            "unique": false,
++            "columnNames": [
++              "filePath"
++            ],
++            "orders": [],
++            "createSql": "CREATE INDEX IF NOT EXISTS `index_RecentlyPlayedEntity_filePath` ON `${TABLE_NAME}` (`filePath`)"
++          },
++          {
++            "name": "index_RecentlyPlayedEntity_timestamp",
++            "unique": false,
++            "columnNames": [
++              "timestamp"
++            ],
++            "orders": [],
++            "createSql": "CREATE INDEX IF NOT EXISTS `index_RecentlyPlayedEntity_timestamp` ON `${TABLE_NAME}` (`timestamp`)"
++          }
++        ]
++      },
++      {
++        "tableName": "video_metadata_cache",
++        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`path` TEXT NOT NULL, `size` INTEGER NOT NULL, `dateModified` INTEGER NOT NULL, `duration` INTEGER NOT NULL, `width` INTEGER NOT NULL, `height` INTEGER NOT NULL, `fps` REAL NOT NULL, `hasEmbeddedSubtitles` INTEGER NOT NULL, `subtitleCodec` TEXT NOT NULL, `lastScanned` INTEGER NOT NULL, PRIMARY KEY(`path`))",
++        "fields": [
++          {
++            "fieldPath": "path",
++            "columnName": "path",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "size",
++            "columnName": "size",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "dateModified",
++            "columnName": "dateModified",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "duration",
++            "columnName": "duration",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "width",
++            "columnName": "width",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "height",
++            "columnName": "height",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "fps",
++            "columnName": "fps",
++            "affinity": "REAL",
++            "notNull": true
++          },
++          {
++            "fieldPath": "hasEmbeddedSubtitles",
++            "columnName": "hasEmbeddedSubtitles",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "subtitleCodec",
++            "columnName": "subtitleCodec",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "lastScanned",
++            "columnName": "lastScanned",
++            "affinity": "INTEGER",
++            "notNull": true
++          }
++        ],
++        "primaryKey": {
++          "autoGenerate": false,
++          "columnNames": [
++            "path"
++          ]
++        }
++      },
++      {
++        "tableName": "network_connections",
++        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `protocol` TEXT NOT NULL, `host` TEXT NOT NULL, `port` INTEGER NOT NULL, `username` TEXT NOT NULL, `password` TEXT NOT NULL, `path` TEXT NOT NULL, `isAnonymous` INTEGER NOT NULL, `lastConnected` INTEGER NOT NULL, `autoConnect` INTEGER NOT NULL, `useHttps` INTEGER NOT NULL)",
++        "fields": [
++          {
++            "fieldPath": "id",
++            "columnName": "id",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "name",
++            "columnName": "name",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "protocol",
++            "columnName": "protocol",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "host",
++            "columnName": "host",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "port",
++            "columnName": "port",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "username",
++            "columnName": "username",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "password",
++            "columnName": "password",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "path",
++            "columnName": "path",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "isAnonymous",
++            "columnName": "isAnonymous",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "lastConnected",
++            "columnName": "lastConnected",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "autoConnect",
++            "columnName": "autoConnect",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "useHttps",
++            "columnName": "useHttps",
++            "affinity": "INTEGER",
++            "notNull": true
++          }
++        ],
++        "primaryKey": {
++          "autoGenerate": true,
++          "columnNames": [
++            "id"
++          ]
++        }
++      },
++      {
++        "tableName": "PlaylistEntity",
++        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, `m3uSourceUrl` TEXT, `isM3uPlaylist` INTEGER NOT NULL, `userAgent` TEXT, `isAudio` INTEGER NOT NULL)",
++        "fields": [
++          {
++            "fieldPath": "id",
++            "columnName": "id",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "name",
++            "columnName": "name",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "createdAt",
++            "columnName": "createdAt",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "updatedAt",
++            "columnName": "updatedAt",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "m3uSourceUrl",
++            "columnName": "m3uSourceUrl",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "isM3uPlaylist",
++            "columnName": "isM3uPlaylist",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "userAgent",
++            "columnName": "userAgent",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "isAudio",
++            "columnName": "isAudio",
++            "affinity": "INTEGER",
++            "notNull": true
++          }
++        ],
++        "primaryKey": {
++          "autoGenerate": true,
++          "columnNames": [
++            "id"
++          ]
++        }
++      },
++      {
++        "tableName": "PlaylistItemEntity",
++        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `playlistId` INTEGER NOT NULL, `filePath` TEXT NOT NULL, `fileName` TEXT NOT NULL, `position` INTEGER NOT NULL, `addedAt` INTEGER NOT NULL, `lastPlayedAt` INTEGER NOT NULL, `playCount` INTEGER NOT NULL, `lastPosition` INTEGER NOT NULL, `tvgId` TEXT, `tvgLogo` TEXT, `groupTitle` TEXT, `licenseType` TEXT, `licenseKey` TEXT, `userAgent` TEXT, `isFavorite` INTEGER NOT NULL, FOREIGN KEY(`playlistId`) REFERENCES `PlaylistEntity`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
++        "fields": [
++          {
++            "fieldPath": "id",
++            "columnName": "id",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "playlistId",
++            "columnName": "playlistId",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "filePath",
++            "columnName": "filePath",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "fileName",
++            "columnName": "fileName",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "position",
++            "columnName": "position",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "addedAt",
++            "columnName": "addedAt",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "lastPlayedAt",
++            "columnName": "lastPlayedAt",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "playCount",
++            "columnName": "playCount",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "lastPosition",
++            "columnName": "lastPosition",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "tvgId",
++            "columnName": "tvgId",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "tvgLogo",
++            "columnName": "tvgLogo",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "groupTitle",
++            "columnName": "groupTitle",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "licenseType",
++            "columnName": "licenseType",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "licenseKey",
++            "columnName": "licenseKey",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "userAgent",
++            "columnName": "userAgent",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "isFavorite",
++            "columnName": "isFavorite",
++            "affinity": "INTEGER",
++            "notNull": true
++          }
++        ],
++        "primaryKey": {
++          "autoGenerate": true,
++          "columnNames": [
++            "id"
++          ]
++        },
++        "indices": [
++          {
++            "name": "index_PlaylistItemEntity_playlistId",
++            "unique": false,
++            "columnNames": [
++              "playlistId"
++            ],
++            "orders": [],
++            "createSql": "CREATE INDEX IF NOT EXISTS `index_PlaylistItemEntity_playlistId` ON `${TABLE_NAME}` (`playlistId`)"
++          },
++          {
++            "name": "index_PlaylistItemEntity_isFavorite",
++            "unique": false,
++            "columnNames": [
++              "isFavorite"
++            ],
++            "orders": [],
++            "createSql": "CREATE INDEX IF NOT EXISTS `index_PlaylistItemEntity_isFavorite` ON `${TABLE_NAME}` (`isFavorite`)"
++          }
++        ],
++        "foreignKeys": [
++          {
++            "table": "PlaylistEntity",
++            "onDelete": "CASCADE",
++            "onUpdate": "NO ACTION",
++            "columns": [
++              "playlistId"
++            ],
++            "referencedColumns": [
++              "id"
++            ]
++          }
++        ]
++      },
++      {
++        "tableName": "directory_scan_index",
++        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`scanKey` TEXT NOT NULL, `path` TEXT NOT NULL, `rootPath` TEXT NOT NULL, `fingerprint` TEXT NOT NULL, `isNoMediaRoot` INTEGER NOT NULL, `videoCount` INTEGER NOT NULL, `totalSize` INTEGER NOT NULL, `totalDuration` INTEGER NOT NULL, `lastModified` INTEGER NOT NULL, `hasSubfolders` INTEGER NOT NULL, `lastScanned` INTEGER NOT NULL, PRIMARY KEY(`scanKey`, `path`))",
++        "fields": [
++          {
++            "fieldPath": "scanKey",
++            "columnName": "scanKey",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "path",
++            "columnName": "path",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "rootPath",
++            "columnName": "rootPath",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "fingerprint",
++            "columnName": "fingerprint",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "isNoMediaRoot",
++            "columnName": "isNoMediaRoot",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "videoCount",
++            "columnName": "videoCount",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "totalSize",
++            "columnName": "totalSize",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "totalDuration",
++            "columnName": "totalDuration",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "lastModified",
++            "columnName": "lastModified",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "hasSubfolders",
++            "columnName": "hasSubfolders",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "lastScanned",
++            "columnName": "lastScanned",
++            "affinity": "INTEGER",
++            "notNull": true
++          }
++        ],
++        "primaryKey": {
++          "autoGenerate": false,
++          "columnNames": [
++            "scanKey",
++            "path"
++          ]
++        },
++        "indices": [
++          {
++            "name": "index_directory_scan_index_scanKey_rootPath",
++            "unique": false,
++            "columnNames": [
++              "scanKey",
++              "rootPath"
++            ],
++            "orders": [],
++            "createSql": "CREATE INDEX IF NOT EXISTS `index_directory_scan_index_scanKey_rootPath` ON `${TABLE_NAME}` (`scanKey`, `rootPath`)"
++          },
++          {
++            "name": "index_directory_scan_index_scanKey_isNoMediaRoot",
++            "unique": false,
++            "columnNames": [
++              "scanKey",
++              "isNoMediaRoot"
++            ],
++            "orders": [],
++            "createSql": "CREATE INDEX IF NOT EXISTS `index_directory_scan_index_scanKey_isNoMediaRoot` ON `${TABLE_NAME}` (`scanKey`, `isNoMediaRoot`)"
++          }
++        ]
++      },
++      {
++        "tableName": "secure_media",
++        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `originalPath` TEXT NOT NULL, `secureFilePath` TEXT NOT NULL, `fileName` TEXT NOT NULL, `fileSize` INTEGER NOT NULL, `mimeType` TEXT NOT NULL, `dateHidden` INTEGER NOT NULL)",
++        "fields": [
++          {
++            "fieldPath": "id",
++            "columnName": "id",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "originalPath",
++            "columnName": "originalPath",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "secureFilePath",
++            "columnName": "secureFilePath",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "fileName",
++            "columnName": "fileName",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "fileSize",
++            "columnName": "fileSize",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "mimeType",
++            "columnName": "mimeType",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "dateHidden",
++            "columnName": "dateHidden",
++            "affinity": "INTEGER",
++            "notNull": true
++          }
++        ],
++        "primaryKey": {
++          "autoGenerate": true,
++          "columnNames": [
++            "id"
++          ]
++        },
++        "indices": [
++          {
++            "name": "index_secure_media_secureFilePath",
++            "unique": true,
++            "columnNames": [
++              "secureFilePath"
++            ],
++            "orders": [],
++            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_secure_media_secureFilePath` ON `${TABLE_NAME}` (`secureFilePath`)"
++          }
++        ]
++      },
++      {
++        "tableName": "network_stream_entries",
++        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`stableKey` TEXT NOT NULL, `entryType` TEXT NOT NULL, `canonicalSourceUri` TEXT NOT NULL, `infoHash` TEXT, `fileIndex` INTEGER, `filePath` TEXT, `fileName` TEXT NOT NULL, `fileSize` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, `posterUrl` TEXT, `backdropUrl` TEXT, `groupTitle` TEXT, `overview` TEXT, `releaseYear` TEXT, `mediaType` TEXT, PRIMARY KEY(`stableKey`))",
++        "fields": [
++          {
++            "fieldPath": "stableKey",
++            "columnName": "stableKey",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "entryType",
++            "columnName": "entryType",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "canonicalSourceUri",
++            "columnName": "canonicalSourceUri",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "infoHash",
++            "columnName": "infoHash",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "fileIndex",
++            "columnName": "fileIndex",
++            "affinity": "INTEGER"
++          },
++          {
++            "fieldPath": "filePath",
++            "columnName": "filePath",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "fileName",
++            "columnName": "fileName",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "fileSize",
++            "columnName": "fileSize",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "updatedAt",
++            "columnName": "updatedAt",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "posterUrl",
++            "columnName": "posterUrl",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "backdropUrl",
++            "columnName": "backdropUrl",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "groupTitle",
++            "columnName": "groupTitle",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "overview",
++            "columnName": "overview",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "releaseYear",
++            "columnName": "releaseYear",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "mediaType",
++            "columnName": "mediaType",
++            "affinity": "TEXT"
++          }
++        ],
++        "primaryKey": {
++          "autoGenerate": false,
++          "columnNames": [
++            "stableKey"
++          ]
++        },
++        "indices": [
++          {
++            "name": "index_network_stream_entries_entryType_updatedAt",
++            "unique": false,
++            "columnNames": [
++              "entryType",
++              "updatedAt"
++            ],
++            "orders": [],
++            "createSql": "CREATE INDEX IF NOT EXISTS `index_network_stream_entries_entryType_updatedAt` ON `${TABLE_NAME}` (`entryType`, `updatedAt`)"
++          },
++          {
++            "name": "index_network_stream_entries_infoHash_fileIndex",
++            "unique": true,
++            "columnNames": [
++              "infoHash",
++              "fileIndex"
++            ],
++            "orders": [],
++            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_network_stream_entries_infoHash_fileIndex` ON `${TABLE_NAME}` (`infoHash`, `fileIndex`)"
++          }
++        ]
++      },
++      {
++        "tableName": "jellyfin_servers",
++        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `serverUrl` TEXT NOT NULL, `userId` TEXT NOT NULL, `username` TEXT NOT NULL, `accessToken` TEXT NOT NULL, `lastConnected` INTEGER NOT NULL)",
++        "fields": [
++          {
++            "fieldPath": "id",
++            "columnName": "id",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "name",
++            "columnName": "name",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "serverUrl",
++            "columnName": "serverUrl",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "userId",
++            "columnName": "userId",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "username",
++            "columnName": "username",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "accessToken",
++            "columnName": "accessToken",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "lastConnected",
++            "columnName": "lastConnected",
++            "affinity": "INTEGER",
++            "notNull": true
++          }
++        ],
++        "primaryKey": {
++          "autoGenerate": true,
++          "columnNames": [
++            "id"
++          ]
++        }
++      },
++      {
++        "tableName": "download_items",
++        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `systemDownloadId` INTEGER NOT NULL, `url` TEXT NOT NULL, `dirPath` TEXT NOT NULL, `fileName` TEXT NOT NULL, `stagingPath` TEXT, `status` TEXT NOT NULL, `progress` INTEGER NOT NULL, `totalBytes` INTEGER NOT NULL, `failureReason` TEXT, `timeQueued` INTEGER NOT NULL, `source` TEXT NOT NULL, `title` TEXT NOT NULL, `posterUrl` TEXT, `sourceUrl` TEXT, `jellyfinServerId` TEXT, `jellyfinItemId` TEXT, `jellyfinSeriesName` TEXT, `seasonNumber` INTEGER, `episodeNumber` INTEGER, `isAudio` INTEGER NOT NULL)",
++        "fields": [
++          {
++            "fieldPath": "id",
++            "columnName": "id",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "systemDownloadId",
++            "columnName": "systemDownloadId",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "url",
++            "columnName": "url",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "dirPath",
++            "columnName": "dirPath",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "fileName",
++            "columnName": "fileName",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "stagingPath",
++            "columnName": "stagingPath",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "status",
++            "columnName": "status",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "progress",
++            "columnName": "progress",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "totalBytes",
++            "columnName": "totalBytes",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "failureReason",
++            "columnName": "failureReason",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "timeQueued",
++            "columnName": "timeQueued",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "source",
++            "columnName": "source",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "title",
++            "columnName": "title",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "posterUrl",
++            "columnName": "posterUrl",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "sourceUrl",
++            "columnName": "sourceUrl",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "jellyfinServerId",
++            "columnName": "jellyfinServerId",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "jellyfinItemId",
++            "columnName": "jellyfinItemId",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "jellyfinSeriesName",
++            "columnName": "jellyfinSeriesName",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "seasonNumber",
++            "columnName": "seasonNumber",
++            "affinity": "INTEGER"
++          },
++          {
++            "fieldPath": "episodeNumber",
++            "columnName": "episodeNumber",
++            "affinity": "INTEGER"
++          },
++          {
++            "fieldPath": "isAudio",
++            "columnName": "isAudio",
++            "affinity": "INTEGER",
++            "notNull": true
++          }
++        ],
++        "primaryKey": {
++          "autoGenerate": true,
++          "columnNames": [
++            "id"
++          ]
++        },
++        "indices": [
++          {
++            "name": "index_download_items_systemDownloadId",
++            "unique": false,
++            "columnNames": [
++              "systemDownloadId"
++            ],
++            "orders": [],
++            "createSql": "CREATE INDEX IF NOT EXISTS `index_download_items_systemDownloadId` ON `${TABLE_NAME}` (`systemDownloadId`)"
++          },
++          {
++            "name": "index_download_items_jellyfinItemId",
++            "unique": false,
++            "columnNames": [
++              "jellyfinItemId"
++            ],
++            "orders": [],
++            "createSql": "CREATE INDEX IF NOT EXISTS `index_download_items_jellyfinItemId` ON `${TABLE_NAME}` (`jellyfinItemId`)"
++          }
++        ]
++      }
++    ],
++    "setupQueries": [
++      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
++      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '7b2a0a8b641a8f18e83e137971e5a3ef')"
++    ]
++  }
++}
+\ No newline at end of file
+diff --git a/app/schemas/com.quantummpv.app.database.MpvRxDatabase/19.json b/app/schemas/com.quantummpv.app.database.MpvRxDatabase/19.json
+new file mode 100644
+index 00000000..79b55cd0
+--- /dev/null
++++ b/app/schemas/com.quantummpv.app.database.MpvRxDatabase/19.json
+@@ -0,0 +1,1078 @@
++{
++  "formatVersion": 1,
++  "database": {
++    "version": 19,
++    "identityHash": "d8cf36e4ccc6d0d6afbe872fe28bad3c",
++    "entities": [
++      {
++        "tableName": "PlaybackStateEntity",
++        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`mediaTitle` TEXT NOT NULL, `lastPosition` INTEGER NOT NULL, `playbackSpeed` REAL NOT NULL, `videoZoom` REAL NOT NULL, `sid` INTEGER NOT NULL, `secondarySid` INTEGER NOT NULL, `subDelay` INTEGER NOT NULL, `subSpeed` REAL NOT NULL, `aid` INTEGER NOT NULL, `audioDelay` INTEGER NOT NULL, `timeRemaining` INTEGER NOT NULL, `externalSubtitles` TEXT NOT NULL, `hasBeenWatched` INTEGER NOT NULL, PRIMARY KEY(`mediaTitle`))",
++        "fields": [
++          {
++            "fieldPath": "mediaTitle",
++            "columnName": "mediaTitle",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "lastPosition",
++            "columnName": "lastPosition",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "playbackSpeed",
++            "columnName": "playbackSpeed",
++            "affinity": "REAL",
++            "notNull": true
++          },
++          {
++            "fieldPath": "videoZoom",
++            "columnName": "videoZoom",
++            "affinity": "REAL",
++            "notNull": true
++          },
++          {
++            "fieldPath": "sid",
++            "columnName": "sid",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "secondarySid",
++            "columnName": "secondarySid",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "subDelay",
++            "columnName": "subDelay",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "subSpeed",
++            "columnName": "subSpeed",
++            "affinity": "REAL",
++            "notNull": true
++          },
++          {
++            "fieldPath": "aid",
++            "columnName": "aid",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "audioDelay",
++            "columnName": "audioDelay",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "timeRemaining",
++            "columnName": "timeRemaining",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "externalSubtitles",
++            "columnName": "externalSubtitles",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "hasBeenWatched",
++            "columnName": "hasBeenWatched",
++            "affinity": "INTEGER",
++            "notNull": true
++          }
++        ],
++        "primaryKey": {
++          "autoGenerate": false,
++          "columnNames": [
++            "mediaTitle"
++          ]
++        }
++      },
++      {
++        "tableName": "RecentlyPlayedEntity",
++        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `filePath` TEXT NOT NULL, `fileName` TEXT NOT NULL, `videoTitle` TEXT, `duration` INTEGER NOT NULL, `fileSize` INTEGER NOT NULL, `width` INTEGER NOT NULL, `height` INTEGER NOT NULL, `timestamp` INTEGER NOT NULL, `launchSource` TEXT, `playlistId` INTEGER)",
++        "fields": [
++          {
++            "fieldPath": "id",
++            "columnName": "id",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "filePath",
++            "columnName": "filePath",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "fileName",
++            "columnName": "fileName",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "videoTitle",
++            "columnName": "videoTitle",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "duration",
++            "columnName": "duration",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "fileSize",
++            "columnName": "fileSize",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "width",
++            "columnName": "width",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "height",
++            "columnName": "height",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "timestamp",
++            "columnName": "timestamp",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "launchSource",
++            "columnName": "launchSource",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "playlistId",
++            "columnName": "playlistId",
++            "affinity": "INTEGER"
++          }
++        ],
++        "primaryKey": {
++          "autoGenerate": true,
++          "columnNames": [
++            "id"
++          ]
++        },
++        "indices": [
++          {
++            "name": "index_RecentlyPlayedEntity_filePath",
++            "unique": false,
++            "columnNames": [
++              "filePath"
++            ],
++            "orders": [],
++            "createSql": "CREATE INDEX IF NOT EXISTS `index_RecentlyPlayedEntity_filePath` ON `${TABLE_NAME}` (`filePath`)"
++          },
++          {
++            "name": "index_RecentlyPlayedEntity_timestamp",
++            "unique": false,
++            "columnNames": [
++              "timestamp"
++            ],
++            "orders": [],
++            "createSql": "CREATE INDEX IF NOT EXISTS `index_RecentlyPlayedEntity_timestamp` ON `${TABLE_NAME}` (`timestamp`)"
++          }
++        ]
++      },
++      {
++        "tableName": "video_metadata_cache",
++        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`path` TEXT NOT NULL, `size` INTEGER NOT NULL, `dateModified` INTEGER NOT NULL, `duration` INTEGER NOT NULL, `width` INTEGER NOT NULL, `height` INTEGER NOT NULL, `fps` REAL NOT NULL, `hasEmbeddedSubtitles` INTEGER NOT NULL, `subtitleCodec` TEXT NOT NULL, `lastScanned` INTEGER NOT NULL, PRIMARY KEY(`path`))",
++        "fields": [
++          {
++            "fieldPath": "path",
++            "columnName": "path",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "size",
++            "columnName": "size",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "dateModified",
++            "columnName": "dateModified",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "duration",
++            "columnName": "duration",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "width",
++            "columnName": "width",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "height",
++            "columnName": "height",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "fps",
++            "columnName": "fps",
++            "affinity": "REAL",
++            "notNull": true
++          },
++          {
++            "fieldPath": "hasEmbeddedSubtitles",
++            "columnName": "hasEmbeddedSubtitles",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "subtitleCodec",
++            "columnName": "subtitleCodec",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "lastScanned",
++            "columnName": "lastScanned",
++            "affinity": "INTEGER",
++            "notNull": true
++          }
++        ],
++        "primaryKey": {
++          "autoGenerate": false,
++          "columnNames": [
++            "path"
++          ]
++        }
++      },
++      {
++        "tableName": "network_connections",
++        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `protocol` TEXT NOT NULL, `host` TEXT NOT NULL, `port` INTEGER NOT NULL, `username` TEXT NOT NULL, `password` TEXT NOT NULL, `path` TEXT NOT NULL, `isAnonymous` INTEGER NOT NULL, `lastConnected` INTEGER NOT NULL, `autoConnect` INTEGER NOT NULL, `useHttps` INTEGER NOT NULL)",
++        "fields": [
++          {
++            "fieldPath": "id",
++            "columnName": "id",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "name",
++            "columnName": "name",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "protocol",
++            "columnName": "protocol",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "host",
++            "columnName": "host",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "port",
++            "columnName": "port",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "username",
++            "columnName": "username",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "password",
++            "columnName": "password",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "path",
++            "columnName": "path",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "isAnonymous",
++            "columnName": "isAnonymous",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "lastConnected",
++            "columnName": "lastConnected",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "autoConnect",
++            "columnName": "autoConnect",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "useHttps",
++            "columnName": "useHttps",
++            "affinity": "INTEGER",
++            "notNull": true
++          }
++        ],
++        "primaryKey": {
++          "autoGenerate": true,
++          "columnNames": [
++            "id"
++          ]
++        }
++      },
++      {
++        "tableName": "PlaylistEntity",
++        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, `m3uSourceUrl` TEXT, `isM3uPlaylist` INTEGER NOT NULL, `userAgent` TEXT, `isAudio` INTEGER NOT NULL, `isXtreamPlaylist` INTEGER NOT NULL, `xtreamAccountKey` TEXT, `xtreamServerUrl` TEXT, `xtreamUsername` TEXT, `xtreamEncryptedPassword` TEXT)",
++        "fields": [
++          {
++            "fieldPath": "id",
++            "columnName": "id",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "name",
++            "columnName": "name",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "createdAt",
++            "columnName": "createdAt",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "updatedAt",
++            "columnName": "updatedAt",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "m3uSourceUrl",
++            "columnName": "m3uSourceUrl",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "isM3uPlaylist",
++            "columnName": "isM3uPlaylist",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "userAgent",
++            "columnName": "userAgent",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "isAudio",
++            "columnName": "isAudio",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "isXtreamPlaylist",
++            "columnName": "isXtreamPlaylist",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "xtreamAccountKey",
++            "columnName": "xtreamAccountKey",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "xtreamServerUrl",
++            "columnName": "xtreamServerUrl",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "xtreamUsername",
++            "columnName": "xtreamUsername",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "xtreamEncryptedPassword",
++            "columnName": "xtreamEncryptedPassword",
++            "affinity": "TEXT"
++          }
++        ],
++        "primaryKey": {
++          "autoGenerate": true,
++          "columnNames": [
++            "id"
++          ]
++        },
++        "indices": [
++          {
++            "name": "index_PlaylistEntity_xtreamAccountKey",
++            "unique": true,
++            "columnNames": [
++              "xtreamAccountKey"
++            ],
++            "orders": [],
++            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_PlaylistEntity_xtreamAccountKey` ON `${TABLE_NAME}` (`xtreamAccountKey`)"
++          },
++          {
++            "name": "index_PlaylistEntity_xtreamServerUrl_xtreamUsername",
++            "unique": false,
++            "columnNames": [
++              "xtreamServerUrl",
++              "xtreamUsername"
++            ],
++            "orders": [],
++            "createSql": "CREATE INDEX IF NOT EXISTS `index_PlaylistEntity_xtreamServerUrl_xtreamUsername` ON `${TABLE_NAME}` (`xtreamServerUrl`, `xtreamUsername`)"
++          }
++        ]
++      },
++      {
++        "tableName": "PlaylistItemEntity",
++        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `playlistId` INTEGER NOT NULL, `filePath` TEXT NOT NULL, `fileName` TEXT NOT NULL, `position` INTEGER NOT NULL, `addedAt` INTEGER NOT NULL, `lastPlayedAt` INTEGER NOT NULL, `playCount` INTEGER NOT NULL, `lastPosition` INTEGER NOT NULL, `tvgId` TEXT, `tvgLogo` TEXT, `groupTitle` TEXT, `licenseType` TEXT, `licenseKey` TEXT, `userAgent` TEXT, `isFavorite` INTEGER NOT NULL, FOREIGN KEY(`playlistId`) REFERENCES `PlaylistEntity`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
++        "fields": [
++          {
++            "fieldPath": "id",
++            "columnName": "id",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "playlistId",
++            "columnName": "playlistId",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "filePath",
++            "columnName": "filePath",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "fileName",
++            "columnName": "fileName",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "position",
++            "columnName": "position",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "addedAt",
++            "columnName": "addedAt",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "lastPlayedAt",
++            "columnName": "lastPlayedAt",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "playCount",
++            "columnName": "playCount",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "lastPosition",
++            "columnName": "lastPosition",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "tvgId",
++            "columnName": "tvgId",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "tvgLogo",
++            "columnName": "tvgLogo",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "groupTitle",
++            "columnName": "groupTitle",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "licenseType",
++            "columnName": "licenseType",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "licenseKey",
++            "columnName": "licenseKey",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "userAgent",
++            "columnName": "userAgent",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "isFavorite",
++            "columnName": "isFavorite",
++            "affinity": "INTEGER",
++            "notNull": true
++          }
++        ],
++        "primaryKey": {
++          "autoGenerate": true,
++          "columnNames": [
++            "id"
++          ]
++        },
++        "indices": [
++          {
++            "name": "index_PlaylistItemEntity_playlistId",
++            "unique": false,
++            "columnNames": [
++              "playlistId"
++            ],
++            "orders": [],
++            "createSql": "CREATE INDEX IF NOT EXISTS `index_PlaylistItemEntity_playlistId` ON `${TABLE_NAME}` (`playlistId`)"
++          },
++          {
++            "name": "index_PlaylistItemEntity_isFavorite",
++            "unique": false,
++            "columnNames": [
++              "isFavorite"
++            ],
++            "orders": [],
++            "createSql": "CREATE INDEX IF NOT EXISTS `index_PlaylistItemEntity_isFavorite` ON `${TABLE_NAME}` (`isFavorite`)"
++          }
++        ],
++        "foreignKeys": [
++          {
++            "table": "PlaylistEntity",
++            "onDelete": "CASCADE",
++            "onUpdate": "NO ACTION",
++            "columns": [
++              "playlistId"
++            ],
++            "referencedColumns": [
++              "id"
++            ]
++          }
++        ]
++      },
++      {
++        "tableName": "directory_scan_index",
++        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`scanKey` TEXT NOT NULL, `path` TEXT NOT NULL, `rootPath` TEXT NOT NULL, `fingerprint` TEXT NOT NULL, `isNoMediaRoot` INTEGER NOT NULL, `videoCount` INTEGER NOT NULL, `totalSize` INTEGER NOT NULL, `totalDuration` INTEGER NOT NULL, `lastModified` INTEGER NOT NULL, `hasSubfolders` INTEGER NOT NULL, `lastScanned` INTEGER NOT NULL, PRIMARY KEY(`scanKey`, `path`))",
++        "fields": [
++          {
++            "fieldPath": "scanKey",
++            "columnName": "scanKey",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "path",
++            "columnName": "path",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "rootPath",
++            "columnName": "rootPath",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "fingerprint",
++            "columnName": "fingerprint",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "isNoMediaRoot",
++            "columnName": "isNoMediaRoot",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "videoCount",
++            "columnName": "videoCount",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "totalSize",
++            "columnName": "totalSize",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "totalDuration",
++            "columnName": "totalDuration",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "lastModified",
++            "columnName": "lastModified",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "hasSubfolders",
++            "columnName": "hasSubfolders",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "lastScanned",
++            "columnName": "lastScanned",
++            "affinity": "INTEGER",
++            "notNull": true
++          }
++        ],
++        "primaryKey": {
++          "autoGenerate": false,
++          "columnNames": [
++            "scanKey",
++            "path"
++          ]
++        },
++        "indices": [
++          {
++            "name": "index_directory_scan_index_scanKey_rootPath",
++            "unique": false,
++            "columnNames": [
++              "scanKey",
++              "rootPath"
++            ],
++            "orders": [],
++            "createSql": "CREATE INDEX IF NOT EXISTS `index_directory_scan_index_scanKey_rootPath` ON `${TABLE_NAME}` (`scanKey`, `rootPath`)"
++          },
++          {
++            "name": "index_directory_scan_index_scanKey_isNoMediaRoot",
++            "unique": false,
++            "columnNames": [
++              "scanKey",
++              "isNoMediaRoot"
++            ],
++            "orders": [],
++            "createSql": "CREATE INDEX IF NOT EXISTS `index_directory_scan_index_scanKey_isNoMediaRoot` ON `${TABLE_NAME}` (`scanKey`, `isNoMediaRoot`)"
++          }
++        ]
++      },
++      {
++        "tableName": "secure_media",
++        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `originalPath` TEXT NOT NULL, `secureFilePath` TEXT NOT NULL, `fileName` TEXT NOT NULL, `fileSize` INTEGER NOT NULL, `mimeType` TEXT NOT NULL, `dateHidden` INTEGER NOT NULL)",
++        "fields": [
++          {
++            "fieldPath": "id",
++            "columnName": "id",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "originalPath",
++            "columnName": "originalPath",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "secureFilePath",
++            "columnName": "secureFilePath",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "fileName",
++            "columnName": "fileName",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "fileSize",
++            "columnName": "fileSize",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "mimeType",
++            "columnName": "mimeType",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "dateHidden",
++            "columnName": "dateHidden",
++            "affinity": "INTEGER",
++            "notNull": true
++          }
++        ],
++        "primaryKey": {
++          "autoGenerate": true,
++          "columnNames": [
++            "id"
++          ]
++        },
++        "indices": [
++          {
++            "name": "index_secure_media_secureFilePath",
++            "unique": true,
++            "columnNames": [
++              "secureFilePath"
++            ],
++            "orders": [],
++            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_secure_media_secureFilePath` ON `${TABLE_NAME}` (`secureFilePath`)"
++          }
++        ]
++      },
++      {
++        "tableName": "network_stream_entries",
++        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`stableKey` TEXT NOT NULL, `entryType` TEXT NOT NULL, `canonicalSourceUri` TEXT NOT NULL, `infoHash` TEXT, `fileIndex` INTEGER, `filePath` TEXT, `fileName` TEXT NOT NULL, `fileSize` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, `posterUrl` TEXT, `backdropUrl` TEXT, `groupTitle` TEXT, `overview` TEXT, `releaseYear` TEXT, `mediaType` TEXT, PRIMARY KEY(`stableKey`))",
++        "fields": [
++          {
++            "fieldPath": "stableKey",
++            "columnName": "stableKey",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "entryType",
++            "columnName": "entryType",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "canonicalSourceUri",
++            "columnName": "canonicalSourceUri",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "infoHash",
++            "columnName": "infoHash",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "fileIndex",
++            "columnName": "fileIndex",
++            "affinity": "INTEGER"
++          },
++          {
++            "fieldPath": "filePath",
++            "columnName": "filePath",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "fileName",
++            "columnName": "fileName",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "fileSize",
++            "columnName": "fileSize",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "updatedAt",
++            "columnName": "updatedAt",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "posterUrl",
++            "columnName": "posterUrl",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "backdropUrl",
++            "columnName": "backdropUrl",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "groupTitle",
++            "columnName": "groupTitle",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "overview",
++            "columnName": "overview",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "releaseYear",
++            "columnName": "releaseYear",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "mediaType",
++            "columnName": "mediaType",
++            "affinity": "TEXT"
++          }
++        ],
++        "primaryKey": {
++          "autoGenerate": false,
++          "columnNames": [
++            "stableKey"
++          ]
++        },
++        "indices": [
++          {
++            "name": "index_network_stream_entries_entryType_updatedAt",
++            "unique": false,
++            "columnNames": [
++              "entryType",
++              "updatedAt"
++            ],
++            "orders": [],
++            "createSql": "CREATE INDEX IF NOT EXISTS `index_network_stream_entries_entryType_updatedAt` ON `${TABLE_NAME}` (`entryType`, `updatedAt`)"
++          },
++          {
++            "name": "index_network_stream_entries_infoHash_fileIndex",
++            "unique": true,
++            "columnNames": [
++              "infoHash",
++              "fileIndex"
++            ],
++            "orders": [],
++            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_network_stream_entries_infoHash_fileIndex` ON `${TABLE_NAME}` (`infoHash`, `fileIndex`)"
++          }
++        ]
++      },
++      {
++        "tableName": "jellyfin_servers",
++        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `serverUrl` TEXT NOT NULL, `userId` TEXT NOT NULL, `username` TEXT NOT NULL, `accessToken` TEXT NOT NULL, `lastConnected` INTEGER NOT NULL)",
++        "fields": [
++          {
++            "fieldPath": "id",
++            "columnName": "id",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "name",
++            "columnName": "name",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "serverUrl",
++            "columnName": "serverUrl",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "userId",
++            "columnName": "userId",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "username",
++            "columnName": "username",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "accessToken",
++            "columnName": "accessToken",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "lastConnected",
++            "columnName": "lastConnected",
++            "affinity": "INTEGER",
++            "notNull": true
++          }
++        ],
++        "primaryKey": {
++          "autoGenerate": true,
++          "columnNames": [
++            "id"
++          ]
++        }
++      },
++      {
++        "tableName": "download_items",
++        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `systemDownloadId` INTEGER NOT NULL, `url` TEXT NOT NULL, `dirPath` TEXT NOT NULL, `fileName` TEXT NOT NULL, `stagingPath` TEXT, `status` TEXT NOT NULL, `progress` INTEGER NOT NULL, `totalBytes` INTEGER NOT NULL, `failureReason` TEXT, `timeQueued` INTEGER NOT NULL, `source` TEXT NOT NULL, `title` TEXT NOT NULL, `posterUrl` TEXT, `sourceUrl` TEXT, `jellyfinServerId` TEXT, `jellyfinItemId` TEXT, `jellyfinSeriesName` TEXT, `seasonNumber` INTEGER, `episodeNumber` INTEGER, `isAudio` INTEGER NOT NULL)",
++        "fields": [
++          {
++            "fieldPath": "id",
++            "columnName": "id",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "systemDownloadId",
++            "columnName": "systemDownloadId",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "url",
++            "columnName": "url",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "dirPath",
++            "columnName": "dirPath",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "fileName",
++            "columnName": "fileName",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "stagingPath",
++            "columnName": "stagingPath",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "status",
++            "columnName": "status",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "progress",
++            "columnName": "progress",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "totalBytes",
++            "columnName": "totalBytes",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "failureReason",
++            "columnName": "failureReason",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "timeQueued",
++            "columnName": "timeQueued",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "source",
++            "columnName": "source",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "title",
++            "columnName": "title",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "posterUrl",
++            "columnName": "posterUrl",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "sourceUrl",
++            "columnName": "sourceUrl",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "jellyfinServerId",
++            "columnName": "jellyfinServerId",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "jellyfinItemId",
++            "columnName": "jellyfinItemId",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "jellyfinSeriesName",
++            "columnName": "jellyfinSeriesName",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "seasonNumber",
++            "columnName": "seasonNumber",
++            "affinity": "INTEGER"
++          },
++          {
++            "fieldPath": "episodeNumber",
++            "columnName": "episodeNumber",
++            "affinity": "INTEGER"
++          },
++          {
++            "fieldPath": "isAudio",
++            "columnName": "isAudio",
++            "affinity": "INTEGER",
++            "notNull": true
++          }
++        ],
++        "primaryKey": {
++          "autoGenerate": true,
++          "columnNames": [
++            "id"
++          ]
++        },
++        "indices": [
++          {
++            "name": "index_download_items_systemDownloadId",
++            "unique": false,
++            "columnNames": [
++              "systemDownloadId"
++            ],
++            "orders": [],
++            "createSql": "CREATE INDEX IF NOT EXISTS `index_download_items_systemDownloadId` ON `${TABLE_NAME}` (`systemDownloadId`)"
++          },
++          {
++            "name": "index_download_items_jellyfinItemId",
++            "unique": false,
++            "columnNames": [
++              "jellyfinItemId"
++            ],
++            "orders": [],
++            "createSql": "CREATE INDEX IF NOT EXISTS `index_download_items_jellyfinItemId` ON `${TABLE_NAME}` (`jellyfinItemId`)"
++          }
++        ]
++      }
++    ],
++    "setupQueries": [
++      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
++      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'd8cf36e4ccc6d0d6afbe872fe28bad3c')"
++    ]
++  }
++}
+\ No newline at end of file
+diff --git a/app/src/main/java/com/quantummpv/app/di/PreferencesModule.kt b/app/src/main/java/com/quantummpv/app/di/PreferencesModule.kt
+index 70991bf5..7c98fd56 100644
+--- a/app/src/main/java/com/quantummpv/app/di/PreferencesModule.kt
++++ b/app/src/main/java/com/quantummpv/app/di/PreferencesModule.kt
+@@ -18,6 +18,7 @@ import com.quantummpv.app.preferences.DecoderPreferences
+ import com.quantummpv.app.preferences.DownloadPreferences
+ import com.quantummpv.app.preferences.FoldersPreferences
+ import com.quantummpv.app.preferences.GesturePreferences
++import com.quantummpv.app.preferences.MediaServerPreferences
+ import com.quantummpv.app.preferences.NetworkBookmarkPreferences
+ import com.quantummpv.app.preferences.PlayerPreferences
+ import com.quantummpv.app.preferences.SecureFolderPreferences
+@@ -51,5 +52,6 @@ val PreferencesModule =
+     singleOf(::SettingsManager)
+     singleOf(::SecureFolderPreferences)
+     singleOf(::SeerrPreferences)
++    singleOf(::MediaServerPreferences)
+     singleOf(::DownloadPreferences)
+   }
+diff --git a/app/src/main/java/com/quantummpv/app/preferences/MediaServerPreferences.kt b/app/src/main/java/com/quantummpv/app/preferences/MediaServerPreferences.kt
+new file mode 100644
+index 00000000..6a06551e
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/preferences/MediaServerPreferences.kt
+@@ -0,0 +1,30 @@
++/*
++ * SPDX-License-Identifier: AGPL-3.0-or-later
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Affero General Public License as published
++ * by the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ */
++
++package com.quantummpv.app.preferences
++
++import com.quantummpv.app.preferences.preference.PreferenceStore
++import com.quantummpv.app.preferences.preference.getEnum
++
++enum class MusicSourceProvider(val id: String) {
++  LOCAL("local"),
++  JELLYFIN("jellyfin");
++
++  companion object {
++    fun fromId(id: String): MusicSourceProvider =
++      entries.firstOrNull { it.id == id } ?: LOCAL
++  }
++}
++
++class MediaServerPreferences(
++  preferenceStore: PreferenceStore,
++) {
++  val musicSourceProvider =
++    preferenceStore.getEnum("media_server_music_source_provider", MusicSourceProvider.LOCAL)
++}
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/MainScreen.kt b/app/src/main/java/com/quantummpv/app/ui/browser/MainScreen.kt
+index 3aa1b544..65e88ad1 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/MainScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/MainScreen.kt
+@@ -31,6 +31,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
+ import androidx.compose.foundation.layout.Arrangement
+ import androidx.compose.foundation.layout.Box
+ import androidx.compose.foundation.layout.BoxWithConstraints
++import androidx.compose.foundation.layout.Column
+ import androidx.compose.foundation.layout.Row
+ import androidx.compose.foundation.layout.Spacer
+ import androidx.compose.foundation.layout.fillMaxSize
+@@ -93,8 +94,12 @@ import androidx.compose.ui.util.lerp
+ import kotlin.math.roundToInt
+ import com.quantummpv.app.R
+ import com.quantummpv.app.preferences.AppearancePreferences
++import com.quantummpv.app.preferences.MediaServerPreferences
++import com.quantummpv.app.preferences.MusicSourceProvider
+ import com.quantummpv.app.preferences.preference.collectAsState
++import androidx.lifecycle.compose.collectAsStateWithLifecycle
+ import com.quantummpv.app.presentation.Screen
++import com.quantummpv.app.ui.utils.LocalBackStack
+ import com.quantummpv.app.ui.browser.folderlist.FolderListScreen
+ import com.quantummpv.app.ui.browser.music.MusicLibraryContent
+ import com.quantummpv.app.ui.browser.networkstreaming.NetworkStreamingScreen
+@@ -161,7 +166,10 @@ object MainScreen : Screen {
+   @SuppressLint("ComposableNaming")
+   @Composable
+   override fun Content() {
++    val backStack = LocalBackStack.current
+     val appearancePreferences = koinInject<AppearancePreferences>()
++    val mediaServerPreferences = koinInject<MediaServerPreferences>()
++    val musicSourceProvider by mediaServerPreferences.musicSourceProvider.collectAsState()
+     val showHomeTab by appearancePreferences.showHomeTab.collectAsState()
+     val showMusicTab by appearancePreferences.showMusicTab.collectAsState()
+     val showRecentsTab by appearancePreferences.showRecentsTab.collectAsState()
+@@ -386,7 +394,73 @@ object MainScreen : Screen {
+               val tab = visibleTabs.getOrNull(page) ?: return@HorizontalPager
+               when (tab) {
+                 MainTab.HOME -> FolderListScreen.Content()
+-                MainTab.MUSIC -> MusicLibraryContent()
++                MainTab.MUSIC -> {
++                  if (musicSourceProvider == MusicSourceProvider.JELLYFIN) {
++                    val jellyfinUiState by jellyfinViewModel.uiState.collectAsStateWithLifecycle()
++                    if (jellyfinUiState.activeServer == null) {
++                      Box(
++                        modifier = Modifier.fillMaxSize().padding(24.dp),
++                        contentAlignment = Alignment.Center,
++                      ) {
++                        androidx.compose.material3.Card(
++                          shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
++                          colors =
++                            androidx.compose.material3.CardDefaults.cardColors(
++                              containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
++                            ),
++                        ) {
++                          Column(
++                            modifier = Modifier.padding(24.dp),
++                            horizontalAlignment = Alignment.CenterHorizontally,
++                            verticalArrangement = Arrangement.spacedBy(16.dp),
++                          ) {
++                            androidx.compose.material3.Icon(
++                              painter = painterResource(R.drawable.ic_jellyfin),
++                              contentDescription = null,
++                              modifier = Modifier.size(56.dp),
++                              tint = MaterialTheme.colorScheme.primary,
++                            )
++                            Text(
++                              text = stringResource(R.string.music_source_jellyfin),
++                              style = MaterialTheme.typography.titleLarge,
++                              fontWeight = FontWeight.Bold,
++                            )
++                            Text(
++                              text = stringResource(R.string.pref_jellyfin_no_server),
++                              style = MaterialTheme.typography.bodyMedium,
++                              color = MaterialTheme.colorScheme.onSurfaceVariant,
++                              textAlign = androidx.compose.ui.text.style.TextAlign.Center,
++                            )
++                            androidx.compose.material3.FilledTonalButton(
++                              onClick = {
++                                backStack.add(com.quantummpv.app.ui.preferences.MediaServersPreferencesScreen)
++                              },
++                            ) {
++                              Text(stringResource(R.string.generic_configure))
++                            }
++                            androidx.compose.material3.TextButton(
++                              onClick = {
++                                mediaServerPreferences.musicSourceProvider.set(MusicSourceProvider.LOCAL)
++                              },
++                            ) {
++                              Text(stringResource(R.string.music_source_local))
++                            }
++                          }
++                        }
++                      }
++                    } else {
++                      LaunchedEffect(jellyfinUiState.libraries) {
++                        jellyfinViewModel.ensureMusicLibraryOpened()
++                      }
++                      com.quantummpv.app.ui.browser.jellyfin.JellyfinContent(
++                        viewModel = jellyfinViewModel,
++                        isMusicOnlyMode = true,
++                      )
++                    }
++                  } else {
++                    MusicLibraryContent()
++                  }
++                }
+                 MainTab.RECENTS -> RecentlyPlayedScreen.Content()
+                 MainTab.PLAYLISTS -> PlaylistScreen.Content()
+                 MainTab.NETWORK -> NetworkStreamingScreen.Content()
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/components/BrowserTopBar.kt b/app/src/main/java/com/quantummpv/app/ui/browser/components/BrowserTopBar.kt
+index be153fc8..21c61a10 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/components/BrowserTopBar.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/components/BrowserTopBar.kt
+@@ -89,6 +89,7 @@ fun BrowserTopBar(
+   onSelectAll: (() -> Unit)? = null,
+   onInvertSelection: (() -> Unit)? = null,
+   onDeselectAll: (() -> Unit)? = null,
++  preSearchActions: @Composable RowScope.() -> Unit = { },
+   additionalActions: @Composable RowScope.() -> Unit = { },
+   onTitleLongPress: (() -> Unit)? = null,
+   onTitleDoubleTap: (() -> Unit)? = null,
+@@ -132,6 +133,7 @@ fun BrowserTopBar(
+       onSearchClick = onSearchClick,
+       onRequestClick = onRequestClick,
+       onSettingsClick = onSettingsClick,
++      preSearchActions = preSearchActions,
+       additionalActions = additionalActions,
+       modifier = modifier,
+       onTitleLongPress = onTitleLongPress,
+@@ -155,6 +157,7 @@ private fun NormalTopBar(
+   onSearchClick: (() -> Unit)?,
+   onRequestClick: (() -> Unit)? = null,
+   onSettingsClick: (() -> Unit)?,
++  preSearchActions: @Composable RowScope.() -> Unit = { },
+   additionalActions: @Composable RowScope.() -> Unit,
+   modifier: Modifier = Modifier,
+   onTitleLongPress: (() -> Unit)?,
+@@ -302,6 +305,7 @@ private fun NormalTopBar(
+       }
+     },
+     actions = {
++      preSearchActions()
+       if (onSearchClick != null) {
+         IconButton(
+           onClick = onSearchClick,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinContent.kt b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinContent.kt
+index a9772b68..3b57cb79 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinContent.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinContent.kt
+@@ -19,6 +19,7 @@ import androidx.compose.animation.fadeOut
+ import androidx.compose.animation.slideInVertically
+ import androidx.compose.animation.slideOutVertically
+ import androidx.compose.foundation.background
++import androidx.compose.foundation.clickable
+ import androidx.compose.foundation.gestures.detectTapGestures
+ import androidx.compose.foundation.horizontalScroll
+ import androidx.compose.foundation.layout.Arrangement
+@@ -50,6 +51,8 @@ import androidx.compose.foundation.shape.CircleShape
+ import androidx.compose.foundation.shape.RoundedCornerShape
+ import androidx.compose.material3.Button
+ import androidx.compose.material3.CircularProgressIndicator
++import androidx.compose.material3.DropdownMenu
++import androidx.compose.material3.DropdownMenuItem
+ import androidx.compose.material3.ExperimentalMaterial3Api
+ import androidx.compose.material3.FilledTonalButton
+ import androidx.compose.material3.FilterChip
+@@ -98,6 +101,8 @@ import com.quantummpv.app.domain.jellyfin.JellyfinItem
+ import com.quantummpv.app.domain.jellyfin.JellyfinSearchCategory
+ import com.quantummpv.app.domain.jellyfin.JellyfinServer
+ import com.quantummpv.app.preferences.AppearancePreferences
++import com.quantummpv.app.preferences.MediaServerPreferences
++import com.quantummpv.app.preferences.MusicSourceProvider
+ import kotlinx.coroutines.launch
+ import com.quantummpv.app.preferences.BrowserPreferences
+ import com.quantummpv.app.preferences.MediaLayoutMode
+@@ -122,12 +127,15 @@ import org.koin.compose.koinInject
+ fun JellyfinContent(
+   viewModel: JellyfinViewModel,
+   modifier: Modifier = Modifier,
++  isMusicOnlyMode: Boolean = false,
+ ) {
+   val uiState by viewModel.uiState.collectAsState()
+   val context = LocalContext.current
+   val backstack = LocalBackStack.current
+   val browserPreferences = koinInject<BrowserPreferences>()
++  val mediaServerPreferences = koinInject<MediaServerPreferences>()
+   val appearancePreferences = koinInject<AppearancePreferences>()
++  val currentMusicSource by mediaServerPreferences.musicSourceProvider.collectAsState()
+   val layoutMode by browserPreferences.jellyfinLayoutMode.collectAsState()
+   val showQuickPlayFab by appearancePreferences.showQuickPlayFab.collectAsState()
+   val quickPlayFabDirect by appearancePreferences.quickPlayFabDirect.collectAsState()
+@@ -223,6 +231,19 @@ fun JellyfinContent(
+       },
+     )
+ 
++  // Clear selection when navigating into or out of a folder
++  LaunchedEffect(uiState.openLibrary) {
++    selectionManager.clear()
++  }
++
++  // Clear selection and close detail when active server changes
++  LaunchedEffect(uiState.activeServer) {
++    selectionManager.clear()
++    if (uiState.detailItem != null) {
++      viewModel.closeDetail()
++    }
++  }
++
+   DisposableEffect(selectionManager.isInSelectionMode) {
+     NavigationBarState.updateSelectionState(
+       inSelectionMode = selectionManager.isInSelectionMode,
+@@ -234,10 +255,18 @@ fun JellyfinContent(
+   }
+ 
+   // Intercept back button if searching, selecting, requests open, details open, or browsing inside a folder
+-  BackHandler(
+-    enabled =
++  val isBackEnabled =
++    if (isMusicOnlyMode) {
++      isSearching || selectionManager.isInSelectionMode || uiState.detailItem != null ||
++        (uiState.openLibrary?.isMusic == true && uiState.musicActiveTab != JellyfinMusicTab.HOME) ||
++        (isFabExpanded && !quickPlayFabDirect)
++    } else {
+       isSeerrRequestsOpen || isSearching || selectionManager.isInSelectionMode ||
+-        uiState.detailItem != null || uiState.openLibrary != null || (isFabExpanded && !quickPlayFabDirect),
++        uiState.detailItem != null || uiState.openLibrary != null || (isFabExpanded && !quickPlayFabDirect)
++    }
++
++  BackHandler(
++    enabled = isBackEnabled,
+   ) {
+     when {
+       isFabExpanded && !quickPlayFabDirect -> {
+@@ -257,6 +286,11 @@ fun JellyfinContent(
+       selectionManager.isInSelectionMode -> {
+         selectionManager.clear()
+       }
++      isMusicOnlyMode -> {
++        if (uiState.musicActiveTab != JellyfinMusicTab.HOME) {
++          viewModel.setMusicTab(JellyfinMusicTab.HOME)
++        }
++      }
+       else -> {
+         viewModel.navigateBack()
+       }
+@@ -285,6 +319,7 @@ fun JellyfinContent(
+ 
+   val pageTitle =
+     when {
++      isMusicOnlyMode -> stringResource(R.string.ui_music)
+       uiState.openLibrary != null -> uiState.openLibrary!!.title
+       uiState.activeServer != null -> uiState.activeServer!!.name
+       else -> stringResource(R.string.ui_jellyfin)
+@@ -384,13 +419,13 @@ fun JellyfinContent(
+           onDeselectAll = { selectionManager.clear() },
+           onPlayClick = { viewModel.playSelected(context, selectionManager.getSelectedItems()) },
+           isSingleSelection = selectionManager.isSingleSelection,
+-          onBackClick = if (uiState.openLibrary != null) { { viewModel.navigateBack() } } else null,
++          onBackClick = if (!isMusicOnlyMode && uiState.openLibrary != null) { { viewModel.navigateBack() } } else null,
+           onSortClick = if (uiState.openLibrary != null && !(uiState.openLibrary?.isMusic == true && uiState.musicActiveTab == JellyfinMusicTab.HOME)) {
+             { isSortDialogOpen = true }
+           } else null,
+           onSearchClick = { isSearching = true },
+           // Seerr requests only surface on the untouched Jellyfin home page.
+-          onRequestClick = if (uiState.openLibrary == null && uiState.selectedLibraryId == null) {
++          onRequestClick = if (!isMusicOnlyMode && uiState.openLibrary == null && uiState.selectedLibraryId == null) {
+             { isSeerrRequestsOpen = true }
+           } else {
+             null
+@@ -398,8 +433,139 @@ fun JellyfinContent(
+           onSettingsClick = {
+             backstack.add(com.quantummpv.app.ui.preferences.PreferencesScreen)
+           },
+-          additionalActions = {
++          preSearchActions = {
+             if (!selectionManager.isInSelectionMode) {
++              if (currentMusicSource == MusicSourceProvider.JELLYFIN || uiState.openLibrary?.isMusic == true) {
++                var isSourceDropdownOpen by remember { mutableStateOf(false) }
++                Box {
++                Surface(
++                  shape = RoundedCornerShape(16.dp),
++                  color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.8f),
++                  modifier = Modifier
++                    .padding(horizontal = 4.dp, vertical = 6.dp)
++                    .clickable { isSourceDropdownOpen = true },
++                ) {
++                  Row(
++                    verticalAlignment = Alignment.CenterVertically,
++                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
++                  ) {
++                    if (currentMusicSource == MusicSourceProvider.JELLYFIN) {
++                      androidx.compose.material3.Icon(
++                        painter = painterResource(R.drawable.ic_jellyfin),
++                        contentDescription = null,
++                        modifier = Modifier.size(16.dp),
++                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
++                      )
++                    } else {
++                      Icon(
++                        Icons.RoundedFilled.Folder,
++                        contentDescription = null,
++                        modifier = Modifier.size(16.dp),
++                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
++                      )
++                    }
++                    Spacer(Modifier.width(6.dp))
++                    Text(
++                      text = if (currentMusicSource == MusicSourceProvider.JELLYFIN) {
++                        stringResource(R.string.pref_jellyfin_title)
++                      } else {
++                        stringResource(R.string.music_source_local)
++                      },
++                      style = MaterialTheme.typography.labelMedium,
++                      fontWeight = FontWeight.Bold,
++                      color = MaterialTheme.colorScheme.onSecondaryContainer,
++                    )
++                    Spacer(Modifier.width(2.dp))
++                    Icon(
++                      Icons.RoundedFilled.ArrowDropDown,
++                      contentDescription = null,
++                      modifier = Modifier.size(16.dp),
++                      tint = MaterialTheme.colorScheme.onSecondaryContainer,
++                    )
++                  }
++                }
++
++                  DropdownMenu(
++                    expanded = isSourceDropdownOpen,
++                    onDismissRequest = { isSourceDropdownOpen = false },
++                  ) {
++                    DropdownMenuItem(
++                      text = {
++                        Row(
++                          verticalAlignment = Alignment.CenterVertically,
++                          horizontalArrangement = Arrangement.SpaceBetween,
++                          modifier = Modifier.fillMaxWidth(),
++                        ) {
++                          Text(stringResource(R.string.music_source_local))
++                          if (currentMusicSource == MusicSourceProvider.LOCAL) {
++                            Spacer(Modifier.width(12.dp))
++                            Icon(
++                              Icons.RoundedFilled.Check,
++                              contentDescription = null,
++                              modifier = Modifier.size(18.dp),
++                              tint = MaterialTheme.colorScheme.primary,
++                            )
++                          }
++                        }
++                      },
++                      leadingIcon = {
++                        Icon(Icons.RoundedFilled.Folder, contentDescription = null)
++                      },
++                      onClick = {
++                        mediaServerPreferences.musicSourceProvider.set(MusicSourceProvider.LOCAL)
++                        isSourceDropdownOpen = false
++                      },
++                    )
++
++                    DropdownMenuItem(
++                      text = {
++                        Row(
++                          verticalAlignment = Alignment.CenterVertically,
++                          horizontalArrangement = Arrangement.SpaceBetween,
++                          modifier = Modifier.fillMaxWidth(),
++                        ) {
++                          Text(stringResource(R.string.music_source_jellyfin))
++                          if (currentMusicSource == MusicSourceProvider.JELLYFIN) {
++                            Spacer(Modifier.width(12.dp))
++                            Icon(
++                              Icons.RoundedFilled.Check,
++                              contentDescription = null,
++                              modifier = Modifier.size(18.dp),
++                              tint = MaterialTheme.colorScheme.primary,
++                            )
++                          }
++                        }
++                      },
++                      leadingIcon = {
++                        androidx.compose.material3.Icon(
++                          painter = painterResource(R.drawable.ic_jellyfin),
++                          contentDescription = null,
++                          modifier = Modifier.size(20.dp),
++                          tint = MaterialTheme.colorScheme.primary,
++                        )
++                      },
++                      onClick = {
++                        mediaServerPreferences.musicSourceProvider.set(MusicSourceProvider.JELLYFIN)
++                        isSourceDropdownOpen = false
++                      },
++                    )
++
++                    HorizontalDivider()
++
++                    DropdownMenuItem(
++                      text = { Text(stringResource(R.string.pref_media_servers_title)) },
++                      leadingIcon = {
++                        Icon(Icons.RoundedFilled.Settings, contentDescription = null)
++                      },
++                      onClick = {
++                        isSourceDropdownOpen = false
++                        backstack.add(com.quantummpv.app.ui.preferences.MediaServersPreferencesScreen)
++                      },
++                    )
++                  }
++                }
++              }
++
+               IconButton(
+                 onClick = { backstack.add(com.quantummpv.app.ui.downloads.DownloadsScreen) },
+                 modifier = Modifier.padding(horizontal = 2.dp),
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinViewModel.kt b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinViewModel.kt
+index 11de2061..91df0272 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinViewModel.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinViewModel.kt
+@@ -543,6 +543,17 @@ class JellyfinViewModel(
+     }
+   }
+ 
++  fun ensureMusicLibraryOpened() {
++    val active = _uiState.value.activeServer ?: return
++    if (_uiState.value.openLibrary?.isMusic == true) return
++    val musicLib = _uiState.value.libraries.firstOrNull {
++      it.collectionType?.equals("music", ignoreCase = true) == true || it.type == "MusicAlbum" || it.type == "MusicArtist"
++    }
++    if (musicLib != null) {
++      navigateToItem(musicLib)
++    }
++  }
++
+   fun setGenreFilter(genre: String?) {
+     if (_uiState.value.selectedGenreFilter == genre) return
+     _uiState.update { it.copy(selectedGenreFilter = genre) }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryContent.kt b/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryContent.kt
+index d3fe048f..9f19c02c 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryContent.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryContent.kt
+@@ -102,6 +102,7 @@ import androidx.compose.ui.input.pointer.pointerInput
+ import androidx.compose.ui.layout.ContentScale
+ import androidx.compose.ui.layout.Layout
+ import androidx.compose.ui.platform.LocalContext
++import androidx.compose.ui.res.painterResource
+ import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.text.font.FontWeight
+ import androidx.compose.ui.text.style.TextAlign
+@@ -122,6 +123,8 @@ import com.quantummpv.app.presentation.components.RemoteImage
+ import com.quantummpv.app.presentation.components.pullrefresh.PullRefreshBox
+ import com.quantummpv.app.preferences.BrowserPreferences
+ import com.quantummpv.app.preferences.AppearancePreferences
++import com.quantummpv.app.preferences.MediaServerPreferences
++import com.quantummpv.app.preferences.MusicSourceProvider
+ import com.quantummpv.app.preferences.preference.collectAsState
+ import com.quantummpv.app.ui.preferences.PreferencesScreen
+ import com.quantummpv.app.ui.browser.LocalNavigationBarHeight
+@@ -209,6 +212,8 @@ fun MusicLibraryContent(
+   val isPlaybackActive by musicViewModel.isPlaybackActive.collectAsState()
+ 
+   val browserPreferences = koinInject<BrowserPreferences>()
++  val mediaServerPreferences = koinInject<MediaServerPreferences>()
++  val currentMusicSource by mediaServerPreferences.musicSourceProvider.collectAsState()
+   val foldersPreferences = koinInject<com.quantummpv.app.preferences.FoldersPreferences>()
+   val folderSortType by browserPreferences.folderSortType.collectAsState()
+   val folderSortOrder by browserPreferences.folderSortOrder.collectAsState()
+@@ -550,7 +555,139 @@ fun MusicLibraryContent(
+               onRenameClick = null,
+               isSingleSelection = activeSelectionManager.isSingleSelection,
+               onInfoClick = null,
+-              onAddToPlaylistClick = null
++              onAddToPlaylistClick = null,
++              preSearchActions = {
++                if (!activeSelectionManager.isInSelectionMode) {
++                  var isSourceDropdownOpen by remember { mutableStateOf(false) }
++                  Box {
++                    Surface(
++                      shape = RoundedCornerShape(16.dp),
++                      color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.8f),
++                      modifier = Modifier
++                        .padding(horizontal = 4.dp, vertical = 6.dp)
++                        .clickable { isSourceDropdownOpen = true },
++                    ) {
++                      Row(
++                        verticalAlignment = Alignment.CenterVertically,
++                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
++                      ) {
++                        if (currentMusicSource == MusicSourceProvider.JELLYFIN) {
++                          androidx.compose.material3.Icon(
++                            painter = painterResource(R.drawable.ic_jellyfin),
++                            contentDescription = null,
++                            modifier = Modifier.size(16.dp),
++                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
++                          )
++                        } else {
++                          Icon(
++                            Icons.RoundedFilled.Folder,
++                            contentDescription = null,
++                            modifier = Modifier.size(16.dp),
++                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
++                          )
++                        }
++                        Spacer(Modifier.width(6.dp))
++                        Text(
++                          text = if (currentMusicSource == MusicSourceProvider.JELLYFIN) {
++                            stringResource(R.string.pref_jellyfin_title)
++                          } else {
++                            stringResource(R.string.music_source_local)
++                          },
++                          style = MaterialTheme.typography.labelMedium,
++                          fontWeight = FontWeight.Bold,
++                          color = MaterialTheme.colorScheme.onSecondaryContainer,
++                        )
++                        Spacer(Modifier.width(2.dp))
++                        Icon(
++                          Icons.RoundedFilled.ArrowDropDown,
++                          contentDescription = null,
++                          modifier = Modifier.size(16.dp),
++                          tint = MaterialTheme.colorScheme.onSecondaryContainer,
++                        )
++                      }
++                    }
++
++                    DropdownMenu(
++                      expanded = isSourceDropdownOpen,
++                      onDismissRequest = { isSourceDropdownOpen = false },
++                    ) {
++                      DropdownMenuItem(
++                        text = {
++                          Row(
++                            verticalAlignment = Alignment.CenterVertically,
++                            horizontalArrangement = Arrangement.SpaceBetween,
++                            modifier = Modifier.fillMaxWidth(),
++                          ) {
++                            Text(stringResource(R.string.music_source_local))
++                            if (currentMusicSource == MusicSourceProvider.LOCAL) {
++                              Spacer(Modifier.width(12.dp))
++                              Icon(
++                                Icons.RoundedFilled.Check,
++                                contentDescription = null,
++                                modifier = Modifier.size(18.dp),
++                                tint = MaterialTheme.colorScheme.primary,
++                              )
++                            }
++                          }
++                        },
++                        leadingIcon = {
++                          Icon(Icons.RoundedFilled.Folder, contentDescription = null)
++                        },
++                        onClick = {
++                          mediaServerPreferences.musicSourceProvider.set(MusicSourceProvider.LOCAL)
++                          isSourceDropdownOpen = false
++                        },
++                      )
++
++                      DropdownMenuItem(
++                        text = {
++                          Row(
++                            verticalAlignment = Alignment.CenterVertically,
++                            horizontalArrangement = Arrangement.SpaceBetween,
++                            modifier = Modifier.fillMaxWidth(),
++                          ) {
++                            Text(stringResource(R.string.music_source_jellyfin))
++                            if (currentMusicSource == MusicSourceProvider.JELLYFIN) {
++                              Spacer(Modifier.width(12.dp))
++                              Icon(
++                                Icons.RoundedFilled.Check,
++                                contentDescription = null,
++                                modifier = Modifier.size(18.dp),
++                                tint = MaterialTheme.colorScheme.primary,
++                              )
++                            }
++                          }
++                        },
++                        leadingIcon = {
++                          androidx.compose.material3.Icon(
++                            painter = painterResource(R.drawable.ic_jellyfin),
++                            contentDescription = null,
++                            modifier = Modifier.size(20.dp),
++                            tint = MaterialTheme.colorScheme.primary,
++                          )
++                        },
++                        onClick = {
++                          mediaServerPreferences.musicSourceProvider.set(MusicSourceProvider.JELLYFIN)
++                          isSourceDropdownOpen = false
++                        },
++                      )
++
++                      HorizontalDivider()
++
++                      DropdownMenuItem(
++                        text = { Text(stringResource(R.string.pref_media_servers_title)) },
++                        leadingIcon = {
++                          Icon(Icons.RoundedFilled.Settings, contentDescription = null)
++                        },
++                        onClick = {
++                          isSourceDropdownOpen = false
++                          backStack.add(com.quantummpv.app.ui.preferences.MediaServersPreferencesScreen)
++                        },
++                      )
++                    }
++                  }
++                }
++              },
+             )
+           }
+         }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/AudioPreferencesScreen.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/AudioPreferencesScreen.kt
+index 1dd5f3ca..223d2831 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/AudioPreferencesScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/AudioPreferencesScreen.kt
+@@ -47,6 +47,8 @@ import com.quantummpv.app.preferences.AudioChannels
+ import com.quantummpv.app.preferences.AudioPlayerOrientation
+ import com.quantummpv.app.preferences.AudioPreferences
+ import com.quantummpv.app.preferences.LyricsTranslationDisplayMode
++import com.quantummpv.app.preferences.MediaServerPreferences
++import com.quantummpv.app.preferences.MusicSourceProvider
+ import com.quantummpv.app.data.lyrics.LyricsLanguageOptions
+ import com.quantummpv.app.preferences.AudioVisualizerStyle
+ import com.quantummpv.app.preferences.BrowserPreferences
+@@ -263,6 +265,35 @@ object AudioPreferencesScreen : Screen {
+                   style = MaterialTheme.typography.bodyMedium,
+                 )
+               }
++
++              PreferenceDivider()
++              val mediaServerPreferences = koinInject<MediaServerPreferences>()
++              val musicSourceProvider by mediaServerPreferences.musicSourceProvider.collectAsState()
++              ListPreference(
++                modifier = Modifier.settingsSearchTarget(R.string.pref_music_player_switch_title),
++                value = musicSourceProvider,
++                onValueChange = { mediaServerPreferences.musicSourceProvider.set(it) },
++                values = listOf(MusicSourceProvider.LOCAL, MusicSourceProvider.JELLYFIN),
++                valueToText = { source ->
++                  AnnotatedString(
++                    when (source) {
++                      MusicSourceProvider.LOCAL -> context.getString(R.string.music_source_local)
++                      MusicSourceProvider.JELLYFIN -> context.getString(R.string.music_source_jellyfin)
++                    },
++                  )
++                },
++                title = { Text(stringResource(R.string.pref_music_player_switch_title)) },
++                summary = {
++                  Text(
++                    text =
++                      when (musicSourceProvider) {
++                        MusicSourceProvider.LOCAL -> stringResource(R.string.music_source_local)
++                        MusicSourceProvider.JELLYFIN -> stringResource(R.string.music_source_jellyfin)
++                      },
++                    color = MaterialTheme.colorScheme.outline,
++                  )
++                },
++              )
+             }
+           }
+ 
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/MediaServersPreferencesScreen.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/MediaServersPreferencesScreen.kt
+new file mode 100644
+index 00000000..e356f0d3
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/MediaServersPreferencesScreen.kt
+@@ -0,0 +1,284 @@
++/*
++ * SPDX-License-Identifier: AGPL-3.0-or-later
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Affero General Public License as published
++ * by the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ */
++
++package com.quantummpv.app.ui.preferences
++
++import android.app.Application
++import androidx.compose.foundation.layout.fillMaxSize
++import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.lazy.LazyColumn
++import androidx.compose.material3.ExperimentalMaterial3Api
++import androidx.compose.material3.Icon
++import androidx.compose.material3.IconButton
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.Scaffold
++import androidx.compose.material3.Text
++import androidx.compose.material3.TopAppBar
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.getValue
++import androidx.compose.runtime.mutableStateOf
++import androidx.compose.runtime.remember
++import androidx.compose.runtime.setValue
++import androidx.compose.foundation.layout.size
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.unit.dp
++import androidx.compose.ui.platform.LocalContext
++import androidx.compose.ui.res.painterResource
++import androidx.compose.ui.res.stringResource
++import androidx.compose.ui.text.font.FontWeight
++import androidx.lifecycle.compose.collectAsStateWithLifecycle
++import androidx.lifecycle.viewmodel.compose.viewModel
++import com.quantummpv.app.R
++import com.quantummpv.app.domain.jellyfin.JellyfinServer
++import com.quantummpv.app.presentation.Screen
++import com.quantummpv.app.ui.browser.jellyfin.AddJellyfinServerDialog
++import com.quantummpv.app.ui.browser.jellyfin.JellyfinViewModel
++import com.quantummpv.app.ui.browser.jellyfin.ManageJellyfinServersDialog
++import com.quantummpv.app.ui.browser.jellyfin.seerr.SeerrConnectionDialog
++import com.quantummpv.app.ui.browser.jellyfin.seerr.SeerrViewModel
++import com.quantummpv.app.ui.icons.Icon
++import com.quantummpv.app.ui.icons.Icons
++import com.quantummpv.app.ui.utils.LocalBackStack
++import com.quantummpv.app.ui.utils.LocalShowSettingsBackArrow
++import com.quantummpv.app.ui.utils.popSafely
++import kotlinx.serialization.Serializable
++import me.zhanghai.compose.preference.Preference
++import me.zhanghai.compose.preference.ProvidePreferenceLocals
++
++@Serializable
++object MediaServersPreferencesScreen : Screen {
++
++  @OptIn(ExperimentalMaterial3Api::class)
++  @Composable
++  override fun Content() {
++    val context = LocalContext.current
++    val backStack = LocalBackStack.current
++
++    val jellyfinViewModel: JellyfinViewModel =
++      viewModel(factory = JellyfinViewModel.factory(context.applicationContext as Application))
++    val jellyfinUiState by jellyfinViewModel.uiState.collectAsStateWithLifecycle()
++
++    val seerrViewModel: SeerrViewModel =
++      viewModel(factory = SeerrViewModel.factory(context.applicationContext as Application))
++    val seerrUiState by seerrViewModel.uiState.collectAsStateWithLifecycle()
++
++    var isManageServersOpen by remember { mutableStateOf(false) }
++    var isAddServerOpen by remember { mutableStateOf(false) }
++    var serverToReauth by remember { mutableStateOf<JellyfinServer?>(null) }
++    var isSeerrConnectionDialogOpen by remember { mutableStateOf(false) }
++
++    Scaffold(
++      topBar = {
++        TopAppBar(
++          title = {
++            Text(
++              text = stringResource(R.string.pref_media_servers_title),
++              style = MaterialTheme.typography.headlineSmall,
++              fontWeight = FontWeight.ExtraBold,
++              color = MaterialTheme.colorScheme.primary,
++            )
++          },
++          navigationIcon = {
++            if (LocalShowSettingsBackArrow.current) {
++              IconButton(onClick = { backStack.popSafely() }) {
++                Icon(
++                  Icons.RoundedFilled.ArrowBack,
++                  contentDescription = null,
++                  tint = MaterialTheme.colorScheme.secondary,
++                )
++              }
++            }
++          },
++        )
++      },
++    ) { padding ->
++      ProvidePreferenceLocals {
++        val (settingsListState, settingsHighlight) =
++          rememberSettingsSearchList(MediaServersPreferencesScreen, MaterialTheme.colorScheme.primary)
++
++        LazyColumn(
++          state = settingsListState,
++          modifier =
++            Modifier
++              .fillMaxSize()
++              .padding(padding)
++              .then(settingsHighlight),
++        ) {
++          // --- JELLYFIN SECTION ---
++          item {
++            PreferenceSectionHeader(
++              title = stringResource(R.string.pref_jellyfin_title),
++              modifier = Modifier.settingsSearchTarget(R.string.pref_media_servers_title),
++            )
++          }
++
++          item {
++            val activeServer = jellyfinUiState.activeServer
++            val serverDesc =
++              if (activeServer != null) {
++                "${activeServer.name} (${activeServer.serverUrl})"
++              } else {
++                stringResource(R.string.pref_jellyfin_no_server)
++              }
++
++            PreferenceCard {
++              Preference(
++                modifier = Modifier.settingsSearchTarget(R.string.pref_jellyfin_server_management),
++                title = { Text(stringResource(R.string.pref_jellyfin_server_management)) },
++                summary = {
++                  Text(
++                    text = serverDesc,
++                    color = MaterialTheme.colorScheme.outline,
++                  )
++                },
++                icon = {
++                  Icon(
++                    painter = painterResource(R.drawable.ic_jellyfin),
++                    contentDescription = null,
++                    tint = MaterialTheme.colorScheme.primary,
++                    modifier = Modifier.size(24.dp),
++                  )
++                },
++                onClick = { isManageServersOpen = true },
++              )
++            }
++          }
++
++          // --- SEERR SECTION ---
++          item {
++            PreferenceSectionHeader(title = stringResource(R.string.pref_seerr_title))
++          }
++
++          item {
++            val connectionDesc =
++              if (seerrUiState.isConnected) {
++                val userText =
++                  seerrUiState.currentUser?.displayName
++                    ?: seerrUiState.currentUser?.username
++                    ?: seerrUiState.currentUser?.email
++                    ?: "Connected"
++                stringResource(R.string.pref_seerr_connected_as, userText)
++              } else {
++                stringResource(R.string.pref_seerr_not_connected)
++              }
++
++            PreferenceCard {
++              Preference(
++                modifier = Modifier.settingsSearchTarget(R.string.pref_seerr_server_management),
++                title = { Text(stringResource(R.string.pref_seerr_server_management)) },
++                summary = {
++                  Text(
++                    text = connectionDesc,
++                    color = MaterialTheme.colorScheme.outline,
++                  )
++                },
++                icon = {
++                  Icon(
++                    Icons.RoundedFilled.CloudDone,
++                    contentDescription = null,
++                    tint = MaterialTheme.colorScheme.primary,
++                  )
++                },
++                onClick = { isSeerrConnectionDialogOpen = true },
++              )
++
++              if (seerrUiState.isConnected) {
++                PreferenceDivider()
++                Preference(
++                  title = { Text(stringResource(R.string.pref_seerr_disconnect)) },
++                  summary = {
++                    Text(
++                      text = seerrUiState.serverUrl,
++                      color = MaterialTheme.colorScheme.outline,
++                    )
++                  },
++                  icon = {
++                    Icon(
++                      Icons.RoundedFilled.CloudOff,
++                      contentDescription = null,
++                      tint = MaterialTheme.colorScheme.error,
++                    )
++                  },
++                  onClick = { seerrViewModel.disconnect() },
++                )
++              }
++            }
++          }
++        }
++      }
++    }
++
++    // Manage Jellyfin Servers Dialog
++    ManageJellyfinServersDialog(
++      isOpen = isManageServersOpen,
++      servers = jellyfinUiState.servers,
++      activeServer = jellyfinUiState.activeServer,
++      onDismiss = { isManageServersOpen = false },
++      onSelectServer = { server ->
++        jellyfinViewModel.selectServer(server)
++      },
++      onDeleteServer = { server ->
++        jellyfinViewModel.deleteServer(server)
++      },
++      onAddServerClick = {
++        isAddServerOpen = true
++      },
++    )
++
++    // Add / Re-authenticate Jellyfin Server Dialog
++    AddJellyfinServerDialog(
++      isOpen = isAddServerOpen,
++      isLoading = jellyfinUiState.isAuthenticating,
++      errorMessage = jellyfinUiState.authError,
++      initialServer = serverToReauth,
++      onDismiss = {
++        isAddServerOpen = false
++        serverToReauth = null
++      },
++      onConnect = { serverUrl, serverName, authMode, username, password, token ->
++        val existingId = serverToReauth?.id
++        jellyfinViewModel.addServer(
++          serverUrl = serverUrl,
++          serverName = serverName,
++          authMode = authMode,
++          username = username,
++          password = password,
++          token = token,
++          existingServerId = existingId,
++          onSuccess = {
++            isAddServerOpen = false
++            serverToReauth = null
++          },
++        )
++      },
++    )
++
++    // Seerr Connection Dialog
++    SeerrConnectionDialog(
++      isOpen = isSeerrConnectionDialogOpen,
++      isConnected = seerrUiState.isConnected,
++      currentUser = seerrUiState.currentUser,
++      currentServerUrl = seerrUiState.serverUrl,
++      currentApiKey = seerrUiState.apiKey,
++      activeJellyfinServer = jellyfinUiState.activeServer,
++      isConnecting = seerrUiState.isConnecting,
++      errorMessage = seerrUiState.connectionError,
++      onDismiss = { isSeerrConnectionDialogOpen = false },
++      onConnectWithCredentials = { url, user, pass, useJellyfin ->
++        seerrViewModel.connectWithCredentials(url, user, pass, useJellyfin)
++      },
++      onConnectWithApiKey = { url, apiKey ->
++        seerrViewModel.connectWithApiKey(url, apiKey)
++      },
++      onDisconnect = {
++        seerrViewModel.disconnect()
++      },
++    )
++  }
++}
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/PreferencesScreen.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/PreferencesScreen.kt
+index 6d2378dd..96233f9f 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/PreferencesScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/PreferencesScreen.kt
+@@ -291,6 +291,19 @@ object PreferencesScreen : Screen {
+             },
+           ),
+       ),
++      SettingsSection(
++        title = stringResource(R.string.pref_section_media_servers),
++        tint = colorScheme.onSurfaceVariant,
++        items =
++          listOf(
++            SettingsDestination(
++              title = stringResource(R.string.pref_media_servers_title),
++              summary = stringResource(R.string.pref_media_servers_summary),
++              icon = Icons.RoundedFilled.BringYourOwnIp,
++              screen = MediaServersPreferencesScreen,
++            ),
++          ),
++      ),
+       SettingsSection(
+         title = stringResource(R.string.pref_section_ai),
+         tint = colorScheme.onSurfaceVariant,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/SearchablePreference.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/SearchablePreference.kt
+index 1adab982..3e9c5511 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/SearchablePreference.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/SearchablePreference.kt
+@@ -1555,6 +1555,19 @@ object SearchablePreferences {
+         SearchEntrySpec(R.string.pref_override_instructions_title, listOf("ai", "prompt", "override", "instructions", "custom"), R.string.pref_section_ai_title),
+       )
+ 
++      addSearchEntries(
++        category = "Media Servers",
++        screen = MediaServersPreferencesScreen,
++        anchorItemIndex = 1,
++        SearchEntrySpec(R.string.pref_jellyfin_server_management, listOf("jellyfin", "server", "remote", "streaming", "account")),
++      )
++      addSearchEntries(
++        category = "Media Servers",
++        screen = MediaServersPreferencesScreen,
++        anchorItemIndex = 2,
++        SearchEntrySpec(R.string.pref_seerr_server_management, listOf("seerr", "jellyseerr", "overseerr", "requests", "server", "api")),
++      )
++
+       // About
+       add(
+         SearchablePreference(
+@@ -1673,6 +1686,13 @@ object SearchablePreferences {
+         category = "AI",
+         screen = AiIntegrationScreen,
+       ),
++      SearchablePreference(
++        titleRes = R.string.pref_media_servers_title,
++        summaryRes = R.string.pref_media_servers_summary,
++        keywords = listOf("jellyfin seerr jellyseerr overseerr media server streaming remote music player"),
++        category = "Media Servers",
++        screen = MediaServersPreferencesScreen,
++      ),
+       SearchablePreference(
+         titleRes = R.string.pref_advanced,
+         keywords =
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/SettingsSearchNavigation.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/SettingsSearchNavigation.kt
+index b36895a9..e7941c0f 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/SettingsSearchNavigation.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/SettingsSearchNavigation.kt
+@@ -202,6 +202,12 @@ private val settingsSearchListAnchors: Map<Screen, List<SettingsSearchListAnchor
+         SettingsSearchListAnchor(titleRes = R.string.pref_advanced_verbose_logging_title, itemIndex = 17),
+         SettingsSearchListAnchor(titleRes = R.string.pref_advanced_dump_logs_title, itemIndex = 17),
+       ),
++    MediaServersPreferencesScreen to
++      listOf(
++        SettingsSearchListAnchor(titleRes = R.string.pref_media_servers_title, itemIndex = 0),
++        SettingsSearchListAnchor(titleRes = R.string.pref_jellyfin_server_management, itemIndex = 1),
++        SettingsSearchListAnchor(titleRes = R.string.pref_seerr_server_management, itemIndex = 2),
++      ),
+   )
+ 
+ object SettingsSearchNavigation {
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index 7c2e8a20..27142576 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -2116,4 +2116,25 @@
+   <string name="downloads_episodes_queued">%1$d episodes queued for download</string>
+   <string name="downloads_play">Play</string>
+   <string name="downloads_open_downloads">Open downloads</string>
++
++  <!-- Media Servers Settings -->
++  <string name="pref_section_media_servers">Media Servers</string>
++  <string name="pref_media_servers_title">Media Servers</string>
++  <string name="pref_media_servers_summary">Jellyfin, Seerr and streaming libraries</string>
++  <string name="pref_jellyfin_title">Jellyfin</string>
++  <string name="pref_jellyfin_server_management">Server Management</string>
++  <string name="pref_jellyfin_server_management_desc">Manage connected servers and active instance</string>
++  <string name="pref_music_player_switch_title">Switch Music Player</string>
++  <string name="pref_music_player_switch_desc">Choose default audio source for the Music tab</string>
++  <string name="music_source_local">Local Device</string>
++  <string name="music_source_local_desc">Play audio files stored on device</string>
++  <string name="music_source_jellyfin">Jellyfin Music</string>
++  <string name="music_source_jellyfin_desc">Stream music from your Jellyfin server</string>
++  <string name="pref_seerr_title">Jellyseerr / Overseerr</string>
++  <string name="pref_seerr_server_management">Server Connection</string>
++  <string name="pref_seerr_server_management_desc">Configure Jellyseerr instance URL and credentials</string>
++  <string name="pref_seerr_disconnect">Disconnect</string>
++  <string name="pref_seerr_connected_as">Connected as %1$s</string>
++  <string name="pref_seerr_not_connected">Not connected</string>
++  <string name="pref_jellyfin_no_server">No Jellyfin server connected</string>
+ </resources>
+-- 
+2.25.1
+

@@ -1,0 +1,198 @@
+From 2c3f03d3a49dcbea2cbc3649b429cfcf30041ee0 Mon Sep 17 00:00:00 2001
+From: Arnab Sadhukhan <arnab@Arnabs-Mac-Mini.local>
+Date: Wed, 9 Sep 2026 21:18:58 +0530
+Subject: [PATCH 076/140] feat(music): add audio format and quality badges for
+ all music tracks
+
+---
+ .../ui/player/controls/AudioPlayerControls.kt | 105 ++++++++++++++----
+ .../mpvrx/utils/media/MediaPathUtils.kt       |  15 ++-
+ 2 files changed, 95 insertions(+), 25 deletions(-)
+
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/AudioPlayerControls.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/AudioPlayerControls.kt
+index ffc87be9..19731e89 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/AudioPlayerControls.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/AudioPlayerControls.kt
+@@ -614,12 +614,40 @@ fun AudioPlayerControls(
+   val audioFormat by PlaybackSession.propString["audio-params/format"].collectAsState()
+   val bitsPerSample by PlaybackSession.propString["metadata/by-key/BITS_PER_SAMPLE"].collectAsState()
+   val bitsPerSampleAlt by PlaybackSession.propString["metadata/by-key/bits_per_sample"].collectAsState()
++  val audioBitrateProp by PlaybackSession.propInt["audio-bitrate"].collectAsState()
++  val generalBitrateProp by PlaybackSession.propInt["bitrate"].collectAsState()
+   val playbackSpeed by PlaybackSession.propFloat["speed"].collectAsState()
+ 
++  val cleanCodecName =
++    remember(audioCodec, mediaPath) {
++      val codec = audioCodec?.lowercase().orEmpty()
++      val rawExt = mediaPath?.fileExtension().orEmpty().lowercase()
++      val ext = if (rawExt in com.quantummpv.app.utils.storage.FileTypeUtils.AUDIO_EXTENSIONS) rawExt.uppercase() else ""
++      when {
++        codec.contains("flac") -> "FLAC"
++        codec.contains("alac") -> "ALAC"
++        codec.contains("mp3") -> "MP3"
++        codec.contains("aac") -> "AAC"
++        codec.contains("opus") -> "OPUS"
++        codec.contains("vorbis") -> "VORBIS"
++        codec.contains("wavpack") -> "WAVPACK"
++        codec.contains("ape") -> "APE"
++        codec.contains("dsd") -> "DSD"
++        codec.contains("pcm") -> if (ext in setOf("WAV", "AIFF", "AIF")) ext else "PCM"
++        codec.contains("wma") -> "WMA"
++        codec.isNotBlank() && codec.length <= 10 && !codec.contains("/") && !codec.contains(":") -> {
++          codec.replace("float", "").replace("_latm", "").uppercase().trim()
++        }
++        ext.isNotBlank() -> ext
++        else -> ""
++      }
++    }
++
+   val isLosslessCodecOrExt =
+     remember(audioCodec, mediaPath) {
+       val codec = audioCodec?.lowercase().orEmpty()
+-      val ext = mediaPath?.fileExtension().orEmpty()
++      val rawExt = mediaPath?.fileExtension().orEmpty().lowercase()
++      val ext = if (rawExt in com.quantummpv.app.utils.storage.FileTypeUtils.AUDIO_EXTENSIONS) rawExt else ""
+       codec.contains("flac") ||
+         codec.contains("alac") ||
+         codec.contains("pcm") ||
+@@ -641,9 +669,28 @@ fun AudioPlayerControls(
+     showLosslessDetails = false
+   }
+ 
++  val collapsedAudioBadgeLabel =
++    remember(isHiRes, isLosslessCodecOrExt, cleanCodecName) {
++      when {
++        isHiRes -> "HI-RES LOSSLESS"
++        isLosslessCodecOrExt -> "LOSSLESS"
++        cleanCodecName.isNotBlank() -> cleanCodecName
++        else -> ""
++      }
++    }
++
+   val fullLosslessDetailString =
+-    remember(isHiRes, sampleRate, audioFormat, bitsPerSample, bitsPerSampleAlt, audioCodec, isLosslessCodecOrExt) {
+-      val baseLabel = if (isHiRes) "HI-RES LOSSLESS" else "LOSSLESS"
++    remember(
++      isHiRes,
++      isLosslessCodecOrExt,
++      sampleRate,
++      audioFormat,
++      bitsPerSample,
++      bitsPerSampleAlt,
++      audioBitrateProp,
++      generalBitrateProp,
++      cleanCodecName,
++    ) {
+       val sr = sampleRate ?: 0
+       val khzStr =
+         if (sr > 0) {
+@@ -653,6 +700,9 @@ fun AudioPlayerControls(
+           ""
+         }
+ 
++      val bitrateInt = (audioBitrateProp?.takeIf { it > 0 } ?: generalBitrateProp?.takeIf { it > 0 } ?: 0)
++      val kbpsStr = if (bitrateInt > 0) "${bitrateInt / 1000} kbps" else ""
++
+       val bps = bitsPerSample?.takeIf { it.isNotBlank() } ?: bitsPerSampleAlt?.takeIf { it.isNotBlank() }
+       val bitStr =
+         when {
+@@ -666,22 +716,37 @@ fun AudioPlayerControls(
+           else -> ""
+         }
+ 
+-      val specsStr =
+-        when {
+-          bitStr.isNotBlank() && khzStr.isNotBlank() -> "$bitStr/$khzStr"
+-          khzStr.isNotBlank() -> khzStr
+-          bitStr.isNotBlank() -> bitStr
+-          else -> ""
+-        }
+-
+-      val codecName = audioCodec?.uppercase().orEmpty()
+-      buildString {
+-        append(baseLabel)
+-        if (specsStr.isNotBlank()) {
+-          append(" - ").append(specsStr)
++      if (isLosslessCodecOrExt) {
++        val baseLabel = if (isHiRes) "HI-RES LOSSLESS" else "LOSSLESS"
++        val specsCore =
++          when {
++            bitStr.isNotBlank() && khzStr.isNotBlank() -> "$bitStr/$khzStr"
++            khzStr.isNotBlank() -> khzStr
++            bitStr.isNotBlank() -> bitStr
++            else -> ""
++          }
++        buildString {
++          append(baseLabel)
++          if (specsCore.isNotBlank()) {
++            append(" - ").append(specsCore)
++          }
++          if (cleanCodecName.isNotBlank()) {
++            append(" ").append(cleanCodecName)
++          }
+         }
+-        if (codecName.isNotBlank()) {
+-          append(" ").append(codecName)
++      } else {
++        val baseLabel = cleanCodecName.ifBlank { "AUDIO" }
++        val specs =
++          when {
++            kbpsStr.isNotBlank() && khzStr.isNotBlank() -> "$kbpsStr/$khzStr"
++            kbpsStr.isNotBlank() -> kbpsStr
++            khzStr.isNotBlank() -> khzStr
++            else -> ""
++          }
++        if (specs.isNotBlank()) {
++          "$baseLabel - $specs"
++        } else {
++          baseLabel
+         }
+       }
+     }
+@@ -1110,7 +1175,7 @@ fun AudioPlayerControls(
+     }
+ 
+     val losslessBadge = @Composable {
+-      if (isLosslessCodecOrExt) {
++      if (collapsedAudioBadgeLabel.isNotBlank()) {
+         Surface(
+           shape = RoundedCornerShape(4.dp),
+           color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f),
+@@ -1128,7 +1193,7 @@ fun AudioPlayerControls(
+               if (showLosslessDetails && fullLosslessDetailString.isNotBlank()) {
+                 fullLosslessDetailString
+               } else {
+-                if (isHiRes) "HI-RES LOSSLESS" else "LOSSLESS"
++                collapsedAudioBadgeLabel
+               },
+             style =
+               MaterialTheme.typography.labelSmall.copy(
+diff --git a/app/src/main/java/com/quantummpv/app/utils/media/MediaPathUtils.kt b/app/src/main/java/com/quantummpv/app/utils/media/MediaPathUtils.kt
+index d418ff29..75ff06ee 100644
+--- a/app/src/main/java/com/quantummpv/app/utils/media/MediaPathUtils.kt
++++ b/app/src/main/java/com/quantummpv/app/utils/media/MediaPathUtils.kt
+@@ -24,11 +24,16 @@ import com.quantummpv.app.ui.player.PlaybackSession
+  * "content://media/123".fileExtension() == ""
+  * ```
+  */
+-fun String.fileExtension(): String =
+-  substringBefore('?')
+-    .substringBefore('#')
+-    .substringAfterLast('.', "")
+-    .lowercase()
++fun String.fileExtension(): String {
++  val cleanPath = substringBefore('?').substringBefore('#')
++  val lastSlash = cleanPath.lastIndexOf('/')
++  val lastDot = cleanPath.lastIndexOf('.')
++  return if (lastDot > lastSlash && lastDot != -1 && lastDot < cleanPath.length - 1) {
++    cleanPath.substring(lastDot + 1).lowercase()
++  } else {
++    ""
++  }
++}
+ 
+ /**
+  * Returns the MPV seek mode string based on the user's precise-seeking preference
+-- 
+2.25.1
+

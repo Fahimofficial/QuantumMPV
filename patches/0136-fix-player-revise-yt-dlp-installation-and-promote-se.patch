@@ -1,0 +1,287 @@
+From 3c98c7979c0c86876cdf5c107765604081cd84d5 Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <riteshp2001@gmail.com>
+Date: Fri, 18 Sep 2026 13:00:01 +0530
+Subject: [PATCH 136/140] fix(player): revise yt-dlp installation and promote
+ secondary subtitles
+
+Restore compatible yt-dlp installation handling
+- Restore the pre-regression nonempty-file installation check instead of
+  using Java ZIP entry inspection for the downloaded yt-dlp executable.
+- Require only setup.py, the bundled Python library, and CA certificates
+  during runtime preparation. Keep the legacy shell wrapper optional.
+- Validate each newly downloaded candidate with the bundled libytdl.so
+  launcher and --ignore-config --version before replacing the installed
+  file. Bound this validation to 30 seconds and retain the previous file
+  if download or validation fails.
+- Preserve serialized runtime preparation and temporary-file replacement.
+
+Expose installation failures
+- Capture bounded installer/update output in yt-dlp Streaming settings
+  instead of discarding it. Show the existing localized failure message
+  and selectable diagnostic details when an operation fails.
+- Prevent duplicate operations and reset busy/error state for retries,
+  while preserving coroutine cancellation.
+
+Subtitle selection and indicator placement
+- When both tracks are selected and Primary is unchecked, clear the
+  secondary slot and promote its track to Primary. Reuse subtitle-layout
+  synchronization to apply the primary position.
+- Keep secondary-only deselection and single-primary deselection behavior.
+- Move P/S indicators to the trailing side of the subtitle row, beside the
+  delete action, without changing selection callbacks.
+
+Validation and history
+- Reviewed the focused five-file patch, track-property/layout wiring,
+  installer launcher contract, editor diagnostics, and git diff --check.
+- Validation remains static-only: no builds, tests, installer execution,
+  emulator, or device playback checks were run. The exact device-specific
+  installation failure has not been reproduced; runtime verification is
+  still required.
+- Add this as a separate commit after 6d059791, retaining 5c5d4d91 and both
+  later published commits unchanged as requested. No generated schemas,
+  changelog files, or unrelated code were modified.
+---
+ app/src/main/assets/ytdl/setup.py             | 12 +++---
+ .../mpvrx/ui/player/PlayerViewModel.kt        |  5 ++-
+ .../components/sheets/SubtitleTracksSheet.kt  | 41 +++++++++---------
+ .../mpvrx/ui/player/ytdlp/YtdlpManager.kt     |  9 ++--
+ .../ui/preferences/YtdlpSettingsScreen.kt     | 42 +++++++++++++++----
+ 5 files changed, 68 insertions(+), 41 deletions(-)
+
+diff --git a/app/src/main/assets/ytdl/setup.py b/app/src/main/assets/ytdl/setup.py
+index 24eac47d..0803c7f7 100644
+--- a/app/src/main/assets/ytdl/setup.py
++++ b/app/src/main/assets/ytdl/setup.py
+@@ -1,4 +1,4 @@
+-import sys, os, urllib.request, zipfile
++import sys, os, urllib.request, subprocess
+ 
+ # Argument 1: Native Library Directory (passed from Java)
+ native_lib_dir = sys.argv[1] if len(sys.argv) > 1 else ""
+@@ -27,11 +27,11 @@ try:
+     urllib.request.urlretrieve(url, download_name)
+     if not os.path.isfile(download_name) or os.path.getsize(download_name) == 0:
+         raise IOError("Downloaded yt-dlp file is empty")
+-    with zipfile.ZipFile(download_name) as archive:
+-        if not {"__main__.py", "yt_dlp/__init__.py"}.issubset(archive.namelist()):
+-            raise IOError("Downloaded file is not a yt-dlp application")
+-        if archive.testzip() is not None:
+-            raise IOError("Downloaded yt-dlp archive is corrupted")
++    subprocess.run(
++        [os.path.join(native_lib_dir, "libytdl.so"), os.path.abspath(download_name), "--ignore-config", "--version"],
++        check=True,
++        timeout=30,
++    )
+     os.replace(download_name, name)
+     print("Download successful.")
+ except Exception as e:
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt b/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
+index 7d8c63eb..cca4ccd5 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
+@@ -4442,7 +4442,10 @@ val isBrightnessSliderShown = MutableStateFlow(false)
+     val wasOff = primarySid <= 0 && secondarySid <= 0
+ 
+     when {
+-      id == primarySid -> setTrackSelectionId("sid", null)
++      id == primarySid -> {
++        setTrackSelectionId("secondary-sid", null)
++        setTrackSelectionId("sid", secondarySid.takeIf { it > 0 })
++      }
+       id == secondarySid -> setTrackSelectionId("secondary-sid", null)
+       primarySid <= 0 -> setTrackSelectionId("sid", id)
+       secondarySid <= 0 -> setTrackSelectionId("secondary-sid", id)
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/SubtitleTracksSheet.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/SubtitleTracksSheet.kt
+index 89ef9ab1..afed95f7 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/SubtitleTracksSheet.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/SubtitleTracksSheet.kt
+@@ -602,27 +602,12 @@ fun SubtitleTrackRow(
+     } else {
+       Checkbox(checked = isSelected, onCheckedChange = null)
+     }
+-    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+-      Text(
+-        text = title,
+-        style = MaterialTheme.typography.bodyLarge,
+-        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+-      )
+-      if (selectionIndicator != null) {
+-        Surface(
+-          shape = CircleShape,
+-          color = MaterialTheme.colorScheme.primaryContainer,
+-          contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+-        ) {
+-          Text(
+-            text = selectionIndicator,
+-            style = MaterialTheme.typography.labelMedium,
+-            fontWeight = FontWeight.Bold,
+-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+-          )
+-        }
+-      }
+-    }
++    Text(
++      text = title,
++      modifier = Modifier.weight(1f),
++      style = MaterialTheme.typography.bodyLarge,
++      fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
++    )
+ 
+     if (isCurrentlyTranslating) {
+       androidx.compose.material3.CircularProgressIndicator(
+@@ -642,5 +627,19 @@ fun SubtitleTrackRow(
+       }
+       PlayerSheetAction(Icons.RoundedFilled.Delete, stringResource(R.string.ui_remove), onRemove)
+     }
++    if (selectionIndicator != null) {
++      Surface(
++        shape = CircleShape,
++        color = MaterialTheme.colorScheme.primaryContainer,
++        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
++      ) {
++        Text(
++          text = selectionIndicator,
++          style = MaterialTheme.typography.labelMedium,
++          fontWeight = FontWeight.Bold,
++          modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
++        )
++      }
++    }
+   }
+ }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/ytdlp/YtdlpManager.kt b/app/src/main/java/com/quantummpv/app/ui/player/ytdlp/YtdlpManager.kt
+index ffe73b5e..f6b92a66 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/ytdlp/YtdlpManager.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/ytdlp/YtdlpManager.kt
+@@ -395,7 +395,7 @@ object YtdlpManager {
+     }
+ 
+     // Files to copy from assets/ytdl/ to filesDir/ytdl/
+-    val ytdlFiles = arrayOf("setup.py", "wrapper", "python313.zip")
++    val ytdlFiles = arrayOf("setup.py", "python313.zip")
+     var copied = true
+     for (name in ytdlFiles) {
+       copied = copyAssetFile(context, "ytdl/$name", File(ytdlDir, name), onLog) && copied
+@@ -404,6 +404,7 @@ object YtdlpManager {
+     // cacert.pem goes to filesDir/
+     copied = copyAssetFile(context, "cacert.pem", File(context.filesDir, "cacert.pem"), onLog) && copied
+ 
++    copyAssetFile(context, "ytdl/wrapper", File(ytdlDir, "wrapper"), onLog)
+     // Set executable permission on wrapper (just in case it's used)
+     File(ytdlDir, "wrapper").setExecutable(true)
+     return copied
+@@ -657,11 +658,7 @@ object YtdlpManager {
+ 
+   fun isInstalled(context: Context): Boolean {
+     val ytDlp = File(getYtdlDir(context), "yt-dlp")
+-    return runCatching {
+-      java.util.zip.ZipFile(ytDlp).use { archive ->
+-        archive.getEntry("__main__.py") != null && archive.getEntry("yt_dlp/__init__.py") != null
+-      }
+-    }.getOrDefault(false)
++    return ytDlp.isFile && ytDlp.length() > 0L
+   }
+ 
+   private fun readInstallationInfo(context: Context): YtdlpInstallationInfo {
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/YtdlpSettingsScreen.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/YtdlpSettingsScreen.kt
+index 3f627159..e2d7e9c7 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/YtdlpSettingsScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/YtdlpSettingsScreen.kt
+@@ -13,6 +13,7 @@ import androidx.compose.foundation.BorderStroke
+ import androidx.compose.foundation.layout.*
+ import androidx.compose.foundation.rememberScrollState
+ import androidx.compose.foundation.shape.RoundedCornerShape
++import androidx.compose.foundation.text.selection.SelectionContainer
+ import androidx.compose.foundation.verticalScroll
+ import androidx.compose.material3.*
+ import androidx.compose.runtime.*
+@@ -36,6 +37,7 @@ import com.quantummpv.app.ui.theme.spacing
+ import com.quantummpv.app.ui.utils.LocalBackStack
+ import com.quantummpv.app.ui.utils.currentMpvConfigOverrideOptions
+ import com.quantummpv.app.ui.utils.popSafely
++import kotlinx.coroutines.CancellationException
+ import kotlinx.coroutines.launch
+ import kotlinx.serialization.Serializable
+ import me.zhanghai.compose.preference.ProvidePreferenceLocals
+@@ -53,6 +55,7 @@ object YtdlpSettingsScreen : Screen {
+     val settingsHighlight =
+       rememberSettingsSearchHighlight(YtdlpSettingsScreen, scrollState, MaterialTheme.colorScheme.primary)
+     var isRunning by remember { mutableStateOf(false) }
++    var operationError by remember { mutableStateOf<String?>(null) }
+ 
+     val ytdlPreferences = koinInject<YtdlPreferences>()
+     val configOwnedOptions = currentMpvConfigOverrideOptions()
+@@ -66,11 +69,24 @@ object YtdlpSettingsScreen : Screen {
+       YtdlpManager.refreshInstallationInfo(context)
+     }
+ 
+-    fun runOperation(operation: suspend () -> Unit) {
++    fun runOperation(operation: suspend ((String) -> Unit) -> Boolean) {
++      if (isRunning) return
++      isRunning = true
++      operationError = null
+       scope.launch {
+-        isRunning = true
++        val output = StringBuilder()
+         try {
+-          operation()
++          val succeeded = operation { message ->
++            output.append(message)
++            if (output.length > 8_192) output.delete(0, output.length - 8_192)
++          }
++          if (!succeeded) {
++            operationError = output.toString().trim().ifBlank { context.getString(R.string.generic_unknown_error) }
++          }
++        } catch (cancelled: CancellationException) {
++          throw cancelled
++        } catch (error: Exception) {
++          operationError = error.message ?: context.getString(R.string.generic_unknown_error)
+         } finally {
+           isRunning = false
+         }
+@@ -127,6 +143,18 @@ object YtdlpSettingsScreen : Screen {
+             modifier = Modifier.padding(horizontal = 16.dp),
+           )
+ 
++          operationError?.let { error ->
++            Column(
++              modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
++              verticalArrangement = Arrangement.spacedBy(8.dp),
++            ) {
++              Text(stringResource(R.string.ytdlp_install_failed), color = MaterialTheme.colorScheme.error)
++              SelectionContainer {
++                Text(error, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
++              }
++            }
++          }
++
+           PreferenceSectionHeader(
+             title = stringResource(R.string.ui_release_channel),
+             modifier = Modifier.settingsSearchTarget(R.string.ui_yt_dlp_manager),
+@@ -139,11 +167,11 @@ object YtdlpSettingsScreen : Screen {
+             ) {
+               Button(
+                 onClick = {
+-                  runOperation {
++                  runOperation { onLog ->
+                     if (installationInfo?.channel == YtdlpReleaseChannel.STABLE) {
+-                      YtdlpManager.runUpdate(context) {}
++                      YtdlpManager.runUpdate(context, onLog)
+                     } else {
+-                      YtdlpManager.runInstall(context) {}
++                      YtdlpManager.runInstall(context, onLog)
+                     }
+                   }
+                 },
+@@ -158,7 +186,7 @@ object YtdlpSettingsScreen : Screen {
+ 
+               OutlinedButton(
+                 onClick = {
+-                  runOperation { YtdlpManager.runUpdateToNightly(context) {} }
++                  runOperation { onLog -> YtdlpManager.runUpdateToNightly(context, onLog) }
+                 },
+                 enabled = !isRunning && isInstalled,
+                 modifier = Modifier.fillMaxWidth(),
+-- 
+2.25.1
+

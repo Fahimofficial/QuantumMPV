@@ -1,0 +1,776 @@
+From ffa192eb65ba7d90fcaf5c104ccf69fa95bd1c1a Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <riteshp2001@gmail.com>
+Date: Tue, 15 Sep 2026 11:26:04 +0530
+Subject: [PATCH 096/140] feat(appearance): add custom themes and full-screen
+ wallpapers
+
+---
+ .../preferences/AppearancePreferences.kt      |   2 +
+ .../gyrolet/mpvrx/ui/browser/MainScreen.kt    |  32 +++
+ .../mpvrx/ui/browser/cards/VideoCard.kt       |  31 ++-
+ .../ui/browser/components/BrowserTopBar.kt    |  11 +-
+ .../ui/browser/folderlist/FolderListScreen.kt |   2 +
+ .../AppearancePreferencesScreen.kt            | 237 ++++++++++++++++++
+ .../com/quantummpv/app/ui/theme/AppTheme.kt    |  50 ++++
+ .../java/com/quantummpv/app/ui/theme/Theme.kt  |   7 +-
+ app/src/main/res/values-ar/strings.xml        |   2 +
+ app/src/main/res/values-de/strings.xml        |   2 +
+ app/src/main/res/values-es/strings.xml        |   2 +
+ app/src/main/res/values-fr/strings.xml        |   2 +
+ app/src/main/res/values-hi/strings.xml        |   2 +
+ app/src/main/res/values-ja/strings.xml        |   2 +
+ app/src/main/res/values-pt-rBR/strings.xml    |   2 +
+ app/src/main/res/values-ru/strings.xml        |   2 +
+ app/src/main/res/values-zh-rCN/strings.xml    |   2 +
+ app/src/main/res/values/strings.xml           |  20 ++
+ 18 files changed, 402 insertions(+), 8 deletions(-)
+
+diff --git a/app/src/main/java/com/quantummpv/app/preferences/AppearancePreferences.kt b/app/src/main/java/com/quantummpv/app/preferences/AppearancePreferences.kt
+index 31961763..bd1ee573 100644
+--- a/app/src/main/java/com/quantummpv/app/preferences/AppearancePreferences.kt
++++ b/app/src/main/java/com/quantummpv/app/preferences/AppearancePreferences.kt
+@@ -47,6 +47,8 @@ class AppearancePreferences(
+ ) {
+   val darkMode = preferenceStore.getEnum("dark_mode", DarkMode.System)
+   val appTheme = preferenceStore.getEnum("app_theme", AppTheme.Dynamic)
++  val customTheme = preferenceStore.getString("custom_theme", "")
++  val customWallpaperUri = preferenceStore.getString("custom_wallpaper_uri", "")
+   val amoledMode = preferenceStore.getBoolean("amoled_mode", false)
+   val useSystemFont = preferenceStore.getBoolean("use_system_font", false)
+   val unlimitedNameLines = preferenceStore.getBoolean("unlimited_name_lines", false)
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/MainScreen.kt b/app/src/main/java/com/quantummpv/app/ui/browser/MainScreen.kt
+index 2201b726..a3519b45 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/MainScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/MainScreen.kt
+@@ -11,6 +11,9 @@ package com.quantummpv.app.ui.browser
+ 
+ import android.annotation.SuppressLint
+ import android.content.res.Configuration
++import android.graphics.Bitmap
++import android.graphics.BitmapFactory
++import android.net.Uri
+ import androidx.activity.compose.BackHandler
+ import androidx.compose.animation.AnimatedVisibility
+ import androidx.compose.animation.EnterTransition
+@@ -24,6 +27,7 @@ import androidx.compose.animation.fadeOut
+ import androidx.compose.animation.slideInVertically
+ import androidx.compose.animation.slideOutVertically
+ import androidx.compose.foundation.BorderStroke
++import androidx.compose.foundation.Image
+ import androidx.compose.foundation.interaction.MutableInteractionSource
+ import androidx.compose.foundation.selection.selectable
+ import androidx.compose.foundation.selection.selectableGroup
+@@ -62,6 +66,7 @@ import androidx.compose.runtime.derivedStateOf
+ import androidx.compose.runtime.getValue
+ import androidx.compose.runtime.key
+ import androidx.compose.runtime.mutableStateOf
++import androidx.compose.runtime.produceState
+ import androidx.compose.runtime.remember
+ import androidx.compose.runtime.rememberCoroutineScope
+ import androidx.compose.runtime.saveable.rememberSaveable
+@@ -72,6 +77,7 @@ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.draw.clip
+ import androidx.compose.ui.draw.clipToBounds
+ import androidx.compose.ui.graphics.Color
++import androidx.compose.ui.graphics.asImageBitmap
+ import androidx.compose.ui.graphics.graphicsLayer
+ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+ import androidx.compose.ui.layout.layout
+@@ -85,6 +91,7 @@ import androidx.compose.ui.text.font.FontWeight
+ import androidx.compose.ui.text.style.TextAlign
+ import androidx.compose.ui.text.style.TextOverflow
+ import androidx.compose.ui.unit.dp
++import androidx.compose.ui.layout.ContentScale
+ import kotlin.math.roundToInt
+ import com.quantummpv.app.R
+ import com.quantummpv.app.preferences.AppearancePreferences
+@@ -109,8 +116,10 @@ import com.quantummpv.app.ui.player.controls.components.tvInitialFocus
+ import com.quantummpv.app.ui.player.NavigationAnimStyle
+ import com.quantummpv.app.ui.utils.navigationDurationMillis
+ import kotlinx.coroutines.Job
++import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.cancelAndJoin
+ import kotlinx.coroutines.launch
++import kotlinx.coroutines.withContext
+ import kotlinx.serialization.Serializable
+ import org.koin.compose.koinInject
+ 
+@@ -176,6 +185,7 @@ object MainScreen : Screen {
+     val showPlaylistsTab by appearancePreferences.showPlaylistsTab.collectAsState()
+     val showNetworkTab by appearancePreferences.showNetworkTab.collectAsState()
+     val showJellyfinTab by appearancePreferences.showJellyfinTab.collectAsState()
++    val customWallpaperUri by appearancePreferences.customWallpaperUri.collectAsState()
+     val hideNavigationBar = NavigationBarState.shouldHideNavigationBar
+     val isPermissionDenied = NavigationBarState.isPermissionDenied
+     val isDualPaneFolderSelected = NavigationBarState.isDualPaneFolderSelected
+@@ -332,8 +342,30 @@ object MainScreen : Screen {
+     // Scaffold with bottom navigation bar
+     Scaffold(
+       modifier = Modifier.fillMaxSize(),
++      containerColor = Color.Transparent,
+     ) { paddingValues ->
+       Box(modifier = Modifier.fillMaxSize()) {
++        val wallpaperBitmap =
++          produceState<Bitmap?>(initialValue = null, customWallpaperUri) {
++            value =
++              if (customWallpaperUri.isBlank()) {
++                null
++              } else {
++                withContext(Dispatchers.IO) {
++                  runCatching {
++                    context.contentResolver.openInputStream(Uri.parse(customWallpaperUri))?.use(BitmapFactory::decodeStream)
++                  }.getOrNull()
++                }
++              }
++          }.value
++        wallpaperBitmap?.let { bitmap ->
++          Image(
++            bitmap = bitmap.asImageBitmap(),
++            contentDescription = null,
++            contentScale = ContentScale.Crop,
++            modifier = Modifier.fillMaxSize(),
++          )
++        }
+         if (visibleTabs.isEmpty()) {
+           CompositionLocalProvider(
+             LocalNavigationBarHeight provides contentBottomPadding,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/cards/VideoCard.kt b/app/src/main/java/com/quantummpv/app/ui/browser/cards/VideoCard.kt
+index e12eaf55..72c8d98b 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/cards/VideoCard.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/cards/VideoCard.kt
+@@ -385,12 +385,24 @@ fun VideoCard(
+               }
+             }
+ 
+-            if (showCodecSupportIndicator && !video.isAudio && video.videoCodec.isNotBlank()) {
+-              CodecSupportIndicator(
+-                video = video,
+-                compact = true,
++            if (isWatched || (showCodecSupportIndicator && !video.isAudio && video.videoCodec.isNotBlank())) {
++              Row(
+                 modifier = Modifier.align(Alignment.TopEnd).padding(6.dp),
+-              )
++                horizontalArrangement = Arrangement.spacedBy(4.dp),
++                verticalAlignment = Alignment.CenterVertically,
++              ) {
++                if (isWatched) {
++                  Icon(
++                    imageVector = Icons.RoundedFilled.CheckCircle,
++                    contentDescription = "Watched",
++                    modifier = Modifier.size(26.dp),
++                    tint = Color.White,
++                  )
++                }
++                if (showCodecSupportIndicator && !video.isAudio && video.videoCodec.isNotBlank()) {
++                  CodecSupportIndicator(video = video, compact = true)
++                }
++              }
+             }
+ 
+             // Duration overlay
+@@ -713,6 +725,15 @@ fun VideoCard(
+               }
+             }
+ 
++            if (isWatched) {
++              Icon(
++                imageVector = Icons.RoundedFilled.CheckCircle,
++                contentDescription = "Watched",
++                modifier = Modifier.align(Alignment.TopEnd).padding(6.dp).size(26.dp),
++                tint = Color.White,
++              )
++            }
++
+             // Duration timestamp overlay at bottom-right of the thumbnail
+             if (showDurationField) {
+               Box(
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/components/BrowserTopBar.kt b/app/src/main/java/com/quantummpv/app/ui/browser/components/BrowserTopBar.kt
+index 438ffbbe..001fefe1 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/components/BrowserTopBar.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/components/BrowserTopBar.kt
+@@ -170,6 +170,7 @@ private fun NormalTopBar(
+   showBetaBadge: Boolean = false,
+ ) {
+   val preferences = koinInject<AppearancePreferences>()
++  val customWallpaperUri by preferences.customWallpaperUri.collectAsState()
+   val darkMode by preferences.darkMode.collectAsState()
+   val darkTheme = isSystemInDarkTheme()
+   val themeTransition = LocalThemeTransitionState.current
+@@ -206,7 +207,9 @@ private fun NormalTopBar(
+     colors =
+       colors ?: TopAppBarDefaults.topAppBarColors(
+         containerColor =
+-          if (MaterialTheme.colorScheme.background == Color.Black) {
++          if (customWallpaperUri.isNotBlank()) {
++            Color.Transparent
++          } else if (MaterialTheme.colorScheme.background == Color.Black) {
+             Color.Black
+           } else {
+             MaterialTheme.colorScheme.surfaceContainer
+@@ -405,12 +408,16 @@ private fun SelectionTopBar(
+   additionalActions: @Composable RowScope.() -> Unit = { },
+ ) {
+   var showDropdown by remember { mutableStateOf(false) }
++  val preferences = koinInject<AppearancePreferences>()
++  val customWallpaperUri by preferences.customWallpaperUri.collectAsState()
+ 
+   TopAppBar(
+     colors =
+       colors ?: TopAppBarDefaults.topAppBarColors(
+         containerColor =
+-          if (MaterialTheme.colorScheme.background == Color.Black) {
++          if (customWallpaperUri.isNotBlank()) {
++            Color.Transparent
++          } else if (MaterialTheme.colorScheme.background == Color.Black) {
+             Color.Black
+           } else {
+             MaterialTheme.colorScheme.surfaceContainer
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/folderlist/FolderListScreen.kt b/app/src/main/java/com/quantummpv/app/ui/browser/folderlist/FolderListScreen.kt
+index e179e025..ed544d91 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/folderlist/FolderListScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/folderlist/FolderListScreen.kt
+@@ -184,6 +184,7 @@ object FolderListScreen : Screen {
+     val foldersPreferences = koinInject<FoldersPreferences>()
+     val advancedPreferences = koinInject<com.quantummpv.app.preferences.AdvancedPreferences>()
+     val appearancePreferences = koinInject<AppearancePreferences>()
++    val customWallpaperUri by appearancePreferences.customWallpaperUri.collectAsState()
+     val showQuickPlayFab by appearancePreferences.showQuickPlayFab.collectAsState()
+     val quickPlayFabDirect by appearancePreferences.quickPlayFabDirect.collectAsState()
+ 
+@@ -552,6 +553,7 @@ object FolderListScreen : Screen {
+     @Composable
+     fun FoldersPane() {
+       Scaffold(
++        containerColor = if (customWallpaperUri.isNotBlank()) Color.Transparent else MaterialTheme.colorScheme.background,
+         contentWindowInsets = if (embedded) WindowInsets(0, 0, 0, 0) else ScaffoldDefaults.contentWindowInsets,
+         topBar = {
+           if (embedded) {
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/AppearancePreferencesScreen.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/AppearancePreferencesScreen.kt
+index 272b5543..3ac2a1c4 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/AppearancePreferencesScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/AppearancePreferencesScreen.kt
+@@ -9,7 +9,14 @@
+ 
+ package com.quantummpv.app.ui.preferences
+ 
++import android.graphics.Bitmap
++import android.graphics.BitmapFactory
++import android.graphics.Canvas
++import android.graphics.Matrix
++import android.net.Uri
+ import android.widget.Toast
++import androidx.activity.compose.rememberLauncherForActivityResult
++import androidx.activity.result.contract.ActivityResultContracts
+ import androidx.compose.animation.AnimatedVisibility
+ import androidx.compose.foundation.clickable
+ import androidx.compose.foundation.isSystemInDarkTheme
+@@ -21,7 +28,15 @@ import androidx.compose.foundation.layout.fillMaxWidth
+ import androidx.compose.foundation.layout.padding
+ import androidx.compose.foundation.layout.size
+ import androidx.compose.foundation.lazy.LazyColumn
++import androidx.compose.foundation.Image
++import androidx.compose.foundation.layout.Box
+ import androidx.compose.material3.ExperimentalMaterial3Api
++import androidx.compose.material3.AlertDialog
++import androidx.compose.material3.Button
++import androidx.compose.material3.OutlinedButton
++import androidx.compose.material3.OutlinedTextField
++import androidx.compose.material3.TextButton
++import androidx.compose.material3.Slider
+ import androidx.compose.material3.IconButton
+ import androidx.compose.material3.MaterialTheme
+ import androidx.compose.material3.Scaffold
+@@ -32,8 +47,14 @@ import androidx.compose.runtime.getValue
+ import androidx.compose.runtime.mutableStateOf
+ import androidx.compose.runtime.remember
+ import androidx.compose.runtime.rememberCoroutineScope
++import androidx.compose.runtime.produceState
+ import androidx.compose.runtime.saveable.rememberSaveable
+ import androidx.compose.runtime.setValue
++import androidx.compose.ui.graphics.Color
++import androidx.compose.ui.graphics.toArgb
++import androidx.compose.ui.graphics.asImageBitmap
++import androidx.compose.ui.graphics.graphicsLayer
++import androidx.compose.ui.layout.ContentScale
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.platform.LocalContext
+@@ -62,6 +83,7 @@ import com.quantummpv.app.ui.player.VideoOpenAnimation
+ import com.quantummpv.app.ui.preferences.components.SwitchPreference
+ import com.quantummpv.app.ui.preferences.components.ThemePicker
+ import com.quantummpv.app.ui.theme.DarkMode
++import com.quantummpv.app.ui.theme.CustomThemeDefinition
+ import com.quantummpv.app.ui.theme.LocalThemeTransitionState
+ import com.quantummpv.app.ui.utils.LocalBackStack
+ import com.quantummpv.app.ui.utils.LocalShowSettingsBackArrow
+@@ -97,8 +119,20 @@ object AppearancePreferencesScreen : Screen {
+ 
+     val darkMode by preferences.darkMode.collectAsState()
+     val appTheme by preferences.appTheme.collectAsState()
++    val customTheme by preferences.customTheme.collectAsState()
++    val customWallpaperUri by preferences.customWallpaperUri.collectAsState()
+     var pendingThumbnailMode by remember { mutableStateOf<ThumbnailMode?>(null) }
+     var isThemeSectionExpanded by rememberSaveable { mutableStateOf(true) }
++    var showCustomThemeDialog by rememberSaveable { mutableStateOf(false) }
++    var customThemeName by rememberSaveable { mutableStateOf("") }
++    var customLightPrimary by rememberSaveable { mutableStateOf("") }
++    var customDarkPrimary by rememberSaveable { mutableStateOf("") }
++    var customLightBackground by rememberSaveable { mutableStateOf("") }
++    var customDarkBackground by rememberSaveable { mutableStateOf("") }
++    var pendingWallpaperUri by rememberSaveable { mutableStateOf<String?>(null) }
++    var wallpaperZoom by rememberSaveable { mutableStateOf(1f) }
++    var wallpaperOffsetX by rememberSaveable { mutableStateOf(0f) }
++    var wallpaperOffsetY by rememberSaveable { mutableStateOf(0f) }
+     val storedThumbnailMode by browserPreferences.thumbnailMode.collectAsState()
+     val thumbnailQuality by browserPreferences.thumbnailQuality.collectAsState()
+     val thumbnailFramePosition by browserPreferences.thumbnailFramePosition.collectAsState()
+@@ -108,6 +142,158 @@ object AppearancePreferencesScreen : Screen {
+ 
+     val thumbnailMode = storedThumbnailMode
+ 
++    val wallpaperPicker =
++      rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
++        if (uri != null) {
++          runCatching {
++            context.contentResolver.takePersistableUriPermission(
++              uri,
++              android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION,
++            )
++          }
++          pendingWallpaperUri = uri.toString()
++          wallpaperZoom = 1f
++          wallpaperOffsetX = 0f
++          wallpaperOffsetY = 0f
++        }
++      }
++
++    val pendingWallpaperBitmap =
++      produceState<Bitmap?>(initialValue = null, pendingWallpaperUri) {
++        value =
++          pendingWallpaperUri?.let { uri ->
++            withContext(Dispatchers.IO) {
++              runCatching {
++                context.contentResolver.openInputStream(Uri.parse(uri))?.use(BitmapFactory::decodeStream)
++              }.getOrNull()
++            }
++          }
++      }.value
++
++    if (pendingWallpaperUri != null && pendingWallpaperBitmap != null) {
++      AlertDialog(
++        onDismissRequest = { pendingWallpaperUri = null },
++        title = { Text(stringResource(R.string.pref_appearance_custom_wallpaper_crop_title)) },
++        text = {
++          Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
++            Box(
++              modifier = Modifier.fillMaxWidth().size(280.dp),
++              contentAlignment = Alignment.Center,
++            ) {
++              Image(
++                bitmap = pendingWallpaperBitmap!!.asImageBitmap(),
++                contentDescription = null,
++                contentScale = ContentScale.Crop,
++                modifier =
++                  Modifier
++                    .fillMaxSize()
++                    .graphicsLayer {
++                      scaleX = wallpaperZoom
++                      scaleY = wallpaperZoom
++                      translationX = wallpaperOffsetX * size.width * 0.35f
++                      translationY = wallpaperOffsetY * size.height * 0.35f
++                    },
++              )
++            }
++            Text(stringResource(R.string.pref_appearance_custom_wallpaper_zoom))
++            Slider(value = wallpaperZoom, onValueChange = { wallpaperZoom = it }, valueRange = 1f..3f)
++            Text(stringResource(R.string.pref_appearance_custom_wallpaper_horizontal))
++            Slider(value = wallpaperOffsetX, onValueChange = { wallpaperOffsetX = it }, valueRange = -1f..1f)
++            Text(stringResource(R.string.pref_appearance_custom_wallpaper_vertical))
++            Slider(value = wallpaperOffsetY, onValueChange = { wallpaperOffsetY = it }, valueRange = -1f..1f)
++          }
++        },
++        confirmButton = {
++          Button(
++            onClick = {
++              val source = pendingWallpaperBitmap
++              val sourceUri = pendingWallpaperUri
++              if (source != null && sourceUri != null) {
++                scope.launch {
++                  val savedUri =
++                    withContext(Dispatchers.IO) {
++                      runCatching {
++                        val width = 1200
++                        val height = 800
++                        val output = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
++                        val canvas = Canvas(output)
++                        val scale = maxOf(width.toFloat() / source.width, height.toFloat() / source.height) * wallpaperZoom
++                        val scaledWidth = source.width * scale
++                        val scaledHeight = source.height * scale
++                        val maxX = ((scaledWidth - width) / 2f).coerceAtLeast(0f)
++                        val maxY = ((scaledHeight - height) / 2f).coerceAtLeast(0f)
++                        val matrix = Matrix().apply {
++                          postScale(scale, scale)
++                          postTranslate(
++                            (width - scaledWidth) / 2f - wallpaperOffsetX * maxX,
++                            (height - scaledHeight) / 2f - wallpaperOffsetY * maxY,
++                          )
++                        }
++                        canvas.drawBitmap(source, matrix, null)
++                        val file = java.io.File(context.filesDir, "custom_wallpaper.png")
++                        file.outputStream().use { outputStream ->
++                          output.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
++                        }
++                        output.recycle()
++                        Uri.fromFile(file).toString()
++                      }.getOrNull()
++                    }
++                  if (savedUri != null) preferences.customWallpaperUri.set(savedUri)
++                  pendingWallpaperUri = null
++                }
++              }
++            },
++          ) { Text(stringResource(R.string.pref_appearance_custom_wallpaper_save)) }
++        },
++        dismissButton = {
++          TextButton(onClick = { pendingWallpaperUri = null }) {
++            Text(stringResource(R.string.generic_cancel))
++          }
++        },
++      )
++    }
++
++    if (showCustomThemeDialog) {
++      AlertDialog(
++        onDismissRequest = { showCustomThemeDialog = false },
++        title = { Text(stringResource(R.string.pref_appearance_custom_theme_title)) },
++        text = {
++          Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
++            OutlinedTextField(customThemeName, { customThemeName = it }, label = { Text(stringResource(R.string.pref_appearance_custom_theme_name)) }, singleLine = true)
++            OutlinedTextField(customLightPrimary, { customLightPrimary = it }, label = { Text(stringResource(R.string.pref_appearance_custom_theme_light_primary)) }, singleLine = true)
++            OutlinedTextField(customDarkPrimary, { customDarkPrimary = it }, label = { Text(stringResource(R.string.pref_appearance_custom_theme_dark_primary)) }, singleLine = true)
++            OutlinedTextField(customLightBackground, { customLightBackground = it }, label = { Text(stringResource(R.string.pref_appearance_custom_theme_light_background)) }, singleLine = true)
++            OutlinedTextField(customDarkBackground, { customDarkBackground = it }, label = { Text(stringResource(R.string.pref_appearance_custom_theme_dark_background)) }, singleLine = true)
++          }
++        },
++        confirmButton = {
++          Button(
++            onClick = {
++              val definition =
++                runCatching {
++                  CustomThemeDefinition(
++                    name = customThemeName.trim().replace('|', ' ').take(40),
++                    primaryLight = Color(android.graphics.Color.parseColor(customLightPrimary.trim())),
++                    primaryDark = Color(android.graphics.Color.parseColor(customDarkPrimary.trim())),
++                    backgroundLight = Color(android.graphics.Color.parseColor(customLightBackground.trim())),
++                    backgroundDark = Color(android.graphics.Color.parseColor(customDarkBackground.trim())),
++                  )
++                }.getOrNull()
++              if (definition != null && definition.name.isNotBlank()) {
++                preferences.customTheme.set(definition.serialize())
++                showCustomThemeDialog = false
++              }
++            },
++          ) { Text(stringResource(R.string.pref_appearance_custom_theme_save)) }
++        },
++        dismissButton = {
++          TextButton(onClick = { showCustomThemeDialog = false }) {
++            Text(stringResource(R.string.generic_cancel))
++          }
++        },
++      )
++    }
++
+     // Determine if we're in dark mode for theme preview
+     val isDarkMode =
+       when (darkMode) {
+@@ -273,12 +459,63 @@ object AppearancePreferencesScreen : Screen {
+                         scope.launch {
+                           delay(50)
+                           preferences.appTheme.set(theme)
++                          preferences.customTheme.set("")
+                         }
+                       }
+                     },
+                     modifier = Modifier.padding(vertical = 8.dp),
+                   )
+ 
++                  val savedCustomTheme = CustomThemeDefinition.parse(customTheme)
++                  PreferenceCard {
++                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
++                      Text(stringResource(R.string.pref_appearance_custom_theme_title), style = MaterialTheme.typography.titleMedium)
++                      Text(
++                        savedCustomTheme?.name ?: stringResource(R.string.pref_appearance_custom_theme_none),
++                        color = MaterialTheme.colorScheme.outline,
++                        style = MaterialTheme.typography.bodySmall,
++                      )
++                      Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
++                        Button(onClick = {
++                          val source = savedCustomTheme
++                          customThemeName = source?.name ?: ""
++                          customLightPrimary = source?.primaryLight?.toArgb()?.let { "#%08X".format(it) } ?: "#6750A4"
++                          customDarkPrimary = source?.primaryDark?.toArgb()?.let { "#%08X".format(it) } ?: "#D0BCFF"
++                          customLightBackground = source?.backgroundLight?.toArgb()?.let { "#%08X".format(it) } ?: "#FFFBFF"
++                          customDarkBackground = source?.backgroundDark?.toArgb()?.let { "#%08X".format(it) } ?: "#1C1B1F"
++                          showCustomThemeDialog = true
++                        }) { Text(stringResource(R.string.pref_appearance_custom_theme_edit)) }
++                        if (savedCustomTheme != null) {
++                          OutlinedButton(onClick = { preferences.customTheme.set("") }) {
++                            Text(stringResource(R.string.pref_appearance_custom_theme_clear))
++                          }
++                        }
++                      }
++                    }
++                  }
++
++                  PreferenceDivider()
++
++                  PreferenceCard {
++                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
++                      Text(stringResource(R.string.pref_appearance_custom_wallpaper_title), style = MaterialTheme.typography.titleMedium)
++                      Text(stringResource(R.string.pref_appearance_custom_wallpaper_summary), color = MaterialTheme.colorScheme.outline, style = MaterialTheme.typography.bodySmall)
++                      if (customWallpaperUri.isNotBlank()) {
++                        Text(customWallpaperUri.substringAfterLast('/'), style = MaterialTheme.typography.bodySmall, maxLines = 1)
++                      }
++                      Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
++                        Button(onClick = { wallpaperPicker.launch(arrayOf("image/*")) }) {
++                          Text(stringResource(if (customWallpaperUri.isBlank()) R.string.pref_appearance_custom_wallpaper_choose else R.string.pref_appearance_custom_wallpaper_replace))
++                        }
++                        if (customWallpaperUri.isNotBlank()) {
++                          OutlinedButton(onClick = { preferences.customWallpaperUri.set("") }) {
++                            Text(stringResource(R.string.pref_appearance_custom_wallpaper_clear))
++                          }
++                        }
++                      }
++                    }
++                  }
++
+                   PreferenceDivider()
+ 
+                   SwitchPreference(
+diff --git a/app/src/main/java/com/quantummpv/app/ui/theme/AppTheme.kt b/app/src/main/java/com/quantummpv/app/ui/theme/AppTheme.kt
+index 5d339ceb..4845321a 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/theme/AppTheme.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/theme/AppTheme.kt
+@@ -19,6 +19,56 @@ import androidx.compose.ui.graphics.toArgb
+ import com.quantummpv.app.R
+ import com.quantummpv.app.ui.player.visualizer.VisualizerPalette
+ 
++data class CustomThemeDefinition(
++  val name: String,
++  val primaryLight: Color,
++  val primaryDark: Color,
++  val backgroundLight: Color,
++  val backgroundDark: Color,
++) {
++  fun serialize(): String =
++    listOf(name, primaryLight.toHex(), primaryDark.toHex(), backgroundLight.toHex(), backgroundDark.toHex())
++      .joinToString("|")
++
++  fun lightColorScheme(): ColorScheme =
++    lightColorScheme(
++      primary = primaryLight,
++      onPrimary = primaryLight.accessibleContentColor(),
++      background = backgroundLight,
++      surface = backgroundLight,
++      onBackground = backgroundLight.accessibleContentColor(),
++      onSurface = backgroundLight.accessibleContentColor(),
++    )
++
++  fun darkColorScheme(): ColorScheme =
++    darkColorScheme(
++      primary = primaryDark,
++      onPrimary = primaryDark.accessibleContentColor(),
++      background = backgroundDark,
++      surface = backgroundDark,
++      onBackground = backgroundDark.accessibleContentColor(),
++      onSurface = backgroundDark.accessibleContentColor(),
++    )
++
++  companion object {
++    fun parse(serialized: String): CustomThemeDefinition? {
++      val parts = serialized.split('|')
++      if (parts.size != 5 || parts[0].isBlank()) return null
++      return runCatching {
++        CustomThemeDefinition(
++          name = parts[0],
++          primaryLight = Color(android.graphics.Color.parseColor(parts[1])),
++          primaryDark = Color(android.graphics.Color.parseColor(parts[2])),
++          backgroundLight = Color(android.graphics.Color.parseColor(parts[3])),
++          backgroundDark = Color(android.graphics.Color.parseColor(parts[4])),
++        )
++      }.getOrNull()
++    }
++  }
++}
++
++private fun Color.toHex(): String = "#%08X".format(toArgb())
++
+ /**
+  * App themes inspired by Aniyomi design
+  * Each theme has light and dark color schemes with unique backgrounds
+diff --git a/app/src/main/java/com/quantummpv/app/ui/theme/Theme.kt b/app/src/main/java/com/quantummpv/app/ui/theme/Theme.kt
+index 9ae9196d..d07161fe 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/theme/Theme.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/theme/Theme.kt
+@@ -277,6 +277,7 @@ fun MpvrxTheme(
+   val darkMode by preferences.darkMode.collectAsState()
+   val amoledMode by preferences.amoledMode.collectAsState()
+   val appTheme by preferences.appTheme.collectAsState()
++  val customTheme by preferences.customTheme.collectAsState()
+   val useSystemFont by preferences.useSystemFont.collectAsState()
+   val darkTheme = isSystemInDarkTheme()
+   val configuration = LocalConfiguration.current
+@@ -297,6 +298,7 @@ fun MpvrxTheme(
+     resolveAppColorScheme(
+       context = context,
+       appTheme = appTheme,
++      customTheme = customTheme,
+       useDarkTheme = true,
+       amoledMode = amoledMode,
+     )
+@@ -335,10 +337,13 @@ fun MpvrxTheme(
+ private fun resolveAppColorScheme(
+   context: Context,
+   appTheme: AppTheme,
++  customTheme: String,
+   useDarkTheme: Boolean,
+   amoledMode: Boolean,
+ ): ColorScheme =
+-  when {
++  CustomThemeDefinition.parse(customTheme)?.let { definition ->
++    if (useDarkTheme) definition.darkColorScheme() else definition.lightColorScheme()
++  } ?: when {
+     appTheme.isDynamic && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+       when {
+         useDarkTheme && amoledMode -> {
+diff --git a/app/src/main/res/values-ar/strings.xml b/app/src/main/res/values-ar/strings.xml
+index 513439f2..7d963d5a 100644
+--- a/app/src/main/res/values-ar/strings.xml
++++ b/app/src/main/res/values-ar/strings.xml
+@@ -2189,4 +2189,6 @@
+   <string name="pref_server_set_active">تعيين كنشط</string>
+   <string name="pref_server_more_options">مزيد من الخيارات</string>
+   <string name="jellyfin_no_music_library">لم يتم العثور على مكتبة موسيقى في خادم Jellyfin هذا</string>
++  <string name="pref_appearance_custom_theme_title">سمة مخصصة</string><string name="pref_appearance_custom_theme_name">اسم السمة</string><string name="pref_appearance_custom_theme_light_primary">اللون الأساسي الفاتح</string><string name="pref_appearance_custom_theme_dark_primary">اللون الأساسي الداكن</string><string name="pref_appearance_custom_theme_light_background">لون الخلفية الفاتحة</string><string name="pref_appearance_custom_theme_dark_background">لون الخلفية الداكنة</string><string name="pref_appearance_custom_theme_none">لا توجد سمة مخصصة محفوظة</string><string name="pref_appearance_custom_theme_edit">إنشاء أو تعديل</string><string name="pref_appearance_custom_theme_clear">مسح</string><string name="pref_appearance_custom_theme_save">حفظ</string><string name="pref_appearance_custom_wallpaper_title">خلفية مخصصة</string><string name="pref_appearance_custom_wallpaper_summary">إظهار صورة بملء الشاشة خلف محتوى المتصفح والشريط العلوي</string><string name="pref_appearance_custom_wallpaper_choose">اختيار خلفية</string><string name="pref_appearance_custom_wallpaper_replace">استبدال الخلفية</string><string name="pref_appearance_custom_wallpaper_clear">مسح الخلفية</string>
++  <string name="pref_appearance_custom_wallpaper_crop_title">ضبط الخلفية</string><string name="pref_appearance_custom_wallpaper_zoom">تكبير</string><string name="pref_appearance_custom_wallpaper_horizontal">الموضع الأفقي</string><string name="pref_appearance_custom_wallpaper_vertical">الموضع العمودي</string><string name="pref_appearance_custom_wallpaper_save">حفظ الخلفية</string>
+ </resources>
+diff --git a/app/src/main/res/values-de/strings.xml b/app/src/main/res/values-de/strings.xml
+index 4c1a9ad6..57bffe69 100644
+--- a/app/src/main/res/values-de/strings.xml
++++ b/app/src/main/res/values-de/strings.xml
+@@ -2175,4 +2175,6 @@ Bitte starten Sie die App neu, damit alle Änderungen wirksam werden.</string>
+   <string name="pref_server_set_active">Als aktiv festlegen</string>
+   <string name="pref_server_more_options">Weitere Optionen</string>
+   <string name="jellyfin_no_music_library">Keine Musikbibliothek auf diesem Jellyfin-Server gefunden</string>
++  <string name="pref_appearance_custom_theme_title">Benutzerdefiniertes Design</string><string name="pref_appearance_custom_theme_name">Designname</string><string name="pref_appearance_custom_theme_light_primary">Helle Primärfarbe</string><string name="pref_appearance_custom_theme_dark_primary">Dunkle Primärfarbe</string><string name="pref_appearance_custom_theme_light_background">Helle Hintergrundfarbe</string><string name="pref_appearance_custom_theme_dark_background">Dunkle Hintergrundfarbe</string><string name="pref_appearance_custom_theme_none">Kein benutzerdefiniertes Design gespeichert</string><string name="pref_appearance_custom_theme_edit">Erstellen oder bearbeiten</string><string name="pref_appearance_custom_theme_clear">Löschen</string><string name="pref_appearance_custom_theme_save">Speichern</string><string name="pref_appearance_custom_wallpaper_title">Benutzerdefiniertes Hintergrundbild</string><string name="pref_appearance_custom_wallpaper_summary">Ein Vollbildbild hinter Browserinhalt und oberer Leiste anzeigen</string><string name="pref_appearance_custom_wallpaper_choose">Hintergrundbild auswählen</string><string name="pref_appearance_custom_wallpaper_replace">Hintergrundbild ersetzen</string><string name="pref_appearance_custom_wallpaper_clear">Hintergrundbild löschen</string>
++  <string name="pref_appearance_custom_wallpaper_crop_title">Hintergrundbild anpassen</string><string name="pref_appearance_custom_wallpaper_zoom">Zoom</string><string name="pref_appearance_custom_wallpaper_horizontal">Horizontale Position</string><string name="pref_appearance_custom_wallpaper_vertical">Vertikale Position</string><string name="pref_appearance_custom_wallpaper_save">Hintergrundbild speichern</string>
+ </resources>
+diff --git a/app/src/main/res/values-es/strings.xml b/app/src/main/res/values-es/strings.xml
+index a104cfc6..8d5513af 100644
+--- a/app/src/main/res/values-es/strings.xml
++++ b/app/src/main/res/values-es/strings.xml
+@@ -2175,4 +2175,6 @@ Reinicia la aplicación para que se apliquen todos los cambios.</string>
+   <string name="pref_server_set_active">Establecer como activo</string>
+   <string name="pref_server_more_options">Más opciones</string>
+   <string name="jellyfin_no_music_library">No se encontró ninguna biblioteca de música en este servidor Jellyfin</string>
++  <string name="pref_appearance_custom_theme_title">Tema personalizado</string><string name="pref_appearance_custom_theme_name">Nombre del tema</string><string name="pref_appearance_custom_theme_light_primary">Color primario claro</string><string name="pref_appearance_custom_theme_dark_primary">Color primario oscuro</string><string name="pref_appearance_custom_theme_light_background">Color de fondo claro</string><string name="pref_appearance_custom_theme_dark_background">Color de fondo oscuro</string><string name="pref_appearance_custom_theme_none">No hay tema personalizado guardado</string><string name="pref_appearance_custom_theme_edit">Crear o editar</string><string name="pref_appearance_custom_theme_clear">Borrar</string><string name="pref_appearance_custom_theme_save">Guardar</string><string name="pref_appearance_custom_wallpaper_title">Fondo personalizado</string><string name="pref_appearance_custom_wallpaper_summary">Mostrar una imagen a pantalla completa detrás del contenido y la barra superior</string><string name="pref_appearance_custom_wallpaper_choose">Elegir fondo</string><string name="pref_appearance_custom_wallpaper_replace">Reemplazar fondo</string><string name="pref_appearance_custom_wallpaper_clear">Borrar fondo</string>
++  <string name="pref_appearance_custom_wallpaper_crop_title">Ajustar fondo</string><string name="pref_appearance_custom_wallpaper_zoom">Zoom</string><string name="pref_appearance_custom_wallpaper_horizontal">Posición horizontal</string><string name="pref_appearance_custom_wallpaper_vertical">Posición vertical</string><string name="pref_appearance_custom_wallpaper_save">Guardar fondo</string>
+ </resources>
+diff --git a/app/src/main/res/values-fr/strings.xml b/app/src/main/res/values-fr/strings.xml
+index a0a95753..2b8b5e04 100644
+--- a/app/src/main/res/values-fr/strings.xml
++++ b/app/src/main/res/values-fr/strings.xml
+@@ -2175,4 +2175,6 @@ Veuillez redémarrer l’application pour appliquer toutes les modifications.</s
+   <string name="pref_server_set_active">Définir comme actif</string>
+   <string name="pref_server_more_options">Plus d\'options</string>
+   <string name="jellyfin_no_music_library">Aucune bibliothèque musicale trouvée sur ce serveur Jellyfin</string>
++  <string name="pref_appearance_custom_theme_title">Thème personnalisé</string><string name="pref_appearance_custom_theme_name">Nom du thème</string><string name="pref_appearance_custom_theme_light_primary">Couleur primaire claire</string><string name="pref_appearance_custom_theme_dark_primary">Couleur primaire sombre</string><string name="pref_appearance_custom_theme_light_background">Couleur de fond claire</string><string name="pref_appearance_custom_theme_dark_background">Couleur de fond sombre</string><string name="pref_appearance_custom_theme_none">Aucun thème personnalisé enregistré</string><string name="pref_appearance_custom_theme_edit">Créer ou modifier</string><string name="pref_appearance_custom_theme_clear">Effacer</string><string name="pref_appearance_custom_theme_save">Enregistrer</string><string name="pref_appearance_custom_wallpaper_title">Fond d’écran personnalisé</string><string name="pref_appearance_custom_wallpaper_summary">Afficher une image en plein écran derrière le contenu et la barre supérieure</string><string name="pref_appearance_custom_wallpaper_choose">Choisir un fond</string><string name="pref_appearance_custom_wallpaper_replace">Remplacer le fond</string><string name="pref_appearance_custom_wallpaper_clear">Effacer le fond</string>
++  <string name="pref_appearance_custom_wallpaper_crop_title">Ajuster le fond</string><string name="pref_appearance_custom_wallpaper_zoom">Zoom</string><string name="pref_appearance_custom_wallpaper_horizontal">Position horizontale</string><string name="pref_appearance_custom_wallpaper_vertical">Position verticale</string><string name="pref_appearance_custom_wallpaper_save">Enregistrer le fond</string>
+ </resources>
+diff --git a/app/src/main/res/values-hi/strings.xml b/app/src/main/res/values-hi/strings.xml
+index 42b7b4aa..836e049b 100644
+--- a/app/src/main/res/values-hi/strings.xml
++++ b/app/src/main/res/values-hi/strings.xml
+@@ -2079,4 +2079,6 @@
+   <string name="pref_server_set_active">सक्रिय के रूप में सेट करें</string>
+   <string name="pref_server_more_options">अधिक विकल्प</string>
+   <string name="jellyfin_no_music_library">इस Jellyfin सर्वर पर कोई संगीत लाइब्रेरी नहीं मिली</string>
++  <string name="pref_appearance_custom_theme_title">कस्टम थीम</string><string name="pref_appearance_custom_theme_name">थीम का नाम</string><string name="pref_appearance_custom_theme_light_primary">हल्का प्राथमिक रंग</string><string name="pref_appearance_custom_theme_dark_primary">गहरा प्राथमिक रंग</string><string name="pref_appearance_custom_theme_light_background">हल्का पृष्ठभूमि रंग</string><string name="pref_appearance_custom_theme_dark_background">गहरा पृष्ठभूमि रंग</string><string name="pref_appearance_custom_theme_none">कोई कस्टम थीम सेव नहीं है</string><string name="pref_appearance_custom_theme_edit">बनाएं या संपादित करें</string><string name="pref_appearance_custom_theme_clear">साफ़ करें</string><string name="pref_appearance_custom_theme_save">सेव करें</string><string name="pref_appearance_custom_wallpaper_title">कस्टम वॉलपेपर</string><string name="pref_appearance_custom_wallpaper_summary">ब्राउज़र सामग्री और ऊपरी बार के पीछे पूरी स्क्रीन पर चित्र दिखाएं</string><string name="pref_appearance_custom_wallpaper_choose">वॉलपेपर चुनें</string><string name="pref_appearance_custom_wallpaper_replace">वॉलपेपर बदलें</string><string name="pref_appearance_custom_wallpaper_clear">वॉलपेपर साफ़ करें</string>
++  <string name="pref_appearance_custom_wallpaper_crop_title">वॉलपेपर समायोजित करें</string><string name="pref_appearance_custom_wallpaper_zoom">ज़ूम</string><string name="pref_appearance_custom_wallpaper_horizontal">क्षैतिज स्थिति</string><string name="pref_appearance_custom_wallpaper_vertical">ऊर्ध्वाधर स्थिति</string><string name="pref_appearance_custom_wallpaper_save">वॉलपेपर सेव करें</string>
+ </resources>
+diff --git a/app/src/main/res/values-ja/strings.xml b/app/src/main/res/values-ja/strings.xml
+index cd08b43e..0e310bd3 100644
+--- a/app/src/main/res/values-ja/strings.xml
++++ b/app/src/main/res/values-ja/strings.xml
+@@ -2171,4 +2171,6 @@
+   <string name="pref_server_set_active">アクティブに設定</string>
+   <string name="pref_server_more_options">その他のオプション</string>
+   <string name="jellyfin_no_music_library">この Jellyfin サーバーに音楽ライブラリが見つかりません</string>
++  <string name="pref_appearance_custom_theme_title">カスタムテーマ</string><string name="pref_appearance_custom_theme_name">テーマ名</string><string name="pref_appearance_custom_theme_light_primary">ライトのプライマリカラー</string><string name="pref_appearance_custom_theme_dark_primary">ダークのプライマリカラー</string><string name="pref_appearance_custom_theme_light_background">ライトの背景色</string><string name="pref_appearance_custom_theme_dark_background">ダークの背景色</string><string name="pref_appearance_custom_theme_none">保存されたカスタムテーマはありません</string><string name="pref_appearance_custom_theme_edit">作成または編集</string><string name="pref_appearance_custom_theme_clear">クリア</string><string name="pref_appearance_custom_theme_save">保存</string><string name="pref_appearance_custom_wallpaper_title">カスタム壁紙</string><string name="pref_appearance_custom_wallpaper_summary">ブラウザーの内容と上部バーの背後に全画面画像を表示</string><string name="pref_appearance_custom_wallpaper_choose">壁紙を選択</string><string name="pref_appearance_custom_wallpaper_replace">壁紙を置換</string><string name="pref_appearance_custom_wallpaper_clear">壁紙をクリア</string>
++  <string name="pref_appearance_custom_wallpaper_crop_title">壁紙を調整</string><string name="pref_appearance_custom_wallpaper_zoom">ズーム</string><string name="pref_appearance_custom_wallpaper_horizontal">水平位置</string><string name="pref_appearance_custom_wallpaper_vertical">垂直位置</string><string name="pref_appearance_custom_wallpaper_save">壁紙を保存</string>
+ </resources>
+diff --git a/app/src/main/res/values-pt-rBR/strings.xml b/app/src/main/res/values-pt-rBR/strings.xml
+index 7356ba9a..5b45a2ac 100644
+--- a/app/src/main/res/values-pt-rBR/strings.xml
++++ b/app/src/main/res/values-pt-rBR/strings.xml
+@@ -2175,4 +2175,6 @@ Reinicie o aplicativo para que todas as alterações entrem em vigor.</string>
+   <string name="pref_server_set_active">Definir como ativo</string>
+   <string name="pref_server_more_options">Mais opções</string>
+   <string name="jellyfin_no_music_library">Nenhuma biblioteca de música encontrada neste servidor Jellyfin</string>
++  <string name="pref_appearance_custom_theme_title">Tema personalizado</string><string name="pref_appearance_custom_theme_name">Nome do tema</string><string name="pref_appearance_custom_theme_light_primary">Cor primária clara</string><string name="pref_appearance_custom_theme_dark_primary">Cor primária escura</string><string name="pref_appearance_custom_theme_light_background">Cor de fundo clara</string><string name="pref_appearance_custom_theme_dark_background">Cor de fundo escura</string><string name="pref_appearance_custom_theme_none">Nenhum tema personalizado salvo</string><string name="pref_appearance_custom_theme_edit">Criar ou editar</string><string name="pref_appearance_custom_theme_clear">Limpar</string><string name="pref_appearance_custom_theme_save">Salvar</string><string name="pref_appearance_custom_wallpaper_title">Papel de parede personalizado</string><string name="pref_appearance_custom_wallpaper_summary">Mostrar uma imagem em tela cheia atrás do conteúdo e da barra superior</string><string name="pref_appearance_custom_wallpaper_choose">Escolher papel de parede</string><string name="pref_appearance_custom_wallpaper_replace">Substituir papel de parede</string><string name="pref_appearance_custom_wallpaper_clear">Limpar papel de parede</string>
++  <string name="pref_appearance_custom_wallpaper_crop_title">Ajustar papel de parede</string><string name="pref_appearance_custom_wallpaper_zoom">Zoom</string><string name="pref_appearance_custom_wallpaper_horizontal">Posição horizontal</string><string name="pref_appearance_custom_wallpaper_vertical">Posição vertical</string><string name="pref_appearance_custom_wallpaper_save">Salvar papel de parede</string>
+ </resources>
+diff --git a/app/src/main/res/values-ru/strings.xml b/app/src/main/res/values-ru/strings.xml
+index 347a7772..1efe341c 100644
+--- a/app/src/main/res/values-ru/strings.xml
++++ b/app/src/main/res/values-ru/strings.xml
+@@ -2183,4 +2183,6 @@
+   <string name="pref_server_set_active">Сделать активным</string>
+   <string name="pref_server_more_options">Другие параметры</string>
+   <string name="jellyfin_no_music_library">Музыкальная библиотека на этом сервере Jellyfin не найдена</string>
++  <string name="pref_appearance_custom_theme_title">Пользовательская тема</string><string name="pref_appearance_custom_theme_name">Название темы</string><string name="pref_appearance_custom_theme_light_primary">Светлый основной цвет</string><string name="pref_appearance_custom_theme_dark_primary">Тёмный основной цвет</string><string name="pref_appearance_custom_theme_light_background">Светлый цвет фона</string><string name="pref_appearance_custom_theme_dark_background">Тёмный цвет фона</string><string name="pref_appearance_custom_theme_none">Пользовательская тема не сохранена</string><string name="pref_appearance_custom_theme_edit">Создать или изменить</string><string name="pref_appearance_custom_theme_clear">Очистить</string><string name="pref_appearance_custom_theme_save">Сохранить</string><string name="pref_appearance_custom_wallpaper_title">Пользовательские обои</string><string name="pref_appearance_custom_wallpaper_summary">Показывать полноэкранное изображение за содержимым браузера и верхней панелью</string><string name="pref_appearance_custom_wallpaper_choose">Выбрать обои</string><string name="pref_appearance_custom_wallpaper_replace">Заменить обои</string><string name="pref_appearance_custom_wallpaper_clear">Очистить обои</string>
++  <string name="pref_appearance_custom_wallpaper_crop_title">Настроить обои</string><string name="pref_appearance_custom_wallpaper_zoom">Масштаб</string><string name="pref_appearance_custom_wallpaper_horizontal">Горизонтальное положение</string><string name="pref_appearance_custom_wallpaper_vertical">Вертикальное положение</string><string name="pref_appearance_custom_wallpaper_save">Сохранить обои</string>
+ </resources>
+diff --git a/app/src/main/res/values-zh-rCN/strings.xml b/app/src/main/res/values-zh-rCN/strings.xml
+index 221aa5ce..ec94f221 100644
+--- a/app/src/main/res/values-zh-rCN/strings.xml
++++ b/app/src/main/res/values-zh-rCN/strings.xml
+@@ -2173,4 +2173,6 @@
+   <string name="pref_server_set_active">设为活动服务器</string>
+   <string name="pref_server_more_options">更多选项</string>
+   <string name="jellyfin_no_music_library">在此 Jellyfin 服务器上未找到音乐库</string>
++  <string name="pref_appearance_custom_theme_title">自定义主题</string><string name="pref_appearance_custom_theme_name">主题名称</string><string name="pref_appearance_custom_theme_light_primary">浅色主色</string><string name="pref_appearance_custom_theme_dark_primary">深色主色</string><string name="pref_appearance_custom_theme_light_background">浅色背景色</string><string name="pref_appearance_custom_theme_dark_background">深色背景色</string><string name="pref_appearance_custom_theme_none">未保存自定义主题</string><string name="pref_appearance_custom_theme_edit">创建或编辑</string><string name="pref_appearance_custom_theme_clear">清除</string><string name="pref_appearance_custom_theme_save">保存</string><string name="pref_appearance_custom_wallpaper_title">自定义壁纸</string><string name="pref_appearance_custom_wallpaper_summary">在浏览器内容和顶部栏后显示全屏图片</string><string name="pref_appearance_custom_wallpaper_choose">选择壁纸</string><string name="pref_appearance_custom_wallpaper_replace">替换壁纸</string><string name="pref_appearance_custom_wallpaper_clear">清除壁纸</string>
++  <string name="pref_appearance_custom_wallpaper_crop_title">调整壁纸</string><string name="pref_appearance_custom_wallpaper_zoom">缩放</string><string name="pref_appearance_custom_wallpaper_horizontal">水平位置</string><string name="pref_appearance_custom_wallpaper_vertical">垂直位置</string><string name="pref_appearance_custom_wallpaper_save">保存壁纸</string>
+ </resources>
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index 66e068ef..2bd7ab7e 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -2215,4 +2215,24 @@
+   <string name="navidrome_connect">Connect</string>
+   <string name="navidrome_connecting">Connecting…</string>
+   <string name="navidrome_connect_failed">Failed to connect to Navidrome server</string>
++  <string name="pref_appearance_custom_theme_title">Custom theme</string>
++  <string name="pref_appearance_custom_theme_name">Theme name</string>
++  <string name="pref_appearance_custom_theme_light_primary">Light primary color</string>
++  <string name="pref_appearance_custom_theme_dark_primary">Dark primary color</string>
++  <string name="pref_appearance_custom_theme_light_background">Light background color</string>
++  <string name="pref_appearance_custom_theme_dark_background">Dark background color</string>
++  <string name="pref_appearance_custom_theme_none">No custom theme saved</string>
++  <string name="pref_appearance_custom_theme_edit">Create or edit</string>
++  <string name="pref_appearance_custom_theme_clear">Clear</string>
++  <string name="pref_appearance_custom_theme_save">Save</string>
++  <string name="pref_appearance_custom_wallpaper_title">Custom wallpaper</string>
++  <string name="pref_appearance_custom_wallpaper_summary">Show a full-screen image behind browser content and the top bar</string>
++  <string name="pref_appearance_custom_wallpaper_choose">Choose wallpaper</string>
++  <string name="pref_appearance_custom_wallpaper_replace">Replace wallpaper</string>
++  <string name="pref_appearance_custom_wallpaper_clear">Clear wallpaper</string>
++  <string name="pref_appearance_custom_wallpaper_crop_title">Adjust wallpaper</string>
++  <string name="pref_appearance_custom_wallpaper_zoom">Zoom</string>
++  <string name="pref_appearance_custom_wallpaper_horizontal">Horizontal position</string>
++  <string name="pref_appearance_custom_wallpaper_vertical">Vertical position</string>
++  <string name="pref_appearance_custom_wallpaper_save">Save wallpaper</string>
+ </resources>
+-- 
+2.25.1
+

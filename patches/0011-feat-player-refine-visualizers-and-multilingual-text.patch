@@ -1,0 +1,1822 @@
+From 25567cb30824bed4a6cea3327eca90dac0322dca Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <riteshp2001@gmail.com>
+Date: Fri, 4 Sep 2026 13:18:22 +0530
+Subject: [PATCH 011/140] feat(player): refine visualizers and multilingual
+ text
+
+Keep audio visualizers inside the responsive media viewport with ambient edge blending and transparent renderer surfaces. Improve Cuboid responsiveness and multilingual lyrics and subtitle rendering while removing Musializer.
+---
+ .../visualizer/blob/composite_fragment.glsl   |   3 +-
+ .../data/lyrics/LyricsTranslationService.kt   | 240 ++++++------------
+ .../mpvrx/preferences/SubtitlesPreferences.kt |   2 +
+ .../com/quantummpv/app/ui/player/MPVView.kt    |   9 +-
+ .../mpvrx/ui/player/PlayerViewModel.kt        |  50 +++-
+ .../ui/player/controls/AudioPlayerControls.kt | 230 +++++++++++------
+ .../player/controls/components/LyricsView.kt  |  92 +++++--
+ .../panels/SubtitleSettingsTypographyCard.kt  |  10 +-
+ .../controls/components/sheets/LyricsSheet.kt |  17 ++
+ .../sheets/LyricsTranslateDialog.kt           |   7 +-
+ .../ui/player/visualizer/BlobComposable.kt    |   6 +-
+ .../ui/player/visualizer/BlobRenderer.kt      |  12 -
+ .../player/visualizer/BlobVisualizerView.kt   |   2 +-
+ .../ui/player/visualizer/CuboidComposable.kt  |  94 +++++--
+ .../ui/player/visualizer/GalaxyRenderer.kt    |   6 -
+ .../player/visualizer/GalaxyVisualizerView.kt |   2 +-
+ .../java/com/quantummpv/app/ui/theme/Theme.kt  |   8 +-
+ .../java/com/quantummpv/app/ui/theme/Type.kt   |  23 ++
+ app/src/main/res/values-ar/strings.xml        |   2 +
+ app/src/main/res/values-de/strings.xml        |   2 +
+ app/src/main/res/values-es/strings.xml        |   2 +
+ app/src/main/res/values-fr/strings.xml        |   2 +
+ app/src/main/res/values-hi/strings.xml        |   2 +
+ app/src/main/res/values-ja/strings.xml        |   2 +
+ app/src/main/res/values-pt-rBR/strings.xml    |   2 +
+ app/src/main/res/values-ru/strings.xml        |   2 +
+ app/src/main/res/values-zh-rCN/strings.xml    |   2 +
+ app/src/main/res/values/strings.xml           |   2 +
+ 28 files changed, 493 insertions(+), 340 deletions(-)
+
+diff --git a/app/src/main/assets/shaders/visualizer/blob/composite_fragment.glsl b/app/src/main/assets/shaders/visualizer/blob/composite_fragment.glsl
+index a2576ca4..073fbc4f 100644
+--- a/app/src/main/assets/shaders/visualizer/blob/composite_fragment.glsl
++++ b/app/src/main/assets/shaders/visualizer/blob/composite_fragment.glsl
+@@ -5,7 +5,6 @@ uniform sampler2D uScene;
+ uniform sampler2D uBloom;
+ uniform float uBloomStrength;
+ uniform float uExposure;
+-uniform vec3 uBackground;
+ in vec2 vUv;
+ out vec4 fragColor;
+ 
+@@ -16,5 +15,5 @@ void main() {
+     vec3 mapped = vec3(1.0) - exp(-hdr * uExposure);
+     mapped = pow(mapped, vec3(1.0 / 2.2));
+     float visualCoverage = clamp(max(max(hdr.r, hdr.g), hdr.b) * 1.8, 0.0, 1.0);
+-    fragColor = vec4(mix(uBackground, mapped, visualCoverage), 1.0);
++    fragColor = vec4(mapped, visualCoverage);
+ }
+diff --git a/app/src/main/java/com/quantummpv/app/data/lyrics/LyricsTranslationService.kt b/app/src/main/java/com/quantummpv/app/data/lyrics/LyricsTranslationService.kt
+index 442b38fd..9476fbd5 100644
+--- a/app/src/main/java/com/quantummpv/app/data/lyrics/LyricsTranslationService.kt
++++ b/app/src/main/java/com/quantummpv/app/data/lyrics/LyricsTranslationService.kt
+@@ -32,6 +32,22 @@ data class TranslationResult(
+   val translation: String,
+   val romanization: String? = null,
+   val detectedSourceLang: String? = null,
++  val isResolved: Boolean = true,
++)
++
++data class LyricsTranslationOutcome(
++  val lyrics: Lyrics,
++  val resolvedLineCount: Int,
++  val requestedLineCount: Int,
++) {
++  val isSuccessful: Boolean get() = resolvedLineCount > 0
++  val isComplete: Boolean get() = requestedLineCount > 0 && resolvedLineCount >= requestedLineCount
++}
++
++private data class TranslatedLines<T>(
++  val lines: List<T>,
++  val resolvedLineCount: Int,
++  val requestedLineCount: Int,
+ )
+ 
+ data class SupportedLanguage(
+@@ -87,7 +103,6 @@ class LyricsTranslationService(
+   companion object {
+     private const val TAG = "LyricsTranslationService"
+     private const val CHUNK_SIZE = 20
+-    private const val INPUT_TOOLS_CHUNK_SIZE = 4
+     private const val MAX_CONCURRENT_TRANSLATION_REQUESTS = 4
+     private const val USER_AGENT =
+       "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+@@ -106,17 +121,17 @@ class LyricsTranslationService(
+ 
+   private val json = Json { ignoreUnknownKeys = true; isLenient = true }
+   private val requestSemaphore = Semaphore(MAX_CONCURRENT_TRANSLATION_REQUESTS)
+-  // Cache key: "${mediaPathOrTrackId}_${targetLang}" -> Translated Lyrics
+-  private val translationCache = LruCache<String, Lyrics>(64)
++  private val translationCache = LruCache<String, LyricsTranslationOutcome>(64)
+ 
+   suspend fun translateLyrics(
+     lyrics: Lyrics,
+     targetLanguage: String,
+     cacheKey: String? = null,
+-  ): Lyrics = withContext(Dispatchers.IO) {
+-    if (!lyrics.isValid()) return@withContext lyrics
++  ): LyricsTranslationOutcome = withContext(Dispatchers.IO) {
++    val requestedLineCount = lyrics.synced?.count { it.line.isNotBlank() } ?: lyrics.plain?.count { it.isNotBlank() } ?: 0
++    if (!lyrics.isValid()) return@withContext LyricsTranslationOutcome(lyrics, 0, requestedLineCount)
+ 
+-    val key = cacheKey?.let { "${it}_$targetLanguage" }
++    val key = cacheKey?.let { "${it}_${lyrics.hashCode()}_$targetLanguage" }
+     if (key != null) {
+       translationCache.get(key)?.let { return@withContext it }
+     }
+@@ -124,14 +139,22 @@ class LyricsTranslationService(
+     try {
+       if (!lyrics.synced.isNullOrEmpty()) {
+         val translatedSynced = translateSyncedLines(lyrics.synced, targetLanguage)
+-        val result = lyrics.copy(synced = translatedSynced)
+-        if (key != null) translationCache.put(key, result)
+-        return@withContext result
++        val outcome = LyricsTranslationOutcome(
++          lyrics = lyrics.copy(synced = translatedSynced.lines),
++          resolvedLineCount = translatedSynced.resolvedLineCount,
++          requestedLineCount = translatedSynced.requestedLineCount,
++        )
++        if (key != null && outcome.isComplete) translationCache.put(key, outcome)
++        return@withContext outcome
+       } else if (!lyrics.plain.isNullOrEmpty()) {
+         val translatedPlain = translatePlainLines(lyrics.plain, targetLanguage)
+-        val result = lyrics.copy(plain = translatedPlain)
+-        if (key != null) translationCache.put(key, result)
+-        return@withContext result
++        val outcome = LyricsTranslationOutcome(
++          lyrics = lyrics.copy(plain = translatedPlain.lines),
++          resolvedLineCount = translatedPlain.resolvedLineCount,
++          requestedLineCount = translatedPlain.requestedLineCount,
++        )
++        if (key != null && outcome.isComplete) translationCache.put(key, outcome)
++        return@withContext outcome
+       }
+     } catch (cancellation: CancellationException) {
+       throw cancellation
+@@ -139,41 +162,43 @@ class LyricsTranslationService(
+       Log.e(TAG, "Error translating lyrics to $targetLanguage: ${e.message}", e)
+     }
+ 
+-    lyrics
++    LyricsTranslationOutcome(lyrics, 0, requestedLineCount)
+   }
+ 
+   private suspend fun translateSyncedLines(
+     lines: List<SyncedLine>,
+     targetLanguage: String,
+-  ): List<SyncedLine> {
++  ): TranslatedLines<SyncedLine> {
+     val textsToTranslate = lines.map { it.line }
+     val translations = batchTranslate(textsToTranslate, targetLanguage)
+ 
+-    return lines.mapIndexed { index, line ->
++    val translatedLines = lines.mapIndexed { index, line ->
+       val res = translations.getOrNull(index)
+-      if (res != null) {
+-        val translatedText = res.translation.takeIf { it.isNotBlank() }
+-        val romanizedText = res.romanization?.takeIf { it.isNotBlank() }
+-        line.copy(
+-          translation = when {
+-            targetLanguage == "romaji" || targetLanguage == "hinglish" || targetLanguage == "hinglish_casual" ->
+-              romanizedText ?: translatedText
+-            else -> translatedText
+-          },
+-          romanization = romanizedText,
+-        )
+-      } else {
+-        line
+-      }
++      if (res == null) return@mapIndexed line
++      val translatedText = res.translation.takeIf(String::isNotBlank)
++      val romanizedText = res.romanization?.takeIf(String::isNotBlank)
++      line.copy(
++        translation = when {
++          targetLanguage == "romaji" || targetLanguage == "hinglish" || targetLanguage == "hinglish_casual" ->
++            romanizedText ?: translatedText
++          else -> translatedText
++        },
++        romanization = romanizedText,
++      )
+     }
++    return TranslatedLines(
++      lines = translatedLines,
++      resolvedLineCount = translations.count { it.isResolved && it.translation.isNotBlank() },
++      requestedLineCount = textsToTranslate.count(String::isNotBlank),
++    )
+   }
+ 
+   private suspend fun translatePlainLines(
+     lines: List<String>,
+     targetLanguage: String,
+-  ): List<String> {
++  ): TranslatedLines<String> {
+     val translations = batchTranslate(lines, targetLanguage)
+-    return lines.mapIndexed { index, original ->
++    val translatedLines = lines.mapIndexed { index, original ->
+       val res = translations.getOrNull(index)
+       if (res != null) {
+         val text = if (targetLanguage == "romaji" || targetLanguage == "hinglish" || targetLanguage == "hinglish_casual") {
+@@ -190,6 +215,11 @@ class LyricsTranslationService(
+         original
+       }
+     }
++    return TranslatedLines(
++      lines = translatedLines,
++      resolvedLineCount = translations.count { it.isResolved && it.translation.isNotBlank() },
++      requestedLineCount = lines.count(String::isNotBlank),
++    )
+   }
+ 
+   private suspend fun batchTranslate(
+@@ -208,17 +238,6 @@ class LyricsTranslationService(
+       return@coroutineScope handleHinglishCasualTransliteration(texts)
+     }
+ 
+-    val isSourceLatin = isPredominantlyLatin(texts)
+-    val isTargetIndic = targetLang.lowercase() in listOf("hi", "bn", "ta", "te", "mr", "pa", "ur", "ar", "ru", "el")
+-
+-    // If source is Latin script (e.g. Hinglish) and target is Hindi/Indic native script, use InputTools directly in small chunks
+-    if (isSourceLatin && isTargetIndic) {
+-      val inputToolsResults = translateWithGoogleInputTools(texts, targetLang)
+-      if (inputToolsResults.any { it.translation.isNotBlank() && !it.translation.equals(texts.firstOrNull()?.trim(), ignoreCase = true) }) {
+-        return@coroutineScope inputToolsResults
+-      }
+-    }
+-
+     val chunks = texts.chunked(CHUNK_SIZE)
+     val deferredChunks = chunks.map { chunk ->
+       async(Dispatchers.IO) {
+@@ -717,7 +736,7 @@ class LyricsTranslationService(
+       val googleResult = translateWithGoogleWeb(queryText, targetLang)
+       if (!googleResult.isNullOrBlank()) {
+         val parsed = parseIndexedTranslations(googleResult, chunk.size, indexMap, chunk)
+-        if (parsed.any { it.translation.isNotBlank() }) {
++        if (parsed.any(TranslationResult::isResolved)) {
+           return parsed
+         }
+       }
+@@ -732,7 +751,7 @@ class LyricsTranslationService(
+       val myMemoryResult = translateWithMyMemory(queryText, targetLang)
+       if (!myMemoryResult.isNullOrBlank()) {
+         val parsed = parseIndexedTranslations(myMemoryResult, chunk.size, indexMap, chunk)
+-        if (parsed.any { it.translation.isNotBlank() }) {
++        if (parsed.any(TranslationResult::isResolved)) {
+           return parsed
+         }
+       }
+@@ -747,7 +766,7 @@ class LyricsTranslationService(
+       val fallbackResult = translateWithGoogleApiFallback(queryText, targetLang)
+       if (!fallbackResult.isNullOrBlank()) {
+         val parsed = parseIndexedTranslations(fallbackResult, chunk.size, indexMap, chunk)
+-        if (parsed.any { it.translation.isNotBlank() }) {
++        if (parsed.any(TranslationResult::isResolved)) {
+           return parsed
+         }
+       }
+@@ -757,113 +776,13 @@ class LyricsTranslationService(
+       Log.w(TAG, "Google API fallback failed for chunk: ${e.message}")
+     }
+ 
+-    // Fallback: return original trimmed lines
+-    return chunk.map { TranslationResult(translation = it.trim(), romanization = it.trim()) }
+-  }
+-
+-  private suspend fun translateWithGoogleInputTools(
+-    texts: List<String>,
+-    targetLang: String,
+-  ): List<TranslationResult> = coroutineScope {
+-    val subChunks = texts.chunked(INPUT_TOOLS_CHUNK_SIZE)
+-    val deferred = subChunks.map { subChunk ->
+-      async(Dispatchers.IO) {
+-        requestSemaphore.withPermit { translateSubChunkWithInputTools(subChunk, targetLang) }
+-      }
+-    }
+-    deferred.awaitAll().flatten()
+-  }
+-
+-  private suspend fun translateSubChunkWithInputTools(
+-    subChunk: List<String>,
+-    targetLang: String,
+-  ): List<TranslationResult> {
+-    val itc = when (targetLang.lowercase()) {
+-      "hi" -> "hi-t-i0-und"
+-      "bn" -> "bn-t-i0-und"
+-      "ta" -> "ta-t-i0-und"
+-      "te" -> "te-t-i0-und"
+-      "mr" -> "mr-t-i0-und"
+-      "pa" -> "pa-t-i0-und"
+-      "ur" -> "ur-t-i0-und"
+-      "ar" -> "ar-t-i0-und"
+-      "ru" -> "ru-t-i0-und"
+-      "el" -> "el-t-i0-und"
+-      else -> return subChunk.map { TranslationResult(translation = it.trim(), romanization = it.trim()) }
+-    }
+-
+-    val stringBuilder = StringBuilder()
+-    val indexMap = mutableMapOf<Int, Int>()
+-    var marker = 1
+-
+-    for ((localIdx, line) in subChunk.withIndex()) {
+-      val trimmed = line.trim()
+-      if (trimmed.isNotEmpty()) {
+-        stringBuilder.append("[$marker] ").append(trimmed).append("\n")
+-        indexMap[marker] = localIdx
+-        marker++
+-      }
+-    }
+-
+-    if (indexMap.isEmpty()) {
+-      return subChunk.map { TranslationResult(translation = "") }
+-    }
+-
+-    val query = stringBuilder.toString().trim()
+-
+-    try {
+-      val url = HttpUrl.Builder()
+-        .scheme("https")
+-        .host("inputtools.google.com")
+-        .addPathSegment("request")
+-        .addQueryParameter("text", query)
+-        .addQueryParameter("itc", itc)
+-        .addQueryParameter("num", "1")
+-        .addQueryParameter("app", "demopage")
+-        .build()
+-
+-      val request = Request.Builder()
+-        .url(url)
+-        .header("User-Agent", USER_AGENT)
+-        .get()
+-        .build()
+-
+-      client.newCall(request).awaitResponse().use { response ->
+-        if (response.isSuccessful) {
+-          val bodyStr = response.body.string()
+-          val root = json.parseToJsonElement(bodyStr).jsonArray
+-          val status = root.getOrNull(0)?.jsonPrimitive?.content
+-          if (status == "SUCCESS") {
+-            val resultsArray = root.getOrNull(1)?.jsonArray
+-            if (resultsArray != null && resultsArray.isNotEmpty()) {
+-              val sb = StringBuilder()
+-              for (itemElement in resultsArray) {
+-                val itemArray = itemElement.jsonArray
+-                val candidateList = itemArray.getOrNull(1)?.jsonArray
+-                val candidate = candidateList?.getOrNull(0)?.jsonPrimitive?.content
+-                if (!candidate.isNullOrBlank()) {
+-                  sb.append(candidate)
+-                }
+-              }
+-              val fullTrans = sb.toString().trim()
+-              if (fullTrans.isNotEmpty()) {
+-                val unescaped = unescapeHtml(fullTrans)
+-                val parsed = parseIndexedTranslations(unescaped, subChunk.size, indexMap, subChunk)
+-                if (parsed.any { it.translation.isNotBlank() }) {
+-                  return parsed
+-                }
+-              }
+-            }
+-          }
+-        }
+-      }
+-    } catch (cancellation: CancellationException) {
+-      throw cancellation
+-    } catch (e: Exception) {
+-      Log.w(TAG, "InputTools sub-chunk error: ${e.message}")
++    return chunk.map {
++      TranslationResult(
++        translation = it.trim(),
++        romanization = it.trim(),
++        isResolved = false,
++      )
+     }
+-
+-    return subChunk.map { TranslationResult(translation = it.trim(), romanization = it.trim()) }
+   }
+ 
+   private suspend fun translateWithGoogleWeb(
+@@ -974,7 +893,7 @@ class LyricsTranslationService(
+     // Default each position with the original line so missing markers never leave lines blank
+     val results = Array(chunkSize) { idx ->
+       val orig = originalChunk[idx].trim()
+-      TranslationResult(translation = orig, romanization = orig)
++      TranslationResult(translation = orig, romanization = orig, isResolved = false)
+     }
+ 
+     // Normalize Indic/Arabic/Fullwidth digits and brackets so regex matching works across all languages
+@@ -999,6 +918,7 @@ class LyricsTranslationService(
+           results[localIdx] = TranslationResult(
+             translation = cleanContent.ifEmpty { orig },
+             romanization = cleanContent.ifEmpty { orig },
++            isResolved = cleanContent.isNotEmpty(),
+           )
+         }
+       }
+@@ -1025,6 +945,7 @@ class LyricsTranslationService(
+       results[localIdx] = TranslationResult(
+         translation = originalChunk[localIdx].trim(),
+         romanization = originalChunk[localIdx].trim(),
++        isResolved = false,
+       )
+     }
+     return results.toList()
+@@ -1040,17 +961,10 @@ class LyricsTranslationService(
+       when (c) {
+         '［', '【', '(' -> sb.append('[')
+         '］', '】', ')' -> sb.append(']')
+-        // Devanagari / Marathi / Hindi digits (०..९)
+-        in '\u0966'..'\u096F' -> sb.append((c - '\u0966' + '0'.code).toChar())
+-        // Bengali digits (০..৯)
+-        in '\u09E6'..'\u09EF' -> sb.append((c - '\u09E6' + '0'.code).toChar())
+-        // Arabic-Indic digits (٠..٩)
+-        in '\u0660'..'\u0669' -> sb.append((c - '\u0660' + '0'.code).toChar())
+-        // Eastern Arabic-Indic digits (۰..۹)
+-        in '\u06F0'..'\u06F9' -> sb.append((c - '\u06F0' + '0'.code).toChar())
+-        // Fullwidth digits (０..９)
+-        in '\uFF10'..'\uFF19' -> sb.append((c - '\uFF10' + '0'.code).toChar())
+-        else -> sb.append(c)
++        else -> {
++          val digit = Character.digit(c, 10)
++          sb.append(if (digit >= 0) ('0'.code + digit).toChar() else c)
++        }
+       }
+     }
+     return sb.toString()
+diff --git a/app/src/main/java/com/quantummpv/app/preferences/SubtitlesPreferences.kt b/app/src/main/java/com/quantummpv/app/preferences/SubtitlesPreferences.kt
+index 822007b6..9e458fbb 100644
+--- a/app/src/main/java/com/quantummpv/app/preferences/SubtitlesPreferences.kt
++++ b/app/src/main/java/com/quantummpv/app/preferences/SubtitlesPreferences.kt
+@@ -19,6 +19,8 @@ import com.quantummpv.app.ui.icons.AppIcon
+ import com.quantummpv.app.ui.icons.Icons
+ import com.quantummpv.app.ui.player.controls.components.panels.SubtitlesBorderStyle
+ 
++const val DEFAULT_SUBTITLE_FONT_FAMILY = "sans-serif"
++
+ class SubtitlesPreferences(
+   preferenceStore: PreferenceStore,
+ ) {
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/MPVView.kt b/app/src/main/java/com/quantummpv/app/ui/player/MPVView.kt
+index 90c519de..83d7dd5a 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/MPVView.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/MPVView.kt
+@@ -23,6 +23,7 @@ import com.quantummpv.app.network.AndroidCookieJar
+ import com.quantummpv.app.preferences.AdvancedPreferences
+ import com.quantummpv.app.preferences.AudioPreferences
+ import com.quantummpv.app.preferences.DecoderPreferences
++import com.quantummpv.app.preferences.DEFAULT_SUBTITLE_FONT_FAMILY
+ import com.quantummpv.app.preferences.MpvConfigControlledFeatures
+ import com.quantummpv.app.preferences.MpvConfigOverridePolicy
+ import com.quantummpv.app.preferences.PlayerPreferences
+@@ -487,11 +488,9 @@ class MPVView(
+     PlaybackSession.setOptionString("secondary-sub-delay", subDelay)
+     PlaybackSession.setOptionString("secondary-sub-speed", subSpeed)
+ 
+-    val preferredFont = subtitlesPreferences.font.get()
+-    if (preferredFont.isNotBlank()) {
+-      PlaybackSession.setOptionString("sub-font", preferredFont)
+-    }
+-    // If blank, MPV uses its default font
++    val preferredFont = subtitlesPreferences.font.get().ifBlank { DEFAULT_SUBTITLE_FONT_FAMILY }
++    PlaybackSession.setOptionString("sub-font", preferredFont)
++    PlaybackSession.setOptionString("secondary-sub-font", preferredFont)
+ 
+     if (subtitlesPreferences.overrideAssSubs.get()) {
+       PlaybackSession.setOptionString("sub-ass-override", "force")
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt b/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
+index b5ea1565..dea1b4b1 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
+@@ -1072,11 +1072,12 @@ class PlayerViewModel : ViewModel(),
+       isTranslating = true,
+       targetLanguage = lang,
+       originalLyrics = current.originalLyrics ?: current.lyrics,
++      errorMessage = null,
+     )
+ 
+     lyricsTranslateJob?.cancel()
+     lyricsTranslateJob = viewModelScope.launch(Dispatchers.IO) {
+-      val translated = lyricsTranslationService.translateLyrics(
++      val outcome = lyricsTranslationService.translateLyrics(
+         lyrics = baseLyrics,
+         targetLanguage = lang,
+         cacheKey = path,
+@@ -1088,6 +1089,17 @@ class PlayerViewModel : ViewModel(),
+         ?: PlaybackSession.getPropertyString("stream-open-filename")
+       if (stillCurrentPath != path) return@launch
+ 
++      if (!outcome.isSuccessful) {
++        lyricsUiState.value = lyricsUiState.value.copy(
++          isTranslating = false,
++          isTranslationActive = false,
++          lyrics = baseLyrics,
++          errorMessage = appContext.getString(R.string.lyrics_translation_failed),
++        )
++        return@launch
++      }
++
++      val translated = outcome.lyrics
+       val activeIndex = com.quantummpv.app.utils.media.LyricsUtils.getActiveLineIndex(
+         syncedLines = translated.synced,
+         positionMs = (precisePosition.value * 1000).toLong(),
+@@ -1098,30 +1110,40 @@ class PlayerViewModel : ViewModel(),
+         isTranslationActive = true,
+         lyrics = translated,
+         activeLineIndex = activeIndex,
++        errorMessage =
++          if (outcome.isComplete) null else appContext.getString(R.string.lyrics_translation_partial),
+       )
+     }
+   }
+ 
+   fun toggleLyricsTranslation() {
+     val current = lyricsUiState.value
+-    if (current.isTranslationActive) {
+-      audioPreferences.lyricsAutoTranslate.set(false)
+-      val orig = current.originalLyrics ?: return
+-      val activeIndex = com.quantummpv.app.utils.media.LyricsUtils.getActiveLineIndex(
+-        syncedLines = orig.synced,
+-        positionMs = (precisePosition.value * 1000).toLong(),
+-        offsetMs = current.syncOffsetMs,
+-      )
+-      lyricsUiState.value = current.copy(
+-        isTranslationActive = false,
+-        lyrics = orig,
+-        activeLineIndex = activeIndex,
+-      )
++    if (current.isTranslationActive || current.isTranslating) {
++      showOriginalLyrics()
+     } else {
+       translateLyrics()
+     }
+   }
+ 
++  fun showOriginalLyrics() {
++    audioPreferences.lyricsAutoTranslate.set(false)
++    lyricsTranslateJob?.cancel()
++    val current = lyricsUiState.value
++    val original = current.originalLyrics ?: current.lyrics ?: return
++    val activeIndex = com.quantummpv.app.utils.media.LyricsUtils.getActiveLineIndex(
++      syncedLines = original.synced,
++      positionMs = (precisePosition.value * 1000).toLong(),
++      offsetMs = current.syncOffsetMs,
++    )
++    lyricsUiState.value = current.copy(
++      isTranslating = false,
++      isTranslationActive = false,
++      lyrics = original,
++      activeLineIndex = activeIndex,
++      errorMessage = null,
++    )
++  }
++
+   fun setEqualizerVolumeBoost(db: Int) {
+     if (equalizerState.value.volumeBoostDb != db) {
+       equalizerState.value = equalizerState.value.copy(volumeBoostDb = db.coerceIn(0, 10))
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/AudioPlayerControls.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/AudioPlayerControls.kt
+index d47d5d6e..862fa257 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/AudioPlayerControls.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/AudioPlayerControls.kt
+@@ -24,8 +24,10 @@ import androidx.activity.compose.BackHandler
+ import androidx.activity.compose.rememberLauncherForActivityResult
+ import androidx.activity.result.contract.ActivityResultContracts
+ import androidx.compose.animation.AnimatedContent
++import androidx.compose.animation.AnimatedVisibility
+ import androidx.compose.animation.animateColorAsState
+ import androidx.compose.animation.Crossfade
++import androidx.compose.animation.SizeTransform
+ import androidx.compose.animation.core.Animatable
+ import androidx.compose.animation.core.FastOutSlowInEasing
+ import androidx.compose.animation.core.Spring
+@@ -111,6 +113,8 @@ import sh.calvin.reorderable.ReorderableItem
+ import sh.calvin.reorderable.rememberReorderableLazyListState
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
++import androidx.compose.ui.draw.BlurredEdgeTreatment
++import androidx.compose.ui.draw.blur
+ import androidx.compose.ui.draw.clip
+ import androidx.compose.ui.draw.clipToBounds
+ import androidx.compose.ui.draw.drawWithCache
+@@ -138,6 +142,7 @@ import androidx.compose.runtime.mutableFloatStateOf
+ import androidx.compose.ui.input.pointer.pointerInput
+ import androidx.compose.ui.unit.IntOffset
+ import androidx.core.content.ContextCompat
++import androidx.core.graphics.ColorUtils
+ import kotlin.math.abs
+ import kotlin.math.roundToInt
+ import com.quantummpv.app.R
+@@ -166,6 +171,7 @@ import com.quantummpv.app.ui.player.visualizer.GalaxyOverlay
+ import com.quantummpv.app.ui.player.visualizer.ParticleOverlay
+ import com.quantummpv.app.ui.player.visualizer.VisualizerPalette
+ import com.quantummpv.app.ui.player.visualizer.rememberAudioVisualizerFeatures
++import com.quantummpv.app.ui.theme.fontFamilyForText
+ import com.quantummpv.app.ui.utils.isMpvOptionOwnedByConfig
+ 
+ import com.quantummpv.app.utils.media.fileExtension
+@@ -350,7 +356,7 @@ private fun ribbonPaletteFromAccent(
+   )
+ }
+ 
+-private fun artworkRibbonPalette(
++private fun artworkVisualizerPalette(
+   bitmap: Bitmap,
+   materialPalette: VisualizerPalette,
+ ): VisualizerPalette {
+@@ -366,16 +372,104 @@ private fun artworkRibbonPalette(
+         swatch.hsl[1] * 0.58f + population * 0.27f + centeredLightness * 0.15f
+       }?.rgb
+       ?: materialPalette.primary
+-  return ribbonPaletteFromAccent(materialPalette, accent)
++  val artworkTones = ribbonPaletteFromAccent(materialPalette, accent)
++  return VisualizerPalette(
++    background = ColorUtils.blendARGB(materialPalette.background, accent, 0.12f),
++    primary = ColorUtils.blendARGB(materialPalette.primary, accent, 0.48f),
++    secondary = ColorUtils.blendARGB(materialPalette.secondary, artworkTones.secondary, 0.62f),
++    tertiary = ColorUtils.blendARGB(materialPalette.tertiary, artworkTones.tertiary, 0.58f),
++  )
+ }
+ 
+-/**
+- * Cuboid is a Compose Canvas and does not pass through the GLSurfaceView VisualizerOverlay, so it
+- * needs the same scoped Android spectrum capture explicitly. The capture exists only while Cuboid
+- * is actually visible; album-art mode, lyrics and modal sheets release it immediately.
+- */
+ @Composable
+-private fun CuboidSpectrumCaptureEffect(
++private fun AudioVisualizerViewport(
++  style: AudioVisualizerStyle,
++  palette: VisualizerPalette,
++  isPlaying: Boolean,
++  isSheetOpen: Boolean,
++  volumeScale: Float,
++  features: AudioFeatures,
++  onClick: () -> Unit,
++  onLongClick: () -> Unit,
++  modifier: Modifier = Modifier,
++) {
++  BoxWithConstraints(
++    modifier =
++      modifier
++        .combinedClickable(
++          interactionSource = remember { MutableInteractionSource() },
++          indication = null,
++          onClick = onClick,
++          onLongClick = onLongClick,
++        ),
++    contentAlignment = Alignment.Center,
++  ) {
++    val surfaceColor = MaterialTheme.colorScheme.surface
++    val rendererModifier =
++      Modifier.fillMaxSize()
++        .graphicsLayer {
++          scaleX = 1.03f
++          scaleY = 1.03f
++        }
++
++    when (style) {
++      AudioVisualizerStyle.Galaxy ->
++        GalaxyOverlay(
++          palette = palette,
++          isSheetOpen = isSheetOpen,
++          volumeScale = volumeScale,
++          features = features,
++          modifier = rendererModifier,
++        )
++      AudioVisualizerStyle.Blob ->
++        BlobOverlay(
++          palette = palette,
++          isSheetOpen = isSheetOpen,
++          volumeScale = volumeScale,
++          features = features,
++          modifier = rendererModifier,
++        )
++      AudioVisualizerStyle.Cuboid ->
++        CuboidOverlay(
++          isPlaying = isPlaying,
++          palette = palette,
++          isSheetOpen = isSheetOpen,
++          volumeScale = volumeScale,
++          features = features,
++          modifier = rendererModifier,
++        )
++      AudioVisualizerStyle.Particle ->
++        ParticleOverlay(
++          palette = palette,
++          isSheetOpen = isSheetOpen,
++          volumeScale = volumeScale,
++          features = features,
++          modifier = rendererModifier,
++        )
++    }
++
++    Box(
++      modifier =
++        Modifier
++          .align(Alignment.BottomCenter)
++          .fillMaxWidth()
++          .height(maxHeight * 0.28f)
++          .blur(32.dp, BlurredEdgeTreatment.Unbounded)
++          .background(
++            Brush.verticalGradient(
++              0f to Color.Transparent,
++              0.34f to surfaceColor.copy(alpha = 0.24f),
++              0.72f to surfaceColor.copy(alpha = 0.82f),
++              1f to surfaceColor,
++            ),
++          ),
++    )
++  }
++}
++
++/** Compose Canvas visualizers need scoped spectrum capture outside VisualizerOverlay. */
++@Composable
++private fun CanvasSpectrumCaptureEffect(
+   enabled: Boolean,
+   features: AudioFeatures,
+ ) {
+@@ -662,19 +756,18 @@ fun AudioPlayerControls(
+         tertiary = colorScheme.tertiary.toArgb(),
+       )
+     }
+-  val fallbackRibbonPalette = remember(palette) { ribbonPaletteFromAccent(palette, palette.primary) }
+-  val seekbarRibbonPalette by produceState(
+-    initialValue = fallbackRibbonPalette,
++  val visualizerPalette by produceState(
++    initialValue = palette,
+     key1 = albumArtBitmap,
+-    key2 = fallbackRibbonPalette,
++    key2 = palette,
+   ) {
+     val artwork = albumArtBitmap
+     value =
+       if (artwork == null) {
+-        fallbackRibbonPalette
++        palette
+       } else {
+         withContext(Dispatchers.Default) {
+-          runCatching { artworkRibbonPalette(artwork, palette) }.getOrDefault(fallbackRibbonPalette)
++          runCatching { artworkVisualizerPalette(artwork, palette) }.getOrDefault(palette)
+         }
+       }
+   }
+@@ -702,7 +795,7 @@ fun AudioPlayerControls(
+   val sheetShown by viewModel.sheetShown.collectAsState()
+   val isSheetOpen = sheetShown != Sheets.None
+ 
+-  CuboidSpectrumCaptureEffect(
++  CanvasSpectrumCaptureEffect(
+     enabled =
+       showVisualizer &&
+         !showInPlaceLyrics &&
+@@ -879,7 +972,6 @@ fun AudioPlayerControls(
+     animationSpec = tween(durationMillis = 800),
+     label = "ambient_bottom_color",
+   )
+-
+   Box(
+     modifier =
+       modifier
+@@ -1025,12 +1117,18 @@ fun AudioPlayerControls(
+       BoxWithConstraints(
+         modifier =
+           visualizerModifier
+-            .clipToBounds()
+-            .combinedClickable(
+-              interactionSource = remember { MutableInteractionSource() },
+-              indication = null,
+-              onClick = { viewModel.toggleAudioVisualizer() },
+-              onLongClick = { onOpenSheet(Sheets.VisualizerStyle) },
++            .then(if (showVisualizer) Modifier else Modifier.clipToBounds())
++            .then(
++              if (showVisualizer || showInPlaceLyrics) {
++                Modifier
++              } else {
++                Modifier.combinedClickable(
++                  interactionSource = remember { MutableInteractionSource() },
++                  indication = null,
++                  onClick = { viewModel.toggleAudioVisualizer() },
++                  onLongClick = { onOpenSheet(Sheets.VisualizerStyle) },
++                )
++              },
+             ),
+         contentAlignment = Alignment.Center,
+       ) {
+@@ -1048,68 +1146,39 @@ fun AudioPlayerControls(
+           AnimatedContent(
+             targetState = showVisualizer,
+             transitionSpec = {
+-              if (targetState) {
+-                (fadeIn(animationSpec = tween(350, easing = FastOutSlowInEasing)) +
+-                  scaleIn(animationSpec = tween(350, easing = FastOutSlowInEasing), initialScale = 0.90f))
+-                  .togetherWith(
+-                    fadeOut(animationSpec = tween(280)) +
+-                      scaleOut(animationSpec = tween(280), targetScale = 1.06f),
+-                  )
+-              } else {
+-                (fadeIn(animationSpec = tween(350, easing = FastOutSlowInEasing)) +
+-                  scaleIn(animationSpec = spring(dampingRatio = 0.72f, stiffness = 400f), initialScale = 0.88f))
+-                  .togetherWith(
+-                    fadeOut(animationSpec = tween(280)) +
+-                      scaleOut(animationSpec = tween(280), targetScale = 1.06f),
+-                  )
+-              }
++              val contentTransform =
++                if (targetState) {
++                  (fadeIn(animationSpec = tween(350, easing = FastOutSlowInEasing)) +
++                    scaleIn(animationSpec = tween(350, easing = FastOutSlowInEasing), initialScale = 0.90f))
++                    .togetherWith(
++                      fadeOut(animationSpec = tween(280)) +
++                        scaleOut(animationSpec = tween(280), targetScale = 1.06f),
++                    )
++                } else {
++                  (fadeIn(animationSpec = tween(350, easing = FastOutSlowInEasing)) +
++                    scaleIn(animationSpec = spring(dampingRatio = 0.72f, stiffness = 400f), initialScale = 0.88f))
++                    .togetherWith(
++                      fadeOut(animationSpec = tween(280)) +
++                        scaleOut(animationSpec = tween(280), targetScale = 1.06f),
++                    )
++                }
++              contentTransform.using(SizeTransform(clip = false))
+             },
+             label = "visualizer_toggle",
+             modifier = Modifier.fillMaxHeight().fillMaxWidth(if (isTabletPortrait) 0.65f else 1.0f),
+           ) { isVisualizerActive ->
+           if (isVisualizerActive) {
+-            Box(
++            AudioVisualizerViewport(
++              style = audioVisualizerStyle,
++              palette = visualizerPalette,
++              isPlaying = isPlaying,
++              isSheetOpen = isSheetOpen,
++              volumeScale = volumeScale,
++              features = visualizerFeatures,
++              onClick = viewModel::toggleAudioVisualizer,
++              onLongClick = { onOpenSheet(Sheets.VisualizerStyle) },
+               modifier = Modifier.fillMaxSize(),
+-              contentAlignment = Alignment.Center,
+-            ) {
+-               when (audioVisualizerStyle) {
+-                 AudioVisualizerStyle.Galaxy ->
+-                   GalaxyOverlay(
+-                     palette = palette,
+-                     isSheetOpen = isSheetOpen,
+-                     volumeScale = volumeScale,
+-                     features = visualizerFeatures,
+-                     modifier = Modifier.fillMaxSize(),
+-                   )
+-                 AudioVisualizerStyle.Blob ->
+-                   BlobOverlay(
+-                     palette = palette,
+-                     isSheetOpen = isSheetOpen,
+-                     volumeScale = volumeScale,
+-                     features = visualizerFeatures,
+-                     modifier = Modifier.fillMaxSize(),
+-                   )
+-                 AudioVisualizerStyle.Cuboid ->
+-                   if (!isSheetOpen) {
+-                     CuboidOverlay(
+-                       isPlaying = isPlaying,
+-                       palette = palette,
+-                       isSheetOpen = false,
+-                       volumeScale = volumeScale,
+-                       features = visualizerFeatures,
+-                       modifier = Modifier.fillMaxSize(),
+-                     )
+-                   }
+-                 AudioVisualizerStyle.Particle ->
+-                   ParticleOverlay(
+-                     palette = palette,
+-                     isSheetOpen = isSheetOpen,
+-                     volumeScale = volumeScale,
+-                     features = visualizerFeatures,
+-                     modifier = Modifier.fillMaxSize(),
+-                   )
+-               }
+-            }
++            )
+           } else {
+             val coverShape = RoundedCornerShape(32.dp)
+             val density = LocalDensity.current
+@@ -1238,6 +1307,7 @@ fun AudioPlayerControls(
+         Text(
+           text = displayTitle,
+           style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.ExtraBold),
++          fontFamily = fontFamilyForText(displayTitle),
+           color = MaterialTheme.colorScheme.onSurface,
+           maxLines = 1,
+           overflow = TextOverflow.Ellipsis,
+@@ -1249,6 +1319,7 @@ fun AudioPlayerControls(
+         Text(
+           text = displayArtist,
+           style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Medium),
++          fontFamily = fontFamilyForText(displayArtist),
+           color = MaterialTheme.colorScheme.onSurfaceVariant,
+           maxLines = 1,
+           overflow = TextOverflow.Ellipsis,
+@@ -1494,7 +1565,7 @@ fun AudioPlayerControls(
+         seekbarStyle = seekbarStyle,
+         showWavyVisualizer = audioWavySeekbar,
+         waveFeatures = if (audioWavySeekbar) visualizerFeatures else null,
+-        wavePalette = seekbarRibbonPalette,
++        wavePalette = visualizerPalette,
+         waveVolumeScale = volumeScale,
+         waveSheetOpen = isSheetOpen,
+         loopStart = abLoopA?.toFloat(),
+@@ -1803,6 +1874,7 @@ fun AudioPlayerControls(
+         modifier = Modifier
+           .fillMaxSize()
+           .clickable(
++            enabled = showInPlaceLyrics,
+             interactionSource = remember { MutableInteractionSource() },
+             indication = null,
+           ) { resetInactivityTimer() },
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/LyricsView.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/LyricsView.kt
+index 02950f03..eb4d7230 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/LyricsView.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/LyricsView.kt
+@@ -10,6 +10,7 @@ import androidx.compose.animation.AnimatedVisibility
+ import androidx.compose.animation.animateColorAsState
+ import androidx.compose.animation.core.FastOutSlowInEasing
+ import androidx.compose.animation.core.Spring
++import androidx.compose.animation.core.animateDpAsState
+ import androidx.compose.animation.core.animateFloatAsState
+ import androidx.compose.animation.core.spring
+ import androidx.compose.animation.core.tween
+@@ -56,6 +57,8 @@ import androidx.compose.runtime.withFrameNanos
+ import com.quantummpv.app.preferences.preference.collectAsState
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
++import androidx.compose.ui.draw.BlurredEdgeTreatment
++import androidx.compose.ui.draw.blur
+ import androidx.compose.ui.draw.clip
+ import androidx.compose.ui.draw.drawWithContent
+ import androidx.compose.ui.geometry.Offset
+@@ -69,7 +72,6 @@ import androidx.compose.ui.graphics.graphicsLayer
+ import androidx.compose.ui.graphics.drawscope.clipRect
+ import androidx.compose.ui.layout.onSizeChanged
+ import androidx.compose.ui.platform.LocalDensity
+-import androidx.compose.ui.text.font.FontFamily
+ import androidx.compose.ui.text.font.FontWeight
+ import androidx.compose.ui.text.style.TextAlign
+ import androidx.compose.ui.res.stringResource
+@@ -87,6 +89,7 @@ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
+ import com.quantummpv.app.ui.player.PlayerViewModel
+ import com.quantummpv.app.ui.player.controls.components.sheets.LyricsTranslateDialog
++import com.quantummpv.app.ui.theme.fontFamilyForText
+ import org.koin.compose.koinInject
+ 
+ @OptIn(ExperimentalLayoutApi::class)
+@@ -115,23 +118,35 @@ fun LyricsView(
+   // Position polls arrive every 50-500ms; per-letter animation needs a per-frame clock.
+   val smoothPositionMs = rememberSmoothedPositionMs(currentPosMs, paused == false, playbackSpeed ?: 1f)
+ 
+-  // Autoscroll: scroll current active line to the top
++  // Keep the active lyric centered without snapping as playback advances.
+   LaunchedEffect(state.activeLineIndex, isLyricsFullscreen, lyricsViewportPx) {
+     val target = state.activeLineIndex
+-    if (target < 0) return@LaunchedEffect
++    if (target < 0 || lyricsViewportPx <= 0) return@LaunchedEffect
+     runCatching {
+-      if (target == 0) {
+-        listState.animateScrollToItem(0)
+-      } else {
+-        val topOffset = with(density) { 16.dp.roundToPx() }
+-        val item = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == target }
+-        if (item != null) {
++      withFrameNanos {}
++      var item = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == target }
++      if (item == null) {
++        val estimatedItemHeight =
++          listState.layoutInfo.visibleItemsInfo
++            .map { it.size }
++            .average()
++            .takeIf(Double::isFinite)
++            ?.toInt()
++            ?: with(density) { 48.dp.roundToPx() }
++        val centeredOffset = -((lyricsViewportPx - estimatedItemHeight) / 2).coerceAtLeast(0)
++        listState.animateScrollToItem(target, scrollOffset = centeredOffset)
++        item = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == target }
++      }
++
++      item?.let { targetItem ->
++        val viewportCenter = listState.layoutInfo.viewportSize.height / 2f
++        val itemCenter = targetItem.offset + targetItem.size / 2f
++        val centerDelta = itemCenter - viewportCenter
++        if (kotlin.math.abs(centerDelta) > 0.5f) {
+           listState.animateScrollBy(
+-            (item.offset - topOffset).toFloat(),
+-            animationSpec = tween(durationMillis = 500, easing = FastOutSlowInEasing),
++            centerDelta,
++            animationSpec = spring(dampingRatio = 0.88f, stiffness = Spring.StiffnessLow),
+           )
+-        } else {
+-          listState.animateScrollToItem(target, scrollOffset = 0)
+         }
+       }
+     }
+@@ -165,7 +180,7 @@ fun LyricsView(
+           text = displayTitle,
+           style = MaterialTheme.typography.titleMedium,
+           fontWeight = FontWeight.ExtraBold,
+-          fontFamily = FontFamily.SansSerif,
++          fontFamily = fontFamilyForText(displayTitle),
+           color = MaterialTheme.colorScheme.onSurface,
+           maxLines = 1,
+         )
+@@ -174,7 +189,7 @@ fun LyricsView(
+             text = displayArtist,
+             style = MaterialTheme.typography.bodySmall,
+             fontWeight = FontWeight.Bold,
+-            fontFamily = FontFamily.SansSerif,
++            fontFamily = fontFamilyForText(displayArtist),
+             color = MaterialTheme.colorScheme.onSurfaceVariant,
+             maxLines = 1,
+           )
+@@ -252,6 +267,7 @@ fun LyricsView(
+           }
+ 
+           activeLyrics != null && !activeLyrics.synced.isNullOrEmpty() -> {
++            val centerPadding = with(density) { (lyricsViewportPx / 2f).toDp() }
+             LazyColumn(
+               state = listState,
+               modifier = Modifier
+@@ -269,7 +285,7 @@ fun LyricsView(
+                   )
+                 },
+               verticalArrangement = Arrangement.spacedBy(18.dp),
+-              contentPadding = PaddingValues(top = 16.dp, bottom = 220.dp),
++              contentPadding = PaddingValues(vertical = centerPadding),
+             ) {
+               itemsIndexed(
+                 items = activeLyrics.synced,
+@@ -308,20 +324,32 @@ fun LyricsView(
+                   targetValue =
+                     when {
+                       isActiveLine -> 1.0f
+-                      distanceFromActive == 1 -> 0.70f
+-                      distanceFromActive == 2 -> 0.50f
+-                      else -> 0.38f
++                      distanceFromActive == 1 -> 0.74f
++                      distanceFromActive == 2 -> 0.52f
++                      else -> 0.34f
+                     },
+-                  animationSpec = tween(durationMillis = if (isActiveLine) 250 else 400, easing = FastOutSlowInEasing),
++                  animationSpec = tween(durationMillis = if (isActiveLine) 320 else 460, easing = FastOutSlowInEasing),
+                   label = "LineAlpha",
+                 )
+ 
+                 val lineScale by animateFloatAsState(
+-                  targetValue = if (isActiveLine) 1.02f else 1.0f,
+-                  animationSpec = spring(dampingRatio = 0.80f, stiffness = 280f),
++                  targetValue = if (isActiveLine) 1.025f else 0.985f,
++                  animationSpec = spring(dampingRatio = 0.86f, stiffness = 220f),
+                   label = "LineScale",
+                 )
+ 
++                val lineBlur by animateDpAsState(
++                  targetValue =
++                    when {
++                      isActiveLine || state.activeLineIndex < 0 -> 0.dp
++                      distanceFromActive == 1 -> 0.6.dp
++                      distanceFromActive == 2 -> 1.0.dp
++                      else -> 1.4.dp
++                    },
++                  animationSpec = tween(durationMillis = 420, easing = FastOutSlowInEasing),
++                  label = "LineBlur",
++                )
++
+                 val activeColor = Color.White
+                 val inactiveColor = Color.White.copy(alpha = 0.55f)
+ 
+@@ -334,6 +362,7 @@ fun LyricsView(
+                 Column(
+                   modifier = Modifier
+                     .fillMaxWidth()
++                    .blur(lineBlur, edgeTreatment = BlurredEdgeTreatment.Unbounded)
+                     .graphicsLayer {
+                       alpha = lineAlpha
+                       scaleX = lineScale
+@@ -384,7 +413,7 @@ fun LyricsView(
+                         else -> 22.sp
+                       },
+                       fontWeight = if (isActiveLine) FontWeight.Black else FontWeight.ExtraBold,
+-                      fontFamily = FontFamily.SansSerif,
++                      fontFamily = fontFamilyForText(displayText),
+                       textAlign = TextAlign.Center,
+                       modifier = Modifier.fillMaxWidth(),
+                     )
+@@ -403,7 +432,7 @@ fun LyricsView(
+                       color = translationColor,
+                       fontSize = if (isActiveLine) 18.sp else 16.sp,
+                       fontWeight = FontWeight.Bold,
+-                      fontFamily = FontFamily.SansSerif,
++                      fontFamily = fontFamilyForText(transText.orEmpty()),
+                       textAlign = TextAlign.Center,
+                       modifier = Modifier.fillMaxWidth(),
+                     )
+@@ -443,7 +472,7 @@ fun LyricsView(
+                   color = MaterialTheme.colorScheme.onSurface,
+                   fontSize = 24.sp,
+                   fontWeight = FontWeight.Black,
+-                  fontFamily = FontFamily.SansSerif,
++                  fontFamily = fontFamilyForText(textToDisplay),
+                   textAlign = TextAlign.Center,
+                   modifier = Modifier.fillMaxWidth(),
+                 )
+@@ -471,6 +500,17 @@ fun LyricsView(
+         }
+       }
+ 
++      state.errorMessage?.let { message ->
++        Text(
++          text = message,
++          style = MaterialTheme.typography.bodySmall,
++          fontFamily = fontFamilyForText(message),
++          color = MaterialTheme.colorScheme.error,
++          textAlign = TextAlign.Center,
++          modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
++        )
++      }
++
+       // Bottom Bar: Translate Button & Sync Timing Adjustments (Only visible when synced lyrics are present)
+       AnimatedVisibility(visible = state.lyrics?.synced?.isNotEmpty() == true) {
+         Column(
+@@ -634,7 +674,7 @@ private fun AnimatedLyricWord(
+     MaterialTheme.typography.headlineSmall.copy(
+       fontSize = fontSize,
+       fontWeight = FontWeight.Black,
+-      fontFamily = FontFamily.SansSerif,
++      fontFamily = fontFamilyForText(text),
+     )
+   if (text.isEmpty()) {
+     Text(text = " ", style = textStyle)
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/panels/SubtitleSettingsTypographyCard.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/panels/SubtitleSettingsTypographyCard.kt
+index 01fbca67..79422fbf 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/panels/SubtitleSettingsTypographyCard.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/panels/SubtitleSettingsTypographyCard.kt
+@@ -45,6 +45,7 @@ import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.text.AnnotatedString
+ import androidx.compose.ui.unit.dp
+ import com.quantummpv.app.R
++import com.quantummpv.app.preferences.DEFAULT_SUBTITLE_FONT_FAMILY
+ import com.quantummpv.app.preferences.SubtitleJustification
+ import com.quantummpv.app.preferences.SubtitlesPreferences
+ import com.quantummpv.app.preferences.preference.deleteAndGet
+@@ -242,12 +243,13 @@ fun SubtitleSettingsTypographyCard(
+           modifier = Modifier.size(32.dp),
+         )
+         ExposedTextDropDownMenu(
+-          selectedValue = font?.ifEmpty { "Default" } ?: "Default",
++          selectedValue = font?.takeUnless { it == DEFAULT_SUBTITLE_FONT_FAMILY }.orEmpty().ifEmpty { "Default" },
+           options = fonts.toImmutableList(),
+           label = stringResource(R.string.player_sheets_sub_typography_font),
+           onValueChangedEvent = {
+-            val actualFont = if (it == "Default") "" else it
+-            preferences.font.set(actualFont)
++            val storedFont = if (it == "Default") "" else it
++            val actualFont = storedFont.ifBlank { DEFAULT_SUBTITLE_FONT_FAMILY }
++            preferences.font.set(storedFont)
+             PlaybackSession.setPropertyString("sub-font", actualFont)
+             PlaybackSession.setPropertyString("secondary-sub-font", actualFont)
+           },
+@@ -330,7 +332,7 @@ fun resetTypography(preferences: SubtitlesPreferences) {
+   val bold = preferences.bold.deleteAndGet()
+   val italic = preferences.italic.deleteAndGet()
+   val justify = preferences.justification.deleteAndGet().value
+-  val font = preferences.font.deleteAndGet()
++  val font = preferences.font.deleteAndGet().ifBlank { DEFAULT_SUBTITLE_FONT_FAMILY }
+   val fontSize = preferences.fontSize.deleteAndGet()
+   val borderSize = preferences.borderSize.deleteAndGet()
+   val shadowOffset = preferences.shadowOffset.deleteAndGet()
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/LyricsSheet.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/LyricsSheet.kt
+index 02771b47..7741efbe 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/LyricsSheet.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/LyricsSheet.kt
+@@ -53,6 +53,7 @@ import com.quantummpv.app.domain.lyrics.SyncedLine
+ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
+ import com.quantummpv.app.ui.player.PlayerViewModel
++import com.quantummpv.app.ui.theme.fontFamilyForText
+ 
+ @Composable
+ fun LyricsSheet(
+@@ -120,6 +121,7 @@ fun LyricsSheet(
+               text = displayTitle,
+               style = MaterialTheme.typography.titleMedium,
+               fontWeight = FontWeight.Bold,
++              fontFamily = fontFamilyForText(displayTitle),
+               maxLines = 1,
+               overflow = TextOverflow.Ellipsis,
+             )
+@@ -128,6 +130,7 @@ fun LyricsSheet(
+             Text(
+               text = displayArtist,
+               style = MaterialTheme.typography.bodySmall,
++              fontFamily = fontFamilyForText(displayArtist),
+               color = MaterialTheme.colorScheme.onSurfaceVariant,
+               maxLines = 1,
+               overflow = TextOverflow.Ellipsis,
+@@ -190,6 +193,17 @@ fun LyricsSheet(
+         }
+       }
+ 
++      state.errorMessage?.let { message ->
++        Text(
++          text = message,
++          style = MaterialTheme.typography.bodySmall,
++          fontFamily = fontFamilyForText(message),
++          color = MaterialTheme.colorScheme.error,
++          textAlign = TextAlign.Center,
++          modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
++        )
++      }
++
+       Spacer(modifier = Modifier.height(12.dp))
+ 
+       // Lyrics Content
+@@ -254,6 +268,7 @@ fun LyricsSheet(
+                     color = textColor,
+                     fontSize = if (isActive) 20.sp else 16.sp,
+                     fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
++                    fontFamily = fontFamilyForText(line.line),
+                     textAlign = TextAlign.Center,
+                     modifier = Modifier.fillMaxWidth(),
+                   )
+@@ -265,6 +280,7 @@ fun LyricsSheet(
+                       color = if (isActive) MaterialTheme.colorScheme.primary.copy(alpha = 0.85f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.70f),
+                       fontSize = if (isActive) 15.sp else 13.sp,
+                       fontWeight = FontWeight.Medium,
++                      fontFamily = fontFamilyForText(trans),
+                       textAlign = TextAlign.Center,
+                       modifier = Modifier.fillMaxWidth(),
+                     )
+@@ -288,6 +304,7 @@ fun LyricsSheet(
+                   text = lineText,
+                   color = MaterialTheme.colorScheme.onSurface,
+                   fontSize = 16.sp,
++                  fontFamily = fontFamilyForText(lineText),
+                   textAlign = TextAlign.Center,
+                   modifier = Modifier.fillMaxWidth(),
+                 )
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/LyricsTranslateDialog.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/LyricsTranslateDialog.kt
+index f97bf63f..f9a96eec 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/LyricsTranslateDialog.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/LyricsTranslateDialog.kt
+@@ -55,6 +55,7 @@ import com.quantummpv.app.preferences.preference.collectAsState
+ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
+ import com.quantummpv.app.ui.player.PlayerViewModel
++import com.quantummpv.app.ui.theme.fontFamilyForText
+ import org.koin.compose.koinInject
+ 
+ @Composable
+@@ -120,10 +121,7 @@ fun LyricsTranslateDialog(
+             .fillMaxWidth()
+             .clip(RoundedCornerShape(12.dp))
+             .clickable {
+-              audioPreferences.lyricsAutoTranslate.set(false)
+-              if (state.isTranslationActive) {
+-                viewModel.toggleLyricsTranslation()
+-              }
++              viewModel.showOriginalLyrics()
+               onDismiss()
+             },
+           color = if (!state.isTranslationActive) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+@@ -233,6 +231,7 @@ fun LyricsTranslateDialog(
+                   text = lang.displayName,
+                   style = MaterialTheme.typography.bodyMedium,
+                   fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
++                  fontFamily = fontFamilyForText(lang.displayName),
+                   color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                 )
+                 if (lang.isRomanization) {
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/visualizer/BlobComposable.kt b/app/src/main/java/com/quantummpv/app/ui/player/visualizer/BlobComposable.kt
+index 3e6ab663..c0166aba 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/visualizer/BlobComposable.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/visualizer/BlobComposable.kt
+@@ -153,17 +153,15 @@ private fun <T> VisualizerOverlay(
+     modifier = modifier,
+     update = { view ->
+       view.updatePalette(palette)
++      view.setZOrderOnTop(false)
++      view.setZOrderMediaOverlay(true)
+       if (isSheetOpen) {
+         // A sheet fully covers the expensive GLSurfaceView. Keep the last frame but stop the
+         // continuous render loop (particle/galaxy renderers otherwise burn GPU underneath it).
+         view.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
+         view.requestRender()
+-        view.setZOrderOnTop(false)
+-        view.setZOrderMediaOverlay(true)
+       } else {
+         view.renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY
+-        view.setZOrderMediaOverlay(false)
+-        view.setZOrderOnTop(true)
+       }
+     },
+   )
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/visualizer/BlobRenderer.kt b/app/src/main/java/com/quantummpv/app/ui/player/visualizer/BlobRenderer.kt
+index a83b0be8..8cf73768 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/visualizer/BlobRenderer.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/visualizer/BlobRenderer.kt
+@@ -97,9 +97,6 @@ internal class BlobRenderer(
+   @Suppress("LocalVariableName")
+   private var uCompositeExposure = -1
+ 
+-  @Suppress("LocalVariableName")
+-  private var uCompositeBackground = -1
+-
+   @Suppress("LocalVariableName")
+   private var uSpectrum = -1
+ 
+@@ -132,7 +129,6 @@ internal class BlobRenderer(
+ 
+   @Volatile private var reducedMotionEnabled = reducedMotion
+   private var appliedPalette: VisualizerPalette? = null
+-  private var backgroundRgb = initialPalette.backgroundRgb()
+   private var primaryRgb = initialPalette.primaryRgb()
+   private var secondaryRgb = initialPalette.secondaryRgb()
+   private var tertiaryRgb = initialPalette.tertiaryRgb()
+@@ -534,12 +530,6 @@ internal class BlobRenderer(
+       0.34f + audio.energy * 0.24f + audio.beat * 0.12f,
+     )
+     GLES30.glUniform1f(uCompositeExposure, 0.82f)
+-    GLES30.glUniform3f(
+-      uCompositeBackground,
+-      backgroundRgb[0],
+-      backgroundRgb[1],
+-      backgroundRgb[2],
+-    )
+     drawQuad()
+   }
+ 
+@@ -659,13 +649,11 @@ internal class BlobRenderer(
+     uCompositeBloom = GLES30.glGetUniformLocation(compositeProgram, "uBloom")
+     uCompositeBloomStrength = GLES30.glGetUniformLocation(compositeProgram, "uBloomStrength")
+     uCompositeExposure = GLES30.glGetUniformLocation(compositeProgram, "uExposure")
+-    uCompositeBackground = GLES30.glGetUniformLocation(compositeProgram, "uBackground")
+   }
+ 
+   private fun updatePaletteIfNeeded() {
+     val next = palette
+     if (next == appliedPalette) return
+-    backgroundRgb = next.backgroundRgb()
+     primaryRgb = next.primaryRgb()
+     secondaryRgb = next.secondaryRgb()
+     tertiaryRgb = next.tertiaryRgb()
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/visualizer/BlobVisualizerView.kt b/app/src/main/java/com/quantummpv/app/ui/player/visualizer/BlobVisualizerView.kt
+index 54f01fe3..1dead39c 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/visualizer/BlobVisualizerView.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/visualizer/BlobVisualizerView.kt
+@@ -35,7 +35,7 @@ internal class BlobVisualizerView(
+     setEGLContextClientVersion(3)
+     setEGLConfigChooser(8, 8, 8, 8, 16, 0)
+     holder.setFormat(PixelFormat.TRANSLUCENT)
+-    setZOrderOnTop(true)
++    setZOrderMediaOverlay(true)
+     preserveEGLContextOnPause = true
+     setRenderer(blobRenderer)
+     renderMode = RENDERMODE_CONTINUOUSLY
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/visualizer/CuboidComposable.kt b/app/src/main/java/com/quantummpv/app/ui/player/visualizer/CuboidComposable.kt
+index 930ec5d3..d22e4153 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/visualizer/CuboidComposable.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/visualizer/CuboidComposable.kt
+@@ -12,6 +12,7 @@
+ 
+ package com.quantummpv.app.ui.player.visualizer
+ 
++import android.graphics.Color as AndroidColor
+ import androidx.compose.foundation.Canvas
+ import androidx.compose.foundation.layout.fillMaxSize
+ import androidx.compose.runtime.Composable
+@@ -44,10 +45,12 @@ private const val CUBOID_Z_STEP = 5f
+ private const val CUBOID_SEGMENTS = 64
+ private const val CUBOID_RADIUS = 75f
+ private const val CUBOID_AUDIO_BIN_MIN = 8
+-private const val CUBOID_AUDIO_BIN_MAX = 512
++private const val CUBOID_AUDIO_BIN_MAX = 1032
++private const val CUBOID_SOURCE_FFT_BINS = 4096
++private const val CUBOID_AUDIO_SMOOTHING = 0.65f
+ private const val CUBOID_CAPTURE_MAX_AGE_NS = 750_000_000L
+ private const val TWO_PI = (Math.PI * 2.0).toFloat()
+-private const val COLOR_BUCKETS = 8
++private const val COLOR_BUCKETS = 16
+ 
+ private data class CuboidRgb(
+   val r: Float,
+@@ -62,6 +65,15 @@ private data class CuboidRing(
+     IntArray(CUBOID_SEGMENTS) {
+       Random.nextInt(CUBOID_AUDIO_BIN_MIN, CUBOID_AUDIO_BIN_MAX)
+     },
++  val smoothedFrequencies: FloatArray = FloatArray(CUBOID_SEGMENTS),
++  val bucketPaths: Array<Path> = Array(COLOR_BUCKETS) { Path() },
++  val bucketUsed: BooleanArray = BooleanArray(COLOR_BUCKETS),
++)
++
++private data class CuboidTones(
++  val primary: CuboidRgb,
++  val secondary: CuboidRgb,
++  val tertiary: CuboidRgb,
+ )
+ 
+ /**
+@@ -182,7 +194,6 @@ private class CuboidTunnelState {
+   }
+ }
+ 
+-@Suppress("UNUSED_PARAMETER")
+ @Composable
+ internal fun CuboidOverlay(
+   modifier: Modifier = Modifier,
+@@ -193,9 +204,15 @@ internal fun CuboidOverlay(
+   features: AudioFeatures,
+ ) {
+   val state = remember { CuboidTunnelState() }
++  val tones = remember(palette) { palette.toCuboidTones() }
+   var frameTick by remember { mutableLongStateOf(0L) }
+ 
+-  LaunchedEffect(Unit) {
++  LaunchedEffect(volumeScale) {
++    features.volumeScale = volumeScale.coerceIn(0f, 1f)
++  }
++
++  LaunchedEffect(isSheetOpen) {
++    if (isSheetOpen) return@LaunchedEffect
+     var lastFrameNanos = 0L
+     while (isActive) {
+       withFrameNanos { now ->
+@@ -242,6 +259,7 @@ internal fun CuboidOverlay(
+       state = state,
+       features = features,
+       isPlaying = isPlaying,
++      tones = tones,
+     )
+   }
+ }
+@@ -250,6 +268,7 @@ private fun DrawScope.drawCuboidTunnel(
+   state: CuboidTunnelState,
+   features: AudioFeatures,
+   isPlaying: Boolean,
++  tones: CuboidTones,
+ ) {
+   if (size.width <= 1f || size.height <= 1f || state.rings.size < 2) return
+ 
+@@ -282,23 +301,36 @@ private fun DrawScope.drawCuboidTunnel(
+     val backScale = projectionScale(back.z)
+ 
+     val depth = (ring.z + CUBOID_FOV) / CUBOID_FOV
+-    val ringR = max(state.slowColor.r, state.fastColor.r - depth)
+-    val ringG = max(state.slowColor.g, state.fastColor.g - depth)
+-    val ringB = max(state.slowColor.b, state.fastColor.b - depth)
++    val paletteDepth = (depth * 0.5f).coerceIn(0f, 1f)
++    val paletteTone =
++      if (paletteDepth < 0.5f) {
++        mixCuboidRgb(tones.primary, tones.secondary, paletteDepth * 2f)
++      } else {
++        mixCuboidRgb(tones.secondary, tones.tertiary, (paletteDepth - 0.5f) * 2f)
++      }
++    val ringR = max(state.slowColor.r, state.fastColor.r - depth) * 0.38f + paletteTone.r * 0.62f
++    val ringG = max(state.slowColor.g, state.fastColor.g - depth) * 0.38f + paletteTone.g * 0.62f
++    val ringB = max(state.slowColor.b, state.fastColor.b - depth) * 0.38f + paletteTone.b * 0.62f
+ 
+-    val bucketPaths = Array(COLOR_BUCKETS) { Path() }
+-    val bucketUsed = BooleanArray(COLOR_BUCKETS)
++    for (bucket in 0 until COLOR_BUCKETS) {
++      ring.bucketPaths[bucket].reset()
++      ring.bucketUsed[bucket] = false
++    }
+ 
+     for (segmentIndex in 0 until CUBOID_SEGMENTS) {
+       if (segmentIndex % 2 != ring.index % 2) continue
+ 
+-      val frequency =
++      val frequencyTarget =
+         if (audioActive) {
+           val bin = resolveAudioBin(ring.audioBins[segmentIndex], spectrum.size)
+           spectrum[bin].coerceIn(0f, 1f) * 255f * gain
+         } else {
+           0f
+         }
++      val frequency =
++        ring.smoothedFrequencies[segmentIndex] * CUBOID_AUDIO_SMOOTHING +
++          frequencyTarget * (1f - CUBOID_AUDIO_SMOOTHING)
++      ring.smoothedFrequencies[segmentIndex] = frequency
+       val frequencyAdd = frequency / 20f
+       // Reference behavior: audio pulls the inner face inward by frequency / 20.
+       val reactiveRadius = (CUBOID_RADIUS - frequencyAdd).coerceAtLeast(CUBOID_RADIUS * 0.55f)
+@@ -308,7 +340,7 @@ private fun DrawScope.drawCuboidTunnel(
+         } else {
+           0
+         }
+-      val path = bucketPaths[bucket]
++      val path = ring.bucketPaths[bucket]
+ 
+       val currentAngle = segmentIndex.toFloat() * TWO_PI / CUBOID_SEGMENTS + state.time
+       val previousIndex = if (segmentIndex == 0) CUBOID_SEGMENTS - 1 else segmentIndex - 1
+@@ -335,7 +367,7 @@ private fun DrawScope.drawCuboidTunnel(
+         path.edge(outerCurrent0, innerCurrent0)
+         path.edge(outerBack0, innerBack0)
+         path.edge(outerBack1, innerBack1)
+-        bucketUsed[bucket] = true
++        ring.bucketUsed[bucket] = true
+       }
+ 
+       // Keep the outer face until the ring reaches the near half of the tunnel.
+@@ -344,12 +376,12 @@ private fun DrawScope.drawCuboidTunnel(
+         path.edge(outerCurrent0, outerBack0)
+         path.edge(outerBack0, outerBack1)
+         path.edge(outerBack1, outerCurrent1)
+-        bucketUsed[bucket] = true
++        ring.bucketUsed[bucket] = true
+       }
+     }
+ 
+     for (bucket in 0 until COLOR_BUCKETS) {
+-      if (!bucketUsed[bucket]) continue
++      if (!ring.bucketUsed[bucket]) continue
+       val representativeFrequency =
+         if (audioActive) {
+           ((bucket + 0.5f) / COLOR_BUCKETS.toFloat()) * 255f
+@@ -363,11 +395,38 @@ private fun DrawScope.drawCuboidTunnel(
+           ringIndex.toFloat() / ringCount.toFloat() * 200f
+         }
+       val color = cuboidLineColor(ringR, ringG, ringB, lineValue, state.invertValue)
+-      drawPath(bucketPaths[bucket], color = color, style = stroke)
++      drawPath(ring.bucketPaths[bucket], color = color, style = stroke)
+     }
+   }
+ }
+ 
++private fun VisualizerPalette.toCuboidTones(): CuboidTones =
++  CuboidTones(
++    primary = primary.toCuboidRgb(),
++    secondary = secondary.toCuboidRgb(),
++    tertiary = tertiary.toCuboidRgb(),
++  )
++
++private fun Int.toCuboidRgb(): CuboidRgb =
++  CuboidRgb(
++    r = AndroidColor.red(this) / 255f,
++    g = AndroidColor.green(this) / 255f,
++    b = AndroidColor.blue(this) / 255f,
++  )
++
++private fun mixCuboidRgb(
++  from: CuboidRgb,
++  to: CuboidRgb,
++  amount: Float,
++): CuboidRgb {
++  val fraction = amount.coerceIn(0f, 1f)
++  return CuboidRgb(
++    r = from.r + (to.r - from.r) * fraction,
++    g = from.g + (to.g - from.g) * fraction,
++    b = from.b + (to.b - from.b) * fraction,
++  )
++}
++
+ private fun tunnelCenter(
+   z: Float,
+   width: Float,
+@@ -401,9 +460,8 @@ private fun resolveAudioBin(
+   spectrumSize: Int,
+ ): Int {
+   if (spectrumSize <= 1) return 0
+-  if (spectrumSize <= CUBOID_AUDIO_BIN_MIN) return requested.mod(spectrumSize)
+-  val usable = spectrumSize - CUBOID_AUDIO_BIN_MIN
+-  return CUBOID_AUDIO_BIN_MIN + (requested - CUBOID_AUDIO_BIN_MIN).mod(usable)
++  val normalized = requested.coerceIn(0, CUBOID_SOURCE_FFT_BINS - 1) / (CUBOID_SOURCE_FFT_BINS - 1f)
++  return (normalized * (spectrumSize - 1)).roundToInt().coerceIn(1, spectrumSize - 1)
+ }
+ 
+ private fun Path.edge(
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/visualizer/GalaxyRenderer.kt b/app/src/main/java/com/quantummpv/app/ui/player/visualizer/GalaxyRenderer.kt
+index fc4bd3e2..159bb2ff 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/visualizer/GalaxyRenderer.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/visualizer/GalaxyRenderer.kt
+@@ -42,9 +42,6 @@ internal class GalaxyRenderer(
+   @Volatile private var targetPitch = 0f
+ 
+   private var appliedPalette: VisualizerPalette? = null
+-  private var backgroundR = 0f
+-  private var backgroundG = 0f
+-  private var backgroundB = 0f
+   private var primaryR = 1f
+   private var primaryG = 1f
+   private var primaryB = 1f
+@@ -338,9 +335,6 @@ internal class GalaxyRenderer(
+     if (!force && appliedPalette == palette) return
+     appliedPalette = palette
+ 
+-    backgroundR = Color.red(palette.background) / 255f
+-    backgroundG = Color.green(palette.background) / 255f
+-    backgroundB = Color.blue(palette.background) / 255f
+     primaryR = Color.red(palette.primary) / 255f
+     primaryG = Color.green(palette.primary) / 255f
+     primaryB = Color.blue(palette.primary) / 255f
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/visualizer/GalaxyVisualizerView.kt b/app/src/main/java/com/quantummpv/app/ui/player/visualizer/GalaxyVisualizerView.kt
+index b254761b..6e561b0a 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/visualizer/GalaxyVisualizerView.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/visualizer/GalaxyVisualizerView.kt
+@@ -36,7 +36,7 @@ internal class GalaxyVisualizerView(
+     setEGLContextClientVersion(3)
+     setEGLConfigChooser(8, 8, 8, 8, 16, 0)
+     holder.setFormat(PixelFormat.TRANSLUCENT)
+-    setZOrderOnTop(true)
++    setZOrderMediaOverlay(true)
+     preserveEGLContextOnPause = true
+     setRenderer(galaxyRenderer)
+     renderMode = RENDERMODE_CONTINUOUSLY
+diff --git a/app/src/main/java/com/quantummpv/app/ui/theme/Theme.kt b/app/src/main/java/com/quantummpv/app/ui/theme/Theme.kt
+index 184cf68d..9ae9196d 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/theme/Theme.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/theme/Theme.kt
+@@ -52,6 +52,7 @@ import androidx.compose.ui.graphics.asImageBitmap
+ import androidx.compose.ui.graphics.graphicsLayer
+ import androidx.compose.ui.input.pointer.pointerInput
+ import androidx.compose.ui.layout.ContentScale
++import androidx.compose.ui.platform.LocalConfiguration
+ import androidx.compose.ui.platform.LocalContext
+ import androidx.compose.ui.platform.LocalDensity
+ import androidx.compose.ui.platform.LocalView
+@@ -278,7 +279,12 @@ fun MpvrxTheme(
+   val appTheme by preferences.appTheme.collectAsState()
+   val useSystemFont by preferences.useSystemFont.collectAsState()
+   val darkTheme = isSystemInDarkTheme()
++  val configuration = LocalConfiguration.current
+   val context = LocalContext.current
++  val localeNeedsSystemFont =
++    remember(configuration) {
++      localeRequiresSystemFont(configuration.locales[0])
++    }
+ 
+   val useDarkTheme =
+     when (darkMode) {
+@@ -317,7 +323,7 @@ fun MpvrxTheme(
+     ThemeTransitionContent {
+       MaterialExpressiveTheme(
+         colorScheme = colorScheme,
+-        typography = if (useSystemFont) SystemTypography else AppTypography,
++        typography = if (useSystemFont || localeNeedsSystemFont) SystemTypography else AppTypography,
+         shapes = AppShapes,
+         motionScheme = MotionScheme.expressive(),
+         content = content,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/theme/Type.kt b/app/src/main/java/com/quantummpv/app/ui/theme/Type.kt
+index d273e18c..5fd112d6 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/theme/Type.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/theme/Type.kt
+@@ -19,6 +19,7 @@ import androidx.compose.ui.text.font.FontStyle
+ import androidx.compose.ui.text.font.FontVariation
+ import androidx.compose.ui.text.font.FontWeight
+ import com.quantummpv.app.R
++import java.util.Locale
+ 
+ // Roboto Flex font family (variable font supporting weights 100-900)
+ val RobotoFlex =
+@@ -182,6 +183,28 @@ val AppTypography =
+     )
+   }
+ 
++fun fontFamilyForText(text: String): FontFamily =
++  if (text.requiresSystemFontFallback()) FontFamily.SansSerif else GoogleSansRounded
++
++fun localeRequiresSystemFont(locale: Locale): Boolean =
++  locale.getDisplayName(locale).requiresSystemFontFallback()
++
++private fun String.requiresSystemFontFallback(): Boolean {
++  var index = 0
++  while (index < length) {
++    val codePoint = Character.codePointAt(this, index)
++    when (Character.UnicodeScript.of(codePoint)) {
++      Character.UnicodeScript.LATIN,
++      Character.UnicodeScript.COMMON,
++      Character.UnicodeScript.INHERITED,
++      -> Unit
++      else -> return true
++    }
++    index += Character.charCount(codePoint)
++  }
++  return false
++}
++
+ // ═══════════════════════════════════════════════════════════
+ // Material 3 Expressive Typography Extensions
+ // Bumps font weights one step heavier for expressive emphasis
+diff --git a/app/src/main/res/values-ar/strings.xml b/app/src/main/res/values-ar/strings.xml
+index 64776c44..734d2c90 100644
+--- a/app/src/main/res/values-ar/strings.xml
++++ b/app/src/main/res/values-ar/strings.xml
+@@ -1865,6 +1865,8 @@
+   <string name="lyrics_translate_title">ترجمة كلمات الأغاني</string>
+   <string name="lyrics_translating">جارٍ ترجمة كلمات الأغاني…</string>
+   <string name="lyrics_translation_off">كلمات الأغاني الأصلية</string>
++  <string name="lyrics_translation_failed">تعذّرت ترجمة كلمات الأغنية. حاول مرة أخرى.</string>
++  <string name="lyrics_translation_partial">تعذّرت ترجمة بعض أسطر كلمات الأغنية.</string>
+   <string name="lyrics_select_language">تحديد اللغة المستهدفة</string>
+ 
+   <!-- Clip -->
+diff --git a/app/src/main/res/values-de/strings.xml b/app/src/main/res/values-de/strings.xml
+index 55369d1e..bbdb827f 100644
+--- a/app/src/main/res/values-de/strings.xml
++++ b/app/src/main/res/values-de/strings.xml
+@@ -1863,6 +1863,8 @@ Bitte starten Sie die App neu, damit alle Änderungen wirksam werden.</string>
+   <string name="lyrics_translate_title">Songtext übersetzen</string>
+   <string name="lyrics_translating">Songtext wird übersetzt…</string>
+   <string name="lyrics_translation_off">Original-Songtext</string>
++  <string name="lyrics_translation_failed">Der Songtext konnte nicht übersetzt werden. Versuche es erneut.</string>
++  <string name="lyrics_translation_partial">Einige Songtextzeilen konnten nicht übersetzt werden.</string>
+   <string name="lyrics_select_language">Zielsprache auswählen</string>
+ 
+   <!-- Clip -->
+diff --git a/app/src/main/res/values-es/strings.xml b/app/src/main/res/values-es/strings.xml
+index 4295991c..40023f05 100644
+--- a/app/src/main/res/values-es/strings.xml
++++ b/app/src/main/res/values-es/strings.xml
+@@ -1863,6 +1863,8 @@ Reinicia la aplicación para que se apliquen todos los cambios.</string>
+   <string name="lyrics_translate_title">Traducir letra</string>
+   <string name="lyrics_translating">Traduciendo letra…</string>
+   <string name="lyrics_translation_off">Letra original</string>
++  <string name="lyrics_translation_failed">No se pudo traducir la letra. Inténtalo de nuevo.</string>
++  <string name="lyrics_translation_partial">No se pudieron traducir algunas líneas de la letra.</string>
+   <string name="lyrics_select_language">Seleccionar idioma de destino</string>
+ 
+   <!-- Clip -->
+diff --git a/app/src/main/res/values-fr/strings.xml b/app/src/main/res/values-fr/strings.xml
+index e4b8c91b..0d472531 100644
+--- a/app/src/main/res/values-fr/strings.xml
++++ b/app/src/main/res/values-fr/strings.xml
+@@ -1863,6 +1863,8 @@ Veuillez redémarrer l’application pour appliquer toutes les modifications.</s
+   <string name="lyrics_translate_title">Traduire les paroles</string>
+   <string name="lyrics_translating">Traduction des paroles…</string>
+   <string name="lyrics_translation_off">Paroles originales</string>
++  <string name="lyrics_translation_failed">Les paroles n’ont pas pu être traduites. Réessayez.</string>
++  <string name="lyrics_translation_partial">Certaines lignes des paroles n’ont pas pu être traduites.</string>
+   <string name="lyrics_select_language">Sélectionner la langue cible</string>
+ 
+   <!-- Clip -->
+diff --git a/app/src/main/res/values-hi/strings.xml b/app/src/main/res/values-hi/strings.xml
+index 2ab5f324..09ee154d 100644
+--- a/app/src/main/res/values-hi/strings.xml
++++ b/app/src/main/res/values-hi/strings.xml
+@@ -1767,6 +1767,8 @@
+   <string name="lyrics_translate_title">बोल अनुवाद करें</string>
+   <string name="lyrics_translating">बोल अनुवाद हो रहे हैं…</string>
+   <string name="lyrics_translation_off">मूल बोल</string>
++  <string name="lyrics_translation_failed">बोलों का अनुवाद नहीं हो सका। फिर से कोशिश करें।</string>
++  <string name="lyrics_translation_partial">बोलों की कुछ पंक्तियों का अनुवाद नहीं हो सका।</string>
+   <string name="lyrics_select_language">लक्षित भाषा चुनें</string>
+ 
+   <!-- Clip -->
+diff --git a/app/src/main/res/values-ja/strings.xml b/app/src/main/res/values-ja/strings.xml
+index 9b70c8f1..eb19eed4 100644
+--- a/app/src/main/res/values-ja/strings.xml
++++ b/app/src/main/res/values-ja/strings.xml
+@@ -1863,6 +1863,8 @@
+   <string name="lyrics_translate_title">歌詞を翻訳</string>
+   <string name="lyrics_translating">歌詞を翻訳中…</string>
+   <string name="lyrics_translation_off">元の歌詞</string>
++  <string name="lyrics_translation_failed">歌詞を翻訳できませんでした。もう一度お試しください。</string>
++  <string name="lyrics_translation_partial">一部の歌詞を翻訳できませんでした。</string>
+   <string name="lyrics_select_language">翻訳先言語を選択</string>
+ 
+   <!-- Clip -->
+diff --git a/app/src/main/res/values-pt-rBR/strings.xml b/app/src/main/res/values-pt-rBR/strings.xml
+index 2a2ac834..51dc9f1d 100644
+--- a/app/src/main/res/values-pt-rBR/strings.xml
++++ b/app/src/main/res/values-pt-rBR/strings.xml
+@@ -1863,6 +1863,8 @@ Reinicie o aplicativo para que todas as alterações entrem em vigor.</string>
+   <string name="lyrics_translate_title">Traduzir letras</string>
+   <string name="lyrics_translating">Traduzindo letras…</string>
+   <string name="lyrics_translation_off">Letras originais</string>
++  <string name="lyrics_translation_failed">Não foi possível traduzir a letra. Tente novamente.</string>
++  <string name="lyrics_translation_partial">Não foi possível traduzir alguns versos.</string>
+   <string name="lyrics_select_language">Selecionar idioma de destino</string>
+ 
+   <!-- Clip -->
+diff --git a/app/src/main/res/values-ru/strings.xml b/app/src/main/res/values-ru/strings.xml
+index ba0dbc1e..30981655 100644
+--- a/app/src/main/res/values-ru/strings.xml
++++ b/app/src/main/res/values-ru/strings.xml
+@@ -1863,6 +1863,8 @@
+   <string name="lyrics_translate_title">Перевести текст песни</string>
+   <string name="lyrics_translating">Перевод текста песни…</string>
+   <string name="lyrics_translation_off">Оригинальный текст</string>
++  <string name="lyrics_translation_failed">Не удалось перевести текст песни. Попробуйте ещё раз.</string>
++  <string name="lyrics_translation_partial">Не удалось перевести некоторые строки.</string>
+   <string name="lyrics_select_language">Выбрать язык перевода</string>
+ 
+   <!-- Clip -->
+diff --git a/app/src/main/res/values-zh-rCN/strings.xml b/app/src/main/res/values-zh-rCN/strings.xml
+index 62241d82..64652587 100644
+--- a/app/src/main/res/values-zh-rCN/strings.xml
++++ b/app/src/main/res/values-zh-rCN/strings.xml
+@@ -1865,6 +1865,8 @@
+   <string name="lyrics_translate_title">翻译歌词</string>
+   <string name="lyrics_translating">正在翻译歌词…</string>
+   <string name="lyrics_translation_off">原始歌词</string>
++  <string name="lyrics_translation_failed">无法翻译歌词，请重试。</string>
++  <string name="lyrics_translation_partial">部分歌词未能翻译。</string>
+   <string name="lyrics_select_language">选择目标语言</string>
+ 
+   <!-- Clip -->
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index b7900454..0bc5965e 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -1950,6 +1950,8 @@
+   <string name="lyrics_translate_title">Translate Lyrics</string>
+   <string name="lyrics_translating">Translating lyrics…</string>
+   <string name="lyrics_translation_off">Original Lyrics</string>
++  <string name="lyrics_translation_failed">Lyrics could not be translated. Try again.</string>
++  <string name="lyrics_translation_partial">Some lyric lines could not be translated.</string>
+   <string name="lyrics_select_language">Select Target Language</string>
+ 
+   <!-- Clip -->
+-- 
+2.25.1
+

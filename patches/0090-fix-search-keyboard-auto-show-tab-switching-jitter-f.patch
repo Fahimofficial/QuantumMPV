@@ -1,0 +1,310 @@
+From 9ae54b8febc51ef95d2068ee34c130f42f354bb8 Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <87899750+Riteshp2001@users.noreply.github.com>
+Date: Mon, 14 Sep 2026 06:53:03 +0000
+Subject: [PATCH 090/140] fix: search keyboard auto-show, tab switching jitter,
+ folder songs, seekbar light mode
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+- Search keyboard (#657): Add missing focusRequester import in
+  MusicLibraryContent.kt to fix unresolved reference compile error.
+- Tab switching (#654): Use instant scrollToPage for non-adjacent tab
+  jumps to avoid jitter through intermediate pages.
+- Folder songs (#642): Handle null DATA column on Android 10+ with
+  content URI fallback in MusicLibraryScanner. Remove aggressive
+  file.exists() checks in MediaFileRepository and VideoScanUtils since
+  MediaStore entries are valid even when the direct file path is
+  inaccessible.
+- Seekbar visibility: Increase buffer/unplayed track alpha values in
+  light mode (0.40→0.60, 0.24→0.38) for better contrast. Dark mode
+  unchanged.
+
+Fixes #654 #657 #642
+---
+ .../mpvrx/repository/MediaFileRepository.kt   |  6 ++-
+ .../gyrolet/mpvrx/ui/browser/MainScreen.kt    |  3 +-
+ .../ui/browser/music/MusicLibraryContent.kt   |  1 +
+ .../ui/browser/music/MusicLibraryScanner.kt   | 15 +++---
+ .../ui/player/controls/components/Seekbar.kt  | 46 +++++++++++++------
+ .../mpvrx/utils/storage/VideoScanUtils.kt     |  4 +-
+ 6 files changed, 50 insertions(+), 25 deletions(-)
+
+diff --git a/app/src/main/java/com/quantummpv/app/repository/MediaFileRepository.kt b/app/src/main/java/com/quantummpv/app/repository/MediaFileRepository.kt
+index 995eb5de..d5dbc74e 100644
+--- a/app/src/main/java/com/quantummpv/app/repository/MediaFileRepository.kt
++++ b/app/src/main/java/com/quantummpv/app/repository/MediaFileRepository.kt
+@@ -191,11 +191,13 @@ object MediaFileRepository : KoinComponent {
+             val dateColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_MODIFIED)
+             while (cursor.moveToNext()) {
+               val path = cursor.getString(dataColumn)
++              if (path == null) continue
+               val file = File(path)
+-              if (!file.exists()) continue
++              // On Android 10+ the file may not be directly accessible via the file system
++              // even though it exists in MediaStore. Only skip if the path is invalid.
++              val parentPath = file.parent ?: continue
+               val durationMs = cursor.getLong(durationColumn)
+               if (minimumAudioDurationSeconds > 0 && durationMs / 1000 < minimumAudioDurationSeconds) continue
+-              val parentPath = file.parent ?: continue
+               val key = normalizeAudioFolderKey(parentPath)
+               val aggregate = aggregates.getOrPut(key) { AudioFolderAggregate(path = parentPath) }
+               aggregate.size += cursor.getLong(sizeColumn)
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/MainScreen.kt b/app/src/main/java/com/quantummpv/app/ui/browser/MainScreen.kt
+index 1f66c643..2201b726 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/MainScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/MainScreen.kt
+@@ -269,7 +269,8 @@ object MainScreen : Screen {
+         if (!isAlreadySettled) {
+           tabNavigationJob =
+             coroutineScope.launch {
+-              if (navStyle == NavigationAnimStyle.None) {
++              val isAdjacent = kotlin.math.abs(pagerState.settledPage - targetIndex) <= 1
++              if (navStyle == NavigationAnimStyle.None || !isAdjacent) {
+                 pagerState.scrollToPage(targetIndex)
+               } else {
+                 pagerState.animateScrollToPage(
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryContent.kt b/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryContent.kt
+index 2ece87d2..d868c053 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryContent.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryContent.kt
+@@ -97,6 +97,7 @@ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.draw.clip
+ import androidx.compose.ui.focus.FocusRequester
++import androidx.compose.ui.focus.focusRequester
+ import androidx.compose.ui.graphics.Color
+ import androidx.compose.ui.graphics.ImageBitmap
+ import androidx.compose.ui.graphics.asImageBitmap
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryScanner.kt b/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryScanner.kt
+index c0dbce09..72bc2f4b 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryScanner.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryScanner.kt
+@@ -59,14 +59,18 @@ object MusicLibraryScanner {
+ 
+         while (cursor.moveToNext()) {
+           val id = cursor.getLong(idCol)
+-          val path = cursor.getString(dataCol) ?: continue
++          val path = cursor.getString(dataCol)
+           val size = cursor.getLong(sizeCol)
+           val duration = cursor.getLong(durationCol)
+-          val file = File(path)
+-          val fileExists = try { file.exists() } catch (_: Exception) { false }
++
++          // On Android 10+ the DATA column may be null or stale; use content URI as fallback.
++          val contentUri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id)
++          val effectivePath = path ?: contentUri.toString()
++          val file = path?.let { File(it) }
++          val fileExists = try { file?.exists() == true } catch (_: Exception) { false }
+           if (!fileExists && size <= 0L && duration <= 0L) continue
+ 
+-          val title = cursor.getString(titleCol)?.takeIf { it.isNotBlank() } ?: file.nameWithoutExtension
++          val title = cursor.getString(titleCol)?.takeIf { it.isNotBlank() } ?: (file?.nameWithoutExtension ?: id.toString())
+           val artist = cursor.getString(artistCol)?.takeIf { it.isNotBlank() && it != "<unknown>" } ?: "Unknown Artist"
+           val album = cursor.getString(albumCol)?.takeIf { it.isNotBlank() && it != "<unknown>" } ?: "Unknown Album"
+           val albumId = cursor.getLong(albumIdCol)
+@@ -74,7 +78,6 @@ object MusicLibraryScanner {
+           val track = cursor.getInt(trackCol)
+           val year = cursor.getInt(yearCol)
+ 
+-          val contentUri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id)
+           val albumArtUri = if (albumId > 0) ContentUris.withAppendedId(ALBUM_ART_BASE_URI, albumId) else null
+ 
+           songs.add(
+@@ -85,7 +88,7 @@ object MusicLibraryScanner {
+               album = album,
+               albumId = albumId,
+               durationMs = duration,
+-              path = path,
++              path = effectivePath,
+               uri = contentUri,
+               dateAdded = dateAdded,
+               trackNumber = track,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/Seekbar.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/Seekbar.kt
+index a41b0b68..d0329147 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/Seekbar.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/Seekbar.kt
+@@ -52,6 +52,7 @@ import androidx.compose.material3.Text
+ import androidx.compose.material3.ripple
+ import androidx.compose.runtime.Composable
+ import androidx.compose.runtime.collectAsState
++import androidx.compose.foundation.isSystemInDarkTheme
+ import androidx.compose.runtime.LaunchedEffect
+ import androidx.compose.runtime.getValue
+ import androidx.compose.runtime.mutableFloatStateOf
+@@ -111,8 +112,20 @@ private data class SkipSegmentOverlay(
+   val edgeColor: Color,
+ )
+ 
+-private const val READ_AHEAD_TRACK_ALPHA = 0.40f
+-private const val EMPTY_TRACK_ALPHA = 0.24f
++private const val READ_AHEAD_TRACK_ALPHA_DARK = 0.40f
++private const val EMPTY_TRACK_ALPHA_DARK = 0.24f
++private const val READ_AHEAD_TRACK_ALPHA_LIGHT = 0.60f
++private const val EMPTY_TRACK_ALPHA_LIGHT = 0.38f
++
++@Composable
++private fun rememberSeekbarTrackAlphas(): Pair<Float, Float> {
++  val isDark = isSystemInDarkTheme()
++  return if (isDark) {
++    READ_AHEAD_TRACK_ALPHA_DARK to EMPTY_TRACK_ALPHA_DARK
++  } else {
++    READ_AHEAD_TRACK_ALPHA_LIGHT to EMPTY_TRACK_ALPHA_LIGHT
++  }
++}
+ 
+ private fun bufferedEndPx(
+   bufferPosition: Float?,
+@@ -855,6 +868,7 @@ private fun NormalSeekbar(
+   modifier: Modifier = Modifier,
+ ) {
+   val primaryColor = MaterialTheme.colorScheme.primary
++  val (readAheadAlpha, emptyAlpha) = rememberSeekbarTrackAlphas()
+   val trackHeight by animateDpAsState(
+     targetValue = if (isScrubbing) 6.dp else 4.dp,
+     animationSpec = spring(dampingRatio = AppMotion.Spatial.Expressive.dampingRatio, stiffness = AppMotion.Spatial.Expressive.stiffness),
+@@ -931,14 +945,14 @@ private fun NormalSeekbar(
+     }
+ 
+     // 1. Background unplayed track
+-    drawSegmentedTrack(0f, totalWidth, primaryColor.copy(alpha = EMPTY_TRACK_ALPHA))
++    drawSegmentedTrack(0f, totalWidth, primaryColor.copy(alpha = emptyAlpha))
+ 
+     // 2. Buffer readahead track. Normal already uses a real round-rect overlay,
+     // so its cache endpoint naturally follows the same pill geometry.
+     if (bufferDuration != null && bufferDuration > 0f && duration > 0f) {
+       val bufferPx = bufferedEndPx(bufferDuration, duration, totalWidth, playedPx)
+       if (bufferPx > playedPx) {
+-        drawSegmentedTrack(playedPx, bufferPx, primaryColor.copy(alpha = READ_AHEAD_TRACK_ALPHA))
++        drawSegmentedTrack(playedPx, bufferPx, primaryColor.copy(alpha = readAheadAlpha))
+       }
+     }
+ 
+@@ -1003,6 +1017,7 @@ private fun SquigglySeekbar(
+   modifier: Modifier = Modifier,
+ ) {
+   val primaryColor = MaterialTheme.colorScheme.primary
++  val (readAheadAlpha, emptyAlpha) = rememberSeekbarTrackAlphas()
+   val surfaceVariant = MaterialTheme.colorScheme.surfaceVariant
+ 
+   val isInteracting = isScrubbing
+@@ -1156,8 +1171,8 @@ private fun SquigglySeekbar(
+     // Draw path up to progress position using clipping
+     val clipTop = lineAmplitude + strokeWidth
+     val gapHalf = 1.dp.toPx()
+-    val bufferColor = primaryColor.copy(alpha = READ_AHEAD_TRACK_ALPHA)
+-    val unplayedColor = primaryColor.copy(alpha = EMPTY_TRACK_ALPHA)
++    val bufferColor = primaryColor.copy(alpha = readAheadAlpha)
++    val unplayedColor = primaryColor.copy(alpha = emptyAlpha)
+     val bufferPx =
+       if (bufferDuration != null && bufferDuration > 0f && duration > 0f) {
+         bufferedEndPx(bufferDuration, duration, totalWidth, totalProgressPx)
+@@ -1403,6 +1418,7 @@ private fun SlimSeekbar(
+   modifier: Modifier = Modifier,
+ ) {
+   val primaryColor = MaterialTheme.colorScheme.primary
++  val (readAheadAlpha, emptyAlpha) = rememberSeekbarTrackAlphas()
+ 
+   // Height breathes like other seekbars:
+   //   paused  → 7dp  (relaxed/thin)
+@@ -1440,7 +1456,7 @@ private fun SlimSeekbar(
+ 
+   // Colors stay constant — only height changes on press
+   val playedColor = primaryColor
+-  val unplayedColor = primaryColor.copy(alpha = EMPTY_TRACK_ALPHA)
++  val unplayedColor = primaryColor.copy(alpha = emptyAlpha)
+ 
+   val chapterStarts = remember(chapters) { chapters.map(Segment::start) }
+ 
+@@ -1472,7 +1488,7 @@ private fun SlimSeekbar(
+       centerY = centerY,
+       trackHeight = height,
+       playedColor = playedColor,
+-      bufferedColor = primaryColor.copy(alpha = READ_AHEAD_TRACK_ALPHA),
++      bufferedColor = primaryColor.copy(alpha = readAheadAlpha),
+       unplayedColor = unplayedColor,
+     )
+ 
+@@ -1509,6 +1525,7 @@ fun SeekbarStylePreview(
+   modifier: Modifier = Modifier,
+ ) {
+   val primaryColor = MaterialTheme.colorScheme.primary
++  val (readAheadAlpha, emptyAlpha) = rememberSeekbarTrackAlphas()
+   val previewProgress = progress
+ 
+   val slimPath = remember { Path() }
+@@ -1536,7 +1553,7 @@ fun SeekbarStylePreview(
+           val trackHeight = 4.dp.toPx()
+           val thumbRadius = 7.dp.toPx()
+           drawRoundRect(
+-            color = primaryColor.copy(alpha = EMPTY_TRACK_ALPHA),
++            color = primaryColor.copy(alpha = emptyAlpha),
+             topLeft = Offset(0f, centerY - trackHeight / 2f),
+             size = Size(size.width, trackHeight),
+             cornerRadius = CornerRadius(trackHeight / 2f),
+@@ -1559,7 +1576,7 @@ fun SeekbarStylePreview(
+           val height = 10.dp.toPx()
+           val radius = height / 2f
+           drawRoundRect(
+-            color = primaryColor.copy(alpha = EMPTY_TRACK_ALPHA),
++            color = primaryColor.copy(alpha = emptyAlpha),
+             topLeft = Offset(0f, centerY - radius),
+             size = Size(size.width, height),
+             cornerRadius = CornerRadius(radius),
+@@ -1607,7 +1624,7 @@ fun SeekbarStylePreview(
+           val thumbStart = (playedPx - gapHalf).coerceIn(0f, size.width)
+           val thumbEnd = (playedPx + gapHalf).coerceIn(0f, size.width)
+           drawRoundRect(
+-            color = primaryColor.copy(alpha = EMPTY_TRACK_ALPHA),
++            color = primaryColor.copy(alpha = emptyAlpha),
+             topLeft = Offset(thumbEnd, centerY - radius),
+             size = Size((size.width - thumbEnd).coerceAtLeast(0f), height),
+             cornerRadius = CornerRadius(radius),
+@@ -1639,7 +1656,7 @@ fun SeekbarStylePreview(
+           val thumbStart = (playedPx - gapHalf).coerceIn(0f, size.width)
+           val thumbEnd = (playedPx + gapHalf).coerceIn(0f, size.width)
+           drawRoundRect(
+-            color = primaryColor.copy(alpha = EMPTY_TRACK_ALPHA),
++            color = primaryColor.copy(alpha = emptyAlpha),
+             topLeft = Offset(thumbEnd, centerY - radius),
+             size = Size((size.width - thumbEnd).coerceAtLeast(0f), height),
+             cornerRadius = CornerRadius(radius),
+@@ -1765,6 +1782,7 @@ fun StandardSeekbar(
+   modifier: Modifier = Modifier,
+ ) {
+   val primaryColor = MaterialTheme.colorScheme.primary
++  val (readAheadAlpha, emptyAlpha) = rememberSeekbarTrackAlphas()
+   val isPressed by interactionSource.collectIsPressedAsState()
+   val isDragged by interactionSource.collectIsDraggedAsState()
+   val isThumbInteracting = isPressed || isDragged || isScrubbing
+@@ -1853,8 +1871,8 @@ fun StandardSeekbar(
+       centerY = centerY,
+       trackHeight = trackHeight,
+       playedColor = primaryColor,
+-      bufferedColor = primaryColor.copy(alpha = READ_AHEAD_TRACK_ALPHA),
+-      unplayedColor = primaryColor.copy(alpha = EMPTY_TRACK_ALPHA),
++      bufferedColor = primaryColor.copy(alpha = readAheadAlpha),
++      unplayedColor = primaryColor.copy(alpha = emptyAlpha),
+     )
+ 
+     if ((loopStart != null || loopEnd != null) && safeDuration > 0f) {
+diff --git a/app/src/main/java/com/quantummpv/app/utils/storage/VideoScanUtils.kt b/app/src/main/java/com/quantummpv/app/utils/storage/VideoScanUtils.kt
+index 3b035468..04a6c2dd 100644
+--- a/app/src/main/java/com/quantummpv/app/utils/storage/VideoScanUtils.kt
++++ b/app/src/main/java/com/quantummpv/app/utils/storage/VideoScanUtils.kt
+@@ -252,10 +252,10 @@ object VideoScanUtils : KoinComponent {
+           val mimeColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.MIME_TYPE)
+ 
+           while (cursor.moveToNext()) {
+-            val path = cursor.getString(dataColumn)
++            val path = cursor.getString(dataColumn) ?: continue
+             val file = File(path)
+             if (!areEquivalentStoragePaths(file.parent, normalizedFolderPath)) continue
+-            if (!file.exists() || noMediaPathFilter.shouldExcludeDirectory(file.parentFile)) continue
++            if (noMediaPathFilter.shouldExcludeDirectory(file.parentFile)) continue
+             if (!FileTypeUtils.isAudioFile(file)) continue
+             val duration = cursor.getLong(durationColumn)
+             if (!options.includesAudioDuration(duration)) continue
+-- 
+2.25.1
+

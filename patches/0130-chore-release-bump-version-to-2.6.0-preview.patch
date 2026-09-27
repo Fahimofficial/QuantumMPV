@@ -1,0 +1,34 @@
+From f3df278e4e639c54d8e1bc982f3297eb917e17fe Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <87899750+Riteshp2001@users.noreply.github.com>
+Date: Thu, 17 Sep 2026 17:42:50 +0000
+Subject: [PATCH 130/140] chore(release): bump version to 2.6.0-preview
+
+---
+ app/build.gradle.kts | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/app/build.gradle.kts b/app/build.gradle.kts
+index e550a900..a67e2905 100644
+--- a/app/build.gradle.kts
++++ b/app/build.gradle.kts
+@@ -20,7 +20,7 @@ val activeAbis =
+     listOf("arm64-v8a", "armeabi-v7a") + x86Abis
+   }
+ val universalOnlyDistributions = setOf("noVulkan", "fongmi")
+-val releaseVersionCode = 250
++val releaseVersionCode = 260
+ val versionCodeBandSize = 10_000
+ val stableVersionCode = releaseVersionCode * versionCodeBandSize + (versionCodeBandSize - 1)
+ val previewVersionCode =
+@@ -48,7 +48,7 @@ android {
+     // Stable occupies the top of its version band. Preview uses the next band's commit-count
+     // offset, so Stable -> Preview -> newer Preview -> next Stable is always an Android upgrade.
+     versionCode = stableVersionCode
+-    versionName = "2.5.0"
++    versionName = "2.6.0"
+ 
+     vectorDrawables {
+       useSupportLibrary = true
+-- 
+2.25.1
+

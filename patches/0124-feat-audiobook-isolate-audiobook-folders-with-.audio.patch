@@ -1,0 +1,380 @@
+From 2830324fb556bc0fff05a4490979177cdcd052b2 Mon Sep 17 00:00:00 2001
+From: Arnab Sadhukhan <arnab@Arnabs-Mac-Mini.local>
+Date: Thu, 17 Sep 2026 20:42:26 +0530
+Subject: [PATCH 124/140] feat(audiobook): isolate audiobook folders with
+ .audiobook dotfile marker and exclude from music library
+
+---
+ .../mpvrx/database/dao/AudiobookDao.kt        |   6 +
+ .../domain/audiobook/AudiobookImporter.kt     |  10 +-
+ .../domain/audiobook/AudiobookMarkerUtils.kt  | 192 ++++++++++++++++++
+ .../mpvrx/repository/MediaFileRepository.kt   |   2 +
+ .../audiobooks/AudiobookLibraryViewModel.kt   |  18 +-
+ .../ui/browser/music/MusicLibraryScanner.kt   |   1 +
+ .../ui/browser/music/MusicLibraryViewModel.kt |   5 +-
+ .../mpvrx/utils/storage/MediaScanOptions.kt   |   1 +
+ 8 files changed, 232 insertions(+), 3 deletions(-)
+ create mode 100644 app/src/main/java/com/quantummpv/app/domain/audiobook/AudiobookMarkerUtils.kt
+
+diff --git a/app/src/main/java/com/quantummpv/app/database/dao/AudiobookDao.kt b/app/src/main/java/com/quantummpv/app/database/dao/AudiobookDao.kt
+index edbc5b30..de2e48e6 100644
+--- a/app/src/main/java/com/quantummpv/app/database/dao/AudiobookDao.kt
++++ b/app/src/main/java/com/quantummpv/app/database/dao/AudiobookDao.kt
+@@ -112,4 +112,10 @@ abstract class AudiobookDao {
+     if (chapters.isNotEmpty()) insertChapters(chapters.distinctBy { it.startMs })
+   }
+ 
++  @Query("SELECT * FROM audiobooks")
++  abstract suspend fun getAllBooks(): List<AudiobookEntity>
++
++  @Query("SELECT * FROM audiobook_tracks")
++  abstract suspend fun getAllTracks(): List<AudiobookTrackEntity>
++
+ }
+\ No newline at end of file
+diff --git a/app/src/main/java/com/quantummpv/app/domain/audiobook/AudiobookImporter.kt b/app/src/main/java/com/quantummpv/app/domain/audiobook/AudiobookImporter.kt
+index 5488c5be..f4b7ff09 100644
+--- a/app/src/main/java/com/quantummpv/app/domain/audiobook/AudiobookImporter.kt
++++ b/app/src/main/java/com/quantummpv/app/domain/audiobook/AudiobookImporter.kt
+@@ -31,14 +31,20 @@ internal class AudiobookImporter(private val context: Context, private val dao:
+ 
+   suspend fun importBook(uris: List<Uri>, folder: Uri? = null, onProgress: (Int, Int) -> Unit): Long = withContext(Dispatchers.IO) {
+     val root = folder?.let { openPersistedTreeDocument(context, it.toString()) ?: throw IOException(it.toString()) }
++    AudiobookMarkerUtils.ensureMarker(context, folder, root)
+     val sources = if (root != null) collectFiles(root) else uris.distinct().map { uri ->
+       val file = DocumentFile.fromSingleUri(context, uri) ?: throw IOException(uri.toString())
++      AudiobookMarkerUtils.ensureMarker(context, uri, file)
+       Source(file, file.name.orEmpty())
+     }
+     val audio = sources.filter { it.document.name?.substringAfterLast('.')?.lowercase() in FileTypeUtils.AUDIO_EXTENSIONS }
+     if (audio.isEmpty()) throw IOException(context.getString(R.string.audiobook_no_audio))
+     val sourceKey = folder?.toString() ?: digest(audio.map { it.document.uri.toString() }.sorted().joinToString("\n"))
+-    dao.findBySource(sourceKey)?.let { return@withContext it }
++    dao.findBySource(sourceKey)?.let {
++      AudiobookMarkerUtils.clearCache()
++      com.quantummpv.app.utils.media.MediaLibraryEvents.notifyChanged()
++      return@withContext it
++    }
+     val metadata = readMetadata(sources)
+     var coverUri = sources.firstOrNull {
+       it.document.name?.lowercase() in setOf("cover.jpg", "cover.png", "folder.jpg", "folder.png")
+@@ -120,6 +126,8 @@ internal class AudiobookImporter(private val context: Context, private val dao:
+         offset += track.durationMs
+       }
+     }
++    AudiobookMarkerUtils.clearCache()
++    com.quantummpv.app.utils.media.MediaLibraryEvents.notifyChanged()
+     id
+   }
+ 
+diff --git a/app/src/main/java/com/quantummpv/app/domain/audiobook/AudiobookMarkerUtils.kt b/app/src/main/java/com/quantummpv/app/domain/audiobook/AudiobookMarkerUtils.kt
+new file mode 100644
+index 00000000..b0f9b5b9
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/domain/audiobook/AudiobookMarkerUtils.kt
+@@ -0,0 +1,192 @@
++/*
++ * SPDX-License-Identifier: AGPL-3.0-or-later
++ */
++
++package com.quantummpv.app.domain.audiobook
++
++import android.content.Context
++import android.net.Uri
++import android.os.Environment
++import android.provider.DocumentsContract
++import android.util.Log
++import androidx.documentfile.provider.DocumentFile
++import com.quantummpv.app.database.dao.AudiobookDao
++import com.quantummpv.app.ui.player.resolveUri
++import java.io.File
++import java.util.concurrent.ConcurrentHashMap
++
++object AudiobookMarkerUtils {
++  const val AUDIOBOOK_MARKER = ".audiobook"
++  private const val TAG = "AudiobookMarkerUtils"
++
++  private val directoryCache = ConcurrentHashMap<String, Boolean>()
++  private val knownAudiobookPaths = ConcurrentHashMap.newKeySet<String>()
++  private val knownAudiobookDirectories = ConcurrentHashMap.newKeySet<String>()
++
++  fun clearCache() {
++    directoryCache.clear()
++  }
++
++  fun registerAudiobookPath(pathOrUri: String?) {
++    if (pathOrUri.isNullOrBlank()) return
++    knownAudiobookPaths.add(pathOrUri)
++    val dirPath = when {
++      pathOrUri.startsWith("content://") -> null
++      else -> {
++        val file = File(pathOrUri)
++        if (file.isDirectory) file.absolutePath else file.parent
++      }
++    }
++    if (dirPath != null) {
++      knownAudiobookDirectories.add(dirPath.trimEnd('/'))
++    }
++  }
++
++  fun isAudiobookDirectory(directory: File?): Boolean {
++    if (directory == null) return false
++    val path = runCatching { directory.canonicalPath }.getOrElse { directory.absolutePath }
++    val normPath = path.trimEnd('/')
++
++    if (knownAudiobookDirectories.any { normPath == it || normPath.startsWith("$it/") }) {
++      return true
++    }
++
++    directoryCache[path]?.let { return it }
++
++    val result = runCatching {
++      File(directory, AUDIOBOOK_MARKER).isFile ||
++        directory.parentFile?.let(::isAudiobookDirectory) == true
++    }.getOrDefault(false)
++
++    directoryCache[path] = result
++    return result
++  }
++
++  fun isAudiobookPath(path: String?): Boolean {
++    if (path.isNullOrBlank()) return false
++
++    if (knownAudiobookPaths.contains(path)) return true
++
++    val cleanPath = path.trimEnd('/')
++    if (knownAudiobookDirectories.any { cleanPath == it || cleanPath.startsWith("$it/") }) {
++      return true
++    }
++
++    val file = File(path)
++    val dir = if (file.isDirectory) file else file.parentFile
++    return isAudiobookDirectory(dir)
++  }
++
++  fun resolveUriToDirectory(context: Context, uri: Uri?): File? {
++    if (uri == null) return null
++    return runCatching {
++      if (DocumentsContract.isTreeUri(uri)) {
++        val docId = DocumentsContract.getTreeDocumentId(uri)
++        when {
++          docId.startsWith("primary:") -> {
++            val relPath = docId.substringAfter("primary:")
++            File("/storage/emulated/0/$relPath").takeIf { it.exists() }
++              ?: File(Environment.getExternalStorageDirectory(), relPath).takeIf { it.exists() }
++          }
++          docId.contains(":") -> {
++            val volume = docId.substringBefore(":")
++            val relPath = docId.substringAfter(":")
++            File("/storage/$volume/$relPath").takeIf { it.exists() }
++          }
++          else -> null
++        }
++      } else {
++        val resolved = uri.resolveUri(context, allowFdFallback = false)
++        if (resolved != null) {
++          val f = File(resolved)
++          if (f.isDirectory) f else f.parentFile
++        } else {
++          val path = uri.path
++          if (path != null) {
++            val f = File(path)
++            if (f.isDirectory) f else f.parentFile
++          } else null
++        }
++      }
++    }.getOrNull()
++  }
++
++  fun ensureMarker(context: Context, folderUri: Uri? = null, document: DocumentFile? = null) {
++    if (folderUri != null) {
++      val dir = resolveUriToDirectory(context, folderUri)
++      if (dir != null) {
++        ensureMarker(dir)
++        registerAudiobookPath(dir.absolutePath)
++      }
++    }
++
++    if (document != null) {
++      runCatching {
++        if (document.isDirectory) {
++          if (document.findFile(AUDIOBOOK_MARKER) == null) {
++            document.createFile("application/octet-stream", AUDIOBOOK_MARKER)
++          }
++          val resolvedDir = resolveUriToDirectory(context, document.uri)
++          if (resolvedDir != null) {
++            ensureMarker(resolvedDir)
++            registerAudiobookPath(resolvedDir.absolutePath)
++          }
++        } else {
++          document.parentFile?.let { parent ->
++            if (parent.findFile(AUDIOBOOK_MARKER) == null) {
++              parent.createFile("application/octet-stream", AUDIOBOOK_MARKER)
++            }
++            val resolvedDir = resolveUriToDirectory(context, parent.uri)
++            if (resolvedDir != null) {
++              ensureMarker(resolvedDir)
++              registerAudiobookPath(resolvedDir.absolutePath)
++            }
++          }
++        }
++      }.onFailure { e ->
++        Log.w(TAG, "Failed creating .audiobook via SAF", e)
++      }
++    }
++  }
++
++  fun ensureMarker(file: File?) {
++    if (file == null) return
++    runCatching {
++      val dir = if (file.isDirectory) file else file.parentFile
++      if (dir != null && dir.exists()) {
++        val marker = File(dir, AUDIOBOOK_MARKER)
++        if (!marker.exists()) {
++          marker.createNewFile()
++        }
++        registerAudiobookPath(dir.absolutePath)
++      }
++    }.onFailure { e ->
++      Log.w(TAG, "Failed creating .audiobook file in $file", e)
++    }
++  }
++
++  suspend fun syncKnownAudiobooks(context: Context, dao: AudiobookDao) {
++    runCatching {
++      val tracks = dao.getAllTracks()
++      val books = dao.getAllBooks()
++
++      books.forEach { book ->
++        val uri = runCatching { Uri.parse(book.sourceKey) }.getOrNull()
++        if (uri != null) {
++          ensureMarker(context, folderUri = uri)
++        }
++      }
++
++      tracks.forEach { track ->
++        registerAudiobookPath(track.uri)
++        val uri = runCatching { Uri.parse(track.uri) }.getOrNull()
++        val dir = resolveUriToDirectory(context, uri)
++        if (dir != null) {
++          ensureMarker(dir)
++        }
++      }
++
++      clearCache()
++    }
++  }
++}
+diff --git a/app/src/main/java/com/quantummpv/app/repository/MediaFileRepository.kt b/app/src/main/java/com/quantummpv/app/repository/MediaFileRepository.kt
+index 0f16a193..059b8180 100644
+--- a/app/src/main/java/com/quantummpv/app/repository/MediaFileRepository.kt
++++ b/app/src/main/java/com/quantummpv/app/repository/MediaFileRepository.kt
+@@ -195,6 +195,7 @@ object MediaFileRepository : KoinComponent {
+               // On Android 10+ the file may not be directly accessible via the file system
+               // even though it exists in MediaStore. Only skip if the path is invalid.
+               val parentPath = file.parent ?: continue
++              if (com.quantummpv.app.domain.audiobook.AudiobookMarkerUtils.isAudiobookPath(parentPath)) continue
+               val durationMs = cursor.getLong(durationColumn)
+               if (minimumAudioDurationSeconds > 0 && durationMs / 1000 < minimumAudioDurationSeconds) continue
+               val key = normalizeAudioFolderKey(parentPath)
+@@ -270,6 +271,7 @@ object MediaFileRepository : KoinComponent {
+               val path = cursor.getString(dataColumn)
+               val file = File(path)
+               if (!file.exists()) continue
++              if (com.quantummpv.app.domain.audiobook.AudiobookMarkerUtils.isAudiobookPath(path)) continue
+               val durationMs = cursor.getLong(durationColumn)
+               val title = cursor.getString(titleColumn) ?: file.nameWithoutExtension
+               val displayName = cursor.getString(displayColumn) ?: file.name
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/audiobooks/AudiobookLibraryViewModel.kt b/app/src/main/java/com/quantummpv/app/ui/browser/audiobooks/AudiobookLibraryViewModel.kt
+index 73cc74ca..6892a028 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/audiobooks/AudiobookLibraryViewModel.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/audiobooks/AudiobookLibraryViewModel.kt
+@@ -30,6 +30,12 @@ class AudiobookLibraryViewModel(application: Application) : AndroidViewModel(app
+   val error = _error.asStateFlow()
+   private var importJob: Job? = null
+ 
++  init {
++    viewModelScope.launch(Dispatchers.IO) {
++      com.quantummpv.app.domain.audiobook.AudiobookMarkerUtils.syncKnownAudiobooks(application, dao)
++    }
++  }
++
+   fun importFiles(uris: List<Uri>, folder: Uri? = null) {
+     if (importJob?.isActive == true || uris.isEmpty() && folder == null) return
+     _error.value = null
+@@ -38,7 +44,17 @@ class AudiobookLibraryViewModel(application: Application) : AndroidViewModel(app
+       val context = getApplication<Application>()
+       try {
+         (listOfNotNull(folder) + uris).forEach { uri ->
+-          context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
++          runCatching {
++            context.contentResolver.takePersistableUriPermission(
++              uri,
++              Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
++            )
++          }.recoverCatching {
++            context.contentResolver.takePersistableUriPermission(
++              uri,
++              Intent.FLAG_GRANT_READ_URI_PERMISSION
++            )
++          }
+         }
+         AudiobookImporter(context, dao).importBook(uris, folder) { current, total -> _progress.value = current to total }
+       } catch (cancelled: CancellationException) {
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryScanner.kt b/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryScanner.kt
+index 72bc2f4b..fa6e92f0 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryScanner.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryScanner.kt
+@@ -69,6 +69,7 @@ object MusicLibraryScanner {
+           val file = path?.let { File(it) }
+           val fileExists = try { file?.exists() == true } catch (_: Exception) { false }
+           if (!fileExists && size <= 0L && duration <= 0L) continue
++          if (com.quantummpv.app.domain.audiobook.AudiobookMarkerUtils.isAudiobookPath(path ?: effectivePath)) continue
+ 
+           val title = cursor.getString(titleCol)?.takeIf { it.isNotBlank() } ?: (file?.nameWithoutExtension ?: id.toString())
+           val artist = cursor.getString(artistCol)?.takeIf { it.isNotBlank() && it != "<unknown>" } ?: "Unknown Artist"
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryViewModel.kt b/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryViewModel.kt
+index 25b62f62..54e29699 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryViewModel.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryViewModel.kt
+@@ -46,6 +46,7 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
+   private val browserPreferences: com.quantummpv.app.preferences.BrowserPreferences by inject()
+   private val audioPreferences: com.quantummpv.app.preferences.AudioPreferences by inject()
+   private val foldersPreferences: com.quantummpv.app.preferences.FoldersPreferences by inject()
++  private val audiobookDao: com.quantummpv.app.database.dao.AudiobookDao by inject()
+ 
+   val visibleTabs: StateFlow<List<MusicTab>> = combine(
+     audioPreferences.musicTabOrder.changes(),
+@@ -193,6 +194,7 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
+   suspend fun refreshLibrary(context: Context) {
+     _isLoading.value = true
+     try {
++      com.quantummpv.app.domain.audiobook.AudiobookMarkerUtils.syncKnownAudiobooks(context, audiobookDao)
+       _allSongs.value = MusicLibraryScanner.scanSongs(context)
+       applyFilters()
+     } catch (e: CancellationException) {
+@@ -223,7 +225,8 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
+           song.path.equals(folderPath, ignoreCase = true) ||
+             song.path.startsWith(if (folderPath.endsWith("/")) folderPath else "$folderPath/", ignoreCase = true)
+         }
+-        meetsDuration && isNotBlacklisted
++        val isNotAudiobook = !com.quantummpv.app.domain.audiobook.AudiobookMarkerUtils.isAudiobookPath(song.path)
++        meetsDuration && isNotBlacklisted && isNotAudiobook
+       }
+       Triple(visible, buildAlbums(visible), buildArtists(visible))
+     }
+diff --git a/app/src/main/java/com/quantummpv/app/utils/storage/MediaScanOptions.kt b/app/src/main/java/com/quantummpv/app/utils/storage/MediaScanOptions.kt
+index 523fb1e5..88457910 100644
+--- a/app/src/main/java/com/quantummpv/app/utils/storage/MediaScanOptions.kt
++++ b/app/src/main/java/com/quantummpv/app/utils/storage/MediaScanOptions.kt
+@@ -71,6 +71,7 @@ class NoMediaPathFilter(
+       runCatching {
+         directory.name.startsWith(".") ||
+           options.normalizedHiddenFolderMarkerNames.any { File(directory, it).isFile } ||
++          File(directory, com.quantummpv.app.domain.audiobook.AudiobookMarkerUtils.AUDIOBOOK_MARKER).isFile ||
+           directory.parentFile?.let(::hasHiddenMarkerInPath) == true
+       }.getOrElse { error ->
+         Log.w(TAG, "Failed checking hidden-folder ancestry for $path", error)
+-- 
+2.25.1
+

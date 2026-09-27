@@ -1,0 +1,1245 @@
+From 6d0597910edb814cfb28206739282a1c11080caf Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <riteshp2001@gmail.com>
+Date: Fri, 18 Sep 2026 12:10:29 +0530
+Subject: [PATCH 135/140] fix: enable nested swipes and avoid redundant folder
+ refreshes
+
+Music, Network, and Recents gestures
+- Add an explicit nested-swipe opt-in to NavigationPager and enable it for
+  Music, Network, and Recents Audio/Video tabs. Leave other nested pagers
+  unchanged and retain existing tab identity, selection, and scroll state.
+- Enable local song and audio-folder list swipe actions using the existing
+  configurable left/right actions, thresholds, feedback, and accessibility
+  behavior. Reuse the shared gesture surface rather than add another engine.
+- Keep middle-of-row gestures available for tab changes, with item actions
+  on edge-origin drags. Preserve grid and multi-selection restrictions.
+- Add optional swipe support to the shared music row and wire the Songs
+  list to existing queue, playlist, delete, and playback-mark handlers.
+- Collect only audio files for Music folder actions, retain video-only
+  collection elsewhere, and preserve recursive scope, symlink exclusions,
+  cancellation, and destructive-action confirmations.
+- Mark collected audio correctly for audio playlists and use target-aware
+  delete labels. Translate new audio confirmations/loading/empty states
+  and the shared swipe-settings title in all ten resource sets.
+
+Folder NEW indicator refresh
+- Remove the folder screen's ON_RESUME badge-recalculation callback, which
+  was replayed when tab content re-entered composition.
+- Keep one view-model-owned, debounced collector for folder data, badge
+  preferences, and playback-state events, independent of tab visibility.
+- Cache folder media membership for badge-only updates and invalidate it
+  on actual library loads/manual refresh even if folder metadata is equal.
+- Rethrow cancellation and check job activity before caching/publishing so
+  cancelled work cannot briefly replace the displayed indicators with zeros.
+
+Skip pills and online subtitle search
+- Do not publish a manual skip pill for segments configured for auto-skip:
+  intro/recap use auto-intro, outro/credits/preview use auto-outro.
+- Re-evaluate immediately on preference changes using the existing serial
+  playback dispatcher. Keep pills hidden while paused too, without removing
+  seekbar markers or changing the automatic seek policy.
+- Restore online subtitle search's original inline reset/clear/AI/search
+  controls, marquee, adjacent season controls, fixed search area, and
+  separately scrolling results. Relative to the previous layout, retain
+  only four padding changes, as requested.
+
+Website contrast and Vercel previews
+- Give dark hero-overlay badges explicit light foreground/icon colors so
+  they remain readable when the website uses its light theme.
+- Keep the existing master-only deployment policy and add an ignoreCommand
+  that allows production builds without a pull-request ID, skipping other
+  environments before installation/build. Android PR CI is unchanged.
+- Vercel may still report a skipped/cancelled integration status; this guard
+  prevents preview builds, not the existence of a GitHub status entry.
+
+Validation and scope
+- Focused editor diagnostics, source/call-site and diff inspection, JSON/XML
+  parsing, localized format-argument checks, and git diff --check passed.
+  Refreshed the static source graph.
+- Per standing instructions, no Android/website builds, tests, formatter,
+  emulator, device gestures/playback, browser screenshots, or live Vercel
+  deployment checks were run. Compilation and runtime validation remain
+  required; clean editor diagnostics are not compiler proof.
+- Preserve the published player-sheet changes and visible-but-disabled
+  empty chapter icons. No generated schemas or changelog files edited.
+---
+ .../mpvrx/ui/browser/cards/FolderCard.kt      |   2 +-
+ .../mpvrx/ui/browser/cards/VideoCard.kt       |   2 +-
+ .../browser/components/VideoSwipeActions.kt   |  24 ++-
+ .../ui/browser/folderlist/FolderListScreen.kt |  26 +--
+ .../browser/folderlist/FolderListViewModel.kt | 172 ++++++++++--------
+ .../ui/browser/music/MusicLibraryContent.kt   |  26 ++-
+ .../ui/browser/music/SharedMusicComponents.kt |  30 ++-
+ .../NetworkStreamingScreen.kt                 |   1 +
+ .../recentlyplayed/RecentlyPlayedScreen.kt    |   1 +
+ .../ui/browser/videolist/VideoListScreen.kt   |   2 +-
+ .../mpvrx/ui/player/PlayerViewModel.kt        |  41 +++--
+ .../sheets/OnlineSubtitleSearchSheet.kt       |  85 ++++-----
+ .../gyrolet/mpvrx/ui/utils/NavigationPager.kt |   3 +-
+ app/src/main/res/values-ar/strings.xml        |   6 +-
+ app/src/main/res/values-de/strings.xml        |   6 +-
+ app/src/main/res/values-es/strings.xml        |   6 +-
+ app/src/main/res/values-fr/strings.xml        |   6 +-
+ app/src/main/res/values-hi/strings.xml        |   6 +-
+ app/src/main/res/values-ja/strings.xml        |   6 +-
+ app/src/main/res/values-pt-rBR/strings.xml    |   6 +-
+ app/src/main/res/values-ru/strings.xml        |   6 +-
+ app/src/main/res/values-zh-rCN/strings.xml    |   6 +-
+ app/src/main/res/values/strings.xml           |   6 +-
+ vercel.json                                   |   1 +
+ website/pages/index.astro                     |   4 +-
+ 25 files changed, 295 insertions(+), 185 deletions(-)
+
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/cards/FolderCard.kt b/app/src/main/java/com/quantummpv/app/ui/browser/cards/FolderCard.kt
+index 8b05960f..118cb67f 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/cards/FolderCard.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/cards/FolderCard.kt
+@@ -168,7 +168,7 @@ fun FolderCard(
+     leftAction = swipeLeft,
+     rightAction = swipeRight,
+     isWatched = null,
+-    enabled = !isGridMode && !isSelected && !isAudioOnly && folder.path.startsWith('/'),
++    enabled = !isGridMode && !isSelected && folder.path.startsWith('/'),
+     onAction = onSwipeAction?.let { action -> { swipe -> action(folder, swipe) } },
+     modifier =
+       modifier
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/cards/VideoCard.kt b/app/src/main/java/com/quantummpv/app/ui/browser/cards/VideoCard.kt
+index 9f233dd8..19a12f4a 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/cards/VideoCard.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/cards/VideoCard.kt
+@@ -216,7 +216,7 @@ fun VideoCard(
+     leftAction = resolvedUiConfig.swipeLeft,
+     rightAction = resolvedUiConfig.swipeRight,
+     isWatched = isWatched,
+-    enabled = !isGridMode && !isSelected && !video.isAudio && video.path.startsWith('/'),
++    enabled = !isGridMode && !isSelected && video.path.startsWith('/'),
+     onAction = onSwipeAction?.let { action -> { swipe -> action(video, isWatched, swipe) } },
+     modifier =
+       modifier
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/components/VideoSwipeActions.kt b/app/src/main/java/com/quantummpv/app/ui/browser/components/VideoSwipeActions.kt
+index 04173c4c..36f64573 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/components/VideoSwipeActions.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/components/VideoSwipeActions.kt
+@@ -95,6 +95,7 @@ internal fun rememberSwipePlaybackInfo(videos: List<Video>): Map<String, VideoWi
+ @Composable
+ internal fun rememberVideoSwipeActions(
+   onDeleted: suspend (List<Video>) -> Unit = {},
++  audioOnly: Boolean = false,
+   onChanged: () -> Unit,
+ ): VideoSwipeActions {
+   val context = LocalContext.current
+@@ -113,7 +114,7 @@ internal fun rememberVideoSwipeActions(
+   if (collecting) {
+     AlertDialog(
+       onDismissRequest = { scanJob?.cancel() },
+-      title = { Text(stringResource(R.string.video_swipe_loading)) },
++      title = { Text(stringResource(if (audioOnly) R.string.audio_swipe_loading else R.string.video_swipe_loading)) },
+       text = {
+         Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+           CircularProgressIndicator(Modifier.size(24.dp))
+@@ -127,14 +128,19 @@ internal fun rememberVideoSwipeActions(
+   }
+ 
+   deleteTarget?.let { target ->
++    val isAudio = target.videos.all { it.isAudio }
+     AlertDialog(
+       onDismissRequest = { if (!busy) deleteTarget = null },
+       icon = { Icon(Icons.RoundedFilled.Delete, null, tint = MaterialTheme.colorScheme.error) },
+-      title = { Text(stringResource(R.string.video_swipe_delete_title)) },
++      title = { Text(stringResource(if (isAudio) R.string.audio_swipe_delete_title else R.string.video_swipe_delete_title)) },
+       text = {
+         Text(
+           if (target.folderName != null) {
+-            stringResource(R.string.video_swipe_delete_folder_message, target.videos.size, target.folderName)
++            stringResource(
++              if (isAudio) R.string.audio_swipe_delete_folder_message else R.string.video_swipe_delete_folder_message,
++              target.videos.size,
++              target.folderName,
++            )
+           } else {
+             stringResource(R.string.video_swipe_delete_message, target.videos.single().displayName)
+           },
+@@ -253,7 +259,7 @@ internal fun rememberVideoSwipeActions(
+   return VideoSwipeActions(
+     video = { video, _, action ->
+       if (!busy && !collecting && deleteTarget == null && playlistTarget == null &&
+-        !video.isAudio && video.path.startsWith('/')) {
++        video.path.startsWith('/')) {
+         perform(SwipeTarget(listOf(video)), action)
+       }
+     },
+@@ -274,16 +280,20 @@ internal fun rememberVideoSwipeActions(
+                 .onFail { _, error -> throw error }
+                 .filter { file ->
+                   coroutineContext.ensureActive()
+-                  file.isFile && !Files.isSymbolicLink(file.toPath()) && FileTypeUtils.isVideoFile(file)
++                  file.isFile && !Files.isSymbolicLink(file.toPath()) &&
++                    (if (audioOnly) FileTypeUtils.isAudioFile(file) else FileTypeUtils.isVideoFile(file))
+                 }.toList()
+-              val resolved = MediaFileRepository.getVideosFromFiles(context, files).filterNot { it.isAudio }
++              val resolved = MediaFileRepository.getVideosFromFiles(context, files).let { videos ->
++                if (audioOnly) videos.map { it.copy(isAudio = true) } else videos.filterNot { it.isAudio }
++              }
+               coroutineContext.ensureActive()
+               check(resolved.size == files.size)
+               resolved.distinctBy { it.path }.sortedBy { it.path.lowercase() }
+             }
+             currentCoroutineContext().ensureActive()
+             if (videos.isEmpty()) {
+-              Toast.makeText(context, R.string.video_swipe_folder_empty, Toast.LENGTH_SHORT).show()
++              Toast.makeText(context, if (audioOnly) R.string.audio_swipe_folder_empty else R.string.video_swipe_folder_empty,
++                Toast.LENGTH_SHORT).show()
+             } else {
+               perform(SwipeTarget(videos, folder.name), action)
+             }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/folderlist/FolderListScreen.kt b/app/src/main/java/com/quantummpv/app/ui/browser/folderlist/FolderListScreen.kt
+index feaebcda..b866e422 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/folderlist/FolderListScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/folderlist/FolderListScreen.kt
+@@ -62,7 +62,6 @@ import androidx.compose.material3.animateFloatingActionButton
+ import androidx.compose.material3.rememberTooltipState
+ import androidx.compose.runtime.Composable
+ import androidx.compose.runtime.CompositionLocalProvider
+-import androidx.compose.runtime.DisposableEffect
+ import androidx.compose.runtime.LaunchedEffect
+ import androidx.compose.runtime.collectAsState
+ import androidx.compose.runtime.derivedStateOf
+@@ -84,8 +83,6 @@ import androidx.compose.ui.platform.LocalContext
+ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+ import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.unit.dp
+-import androidx.lifecycle.Lifecycle
+-import androidx.lifecycle.LifecycleEventObserver
+ import androidx.lifecycle.viewmodel.compose.viewModel
+ import com.quantummpv.app.BuildConfig
+ import com.quantummpv.app.R
+@@ -174,7 +171,6 @@ object FolderListScreen : Screen {
+     val context = LocalContext.current
+     val backstack = LocalBackStack.current
+     val coroutineScope = rememberCoroutineScope()
+-    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+ 
+     // ViewModels and preferences
+     val viewModel: FolderListViewModel =
+@@ -510,18 +506,6 @@ object FolderListScreen : Screen {
+       }
+     }
+ 
+-    // Lifecycle observer for refresh
+-    DisposableEffect(lifecycleOwner) {
+-      val observer =
+-        LifecycleEventObserver { _, event ->
+-          if (event == Lifecycle.Event.ON_RESUME) {
+-            viewModel.recalculateNewVideoCounts()
+-          }
+-        }
+-      lifecycleOwner.lifecycle.addObserver(observer)
+-      onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+-    }
+-
+     // Optimized back handler for immediate response
+     val shouldHandleBack =
+       selectionManager.isInSelectionMode ||
+@@ -1228,7 +1212,7 @@ private fun FolderListContent(
+   audioOnly: Boolean = false,
+ ) {
+   val swipeScope = rememberCoroutineScope()
+-  val swipeActions = rememberVideoSwipeActions { swipeScope.launch { onRefresh() } }
++  val swipeActions = rememberVideoSwipeActions(audioOnly = audioOnly) { swipeScope.launch { onRefresh() } }
+   val isGridMode = mediaLayoutMode == MediaLayoutMode.GRID
+   val showLoading = isLoading && !hasCompletedInitialLoad
+   val showEmpty = folders.isEmpty() && hasCompletedInitialLoad && !foldersWereDeleted
+@@ -1289,7 +1273,7 @@ private fun FolderListContent(
+         )
+       } else {
+         ListContent(
+-          onFolderSwipe = swipeActions.folder.takeUnless { selectionManager.isInSelectionMode || audioOnly },
++          onFolderSwipe = swipeActions.folder.takeUnless { selectionManager.isInSelectionMode },
+           folders = folders,
+           foldersWithNewCount = foldersWithNewCount,
+           pinnedFolderPaths = pinnedFolderPaths,
+@@ -1536,7 +1520,7 @@ private fun SearchResultsContent(
+   onChanged: () -> Unit,
+   audioOnly: Boolean,
+ ) {
+-  val swipeActions = rememberVideoSwipeActions(onChanged = onChanged)
++  val swipeActions = rememberVideoSwipeActions(audioOnly = audioOnly, onChanged = onChanged)
+   val folders =
+     searchResults.filterIsInstance<FileSystemItem.Folder>().map { folder ->
+       com.quantummpv.app.domain.media.model.VideoFolder(
+@@ -1699,7 +1683,7 @@ private fun SearchResultsContent(
+             onThumbClick = { onFolderClick(folder) },
+             newVideoCount = 0,
+             isGridMode = false,
+-            onSwipeAction = swipeActions.folder.takeUnless { audioOnly },
++                onSwipeAction = swipeActions.folder,
+           )
+         }
+ 
+@@ -1716,7 +1700,7 @@ private fun SearchResultsContent(
+             onLongClick = {},
+             onThumbClick = { onVideoClick(video) },
+             isGridMode = false,
+-            onSwipeAction = swipeActions.video.takeUnless { audioOnly },
++                onSwipeAction = swipeActions.video,
+             isWatched = swipePlaybackInfo[video.path]?.isWatched == true,
+             isOldAndUnplayed = swipePlaybackInfo[video.path]?.isOldAndUnplayed == true,
+             showSubtitleIndicator = showSubtitleIndicator,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/folderlist/FolderListViewModel.kt b/app/src/main/java/com/quantummpv/app/ui/browser/folderlist/FolderListViewModel.kt
+index fd4b14c3..d28546fd 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/folderlist/FolderListViewModel.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/folderlist/FolderListViewModel.kt
+@@ -14,6 +14,7 @@ import android.util.Log
+ import androidx.lifecycle.ViewModel
+ import androidx.lifecycle.ViewModelProvider
+ import androidx.lifecycle.viewModelScope
++import com.quantummpv.app.domain.media.model.Video
+ import com.quantummpv.app.domain.media.model.VideoFolder
+ import com.quantummpv.app.domain.playbackstate.repository.PlaybackStateRepository
+ import com.quantummpv.app.preferences.AppearancePreferences
+@@ -23,10 +24,13 @@ import com.quantummpv.app.ui.browser.base.BaseBrowserViewModel
+ import com.quantummpv.app.ui.player.PlaybackIdentity
+ import com.quantummpv.app.utils.media.MediaLibraryEvents
+ import com.quantummpv.app.utils.media.MetadataRetrieval
++import com.quantummpv.app.utils.media.PlaybackStateEvents
+ import com.quantummpv.app.utils.permission.PermissionUtils.StorageOps
+ import com.quantummpv.app.utils.storage.FolderViewScanner
++import kotlinx.coroutines.CancellationException
+ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.Job
++import kotlinx.coroutines.currentCoroutineContext
+ import kotlinx.coroutines.delay
+ import kotlinx.coroutines.ensureActive
+ import kotlinx.coroutines.flow.MutableStateFlow
+@@ -36,7 +40,9 @@ import kotlinx.coroutines.flow.collect
+ import kotlinx.coroutines.flow.collectLatest
+ import kotlinx.coroutines.flow.combine
+ import kotlinx.coroutines.flow.drop
++import kotlinx.coroutines.flow.map
+ import kotlinx.coroutines.flow.merge
++import kotlinx.coroutines.flow.update
+ import kotlinx.coroutines.isActive
+ import kotlinx.coroutines.launch
+ import org.koin.core.component.KoinComponent
+@@ -91,8 +97,8 @@ class FolderListViewModel(
+ 
+   // Track the current scan job to prevent concurrent scans
+   private var currentScanJob: Job? = null
+-  private var newCountJob: Job? = null
+   private var cacheWriteJob: Job? = null
++  private val folderContentRevision = MutableStateFlow(0L)
+ 
+     companion object {
+     private const val TAG = "FolderListViewModel"
+@@ -171,13 +177,33 @@ class FolderListViewModel(
+         previousFolderCount = filteredFolders.size
+ 
+         _videoFolders.value = filteredFolders
+-        // Calculate new video counts for each folder
+-        calculateNewVideoCounts(filteredFolders)
+ 
+         // Save to cache for next app launch (save unfiltered list)
+         saveFoldersToCache(_allVideoFolders.value)
+       }
+     }
++
++    viewModelScope.launch(Dispatchers.IO) {
++      val folderVideos = mutableMapOf<VideoFolder, List<Video>>()
++      var cachedRevision = -1L
++      val badgeInputs =
++        combine(
++          _videoFolders,
++          appearancePreferences.showUnplayedOldVideoLabel.changes(),
++          appearancePreferences.unplayedOldVideoDays.changes(),
++          browserPreferences.watchedThreshold.changes(),
++          folderContentRevision,
++        ) { _, _, _, _, revision -> revision }
++
++      merge(badgeInputs, PlaybackStateEvents.changes.map { folderContentRevision.value }).collectLatest { revision ->
++        if (cachedRevision != revision) {
++          folderVideos.clear()
++          cachedRevision = revision
++        }
++        delay(400)
++        calculateNewVideoCounts(_videoFolders.value, folderVideos)
++      }
++    }
+   }
+ 
+   private fun loadCachedFolders(): Boolean {
+@@ -258,78 +284,77 @@ class FolderListViewModel(
+       emptyList()
+     }
+ 
+-  private fun calculateNewVideoCounts(folders: List<VideoFolder>) {
+-    newCountJob?.cancel()
+-    newCountJob =
+-      viewModelScope.launch(Dispatchers.IO) {
+-        delay(400)
+-        try {
+-          val showLabel = appearancePreferences.showUnplayedOldVideoLabel.get()
+-          if (!showLabel) {
+-            // If feature is disabled, just return folders with 0 count
+-            _foldersWithNewCount.value = folders.map { FolderWithNewCount(it, 0) }
+-            return@launch
+-          }
++  private suspend fun calculateNewVideoCounts(
++    folders: List<VideoFolder>,
++    folderVideos: MutableMap<VideoFolder, List<Video>>,
++  ) {
++    folderVideos.keys.retainAll(folders.toSet())
++    try {
++      val showLabel = appearancePreferences.showUnplayedOldVideoLabel.get()
++      if (!showLabel) {
++        folderVideos.clear()
++        _foldersWithNewCount.value = folders.map { FolderWithNewCount(it, 0) }
++        return
++      }
++
++      val thresholdDays = appearancePreferences.unplayedOldVideoDays.get()
++      val thresholdMillis = thresholdDays * 24 * 60 * 60 * 1000L
++      val watchedThreshold = browserPreferences.watchedThreshold.get()
++      val currentTime = System.currentTimeMillis()
+ 
+-          val thresholdDays = appearancePreferences.unplayedOldVideoDays.get()
+-          val thresholdMillis = thresholdDays * 24 * 60 * 60 * 1000L
+-          val watchedThreshold = browserPreferences.watchedThreshold.get()
+-          val currentTime = System.currentTimeMillis()
+-
+-          val foldersWithCounts =
+-            folders.map { folder ->
+-              try {
+-                // MediaStore can lag behind files copied by other apps. Merge this known folder's
+-                // direct filesystem entries so its NEW count does not require a manual refresh.
+-                val videos =
+-                  com.quantummpv.app.repository.MediaFileRepository
+-                    .getVideosInFolder(
+-                      context = getApplication(),
+-                      bucketId = folder.bucketId,
+-                      forceFileSystemCheck = true,
+-                    )
+-
+-                // Count new unplayed videos
+-                val newCount =
+-                  videos.count { video ->
+-                    // Check if video was modified within threshold days
+-                    val videoAge = currentTime - (video.dateModified * 1000)
+-                    val isRecent = videoAge <= thresholdMillis
+-
+-                    // A video counts as "unplayed" until it has been watched to the
+-                    // configured threshold. Threshold 0 ("Infinitely") keeps it unplayed.
+-                    val playbackState = playbackStateRepository.getVideoDataByTitle(PlaybackIdentity.forLocalPath(video.path))
+-                      ?: playbackStateRepository.getVideoDataByTitle(PlaybackIdentity.forUri(video.uri.toString()))
+-                      ?: playbackStateRepository.getVideoDataByTitle(PlaybackIdentity.forUri(video.path))
+-                      ?: playbackStateRepository.getVideoDataByTitle(PlaybackIdentity.forUri("file://${video.path}"))
+-                    val isUnplayed =
+-                      if (playbackState != null && video.duration > 0) {
+-                        val durationSeconds = video.duration / 1000
+-                        val watched = durationSeconds - playbackState.timeRemaining.toLong()
+-                        val progressValue =
+-                          (watched.toFloat() / durationSeconds.toFloat()).coerceIn(0f, 1f)
+-                        watchedThreshold <= 0 || progressValue < (watchedThreshold / 100f)
+-                      } else {
+-                        playbackState == null
+-                      }
+-
+-                    playbackState?.hasBeenWatched != true &&
+-                      (playbackState?.newLabelOverride ?: (isRecent && isUnplayed))
++      val foldersWithCounts =
++        folders.map { folder ->
++          try {
++            val videos = folderVideos[folder] ?: MediaFileRepository.getVideosInFolder(
++              context = getApplication(),
++              bucketId = folder.bucketId,
++              forceFileSystemCheck = true,
++            ).also {
++              currentCoroutineContext().ensureActive()
++              folderVideos[folder] = it
++            }
++
++            val newCount =
++              videos.count { video ->
++                val videoAge = currentTime - (video.dateModified * 1000)
++                val isRecent = videoAge <= thresholdMillis
++
++                val playbackState = playbackStateRepository.getVideoDataByTitle(PlaybackIdentity.forLocalPath(video.path))
++                  ?: playbackStateRepository.getVideoDataByTitle(PlaybackIdentity.forUri(video.uri.toString()))
++                  ?: playbackStateRepository.getVideoDataByTitle(PlaybackIdentity.forUri(video.path))
++                  ?: playbackStateRepository.getVideoDataByTitle(PlaybackIdentity.forUri("file://${video.path}"))
++                val isUnplayed =
++                  if (playbackState != null && video.duration > 0) {
++                    val durationSeconds = video.duration / 1000
++                    val watched = durationSeconds - playbackState.timeRemaining.toLong()
++                    val progressValue =
++                      (watched.toFloat() / durationSeconds.toFloat()).coerceIn(0f, 1f)
++                    watchedThreshold <= 0 || progressValue < (watchedThreshold / 100f)
++                  } else {
++                    playbackState == null
+                   }
+ 
+-                FolderWithNewCount(folder, newCount)
+-              } catch (e: Exception) {
+-                Log.e(TAG, "Error counting new videos for folder ${folder.name}", e)
+-                FolderWithNewCount(folder, 0)
++                playbackState?.hasBeenWatched != true &&
++                  (playbackState?.newLabelOverride ?: (isRecent && isUnplayed))
+               }
+-            }
+ 
+-          _foldersWithNewCount.value = foldersWithCounts
+-        } catch (e: Exception) {
+-          Log.e(TAG, "Error calculating new video counts", e)
+-          _foldersWithNewCount.value = folders.map { FolderWithNewCount(it, 0) }
++            FolderWithNewCount(folder, newCount)
++          } catch (cancellation: CancellationException) {
++            throw cancellation
++          } catch (e: Exception) {
++            Log.e(TAG, "Error counting new videos for folder ${folder.name}", e)
++            FolderWithNewCount(folder, 0)
++          }
+         }
+-      }
++
++      currentCoroutineContext().ensureActive()
++      _foldersWithNewCount.value = foldersWithCounts
++    } catch (cancellation: CancellationException) {
++      throw cancellation
++    } catch (e: Exception) {
++      Log.e(TAG, "Error calculating new video counts", e)
++      _foldersWithNewCount.value = folders.map { FolderWithNewCount(it, 0) }
++    }
+   }
+ 
+   override fun refresh() {
+@@ -365,14 +390,6 @@ class FolderListViewModel(
+     }
+   }
+ 
+-  /**
+-   * Recalculate new video counts without refreshing the entire folder list
+-   * Useful when returning to the screen after playing videos
+-   */
+-  fun recalculateNewVideoCounts() {
+-    calculateNewVideoCounts(_videoFolders.value)
+-  }
+-
+   suspend fun renameFolder(
+     folder: VideoFolder,
+     newName: String,
+@@ -387,6 +404,7 @@ class FolderListViewModel(
+   /** Publishes MediaStore immediately, then merges indexed .nomedia folders in the background. */
+   private fun loadVideoFolders(forceFileSystemCheck: Boolean = false) {
+     currentScanJob?.cancel()
++    folderContentRevision.update { it + 1 }
+ 
+     if (audioOnly) {
+       currentScanJob =
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryContent.kt b/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryContent.kt
+index 48080a6d..3131feeb 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryContent.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryContent.kt
+@@ -129,6 +129,7 @@ import com.quantummpv.app.preferences.BrowserPreferences
+ import com.quantummpv.app.preferences.AppearancePreferences
+ import com.quantummpv.app.preferences.MediaServerPreferences
+ import com.quantummpv.app.preferences.MusicSourceProvider
++import com.quantummpv.app.preferences.VideoSwipeAction
+ import com.quantummpv.app.preferences.preference.collectAsState
+ import com.quantummpv.app.ui.preferences.PreferencesScreen
+ import com.quantummpv.app.ui.browser.LocalNavigationBarHeight
+@@ -138,6 +139,8 @@ import com.quantummpv.app.ui.browser.components.BrowserBottomBar
+ import com.quantummpv.app.ui.browser.components.BrowserTopBar
+ import com.quantummpv.app.ui.browser.components.QueueInsertion
+ import com.quantummpv.app.ui.browser.components.addVideosToPlaybackQueue
++import com.quantummpv.app.ui.browser.components.rememberSwipePlaybackInfo
++import com.quantummpv.app.ui.browser.components.rememberVideoSwipeActions
+ import com.quantummpv.app.ui.browser.dialogs.AddToPlaylistDialog
+ import com.quantummpv.app.ui.browser.fab.FabScrollHelper
+ import com.quantummpv.app.ui.browser.dialogs.DeleteConfirmationDialog
+@@ -897,6 +900,7 @@ fun MusicLibraryContent(
+             key = { page -> visibleTabs[page].name },
+             modifier = Modifier.fillMaxSize(),
+             beyondViewportPageCount = 1,
++            allowNestedSwipes = true,
+           ) { page ->
+             val activeTab = visibleTabs.getOrNull(page) ?: MusicTab.SONGS
+             when (activeTab) {
+@@ -920,6 +924,7 @@ fun MusicLibraryContent(
+                 selectionManager = songSelectionManager,
+                 listState = songsListState,
+                 gridState = songsGridState,
++                onSongsChanged = { musicViewModel.scanLibrary(context) },
+               )
+ 
+               MusicTab.ALBUMS -> AlbumsTabContent(
+@@ -1527,6 +1532,7 @@ private fun SongsTabContent(
+   selectionManager: com.quantummpv.app.ui.browser.selection.SelectionManager<MusicSong, Long>,
+   listState: LazyListState = rememberLazyListState(),
+   gridState: LazyGridState = rememberLazyGridState(),
++  onSongsChanged: () -> Unit,
+ ) {
+   if (songs.isEmpty()) {
+     EmptyMusicState(text = "No songs found")
+@@ -1567,19 +1573,28 @@ private fun SongsTabContent(
+         }
+       }
+     } else {
++      val swipeVideos = remember(songs) { songs.map { it.toVideo() } }
++      val swipePlaybackInfo = rememberSwipePlaybackInfo(swipeVideos)
++      val swipeActions = rememberVideoSwipeActions(audioOnly = true, onChanged = onSongsChanged)
+       LazyColumn(
+         state = listState,
+         modifier = Modifier.fillMaxSize(),
+         contentPadding = PaddingValues(start = 0.dp, top = 8.dp, end = 0.dp, bottom = navBarHeight + 16.dp)
+       ) {
+         items(songs, key = { it.id }) { song ->
++          val video = remember(song) { song.toVideo() }
++          val isWatched = swipePlaybackInfo[song.path]?.isWatched ?: false
+           SongListItem(
+             song = song,
+             isSelected = selectionManager.isSelected(song),
+             isPlaying = song.isNowPlaying(),
+             coverArtSizeDp = coverArtSizeDp,
+             onClick = { onSongClick(song) },
+-            onLongClick = { onSongLongClick(song) }
++            onLongClick = { onSongLongClick(song) },
++            isWatched = isWatched,
++            onSwipeAction = if (selectionManager.isInSelectionMode || !song.path.startsWith('/')) null else {
++              action -> swipeActions.video(video, isWatched, action)
++            },
+           )
+         }
+       }
+@@ -1698,7 +1713,9 @@ private fun SongListItem(
+   isPlaying: Boolean = false,
+   coverArtSizeDp: Int = 48,
+   onClick: () -> Unit,
+-  onLongClick: (() -> Unit)? = null
++  onLongClick: (() -> Unit)? = null,
++  isWatched: Boolean? = null,
++  onSwipeAction: ((VideoSwipeAction) -> Unit)? = null,
+ ) {
+   SharedMusicTrackListItem(
+     title = song.title,
+@@ -1709,7 +1726,10 @@ private fun SongListItem(
+     isSelected = isSelected,
+     coverArtSizeDp = coverArtSizeDp,
+     onClick = onClick,
+-    onLongClick = onLongClick
++    onLongClick = onLongClick,
++    swipeIdentity = song.path,
++    isWatched = isWatched,
++    onSwipeAction = onSwipeAction,
+   )
+ }
+ 
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/music/SharedMusicComponents.kt b/app/src/main/java/com/quantummpv/app/ui/browser/music/SharedMusicComponents.kt
+index 21c9b99c..e032ed29 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/music/SharedMusicComponents.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/music/SharedMusicComponents.kt
+@@ -57,8 +57,12 @@ import androidx.compose.ui.text.style.TextOverflow
+ import androidx.compose.ui.unit.Dp
+ import androidx.compose.ui.unit.dp
+ import com.quantummpv.app.R
++import com.quantummpv.app.preferences.BrowserPreferences
++import com.quantummpv.app.preferences.VideoSwipeAction
++import com.quantummpv.app.preferences.preference.collectAsState
+ import com.quantummpv.app.presentation.components.RemoteImage
+ import com.quantummpv.app.ui.browser.cards.SelectionIndicator
++import com.quantummpv.app.ui.browser.cards.VideoSwipeSurface
+ import com.quantummpv.app.ui.browser.cards.animatedSelectionColor
+ import com.quantummpv.app.ui.icons.AppIcon
+ import com.quantummpv.app.ui.icons.Icon
+@@ -68,6 +72,7 @@ import com.quantummpv.app.ui.player.controls.components.tvContextMenu
+ import com.quantummpv.app.ui.player.PlaybackSession
+ import com.quantummpv.app.ui.player.controls.components.MiniAudioVisualizer
+ import com.quantummpv.app.ui.theme.AppShapeScale
++import org.koin.compose.koinInject
+ 
+ @OptIn(ExperimentalFoundationApi::class)
+ @Composable
+@@ -89,8 +94,20 @@ fun SharedMusicTrackListItem(
+   onClick: () -> Unit,
+   onLongClick: (() -> Unit)? = null,
+   modifier: Modifier = Modifier,
++  swipeIdentity: String = title,
++  isWatched: Boolean? = null,
++  onSwipeAction: ((VideoSwipeAction) -> Unit)? = null,
+ ) {
+-  Surface(
++  val preferences = koinInject<BrowserPreferences>()
++  val leftAction by preferences.videoSwipeLeft.collectAsState()
++  val rightAction by preferences.videoSwipeRight.collectAsState()
++  VideoSwipeSurface(
++    identity = swipeIdentity,
++    leftAction = leftAction,
++    rightAction = rightAction,
++    isWatched = isWatched,
++    enabled = !isSelected && onSwipeAction != null,
++    onAction = onSwipeAction,
+     modifier = modifier
+       .fillMaxWidth()
+       .padding(horizontal = 8.dp, vertical = 3.dp)
+@@ -105,10 +122,13 @@ fun SharedMusicTrackListItem(
+         }
+       ),
+     shape = AppShapeScale.large,
+-    color = animatedSelectionColor(
+-      selected = isSelected,
+-      selectedColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
+-      unselectedColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (isPlaying) 0.35f else 0f),
++    colors = CardDefaults.cardColors(
++      containerColor = animatedSelectionColor(
++        selected = isSelected,
++        selectedColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
++        unselectedColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (isPlaying) 0.35f else 0f),
++      ),
++      contentColor = MaterialTheme.colorScheme.onSurface,
+     ),
+   ) {
+     Row(
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/networkstreaming/NetworkStreamingScreen.kt b/app/src/main/java/com/quantummpv/app/ui/browser/networkstreaming/NetworkStreamingScreen.kt
+index 99a5c616..963b1a34 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/networkstreaming/NetworkStreamingScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/networkstreaming/NetworkStreamingScreen.kt
+@@ -468,6 +468,7 @@ object NetworkStreamingScreen : Screen {
+               .fillMaxSize(),
+           userScrollEnabled = true,
+           beyondViewportPageCount = 1,
++          allowNestedSwipes = true,
+         ) { page ->
+           when (NetworkTab.entries[page]) {
+             NetworkTab.LOCAL_NETWORK -> {
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/recentlyplayed/RecentlyPlayedScreen.kt b/app/src/main/java/com/quantummpv/app/ui/browser/recentlyplayed/RecentlyPlayedScreen.kt
+index 04124dd7..372c2fcc 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/recentlyplayed/RecentlyPlayedScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/recentlyplayed/RecentlyPlayedScreen.kt
+@@ -490,6 +490,7 @@ object RecentlyPlayedScreen : Screen {
+           NavigationPager(
+             state = pagerState,
+             modifier = Modifier.fillMaxSize(),
++            allowNestedSwipes = true,
+           ) { page ->
+             val pageType = MediaLibraryType.entries.getOrNull(page) ?: MediaLibraryType.Video
+             val pageIsAudio = pageType == MediaLibraryType.Audio
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/videolist/VideoListScreen.kt b/app/src/main/java/com/quantummpv/app/ui/browser/videolist/VideoListScreen.kt
+index bddc4f6f..46386bfa 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/videolist/VideoListScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/videolist/VideoListScreen.kt
+@@ -810,7 +810,7 @@ internal fun VideoListContent(
+   onFabExpandedChange: (Boolean) -> Unit = {},
+ ) {
+   val swipeScope = rememberCoroutineScope()
+-  val swipeActions = rememberVideoSwipeActions { swipeScope.launch { onRefresh() } }
++  val swipeActions = rememberVideoSwipeActions(audioOnly = isAudio) { swipeScope.launch { onRefresh() } }
+   val thumbnailRepository = koinInject<ThumbnailRepository>()
+   val gesturePreferences = koinInject<GesturePreferences>()
+   val browserPreferences = koinInject<BrowserPreferences>()
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt b/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
+index 4ccd83c6..7d8c63eb 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
+@@ -2031,6 +2031,20 @@ val isBrightnessSliderShown = MutableStateFlow(false)
+       }
+     }
+ 
++    viewModelScope.launch(playbackStateDispatcher) {
++      combine(
++        playerPreferences.autoSkipIntro.changes(),
++        playerPreferences.autoSkipOutro.changes(),
++      ) { intro, outro -> intro to outro }
++        .distinctUntilChanged()
++        .collect {
++          val phase = PlaybackSession.state.value.phase
++          if (!_isMpvCoreReady.value || (phase != PlaybackPhase.READY && phase != PlaybackPhase.BACKGROUND)) return@collect
++          val position = PlaybackSession.getPropertyDouble("time-pos") ?: return@collect
++          maybeAutoSkipIntro(position)
++        }
++    }
++
+     // Single adaptive polling loop for playback position.
+     //  1. An event-driven collect on PlaybackSession.propInt["time-pos"]
+     //  2. This polling loop via PlaybackSession.getPropertyDouble("time-pos")
+@@ -3674,29 +3688,26 @@ val isBrightnessSliderShown = MutableStateFlow(false)
+           segment !in skippedSegments
+       }
+ 
++    val autoSkipEnabled =
++      when (activeSegment?.type) {
++        SkipSegmentType.INTRO, SkipSegmentType.RECAP -> playerPreferences.autoSkipIntro.get()
++        SkipSegmentType.OUTRO, SkipSegmentType.CREDITS, SkipSegmentType.PREVIEW -> playerPreferences.autoSkipOutro.get()
++        null -> false
++      }
++    val manualSegment = activeSegment?.takeUnless { autoSkipEnabled }
+     val showChip =
+-      activeSegment != null &&
+-        (positionSeconds - activeSegment.startSeconds) < AUTO_SHOW_SKIP_CHIP_DURATION
+-    if (_currentSkippableSegment.value != activeSegment) {
+-      _currentSkippableSegment.value = activeSegment
++      manualSegment != null &&
++        (positionSeconds - manualSegment.startSeconds) < AUTO_SHOW_SKIP_CHIP_DURATION
++    if (_currentSkippableSegment.value != manualSegment) {
++      _currentSkippableSegment.value = manualSegment
+     }
+     if (_showSkipChipAuto.value != showChip) {
+       _showSkipChipAuto.value = showChip
+     }
+ 
+-    if (paused == true || activeSegment == null) return
+-    val autoSkipEnabled =
+-      when (activeSegment.type) {
+-        SkipSegmentType.INTRO -> playerPreferences.autoSkipIntro.get()
+-        SkipSegmentType.RECAP -> playerPreferences.autoSkipIntro.get()
+-        SkipSegmentType.OUTRO -> playerPreferences.autoSkipOutro.get()
+-        SkipSegmentType.CREDITS -> playerPreferences.autoSkipOutro.get()
+-        SkipSegmentType.PREVIEW -> playerPreferences.autoSkipOutro.get()
+-      }
+-    if (!autoSkipEnabled) return
++    if (paused == true || activeSegment == null || !autoSkipEnabled) return
+ 
+     skippedSegments += activeSegment
+-    _showSkipChipAuto.value = false
+     seekPastSkipSegment(activeSegment, auto = true)
+   }
+ 
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/OnlineSubtitleSearchSheet.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/OnlineSubtitleSearchSheet.kt
+index af760ead..dbe6f45a 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/OnlineSubtitleSearchSheet.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/OnlineSubtitleSearchSheet.kt
+@@ -39,7 +39,6 @@ import androidx.compose.ui.unit.sp
+ import com.quantummpv.app.R
+ import com.quantummpv.app.preferences.AiPreferences
+ import com.quantummpv.app.presentation.components.PlayerSheet
+-import com.quantummpv.app.presentation.components.PlayerSheetAction
+ import com.quantummpv.app.presentation.components.RemoteImage
+ import com.quantummpv.app.repository.ai.AiService
+ import com.quantummpv.app.repository.subtitle.OnlineSubtitle
+@@ -119,7 +118,8 @@ fun OnlineSubtitleSearchSheet(
+       list.toImmutableList()
+     }
+ 
+-  PlayerSheet(onDismissRequest, title = stringResource(R.string.pref_subtitles_search_online)) {
++  PlayerSheet(onDismissRequest) {
++    Column(modifier) {
+       val keyboardController = LocalSoftwareKeyboardController.current
+       val context = LocalContext.current
+       val mediaInfo = remember(mediaTitle) { MediaInfoParser.parse(mediaTitle) }
+@@ -191,21 +191,16 @@ fun OnlineSubtitleSearchSheet(
+         }
+       }
+ 
+-      LazyColumn(
+-        modifier = modifier.fillMaxWidth(),
+-        contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 8.dp),
++      Column(
++        modifier = Modifier.padding(top = 8.dp),
+       ) {
+-        item(key = "subtitle_search_controls") {
+-        Column(
+-          modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+-          verticalArrangement = Arrangement.spacedBy(8.dp),
+-        ) {
+         // Detected info chip
+         if (detectedInfo.isNotBlank() && mediaInfo.title.isNotBlank()) {
+           Row(
+             modifier =
+               Modifier
+                 .fillMaxWidth()
++                .padding(horizontal = 20.dp)
+                 .padding(bottom = 4.dp),
+             verticalAlignment = Alignment.CenterVertically,
+           ) {
+@@ -220,32 +215,63 @@ fun OnlineSubtitleSearchSheet(
+               text = detectedInfo,
+               style = MaterialTheme.typography.labelSmall,
+               color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+-              maxLines = 2,
+-              overflow = TextOverflow.Ellipsis,
+-              modifier = Modifier.weight(1f),
++              maxLines = 1,
++              modifier = Modifier.basicMarquee(),
+             )
+           }
+         }
+ 
++        Row(
++          modifier =
++            Modifier
++              .fillMaxWidth()
++              .padding(horizontal = 20.dp, vertical = 8.dp),
++          verticalAlignment = Alignment.CenterVertically,
++          horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.small),
++        ) {
+           OutlinedTextField(
+             value = searchQuery,
+             onValueChange = {
+               searchQuery = it
+             },
+-            modifier = Modifier.fillMaxWidth(),
++            modifier = Modifier.weight(1f),
+             placeholder = { Text(stringResource(R.string.pref_subtitles_search_online)) },
+             leadingIcon = {
+-              Icon(Icons.RoundedFilled.Search, contentDescription = null)
++              IconButton(onClick = {
++                searchQuery = mediaInfo.title
++                onSearchMedia(mediaInfo.title)
++              }) {
++                Icon(Icons.RoundedFilled.AutoFixHigh, null, tint = MaterialTheme.colorScheme.primary)
++              }
+             },
+             trailingIcon = {
++              Row(verticalAlignment = Alignment.CenterVertically) {
+                 if (searchQuery.isNotEmpty()) {
+                   IconButton(onClick = {
+                     searchQuery = ""
+                     onClearMediaSelection()
+                   }) {
+-                    Icon(Icons.RoundedFilled.Close, stringResource(R.string.ui_remove))
++                    Icon(Icons.RoundedFilled.Close, null)
++                  }
++                }
++                if (aiPreferences.enabled.get() && aiPreferences.subtitleFormatWithAi.get()) {
++                  if (isAiFormatting) {
++                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
++                    Spacer(Modifier.width(4.dp))
++                  } else {
++                    IconButton(onClick = { formatWithAi() }) {
++                      Icon(Icons.RoundedFilled.AutoAwesome, "Format with AI", tint = MaterialTheme.colorScheme.tertiary)
++                    }
+                   }
+                 }
++                if (isSearching || isDownloading || isSearchingMedia) {
++                  CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
++                  Spacer(Modifier.width(8.dp))
++                }
++                IconButton(onClick = { runSearch() }) {
++                  Icon(Icons.RoundedFilled.Search, null, tint = MaterialTheme.colorScheme.primary)
++                }
++              }
+             },
+             singleLine = true,
+             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+@@ -260,29 +286,6 @@ fun OnlineSubtitleSearchSheet(
+               ),
+           )
+ 
+-          Row(
+-            modifier = Modifier.fillMaxWidth(),
+-            horizontalArrangement = Arrangement.End,
+-            verticalAlignment = Alignment.CenterVertically,
+-          ) {
+-            PlayerSheetAction(Icons.RoundedFilled.AutoFixHigh, stringResource(R.string.generic_reset), {
+-              searchQuery = mediaInfo.title
+-              onSearchMedia(mediaInfo.title)
+-            })
+-            if (aiPreferences.enabled.get() && aiPreferences.subtitleFormatWithAi.get()) {
+-              if (isAiFormatting) {
+-                CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+-              } else {
+-                PlayerSheetAction(Icons.RoundedFilled.AutoAwesome, stringResource(R.string.pref_ai_search_title), { formatWithAi() })
+-              }
+-            }
+-            if (isSearching || isDownloading || isSearchingMedia) {
+-              CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+-              Spacer(Modifier.width(12.dp))
+-            }
+-            PlayerSheetAction(Icons.RoundedFilled.Search, stringResource(R.string.settings_search_title), { runSearch() })
+-          }
+-
+           if (showWyzieSelection && selectedTvShow != null) {
+             SeriesSelectionControls(
+               tvShow = selectedTvShow,
+@@ -298,14 +301,13 @@ fun OnlineSubtitleSearchSheet(
+         }
+       }
+       if (isSearching) {
+-        item(key = "subtitle_search_progress") {
+         LinearProgressIndicator(
+           modifier = Modifier.fillMaxWidth().padding(horizontal = MaterialTheme.spacing.medium).height(2.dp),
+           color = MaterialTheme.colorScheme.primary,
+         )
+-        }
+       }
+ 
++      LazyColumn(contentPadding = PaddingValues(bottom = 8.dp)) {
+         // Autocomplete Results - Horizontal Scrollable
+         if (showWyzieSelection && mediaSearchResults.isNotEmpty()) {
+           item(key = "tmdb_results") {
+@@ -406,6 +408,7 @@ fun OnlineSubtitleSearchSheet(
+             }
+           }
+         }
++      }
+     }
+   }
+ }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/utils/NavigationPager.kt b/app/src/main/java/com/quantummpv/app/ui/utils/NavigationPager.kt
+index 58dd7a1b..a41c81a8 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/utils/NavigationPager.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/utils/NavigationPager.kt
+@@ -57,10 +57,11 @@ internal fun NavigationPager(
+   beyondViewportPageCount: Int = 1,
+   userScrollEnabled: Boolean = true,
+   key: ((Int) -> Any)? = null,
++  allowNestedSwipes: Boolean = false,
+   content: @Composable PagerScope.(Int) -> Unit,
+ ) {
+   val isNestedPager = LocalNavigationPagerPresent.current
+-  val ownsHorizontalSwipes = userScrollEnabled && !isNestedPager
++  val ownsHorizontalSwipes = userScrollEnabled && (!isNestedPager || allowNestedSwipes)
+   val nestedScrollConnection = if (ownsHorizontalSwipes) {
+     PagerDefaults.pageNestedScrollConnection(state, Orientation.Horizontal)
+   } else {
+diff --git a/app/src/main/res/values-ar/strings.xml b/app/src/main/res/values-ar/strings.xml
+index 7c380431..4bb2fdf7 100644
+--- a/app/src/main/res/values-ar/strings.xml
++++ b/app/src/main/res/values-ar/strings.xml
+@@ -2295,7 +2295,7 @@
+   <string name="ytdlp_installing">جارٍ تثبيت yt-dlp…</string>
+   <string name="video_swipe_play_next">تشغيل تاليًا</string>
+   <string name="video_swipe_add_queue">إضافة إلى قائمة الانتظار</string>
+-  <string name="pref_video_swipe_title">إجراءات سحب الفيديوهات والمجلدات</string>
++  <string name="pref_video_swipe_title">إجراءات سحب الفيديوهات والصوتيات والمجلدات</string>
+   <string name="pref_video_swipe_right">السحب إلى اليمين</string>
+   <string name="pref_video_swipe_left">السحب إلى اليسار</string>
+   <string name="pref_video_swipe_choose_right">إجراء السحب إلى اليمين</string>
+@@ -2389,4 +2389,8 @@
+   <string name="audiobook_source_audiobookshelf_desc">تشغيل الكتب الصوتية من خادم Audiobookshelf</string>
+   <string name="audiobook_source_local">الكتب الصوتية المحلية</string>
+   <string name="pref_audiobookshelf_no_server">لا يوجد خادم Audiobookshelf متصل</string>
++  <string name="audio_swipe_delete_title">حذف الملفات الصوتية؟</string>
++  <string name="audio_swipe_delete_folder_message">هل تريد حذف %1$d من الملفات الصوتية نهائيًا من %2$s ومجلداته الفرعية؟ ستبقى الملفات والمجلدات الأخرى. لا يمكن التراجع عن هذا الإجراء.</string>
++  <string name="audio_swipe_loading">جارٍ جمع الملفات الصوتية</string>
++  <string name="audio_swipe_folder_empty">لم يتم العثور على ملفات صوتية في هذا المجلد</string>
+ </resources>
+diff --git a/app/src/main/res/values-de/strings.xml b/app/src/main/res/values-de/strings.xml
+index a5abcedc..4e95fb62 100644
+--- a/app/src/main/res/values-de/strings.xml
++++ b/app/src/main/res/values-de/strings.xml
+@@ -2281,7 +2281,7 @@ Bitte starten Sie die App neu, damit alle Änderungen wirksam werden.</string>
+   <string name="ytdlp_installing">yt-dlp wird installiert…</string>
+   <string name="video_swipe_play_next">Als Nächstes abspielen</string>
+   <string name="video_swipe_add_queue">Zur Warteschlange hinzufügen</string>
+-  <string name="pref_video_swipe_title">Wischaktionen für Videos und Ordner</string>
++  <string name="pref_video_swipe_title">Wischaktionen für Videos, Audio und Ordner</string>
+   <string name="pref_video_swipe_right">Nach rechts wischen</string>
+   <string name="pref_video_swipe_left">Nach links wischen</string>
+   <string name="pref_video_swipe_choose_right">Aktion beim Wischen nach rechts</string>
+@@ -2375,4 +2375,8 @@ Bitte starten Sie die App neu, damit alle Änderungen wirksam werden.</string>
+   <string name="audiobook_source_audiobookshelf_desc">Hörbücher von deinem Audiobookshelf-Server streamen</string>
+   <string name="audiobook_source_local">Lokale Hörbücher</string>
+   <string name="pref_audiobookshelf_no_server">Kein Audiobookshelf-Server verbunden</string>
++  <string name="audio_swipe_delete_title">Audiodateien löschen?</string>
++  <string name="audio_swipe_delete_folder_message">%1$d Audiodateien in %2$s und dessen Unterordnern dauerhaft löschen? Andere Dateien und Ordner bleiben erhalten. Dies kann nicht rückgängig gemacht werden.</string>
++  <string name="audio_swipe_loading">Audiodateien werden gesammelt</string>
++  <string name="audio_swipe_folder_empty">Keine Audiodateien in diesem Ordner gefunden</string>
+ </resources>
+diff --git a/app/src/main/res/values-es/strings.xml b/app/src/main/res/values-es/strings.xml
+index f4249616..ab29a901 100644
+--- a/app/src/main/res/values-es/strings.xml
++++ b/app/src/main/res/values-es/strings.xml
+@@ -2281,7 +2281,7 @@ Reinicia la aplicación para que se apliquen todos los cambios.</string>
+   <string name="ytdlp_installing">Instalando yt-dlp…</string>
+   <string name="video_swipe_play_next">Reproducir a continuación</string>
+   <string name="video_swipe_add_queue">Añadir a la cola</string>
+-  <string name="pref_video_swipe_title">Deslizamientos en vídeos y carpetas</string>
++  <string name="pref_video_swipe_title">Deslizamientos en vídeos, audio y carpetas</string>
+   <string name="pref_video_swipe_right">Deslizar a la derecha</string>
+   <string name="pref_video_swipe_left">Deslizar a la izquierda</string>
+   <string name="pref_video_swipe_choose_right">Acción al deslizar a la derecha</string>
+@@ -2375,4 +2375,8 @@ Reinicia la aplicación para que se apliquen todos los cambios.</string>
+   <string name="audiobook_source_audiobookshelf_desc">Transmitir audiolibros desde tu servidor Audiobookshelf</string>
+   <string name="audiobook_source_local">Audiolibros locales</string>
+   <string name="pref_audiobookshelf_no_server">No hay servidor Audiobookshelf conectado</string>
++  <string name="audio_swipe_delete_title">¿Eliminar archivos de audio?</string>
++  <string name="audio_swipe_delete_folder_message">¿Eliminar permanentemente %1$d archivos de audio de %2$s y sus subcarpetas? Se conservarán los demás archivos y carpetas. Esta acción no se puede deshacer.</string>
++  <string name="audio_swipe_loading">Recopilando archivos de audio</string>
++  <string name="audio_swipe_folder_empty">No se encontraron archivos de audio en esta carpeta</string>
+ </resources>
+diff --git a/app/src/main/res/values-fr/strings.xml b/app/src/main/res/values-fr/strings.xml
+index 9c300d01..a66ed049 100644
+--- a/app/src/main/res/values-fr/strings.xml
++++ b/app/src/main/res/values-fr/strings.xml
+@@ -2281,7 +2281,7 @@ Veuillez redémarrer l’application pour appliquer toutes les modifications.</s
+   <string name="ytdlp_installing">Installation de yt-dlp…</string>
+   <string name="video_swipe_play_next">Lire ensuite</string>
+   <string name="video_swipe_add_queue">Ajouter à la file d\'attente</string>
+-  <string name="pref_video_swipe_title">Balayages des vidéos et dossiers</string>
++  <string name="pref_video_swipe_title">Balayages des vidéos, fichiers audio et dossiers</string>
+   <string name="pref_video_swipe_right">Balayage vers la droite</string>
+   <string name="pref_video_swipe_left">Balayage vers la gauche</string>
+   <string name="pref_video_swipe_choose_right">Action du balayage vers la droite</string>
+@@ -2375,4 +2375,8 @@ Veuillez redémarrer l’application pour appliquer toutes les modifications.</s
+   <string name="audiobook_source_audiobookshelf_desc">Diffuser des livres audio depuis votre serveur Audiobookshelf</string>
+   <string name="audiobook_source_local">Livres audio locaux</string>
+   <string name="pref_audiobookshelf_no_server">Aucun serveur Audiobookshelf connecté</string>
++  <string name="audio_swipe_delete_title">Supprimer les fichiers audio ?</string>
++  <string name="audio_swipe_delete_folder_message">Supprimer définitivement %1$d fichiers audio dans %2$s et ses sous-dossiers ? Les autres fichiers et dossiers seront conservés. Cette action est irréversible.</string>
++  <string name="audio_swipe_loading">Recherche des fichiers audio</string>
++  <string name="audio_swipe_folder_empty">Aucun fichier audio trouvé dans ce dossier</string>
+ </resources>
+diff --git a/app/src/main/res/values-hi/strings.xml b/app/src/main/res/values-hi/strings.xml
+index 0927b21e..b050df66 100644
+--- a/app/src/main/res/values-hi/strings.xml
++++ b/app/src/main/res/values-hi/strings.xml
+@@ -2185,7 +2185,7 @@
+   <string name="ytdlp_installing">yt-dlp इंस्टॉल हो रहा है…</string>
+   <string name="video_swipe_play_next">अगला चलाएँ</string>
+   <string name="video_swipe_add_queue">कतार में जोड़ें</string>
+-  <string name="pref_video_swipe_title">वीडियो और फ़ोल्डर की स्वाइप कार्रवाइयाँ</string>
++  <string name="pref_video_swipe_title">वीडियो, ऑडियो और फ़ोल्डर की स्वाइप कार्रवाइयाँ</string>
+   <string name="pref_video_swipe_right">दाईं ओर स्वाइप</string>
+   <string name="pref_video_swipe_left">बाईं ओर स्वाइप</string>
+   <string name="pref_video_swipe_choose_right">दाईं ओर स्वाइप करने पर कार्रवाई</string>
+@@ -2279,4 +2279,8 @@
+   <string name="audiobook_source_audiobookshelf_desc">अपने Audiobookshelf सर्वर से ऑडियोबुक्स स्ट्रीम करें</string>
+   <string name="audiobook_source_local">लोकल ऑडियोबुक्स</string>
+   <string name="pref_audiobookshelf_no_server">कोई Audiobookshelf सर्वर कनेक्ट नहीं है</string>
++  <string name="audio_swipe_delete_title">ऑडियो फ़ाइलें मिटाएँ?</string>
++  <string name="audio_swipe_delete_folder_message">%2$s और उसके सबफ़ोल्डर की %1$d ऑडियो फ़ाइलें स्थायी रूप से मिटाएँ? अन्य फ़ाइलें और फ़ोल्डर रखे जाएँगे। इसे पूर्ववत नहीं किया जा सकता।</string>
++  <string name="audio_swipe_loading">ऑडियो फ़ाइलें एकत्र की जा रही हैं</string>
++  <string name="audio_swipe_folder_empty">इस फ़ोल्डर में कोई ऑडियो फ़ाइल नहीं मिली</string>
+ </resources>
+diff --git a/app/src/main/res/values-ja/strings.xml b/app/src/main/res/values-ja/strings.xml
+index 2a7731d0..07ba69d3 100644
+--- a/app/src/main/res/values-ja/strings.xml
++++ b/app/src/main/res/values-ja/strings.xml
+@@ -2277,7 +2277,7 @@
+   <string name="ytdlp_installing">yt-dlp をインストール中…</string>
+   <string name="video_swipe_play_next">次に再生</string>
+   <string name="video_swipe_add_queue">キューに追加</string>
+-  <string name="pref_video_swipe_title">動画とフォルダーのスワイプ操作</string>
++  <string name="pref_video_swipe_title">動画・音声・フォルダーのスワイプ操作</string>
+   <string name="pref_video_swipe_right">右スワイプ</string>
+   <string name="pref_video_swipe_left">左スワイプ</string>
+   <string name="pref_video_swipe_choose_right">右スワイプの操作</string>
+@@ -2371,4 +2371,8 @@
+   <string name="audiobook_source_audiobookshelf_desc">Audiobookshelfサーバーからオーディオブックをストリーミング</string>
+   <string name="audiobook_source_local">ローカルオーディオブック</string>
+   <string name="pref_audiobookshelf_no_server">Audiobookshelfサーバーが接続されていません</string>
++  <string name="audio_swipe_delete_title">音声ファイルを削除しますか？</string>
++  <string name="audio_swipe_delete_folder_message">%2$s とそのサブフォルダー内の音声ファイル %1$d 件を完全に削除しますか？他のファイルとフォルダーは保持されます。この操作は取り消せません。</string>
++  <string name="audio_swipe_loading">音声ファイルを収集中</string>
++  <string name="audio_swipe_folder_empty">このフォルダーに音声ファイルがありません</string>
+ </resources>
+diff --git a/app/src/main/res/values-pt-rBR/strings.xml b/app/src/main/res/values-pt-rBR/strings.xml
+index 6577e848..2f782474 100644
+--- a/app/src/main/res/values-pt-rBR/strings.xml
++++ b/app/src/main/res/values-pt-rBR/strings.xml
+@@ -2281,7 +2281,7 @@ Reinicie o aplicativo para que todas as alterações entrem em vigor.</string>
+   <string name="ytdlp_installing">Instalando yt-dlp…</string>
+   <string name="video_swipe_play_next">Reproduzir em seguida</string>
+   <string name="video_swipe_add_queue">Adicionar à fila</string>
+-  <string name="pref_video_swipe_title">Deslizamentos em vídeos e pastas</string>
++  <string name="pref_video_swipe_title">Deslizamentos em vídeos, áudio e pastas</string>
+   <string name="pref_video_swipe_right">Deslizar para a direita</string>
+   <string name="pref_video_swipe_left">Deslizar para a esquerda</string>
+   <string name="pref_video_swipe_choose_right">Ação ao deslizar para a direita</string>
+@@ -2375,4 +2375,8 @@ Reinicie o aplicativo para que todas as alterações entrem em vigor.</string>
+   <string name="audiobook_source_audiobookshelf_desc">Transmitir audiolivros do seu servidor Audiobookshelf</string>
+   <string name="audiobook_source_local">Audiolivros locais</string>
+   <string name="pref_audiobookshelf_no_server">Nenhum servidor Audiobookshelf conectado</string>
++  <string name="audio_swipe_delete_title">Excluir arquivos de áudio?</string>
++  <string name="audio_swipe_delete_folder_message">Excluir permanentemente %1$d arquivos de áudio de %2$s e suas subpastas? Outros arquivos e pastas serão mantidos. Esta ação não pode ser desfeita.</string>
++  <string name="audio_swipe_loading">Reunindo arquivos de áudio</string>
++  <string name="audio_swipe_folder_empty">Nenhum arquivo de áudio encontrado nesta pasta</string>
+ </resources>
+diff --git a/app/src/main/res/values-ru/strings.xml b/app/src/main/res/values-ru/strings.xml
+index 54c0ee37..fd2c9594 100644
+--- a/app/src/main/res/values-ru/strings.xml
++++ b/app/src/main/res/values-ru/strings.xml
+@@ -2289,7 +2289,7 @@
+   <string name="ytdlp_installing">Установка yt-dlp…</string>
+   <string name="video_swipe_play_next">Воспроизвести следующим</string>
+   <string name="video_swipe_add_queue">Добавить в очередь</string>
+-  <string name="pref_video_swipe_title">Смахивания видео и папок</string>
++  <string name="pref_video_swipe_title">Смахивания видео, аудио и папок</string>
+   <string name="pref_video_swipe_right">Смахивание вправо</string>
+   <string name="pref_video_swipe_left">Смахивание влево</string>
+   <string name="pref_video_swipe_choose_right">Действие при смахивании вправо</string>
+@@ -2383,4 +2383,8 @@
+   <string name="audiobook_source_audiobookshelf_desc">Слушать аудиокниги с вашего сервера Audiobookshelf</string>
+   <string name="audiobook_source_local">Локальные аудиокниги</string>
+   <string name="pref_audiobookshelf_no_server">Нет подключенного сервера Audiobookshelf</string>
++  <string name="audio_swipe_delete_title">Удалить аудиофайлы?</string>
++  <string name="audio_swipe_delete_folder_message">Безвозвратно удалить %1$d аудиофайлов из %2$s и вложенных папок? Остальные файлы и папки будут сохранены. Это действие нельзя отменить.</string>
++  <string name="audio_swipe_loading">Сбор аудиофайлов</string>
++  <string name="audio_swipe_folder_empty">В этой папке нет аудиофайлов</string>
+ </resources>
+diff --git a/app/src/main/res/values-zh-rCN/strings.xml b/app/src/main/res/values-zh-rCN/strings.xml
+index bc22de6c..57a1b79a 100644
+--- a/app/src/main/res/values-zh-rCN/strings.xml
++++ b/app/src/main/res/values-zh-rCN/strings.xml
+@@ -2277,7 +2277,7 @@
+   <string name="ytdlp_installing">正在安装 yt-dlp…</string>
+   <string name="video_swipe_play_next">接下来播放</string>
+   <string name="video_swipe_add_queue">添加到队列</string>
+-  <string name="pref_video_swipe_title">视频和文件夹滑动操作</string>
++  <string name="pref_video_swipe_title">视频、音频和文件夹滑动操作</string>
+   <string name="pref_video_swipe_right">向右滑动</string>
+   <string name="pref_video_swipe_left">向左滑动</string>
+   <string name="pref_video_swipe_choose_right">向右滑动时执行</string>
+@@ -2371,4 +2371,8 @@
+   <string name="audiobook_source_audiobookshelf_desc">从 Audiobookshelf 服务器串流有声书</string>
+   <string name="audiobook_source_local">本地有声书</string>
+   <string name="pref_audiobookshelf_no_server">未连接 Audiobookshelf 服务器</string>
++  <string name="audio_swipe_delete_title">删除音频文件？</string>
++  <string name="audio_swipe_delete_folder_message">永久删除 %2$s 及其子文件夹中的 %1$d 个音频文件？其他文件和文件夹将保留。此操作无法撤销。</string>
++  <string name="audio_swipe_loading">正在收集音频文件</string>
++  <string name="audio_swipe_folder_empty">此文件夹中未找到音频文件</string>
+ </resources>
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index e2c1697f..dfce566b 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -2318,7 +2318,7 @@
+   <string name="oss_kmp_vibrate_description">Haptic feedback library by WonDDak (jmseb3).</string>
+   <string name="video_swipe_play_next">Play next</string>
+   <string name="video_swipe_add_queue">Add to queue</string>
+-  <string name="pref_video_swipe_title">Video and folder swipe actions</string>
++  <string name="pref_video_swipe_title">Video, audio and folder swipe actions</string>
+   <string name="pref_video_swipe_right">Right swipe</string>
+   <string name="pref_video_swipe_left">Left swipe</string>
+   <string name="pref_video_swipe_choose_right">Use right swipe for</string>
+@@ -2405,4 +2405,8 @@
+   <string name="audiobook_no_text">No supplied lyrics or transcript</string>
+   <string name="player_seek_backward">Seek back %1$s</string>
+   <string name="player_seek_forward">Seek forward %1$s</string>
++  <string name="audio_swipe_delete_title">Delete audio?</string>
++  <string name="audio_swipe_delete_folder_message">Permanently delete %1$d audio files in %2$s and its subfolders? Other files and folders will be kept. This cannot be undone.</string>
++  <string name="audio_swipe_loading">Collecting audio files</string>
++  <string name="audio_swipe_folder_empty">No audio files found in this folder</string>
+ </resources>
+diff --git a/vercel.json b/vercel.json
+index eade7852..3ad3eeef 100644
+--- a/vercel.json
++++ b/vercel.json
+@@ -6,6 +6,7 @@
+       "*": false
+     }
+   },
++  "ignoreCommand": "if [ \"$VERCEL_ENV\" = \"production\" ] && [ -z \"$VERCEL_GIT_PULL_REQUEST_ID\" ]; then exit 1; else exit 0; fi",
+   "installCommand": "test -f website/package-lock.json || { echo 'Vercel Root Directory must be the repository root (.), not website.' >&2; exit 1; }; npm --prefix website ci",
+   "buildCommand": "npm --prefix website run build",
+   "outputDirectory": "website/dist",
+diff --git a/website/pages/index.astro b/website/pages/index.astro
+index fd920a5c..78a16998 100644
+--- a/website/pages/index.astro
++++ b/website/pages/index.astro
+@@ -1189,12 +1189,12 @@ const showcaseGallery = [
+     border: 1px solid var(--border-medium);
+     font-size: 0.82rem;
+     font-weight: 600;
+-    color: var(--text-primary);
++    color: #f7f4ff;
+     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+   }
+ 
+   .mockup-overlay-badge svg {
+-    color: var(--accent-teal-bright);
++    color: #cbbdff;
+   }
+ 
+   .left-badge { left: 24px; }
+-- 
+2.25.1
+

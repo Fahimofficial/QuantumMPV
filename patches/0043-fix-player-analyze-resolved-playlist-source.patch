@@ -1,0 +1,25 @@
+From 9d46955aac4545745fe8e35c62285c047c88374b Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <87899750+Riteshp2001@users.noreply.github.com>
+Date: Mon, 7 Sep 2026 13:36:52 +0000
+Subject: [PATCH 043/140] fix(player): analyze resolved playlist source
+
+---
+ app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt b/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt
+index 18d75269..a2bd4eb1 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt
+@@ -7055,7 +7055,7 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
+ 
+     val uri = playlist[index]
+     val playableUri = uri.openContentFd(this, allowFdFallback = false) ?: uri.toString()
+-    currentPlayableUri = uri.toString()
++    currentPlayableUri = playableUri
+     val persistedNetworkReference = NetworkPlaybackUri.parse(uri.toString())
+     val networkFilePath =
+       networkPlaylistPaths.getOrNull(index)?.takeIf { it.isNotBlank() }
+-- 
+2.25.1
+

@@ -1,0 +1,74 @@
+From 98311cceca3525aafa7e6a112446f3cfc4455521 Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <87899750+Riteshp2001@users.noreply.github.com>
+Date: Mon, 14 Sep 2026 06:32:50 +0000
+Subject: [PATCH 089/140] feat(ui): add focus handling for search fields in
+ MusicLibrary and NetworkStreaming screens
+
+---
+ .../gyrolet/mpvrx/ui/browser/music/MusicLibraryContent.kt   | 6 ++++++
+ .../ui/browser/networkstreaming/NetworkBrowserScreen.kt     | 3 +++
+ .../ui/browser/networkstreaming/NetworkStreamingScreen.kt   | 3 +++
+ 3 files changed, 12 insertions(+)
+
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryContent.kt b/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryContent.kt
+index a987cea1..2ece87d2 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryContent.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryContent.kt
+@@ -96,6 +96,7 @@ import androidx.compose.runtime.snapshotFlow
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.draw.clip
++import androidx.compose.ui.focus.FocusRequester
+ import androidx.compose.ui.graphics.Color
+ import androidx.compose.ui.graphics.ImageBitmap
+ import androidx.compose.ui.graphics.asImageBitmap
+@@ -236,6 +237,10 @@ fun MusicLibraryContent(
+ 
+   val isRefreshing = remember { mutableStateOf(false) }
+   var isSearchActive by remember { mutableStateOf(false) }
++  val searchFocusRequester = remember { FocusRequester() }
++  LaunchedEffect(isSearchActive) {
++    if (isSearchActive) searchFocusRequester.requestFocus()
++  }
+   var isSortMenuExpanded by remember { mutableStateOf(false) }
+   var showCreatePlaylistDialog by remember { mutableStateOf(false) }
+ 
+@@ -466,6 +471,7 @@ fun MusicLibraryContent(
+             modifier = Modifier
+               .fillMaxWidth()
+               .padding(horizontal = 16.dp, vertical = 8.dp),
++            inputFieldModifier = Modifier.focusRequester(searchFocusRequester),
+             placeholder = { Text(if (selectedTab == MusicTab.FOLDERS) "Search folders & songs..." else "Search songs, albums, artists...") },
+             leadingIcon = {
+               IconButton(onClick = {
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/networkstreaming/NetworkBrowserScreen.kt b/app/src/main/java/com/quantummpv/app/ui/browser/networkstreaming/NetworkBrowserScreen.kt
+index d370f8eb..c28b9c1b 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/networkstreaming/NetworkBrowserScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/networkstreaming/NetworkBrowserScreen.kt
+@@ -133,6 +133,9 @@ data class NetworkBrowserScreen(
+     var searchQuery by rememberSaveable { mutableStateOf("") }
+     var isSearching by rememberSaveable { mutableStateOf(false) }
+     val focusRequester = remember { FocusRequester() }
++    LaunchedEffect(isSearching) {
++      if (isSearching) focusRequester.requestFocus()
++    }
+ 
+     // Load files when connectionId or currentPath changes
+     LaunchedEffect(connectionId, currentPath) {
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/networkstreaming/NetworkStreamingScreen.kt b/app/src/main/java/com/quantummpv/app/ui/browser/networkstreaming/NetworkStreamingScreen.kt
+index 502343d8..b765987b 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/networkstreaming/NetworkStreamingScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/networkstreaming/NetworkStreamingScreen.kt
+@@ -234,6 +234,9 @@ object NetworkStreamingScreen : Screen {
+     var searchQuery by rememberSaveable { mutableStateOf("") }
+     var isSearching by rememberSaveable { mutableStateOf(false) }
+     val focusRequester = remember { FocusRequester() }
++    LaunchedEffect(isSearching) {
++      if (isSearching) focusRequester.requestFocus()
++    }
+ 
+     val filteredConnections =
+       remember(connections, searchQuery) {
+-- 
+2.25.1
+

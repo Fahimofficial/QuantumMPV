@@ -1,0 +1,484 @@
+From c4f714b5015b1c7b80ed9625f39086c3821ce9b4 Mon Sep 17 00:00:00 2001
+From: Arnab Sadhukhan <arnab@Arnabs-Mac-Mini.local>
+Date: Mon, 7 Sep 2026 20:17:26 +0530
+Subject: [PATCH 044/140] feat(network): smart server URL resolution and
+ dynamic protocol hints
+
+---
+ .../mpvrx/data/jellyfin/JellyfinClient.kt     |  34 +---
+ .../mpvrx/data/network/ServerUrlUtils.kt      | 182 ++++++++++++++++++
+ .../mpvrx/repository/SeerrRepository.kt       |  18 +-
+ .../ui/browser/dialogs/SharedServerDialogs.kt |   3 +-
+ .../jellyfin/AddJellyfinServerDialog.kt       |   8 +-
+ .../jellyfin/seerr/SeerrConnectionDialog.kt   |  13 +-
+ .../navidrome/AddNavidromeServerDialog.kt     |   8 +-
+ .../browser/navidrome/NavidromeViewModel.kt   |  47 +++--
+ 8 files changed, 235 insertions(+), 78 deletions(-)
+ create mode 100644 app/src/main/java/com/quantummpv/app/data/network/ServerUrlUtils.kt
+
+diff --git a/app/src/main/java/com/quantummpv/app/data/jellyfin/JellyfinClient.kt b/app/src/main/java/com/quantummpv/app/data/jellyfin/JellyfinClient.kt
+index 3d9c6962..50fc7e78 100644
+--- a/app/src/main/java/com/quantummpv/app/data/jellyfin/JellyfinClient.kt
++++ b/app/src/main/java/com/quantummpv/app/data/jellyfin/JellyfinClient.kt
+@@ -14,6 +14,7 @@ import android.net.Uri
+ import android.os.Build
+ import android.util.Log
+ import com.quantummpv.app.BuildConfig
++import com.quantummpv.app.data.network.ServerUrlUtils
+ import com.quantummpv.app.domain.jellyfin.JellyfinAuthResult
+ import com.quantummpv.app.domain.jellyfin.JellyfinItem
+ import com.quantummpv.app.domain.jellyfin.JellyfinUser
+@@ -87,35 +88,14 @@ class JellyfinClient(
+ 
+     private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
+ 
+-    private fun isLocalHostOrIp(host: String): Boolean {
+-      val h = host.substringBefore(":").substringBefore("/")
+-      return h.equals("localhost", ignoreCase = true) ||
+-        h == "127.0.0.1" ||
+-        h.startsWith("192.168.") ||
+-        h.startsWith("10.") ||
+-        (h.startsWith("172.") && (h.substringAfter("172.").substringBefore(".").toIntOrNull() in 16..31)) ||
+-        h.endsWith(".local", ignoreCase = true) ||
+-        h.endsWith(".lan", ignoreCase = true)
+-    }
++    fun isLocalHostOrIp(host: String): Boolean =
++      ServerUrlUtils.isLocalOrPrivateHost(host)
+ 
+-    fun normalizeUrlCandidates(rawUrl: String): List<String> {
+-      val trimmed = rawUrl.trim().removeSuffix("/")
+-      if (trimmed.startsWith("http://", ignoreCase = true) || trimmed.startsWith("https://", ignoreCase = true)) {
+-        return listOf(trimmed)
+-      }
+-      val clean = trimmed.removePrefix("//")
+-      val port = clean.substringAfterLast(":", "").substringBefore("/").toIntOrNull()
+-      val isLocal = isLocalHostOrIp(clean)
+-      return if (isLocal || port == 80 || port == 8096) {
+-        listOf("http://$clean", "https://$clean")
+-      } else {
+-        listOf("https://$clean", "http://$clean")
+-      }
+-    }
++    fun normalizeUrlCandidates(rawUrl: String): List<String> =
++      ServerUrlUtils.generateCandidateUrls(rawUrl, defaultPort = 8096)
+ 
+-    fun normalizeUrl(rawUrl: String): String {
+-      return normalizeUrlCandidates(rawUrl).first()
+-    }
++    fun normalizeUrl(rawUrl: String): String =
++      ServerUrlUtils.normalizeUrl(rawUrl, defaultPort = 8096)
+ 
+     fun authHeader(token: String? = null, context: Context? = null): String {
+       val deviceId = getDeviceId(context)
+diff --git a/app/src/main/java/com/quantummpv/app/data/network/ServerUrlUtils.kt b/app/src/main/java/com/quantummpv/app/data/network/ServerUrlUtils.kt
+new file mode 100644
+index 00000000..470739d7
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/data/network/ServerUrlUtils.kt
+@@ -0,0 +1,182 @@
++/*
++ * SPDX-License-Identifier: AGPL-3.0-or-later
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Affero General Public License as published
++ * by the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ */
++
++package com.quantummpv.app.data.network
++
++import java.net.URI
++
++object ServerUrlUtils {
++
++  private val IPV4_REGEX = Regex("""^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$""")
++
++  /**
++   * Determines if a host is a local network address, private IP range, Tailscale/CGNAT,
++   * loopback, or single-label LAN hostname.
++   */
++  fun isLocalOrPrivateHost(host: String): Boolean {
++    val cleanHost = host.trim().removePrefix("[").removeSuffix("]").lowercase()
++    if (cleanHost.isBlank()) return false
++
++    if (cleanHost == "localhost" || cleanHost == "127.0.0.1" || cleanHost == "::1") {
++      return true
++    }
++
++    if (cleanHost.endsWith(".local") ||
++      cleanHost.endsWith(".lan") ||
++      cleanHost.endsWith(".home") ||
++      cleanHost.endsWith(".internal")
++    ) {
++      return true
++    }
++
++    // Single-label hostnames without a dot (e.g. "homeserver", "truenas", "raspberrypi")
++    if (!cleanHost.contains(".")) {
++      return true
++    }
++
++    // Check IPv4
++    val match = IPV4_REGEX.matchEntire(cleanHost)
++    if (match != null) {
++      val (p1Str, p2Str, p3Str, p4Str) = match.destructured
++      val p1 = p1Str.toIntOrNull() ?: return false
++      val p2 = p2Str.toIntOrNull() ?: return false
++      val p3 = p3Str.toIntOrNull() ?: return false
++      val p4 = p4Str.toIntOrNull() ?: return false
++
++      if (p1 !in 0..255 || p2 !in 0..255 || p3 !in 0..255 || p4 !in 0..255) {
++        return false
++      }
++
++      // 10.0.0.0/8
++      if (p1 == 10) return true
++      // 172.16.0.0/12 (172.16.x.x - 172.31.x.x)
++      if (p1 == 172 && p2 in 16..31) return true
++      // 192.168.0.0/16
++      if (p1 == 192 && p2 == 168) return true
++      // 127.0.0.0/8
++      if (p1 == 127) return true
++      // 169.254.0.0/16 (Link-local)
++      if (p1 == 169 && p2 == 254) return true
++      // 100.64.0.0/10 (CGNAT / Tailscale)
++      if (p1 == 100 && p2 in 64..127) return true
++
++      // Any other raw IPv4 address (e.g. direct public IP without domain)
++      return true
++    }
++
++    // IPv6 link-local or unique-local
++    if (cleanHost.startsWith("fe80:") || cleanHost.startsWith("fc00:") || cleanHost.startsWith("fd00:")) {
++      return true
++    }
++
++    return false
++  }
++
++  /**
++   * Generates prioritized URL candidates for connecting to a server:
++   * - Explicit http:// or https:// schemes are honored directly.
++   * - Local IPs / LAN hosts prioritize http:// first, then https://.
++   * - Hosted domains / FQDNs prioritize https:// first, then http://.
++   * - If defaultPort is provided and port is missing, candidates with defaultPort are generated.
++   */
++  fun generateCandidateUrls(rawUrl: String, defaultPort: Int? = null): List<String> {
++    val trimmed = rawUrl.trim().removeSuffix("/")
++    if (trimmed.isBlank()) return emptyList()
++
++    val hasExplicitHttp = trimmed.startsWith("http://", ignoreCase = true)
++    val hasExplicitHttps = trimmed.startsWith("https://", ignoreCase = true)
++
++    if (hasExplicitHttp || hasExplicitHttps) {
++      val parsedUri = runCatching { URI(trimmed) }.getOrNull()
++      val hasPort = parsedUri?.port != null && parsedUri.port != -1
++      return if (!hasPort && defaultPort != null && defaultPort > 0) {
++        listOf(trimmed, "$trimmed:$defaultPort")
++      } else {
++        listOf(trimmed)
++      }
++    }
++
++    val clean = trimmed.removePrefix("//")
++    val fakeUri = runCatching { URI("http://$clean") }.getOrNull()
++    val host = fakeUri?.host?.takeIf { it.isNotBlank() }
++      ?: clean.substringBefore("/").substringBeforeLast(":").removePrefix("[").removeSuffix("]")
++    val port = fakeUri?.port ?: -1
++    val hasPort = port != -1
++    val path = fakeUri?.rawPath?.takeIf { it.isNotBlank() && it != "/" } ?: ""
++
++    val isLocalOrIp = isLocalOrPrivateHost(host)
++    val hostWithPort = if (hasPort) clean else null
++
++    return if (isLocalOrIp) {
++      // Local IP / LAN host: HTTP first, then HTTPS
++      val candidates = mutableListOf<String>()
++      if (hostWithPort != null) {
++        candidates.add("http://$hostWithPort")
++        candidates.add("https://$hostWithPort")
++      } else if (defaultPort != null && defaultPort > 0) {
++        val hostPart = if (host.contains(":") && !host.startsWith("[")) "[$host]" else host
++        candidates.add("http://$hostPart:$defaultPort$path")
++        candidates.add("http://$clean")
++        candidates.add("https://$hostPart:$defaultPort$path")
++        candidates.add("https://$clean")
++      } else {
++        candidates.add("http://$clean")
++        candidates.add("https://$clean")
++      }
++      candidates.distinct()
++    } else {
++      // Hosted domain / FQDN: HTTPS first, then HTTP
++      val candidates = mutableListOf<String>()
++      if (hostWithPort != null) {
++        candidates.add("https://$hostWithPort")
++        candidates.add("http://$hostWithPort")
++      } else {
++        candidates.add("https://$clean")
++        if (defaultPort != null && defaultPort > 0) {
++          val hostPart = if (host.contains(":") && !host.startsWith("[")) "[$host]" else host
++          candidates.add("https://$hostPart:$defaultPort$path")
++          candidates.add("http://$clean")
++          candidates.add("http://$hostPart:$defaultPort$path")
++        } else {
++          candidates.add("http://$clean")
++        }
++      }
++      candidates.distinct()
++    }
++  }
++
++  fun normalizeUrl(rawUrl: String, defaultPort: Int? = null): String {
++    return generateCandidateUrls(rawUrl, defaultPort).firstOrNull() ?: rawUrl.trim()
++  }
++
++  /**
++   * Returns a dynamic hint for the UI describing how the connection will be attempted.
++   */
++  fun getConnectionHint(rawUrl: String): String {
++    val trimmed = rawUrl.trim()
++    if (trimmed.isBlank()) {
++      return "HTTP will be tried first for local IPs, HTTPS for domains"
++    }
++    if (trimmed.startsWith("http://", ignoreCase = true)) {
++      return "Using HTTP connection"
++    }
++    if (trimmed.startsWith("https://", ignoreCase = true)) {
++      return "Using secure HTTPS connection"
++    }
++    val clean = trimmed.removePrefix("//")
++    val fakeUri = runCatching { URI("http://$clean") }.getOrNull()
++    val host = fakeUri?.host?.takeIf { it.isNotBlank() }
++      ?: clean.substringBefore("/").substringBeforeLast(":").removePrefix("[").removeSuffix("]")
++    return if (isLocalOrPrivateHost(host)) {
++      "Local address detected: HTTP will be tried first"
++    } else {
++      "Domain detected: HTTPS will be tried first"
++    }
++  }
++}
+diff --git a/app/src/main/java/com/quantummpv/app/repository/SeerrRepository.kt b/app/src/main/java/com/quantummpv/app/repository/SeerrRepository.kt
+index e4a60697..bdc85cb8 100644
+--- a/app/src/main/java/com/quantummpv/app/repository/SeerrRepository.kt
++++ b/app/src/main/java/com/quantummpv/app/repository/SeerrRepository.kt
+@@ -10,6 +10,7 @@
+ package com.quantummpv.app.repository
+ 
+ import android.util.Log
++import com.quantummpv.app.data.network.ServerUrlUtils
+ import com.quantummpv.app.domain.seerr.ApproveRequestBody
+ import com.quantummpv.app.domain.seerr.CreateRequestBody
+ import com.quantummpv.app.domain.seerr.DiscoverSlider
+@@ -79,22 +80,7 @@ class SeerrRepository(
+     .build()
+ 
+   fun generateCandidateUrls(input: String): List<String> {
+-    val trimmed = input.trim().removeSuffix("/")
+-    if (trimmed.isBlank()) return emptyList()
+-    val hasScheme = trimmed.startsWith("http://", ignoreCase = true) || trimmed.startsWith("https://", ignoreCase = true)
+-    val withScheme = if (hasScheme) trimmed else "http://$trimmed"
+-    val uri = runCatching { URI(withScheme) }.getOrNull()
+-    val host = uri?.host?.takeIf { it.isNotBlank() } ?: trimmed
+-    val port = uri?.port ?: -1
+-    val scheme = if (hasScheme) uri?.scheme else null
+-
+-    return when {
+-      hasScheme && port != -1 -> listOf(trimmed)
+-      !hasScheme && port != -1 -> listOf("https://$trimmed", "http://$trimmed")
+-      hasScheme && scheme.equals("https", ignoreCase = true) -> listOf(trimmed, "https://$host:5055")
+-      hasScheme && scheme.equals("http", ignoreCase = true) -> listOf(trimmed, "http://$host:5055")
+-      else -> listOf("https://$host", "https://$host:5055", "http://$host:5055", "http://$host")
+-    }
++    return ServerUrlUtils.generateCandidateUrls(input, defaultPort = 5055)
+   }
+ 
+   suspend fun verifyServer(url: String): Boolean = withContext(Dispatchers.IO) {
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/dialogs/SharedServerDialogs.kt b/app/src/main/java/com/quantummpv/app/ui/browser/dialogs/SharedServerDialogs.kt
+index 008a45c3..703b02f2 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/dialogs/SharedServerDialogs.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/dialogs/SharedServerDialogs.kt
+@@ -14,6 +14,7 @@ import androidx.compose.animation.expandVertically
+ import androidx.compose.animation.fadeIn
+ import androidx.compose.animation.fadeOut
+ import androidx.compose.animation.shrinkVertically
++import com.quantummpv.app.data.network.ServerUrlUtils
+ import androidx.compose.foundation.clickable
+ import androidx.compose.foundation.layout.Arrangement
+ import androidx.compose.foundation.layout.Box
+@@ -193,7 +194,7 @@ fun SharedAddServerDialog(
+             }
+           }
+         },
+-        supportingText = { Text("HTTPS will be tried first automatically") },
++        supportingText = { Text(ServerUrlUtils.getConnectionHint(serverUrl)) },
+         singleLine = true,
+         shape = RoundedCornerShape(16.dp),
+         modifier = Modifier.fillMaxWidth(),
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/AddJellyfinServerDialog.kt b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/AddJellyfinServerDialog.kt
+index 9fd4b89e..02fdafc8 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/AddJellyfinServerDialog.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/AddJellyfinServerDialog.kt
+@@ -82,14 +82,8 @@ fun AddJellyfinServerDialog(
+     onDismiss = onDismiss,
+     onSubmit = {
+       val trimmedUrl = serverUrl.trim()
+-      val formattedUrl =
+-        if (!trimmedUrl.startsWith("http://") && !trimmedUrl.startsWith("https://")) {
+-          "https://$trimmedUrl"
+-        } else {
+-          trimmedUrl
+-        }
+       onConnect(
+-        formattedUrl,
++        trimmedUrl,
+         serverName.trim().ifBlank { "Jellyfin" },
+         authMode,
+         username.trim(),
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/seerr/SeerrConnectionDialog.kt b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/seerr/SeerrConnectionDialog.kt
+index 88cc0f35..dbac0f05 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/seerr/SeerrConnectionDialog.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/seerr/SeerrConnectionDialog.kt
+@@ -10,6 +10,7 @@
+ package com.quantummpv.app.ui.browser.jellyfin.seerr
+ 
+ import androidx.compose.animation.AnimatedVisibility
++import com.quantummpv.app.data.network.ServerUrlUtils
+ import androidx.compose.foundation.background
+ import androidx.compose.foundation.clickable
+ import androidx.compose.foundation.layout.Arrangement
+@@ -343,6 +344,7 @@ fun SeerrConnectionDialog(
+           Icon(Icons.RoundedFilled.Language, contentDescription = null)
+         },
+         singleLine = true,
++        supportingText = { Text(ServerUrlUtils.getConnectionHint(serverUrl)) },
+         shape = RoundedCornerShape(12.dp),
+         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Next),
+         modifier = Modifier.fillMaxWidth(),
+@@ -446,8 +448,10 @@ fun SeerrConnectionDialog(
+           shape = RoundedCornerShape(12.dp),
+           keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
+           keyboardActions = KeyboardActions(onDone = {
+-            if (serverUrl.isNotBlank() && username.isNotBlank()) {
+-              onConnectWithCredentials(serverUrl, username, password, authType == SeerrAuthType.JELLYFIN)
++            val trimmedUrl = serverUrl.trim()
++            val trimmedUser = username.trim()
++            if (trimmedUrl.isNotBlank() && trimmedUser.isNotBlank()) {
++              onConnectWithCredentials(trimmedUrl, trimmedUser, password, authType == SeerrAuthType.JELLYFIN)
+             }
+           }),
+           modifier = Modifier.fillMaxWidth(),
+@@ -487,10 +491,11 @@ fun SeerrConnectionDialog(
+ 
+       Button(
+         onClick = {
++          val trimmedUrl = serverUrl.trim()
+           if (authType == SeerrAuthType.API_KEY) {
+-            onConnectWithApiKey(serverUrl, apiKey)
++            onConnectWithApiKey(trimmedUrl, apiKey.trim())
+           } else {
+-            onConnectWithCredentials(serverUrl, username, password, authType == SeerrAuthType.JELLYFIN)
++            onConnectWithCredentials(trimmedUrl, username.trim(), password, authType == SeerrAuthType.JELLYFIN)
+           }
+         },
+         enabled = !isConnecting && serverUrl.isNotBlank() && (
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/navidrome/AddNavidromeServerDialog.kt b/app/src/main/java/com/quantummpv/app/ui/browser/navidrome/AddNavidromeServerDialog.kt
+index ed217b4d..77b6defa 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/navidrome/AddNavidromeServerDialog.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/navidrome/AddNavidromeServerDialog.kt
+@@ -89,14 +89,8 @@ fun AddNavidromeServerDialog(
+     onDismiss = onDismiss,
+     onSubmit = {
+       val trimmedUrl = serverUrl.trim()
+-      val formattedUrl =
+-        if (!trimmedUrl.startsWith("http://") && !trimmedUrl.startsWith("https://")) {
+-          "https://$trimmedUrl"
+-        } else {
+-          trimmedUrl
+-        }
+       onConnect(
+-        formattedUrl,
++        trimmedUrl,
+         serverName.trim().ifBlank { "Navidrome" },
+         authMode,
+         username.trim(),
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/navidrome/NavidromeViewModel.kt b/app/src/main/java/com/quantummpv/app/ui/browser/navidrome/NavidromeViewModel.kt
+index ad4a46e3..030b43d4 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/navidrome/NavidromeViewModel.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/navidrome/NavidromeViewModel.kt
+@@ -18,6 +18,7 @@ import androidx.lifecycle.viewModelScope
+ import androidx.lifecycle.viewmodel.initializer
+ import androidx.lifecycle.viewmodel.viewModelFactory
+ import com.quantummpv.app.data.navidrome.NavidromeClient
++import com.quantummpv.app.data.network.ServerUrlUtils
+ import com.quantummpv.app.data.navidrome.NavidromeSearchResult
+ import com.quantummpv.app.domain.navidrome.NavidromeAlbum
+ import com.quantummpv.app.domain.navidrome.NavidromeArtist
+@@ -476,26 +477,40 @@ class NavidromeViewModel(
+         runCatching { Uri.parse(cleanUrl).host.orEmpty() }.getOrDefault("").ifBlank { "Navidrome ($effectiveUsername)" }
+       }
+ 
+-      val candidateServer = NavidromeServer(
+-        id = existingServer?.id ?: 0,
+-        name = displayName,
+-        serverUrl = cleanUrl,
+-        username = effectiveUsername,
+-        password = password,
+-        token = token,
+-        authMode = authMode,
+-        lastConnected = System.currentTimeMillis(),
+-      )
++      val candidateUrls = ServerUrlUtils.generateCandidateUrls(cleanUrl, defaultPort = 4533)
++      val urlsToTry = if (candidateUrls.isNotEmpty()) candidateUrls else listOf(cleanUrl)
++
++      var successfulServer: NavidromeServer? = null
++      var lastError: String? = null
++
++      for (candUrl in urlsToTry) {
++        val testServer = NavidromeServer(
++          id = existingServer?.id ?: 0,
++          name = displayName,
++          serverUrl = candUrl,
++          username = effectiveUsername,
++          password = password,
++          token = token,
++          authMode = authMode,
++          lastConnected = System.currentTimeMillis(),
++        )
++        val pingResult = navidromeRepository.ping(testServer)
++        if (pingResult.isSuccess) {
++          successfulServer = testServer
++          break
++        } else {
++          lastError = pingResult.exceptionOrNull()?.message
++        }
++      }
+ 
+-      val pingResult = navidromeRepository.ping(candidateServer)
+-      if (pingResult.isSuccess) {
++      if (successfulServer != null) {
+         val savedId = if (existingServer != null) {
+-          navidromeRepository.updateServer(candidateServer)
++          navidromeRepository.updateServer(successfulServer)
+           existingServer.id
+         } else {
+-          navidromeRepository.saveServer(candidateServer)
++          navidromeRepository.saveServer(successfulServer)
+         }
+-        val savedServer = candidateServer.copy(id = savedId)
++        val savedServer = successfulServer.copy(id = savedId)
+         _uiState.update {
+           it.copy(
+             isConnectingServer = false,
+@@ -508,7 +523,7 @@ class NavidromeViewModel(
+           onSuccess()
+         }
+       } else {
+-        val err = pingResult.exceptionOrNull()?.message ?: "Failed to connect to Navidrome server"
++        val err = lastError ?: "Failed to connect to Navidrome server"
+         _uiState.update {
+           it.copy(isConnectingServer = false, connectServerError = err)
+         }
+-- 
+2.25.1
+

@@ -1,0 +1,124 @@
+From b6bdd0d4331b2d56b4157761d2cdbfd3aa3e03f8 Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <riteshp2001@gmail.com>
+Date: Thu, 17 Sep 2026 12:04:12 +0530
+Subject: [PATCH 117/140] fix(player): restrict hardware decoding to supported
+ codecs
+
+---
+ .../com/quantummpv/app/ui/player/MPVView.kt    |  8 +++-
+ .../mpvrx/utils/media/VideoCodecSupport.kt    | 44 ++++++++++++++++---
+ 2 files changed, 44 insertions(+), 8 deletions(-)
+
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/MPVView.kt b/app/src/main/java/com/quantummpv/app/ui/player/MPVView.kt
+index 4bfdabe0..664f9f74 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/MPVView.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/MPVView.kt
+@@ -37,6 +37,7 @@ import com.quantummpv.app.ui.player.anime4k.selectRuntimeStableAnime4K
+ import com.quantummpv.app.ui.player.controls.components.panels.toColorHexString
+ import com.quantummpv.app.ui.player.ytdlp.YtdlpManager
+ import com.quantummpv.app.utils.device.VulkanCapabilities
++import com.quantummpv.app.utils.media.VideoCodecSupportInspector
+ import `is`.xyz.mpv.BaseMPVView
+ import `is`.xyz.mpv.KeyMapping
+ import `is`.xyz.mpv.MPVLib
+@@ -228,11 +229,14 @@ class MPVView(
+ 
+     // Fongmi can map direct MediaCodec frames into Vulkan; other Vulkan builds start with copy mode.
+     if (!MpvConfigOverridePolicy.ownsAny(MpvConfigControlledFeatures.HARDWARE_DECODER)) {
++      val hardwareDecoderCodecs = VideoCodecSupportInspector.hardwareDecoderCodecIds()
+       PlaybackSession.setOptionString(
+         "hwdec",
+-        hwdecMode,
++        if (hardwareDecoderCodecs.isEmpty()) "no" else hwdecMode,
+       )
+-      PlaybackSession.setOptionString("hwdec-codecs", "all")
++      if (hardwareDecoderCodecs.isNotEmpty()) {
++        PlaybackSession.setOptionString("hwdec-codecs", hardwareDecoderCodecs.joinToString(","))
++      }
+     }
+ 
+     // These were forced on between the last known-good build (e3b1de8) and the first build
+diff --git a/app/src/main/java/com/quantummpv/app/utils/media/VideoCodecSupport.kt b/app/src/main/java/com/quantummpv/app/utils/media/VideoCodecSupport.kt
+index 8a20c51f..170561c7 100644
+--- a/app/src/main/java/com/quantummpv/app/utils/media/VideoCodecSupport.kt
++++ b/app/src/main/java/com/quantummpv/app/utils/media/VideoCodecSupport.kt
+@@ -26,11 +26,36 @@ data class VideoCodecSupport(
+ )
+ 
+ object VideoCodecSupportInspector {
++  private val mpvCodecIdsByMimeType =
++    linkedMapOf(
++      "video/avc" to "h264",
++      "video/hevc" to "hevc",
++      "video/av01" to "av1",
++      "video/x-vnd.on2.vp9" to "vp9",
++      "video/x-vnd.on2.vp8" to "vp8",
++      "video/mpeg2" to "mpeg2video",
++      "video/mp4v-es" to "mpeg4",
++      "video/wvc1" to "vc1",
++      "video/3gpp" to "h263",
++    )
++
+   private data class DecoderCapability(
+     val isHardware: Boolean,
+     val videoCapabilities: MediaCodecInfo.VideoCapabilities?,
+   )
+ 
++  private val hardwareDecoderMimeTypes by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
++    runCatching {
++      MediaCodecList(MediaCodecList.ALL_CODECS).codecInfos
++        .asSequence()
++        .filterNot { it.isEncoder }
++        .filter(::isHardwareDecoder)
++        .flatMap { it.supportedTypes.asSequence() }
++        .map { it.lowercase() }
++        .toSet()
++    }.getOrDefault(emptySet())
++  }
++
+   private val decoderCapabilities by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+     val capabilities = mutableMapOf<String, MutableList<DecoderCapability>>()
+     runCatching {
+@@ -38,12 +63,7 @@ object VideoCodecSupportInspector {
+         .asSequence()
+         .filterNot { it.isEncoder }
+         .forEach { codecInfo ->
+-          val isHardware =
+-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+-              codecInfo.isHardwareAccelerated
+-            } else {
+-              !isSoftwareDecoder(codecInfo.name)
+-            }
++          val isHardware = isHardwareDecoder(codecInfo)
+           codecInfo.supportedTypes.forEach { mimeType ->
+             val key = mimeType.lowercase()
+             val videoCapabilities =
+@@ -60,6 +80,11 @@ object VideoCodecSupportInspector {
+     capabilities
+   }
+ 
++  fun hardwareDecoderCodecIds(): List<String> =
++    mpvCodecIdsByMimeType.mapNotNull { (mimeType, codecId) ->
++      codecId.takeIf { mimeType in hardwareDecoderMimeTypes }
++    }
++
+   fun descriptor(
+     format: String,
+     codecId: String,
+@@ -138,6 +163,13 @@ object VideoCodecSupportInspector {
+     }.getOrDefault(false)
+   }
+ 
++  private fun isHardwareDecoder(codecInfo: MediaCodecInfo): Boolean =
++    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
++      codecInfo.isHardwareAccelerated
++    } else {
++      !isSoftwareDecoder(codecInfo.name)
++    }
++
+   private fun isSoftwareDecoder(name: String): Boolean {
+     val normalized = name.lowercase()
+     return normalized.startsWith("omx.google.") ||
+-- 
+2.25.1
+

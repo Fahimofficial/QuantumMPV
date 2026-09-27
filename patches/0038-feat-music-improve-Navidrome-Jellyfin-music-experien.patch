@@ -1,0 +1,2370 @@
+From 7491a09c90a55b4718f8869fcf13b03e3c0105ce Mon Sep 17 00:00:00 2001
+From: Arnab Sadhukhan <arnab@Arnabs-Mac-Mini.local>
+Date: Sun, 6 Sep 2026 23:59:21 +0530
+Subject: [PATCH 038/140] feat(music): improve Navidrome & Jellyfin music
+ experience, queue, and favorites sync
+
+---
+ .../mpvrx/data/navidrome/NavidromeClient.kt   |  47 +-
+ .../mpvrx/domain/navidrome/NavidromeModels.kt |   1 +
+ .../mpvrx/preferences/BrowserPreferences.kt   |   6 +
+ .../mpvrx/repository/NavidromeRepository.kt   |  18 +-
+ .../ui/browser/jellyfin/JellyfinContent.kt    |  87 +++-
+ .../ui/browser/jellyfin/JellyfinMusicView.kt  | 449 +++++++++++++-----
+ .../ui/browser/jellyfin/JellyfinViewModel.kt  |  31 +-
+ .../ui/browser/music/SharedMusicComponents.kt | 247 ++++++----
+ .../ui/browser/navidrome/NavidromeContent.kt  |  70 ++-
+ .../browser/navidrome/NavidromeDetailSheet.kt | 165 +++++--
+ .../browser/navidrome/NavidromeMusicView.kt   | 296 +++++++++---
+ .../browser/navidrome/NavidromeViewModel.kt   | 211 ++++++--
+ .../mpvrx/ui/player/PlayerViewModel.kt        |  11 +-
+ .../ui/player/controls/AudioPlayerControls.kt |  15 +-
+ .../components/sheets/PlaylistSheet.kt        |   4 +-
+ 15 files changed, 1235 insertions(+), 423 deletions(-)
+
+diff --git a/app/src/main/java/com/quantummpv/app/data/navidrome/NavidromeClient.kt b/app/src/main/java/com/quantummpv/app/data/navidrome/NavidromeClient.kt
+index e856a06e..66abe0dd 100644
+--- a/app/src/main/java/com/quantummpv/app/data/navidrome/NavidromeClient.kt
++++ b/app/src/main/java/com/quantummpv/app/data/navidrome/NavidromeClient.kt
+@@ -119,9 +119,29 @@ class NavidromeClient(
+ 
+   fun getCoverArtUrl(server: NavidromeServer, coverArtId: String?, size: Int = 500): String? {
+     if (coverArtId.isNullOrBlank()) return null
++    if (coverArtId.startsWith("http://", ignoreCase = true) || coverArtId.startsWith("https://", ignoreCase = true)) {
++      return coverArtId
++    }
++    if (coverArtId.startsWith("/")) {
++      return "${server.serverUrl.trimEnd('/')}$coverArtId"
++    }
+     return buildSubsonicUrl(server, "getCoverArt.view", mapOf("id" to coverArtId, "size" to size.toString()))
+   }
+ 
++  fun getArtistImageUrl(server: NavidromeServer, artist: NavidromeArtist, size: Int = 500): String? {
++    val urlOrId = artist.artistImageUrl?.takeIf { it.isNotBlank() }
++      ?: artist.coverArtId?.takeIf { it.isNotBlank() }
++      ?: artist.id.takeIf { it.isNotBlank() }
++    return getCoverArtUrl(server, urlOrId, size)
++  }
++
++  fun getSongCoverArtUrl(server: NavidromeServer, song: NavidromeSong, size: Int = 500): String? {
++    val urlOrId = song.coverArtId?.takeIf { it.isNotBlank() }
++      ?: song.albumId.takeIf { it.isNotBlank() }
++      ?: song.id.takeIf { it.isNotBlank() }
++    return getCoverArtUrl(server, urlOrId, size)
++  }
++
+   private suspend fun executeGet(url: String): Result<JsonObject> = withContext(Dispatchers.IO) {
+     try {
+       val request = Request.Builder().url(url).build()
+@@ -205,6 +225,16 @@ class NavidromeClient(
+     }
+   }
+ 
++  suspend fun getArtistInfo(server: NavidromeServer, artistId: String): Result<String?> = withContext(Dispatchers.IO) {
++    val url = buildSubsonicUrl(server, "getArtistInfo2.view", mapOf("id" to artistId))
++    executeGet(url).map { response ->
++      val info = response["artistInfo2"]?.jsonObject ?: response["artistInfo"]?.jsonObject
++      info?.get("largeImageUrl")?.jsonPrimitive?.content
++        ?: info?.get("mediumImageUrl")?.jsonPrimitive?.content
++        ?: info?.get("smallImageUrl")?.jsonPrimitive?.content
++    }
++  }
++
+   suspend fun getAlbums(
+     server: NavidromeServer,
+     type: String = "alphabeticalByName",
+@@ -325,6 +355,20 @@ class NavidromeClient(
+     executeGet(url).map { }
+   }
+ 
++  suspend fun getStarred(server: NavidromeServer): Result<List<NavidromeSong>> = withContext(Dispatchers.IO) {
++    val url = buildSubsonicUrl(server, "getStarred2.view")
++    val res = executeGet(url)
++    val finalRes = if (res.isFailure) {
++      executeGet(buildSubsonicUrl(server, "getStarred.view"))
++    } else res
++
++    finalRes.map { response ->
++      val starredObj = response["starred2"]?.jsonObject ?: response["starred"]?.jsonObject
++      val songArray = starredObj?.get("song")?.jsonArray
++      songArray?.map { parseSong(it.jsonObject).copy(isFavorite = true) } ?: emptyList()
++    }
++  }
++
+   private fun parseSong(obj: JsonObject): NavidromeSong {
+     val starred = obj["starred"]?.jsonPrimitive?.content
+     return NavidromeSong(
+@@ -368,7 +412,8 @@ class NavidromeClient(
+       id = obj["id"]?.jsonPrimitive?.content ?: "",
+       name = obj["name"]?.jsonPrimitive?.content ?: "Unknown Artist",
+       albumCount = obj["albumCount"]?.jsonPrimitive?.intOrNull ?: 0,
+-      artistImageUrl = obj["artistImageUrl"]?.jsonPrimitive?.content ?: obj["coverArt"]?.jsonPrimitive?.content,
++      artistImageUrl = obj["artistImageUrl"]?.jsonPrimitive?.content,
++      coverArtId = obj["coverArt"]?.jsonPrimitive?.content,
+       isFavorite = !starred.isNullOrBlank(),
+     )
+   }
+diff --git a/app/src/main/java/com/quantummpv/app/domain/navidrome/NavidromeModels.kt b/app/src/main/java/com/quantummpv/app/domain/navidrome/NavidromeModels.kt
+index a6c9f35f..82a7e904 100644
+--- a/app/src/main/java/com/quantummpv/app/domain/navidrome/NavidromeModels.kt
++++ b/app/src/main/java/com/quantummpv/app/domain/navidrome/NavidromeModels.kt
+@@ -68,6 +68,7 @@ data class NavidromeArtist(
+   val name: String,
+   val albumCount: Int = 0,
+   val artistImageUrl: String? = null,
++  val coverArtId: String? = null,
+   val isFavorite: Boolean = false,
+   val albums: List<NavidromeAlbum> = emptyList(),
+ )
+diff --git a/app/src/main/java/com/quantummpv/app/preferences/BrowserPreferences.kt b/app/src/main/java/com/quantummpv/app/preferences/BrowserPreferences.kt
+index e93b9655..440f38ed 100644
+--- a/app/src/main/java/com/quantummpv/app/preferences/BrowserPreferences.kt
++++ b/app/src/main/java/com/quantummpv/app/preferences/BrowserPreferences.kt
+@@ -51,6 +51,12 @@ class BrowserPreferences(
+   val networkSortOrder = preferenceStore.getEnum("network_sort_order", SortOrder.Ascending)
+   val networkLayoutMode = preferenceStore.getEnum("network_layout_mode", MediaLayoutMode.LIST)
+   val jellyfinLayoutMode = preferenceStore.getEnum("jellyfin_layout_mode", MediaLayoutMode.GRID)
++  val jellyfinMusicViewMode = preferenceStore.getEnum("jellyfin_music_view_mode", MusicViewMode.GRID)
++  val jellyfinMusicSortField = preferenceStore.getEnum("jellyfin_music_sort_field", MusicSortField.TITLE)
++  val jellyfinMusicSortOrder = preferenceStore.getEnum("jellyfin_music_sort_order", MusicSortOrder.ASCENDING)
++  val navidromeViewMode = preferenceStore.getEnum("navidrome_view_mode", MusicViewMode.GRID)
++  val navidromeSortField = preferenceStore.getEnum("navidrome_sort_field", MusicSortField.TITLE)
++  val navidromeSortOrder = preferenceStore.getEnum("navidrome_sort_order", MusicSortOrder.ASCENDING)
+ 
+   val folderViewMode = preferenceStore.getEnum("folder_view_mode", FolderViewMode.AlbumView)
+   val dualPaneForTablet = preferenceStore.getBoolean("dual_pane_for_tablet", true)
+diff --git a/app/src/main/java/com/quantummpv/app/repository/NavidromeRepository.kt b/app/src/main/java/com/quantummpv/app/repository/NavidromeRepository.kt
+index 9e8f3637..24e83933 100644
+--- a/app/src/main/java/com/quantummpv/app/repository/NavidromeRepository.kt
++++ b/app/src/main/java/com/quantummpv/app/repository/NavidromeRepository.kt
+@@ -19,6 +19,7 @@ import com.quantummpv.app.domain.navidrome.NavidromePlaylist
+ import com.quantummpv.app.domain.navidrome.NavidromeServer
+ import com.quantummpv.app.domain.navidrome.NavidromeSong
+ import kotlinx.coroutines.flow.Flow
++import kotlinx.coroutines.flow.MutableSharedFlow
+ import kotlinx.coroutines.flow.map
+ 
+ class NavidromeRepository(
+@@ -28,6 +29,8 @@ class NavidromeRepository(
+   val allServers: Flow<List<NavidromeServer>> =
+     dao.getAllServers().map { list -> list.map { it.toDomain() } }
+ 
++  val favoriteUpdates = MutableSharedFlow<Pair<String, Boolean>>(extraBufferCapacity = 64)
++
+   suspend fun getServerById(id: Long): NavidromeServer? =
+     dao.getServerById(id)?.toDomain()
+ 
+@@ -78,15 +81,22 @@ class NavidromeRepository(
+   suspend fun getSong(server: NavidromeServer, songId: String): Result<NavidromeSong> =
+     client.getSong(server, songId)
+ 
++  suspend fun getStarred(server: NavidromeServer): Result<List<NavidromeSong>> =
++    client.getStarred(server)
++
+   suspend fun toggleFavorite(server: NavidromeServer, song: NavidromeSong, isFavorite: Boolean): Result<Unit> =
+     toggleFavorite(server, song.id, isFavorite)
+ 
+   suspend fun toggleFavorite(server: NavidromeServer, songId: String, isFavorite: Boolean): Result<Unit> {
+-    return if (isFavorite) {
++    val res = if (isFavorite) {
+       client.starItem(server, id = songId)
+     } else {
+       client.unstarItem(server, id = songId)
+     }
++    if (res.isSuccess) {
++      favoriteUpdates.tryEmit(songId to isFavorite)
++    }
++    return res
+   }
+ 
+   suspend fun toggleAlbumFavorite(server: NavidromeServer, album: NavidromeAlbum, isFavorite: Boolean): Result<Unit> {
+@@ -110,4 +120,10 @@ class NavidromeRepository(
+ 
+   fun getCoverArtUrl(server: NavidromeServer, coverArtId: String?, size: Int = 500): String? =
+     client.getCoverArtUrl(server, coverArtId, size)
++
++  fun getArtistImageUrl(server: NavidromeServer, artist: NavidromeArtist, size: Int = 500): String? =
++    client.getArtistImageUrl(server, artist, size)
++
++  fun getSongCoverArtUrl(server: NavidromeServer, song: NavidromeSong, size: Int = 500): String? =
++    client.getSongCoverArtUrl(server, song, size)
+ }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinContent.kt b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinContent.kt
+index 23779ffb..af18b527 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinContent.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinContent.kt
+@@ -114,6 +114,8 @@ import com.quantummpv.app.ui.browser.components.BrowserTopBar
+ import com.quantummpv.app.ui.browser.components.ExpressiveScrollBar
+ import com.quantummpv.app.ui.browser.components.fastScrollGlyph
+ import com.quantummpv.app.ui.browser.dialogs.JellyfinSortDialog
++import com.quantummpv.app.ui.browser.dialogs.MusicSortDialog
++import com.quantummpv.app.ui.browser.music.MusicSortField
+ import com.quantummpv.app.ui.browser.fab.FabScrollHelper
+ import com.quantummpv.app.ui.browser.selection.rememberSelectionManager
+ import com.quantummpv.app.ui.components.InlineSearchBar
+@@ -1393,27 +1395,70 @@ fun JellyfinContent(
+     )
+   }
+ 
+-  // Standard Material 3 Sort Dialog (matches Home and Network Browser)
+-  JellyfinSortDialog(
+-    isOpen = isSortDialogOpen,
+-    onDismiss = { isSortDialogOpen = false },
+-    sortBy = uiState.sortBy,
+-    onSortByChange = { newSort ->
+-      viewModel.setSort(newSort, uiState.sortOrder)
+-    },
+-    sortOrder = uiState.sortOrder,
+-    onSortOrderChange = { newOrder ->
+-      viewModel.setSort(uiState.sortBy, newOrder)
+-    },
+-    isUnplayedOnly = uiState.isUnplayedOnly,
+-    onUnplayedOnlyChange = {
+-      viewModel.toggleUnplayedOnly()
+-    },
+-    layoutMode = layoutMode,
+-    onLayoutModeChange = { newMode ->
+-      browserPreferences.jellyfinLayoutMode.set(newMode)
+-    },
+-  )
++  if (uiState.openLibrary?.isMusic == true) {
++    val availableFields = remember(uiState.musicActiveTab) {
++      when (uiState.musicActiveTab) {
++        JellyfinMusicTab.TRACKS -> listOf(
++          MusicSortField.TITLE,
++          MusicSortField.ARTIST,
++          MusicSortField.ALBUM,
++          MusicSortField.DURATION,
++          MusicSortField.YEAR,
++        )
++        JellyfinMusicTab.ALBUMS -> listOf(
++          MusicSortField.TITLE,
++          MusicSortField.ARTIST,
++          MusicSortField.YEAR,
++          MusicSortField.TRACK_COUNT,
++          MusicSortField.DURATION,
++        )
++        JellyfinMusicTab.ARTISTS -> listOf(
++          MusicSortField.ARTIST,
++          MusicSortField.TRACK_COUNT,
++        )
++        JellyfinMusicTab.PLAYLISTS -> listOf(
++          MusicSortField.TITLE,
++          MusicSortField.TRACK_COUNT,
++          MusicSortField.DURATION,
++        )
++        else -> emptyList()
++      }
++    }
++
++    MusicSortDialog(
++      isOpen = isSortDialogOpen,
++      onDismiss = { isSortDialogOpen = false },
++      sortField = uiState.musicSortField,
++      sortOrder = uiState.musicSortOrder,
++      viewMode = uiState.musicViewMode,
++      onSortFieldChange = { viewModel.setMusicSortField(it) },
++      onSortOrderChange = { viewModel.setMusicSortOrder(it) },
++      onViewModeChange = { viewModel.setMusicViewMode(it) },
++      availableFields = availableFields,
++    )
++  } else {
++    // Standard Material 3 Sort Dialog (matches Home and Network Browser)
++    JellyfinSortDialog(
++      isOpen = isSortDialogOpen,
++      onDismiss = { isSortDialogOpen = false },
++      sortBy = uiState.sortBy,
++      onSortByChange = { newSort ->
++        viewModel.setSort(newSort, uiState.sortOrder)
++      },
++      sortOrder = uiState.sortOrder,
++      onSortOrderChange = { newOrder ->
++        viewModel.setSort(uiState.sortBy, newOrder)
++      },
++      isUnplayedOnly = uiState.isUnplayedOnly,
++      onUnplayedOnlyChange = {
++        viewModel.toggleUnplayedOnly()
++      },
++      layoutMode = layoutMode,
++      onLayoutModeChange = { newMode ->
++        browserPreferences.jellyfinLayoutMode.set(newMode)
++      },
++    )
++  }
+ 
+   // Manage Servers Dialog
+   ManageJellyfinServersDialog(
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinMusicView.kt b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinMusicView.kt
+index be49afd6..d187812c 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinMusicView.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinMusicView.kt
+@@ -55,9 +55,12 @@ import androidx.compose.ui.text.style.TextOverflow
+ import androidx.compose.ui.unit.Dp
+ import androidx.compose.ui.unit.dp
+ import androidx.compose.ui.unit.sp
++import android.text.format.DateUtils
+ import com.quantummpv.app.data.jellyfin.JellyfinClient
+ import com.quantummpv.app.domain.jellyfin.JellyfinItem
+ import com.quantummpv.app.domain.jellyfin.JellyfinServer
++import com.quantummpv.app.preferences.BrowserPreferences
++import com.quantummpv.app.preferences.preference.collectAsState
+ import com.quantummpv.app.presentation.components.RemoteImage
+ import com.quantummpv.app.ui.icons.AppIcon
+ import com.quantummpv.app.ui.icons.Icon
+@@ -66,11 +69,15 @@ import com.quantummpv.app.ui.icons.Icons
+ import androidx.compose.foundation.pager.HorizontalPager
+ import androidx.compose.foundation.pager.PagerState
+ import androidx.lifecycle.compose.collectAsStateWithLifecycle
++import com.quantummpv.app.ui.browser.music.MusicSortField
++import com.quantummpv.app.ui.browser.music.MusicSortOrder
++import com.quantummpv.app.ui.browser.music.MusicViewMode
+ import com.quantummpv.app.ui.browser.music.SharedCompactTrackGridSection
+ import com.quantummpv.app.ui.browser.music.SharedMusicCarouselSection
+ import com.quantummpv.app.ui.browser.music.SharedMusicGridCard
+ import com.quantummpv.app.ui.browser.music.SharedMusicTrackListItem
+ import com.quantummpv.app.ui.player.PlaybackSession
++import org.koin.compose.koinInject
+ 
+ @Composable
+ fun JellyfinMusicView(
+@@ -84,6 +91,11 @@ fun JellyfinMusicView(
+   navigationBarHeight: Dp,
+   modifier: Modifier = Modifier,
+ ) {
++  val browserPreferences = koinInject<BrowserPreferences>()
++  val coverArtSizeDp by browserPreferences.musicCoverArtSize.collectAsState()
++  val queueState by PlaybackSession.queue.collectAsStateWithLifecycle()
++  val currentSessionItem = queueState.currentItem
++
+   HorizontalPager(
+     state = pagerState,
+     modifier = modifier
+@@ -125,13 +137,97 @@ fun JellyfinMusicView(
+               CircularProgressIndicator()
+             }
+           } else {
+-            JellyfinTracksList(
+-              tracks = uiState.musicTracks,
+-              server = server,
+-              onTrackClick = onItemClick,
+-              onTrackLongClick = onItemLongClick,
+-              navigationBarHeight = navigationBarHeight,
+-            )
++            val sortedTracks = remember(uiState.musicTracks, uiState.musicSortField, uiState.musicSortOrder) {
++              val sorted = when (uiState.musicSortField) {
++                MusicSortField.TITLE -> uiState.musicTracks.sortedBy { it.name.lowercase() }
++                MusicSortField.ARTIST -> uiState.musicTracks.sortedBy { (it.seriesName ?: it.overview ?: "").lowercase() }
++                MusicSortField.ALBUM -> uiState.musicTracks.sortedBy { (it.seriesName ?: it.overview ?: "").lowercase() }
++                MusicSortField.DURATION -> uiState.musicTracks.sortedBy { it.durationSeconds }
++                MusicSortField.YEAR -> uiState.musicTracks.sortedBy { it.productionYear ?: 0 }
++                else -> uiState.musicTracks.sortedBy { it.name.lowercase() }
++              }
++              if (uiState.musicSortOrder == MusicSortOrder.DESCENDING) sorted.reversed() else sorted
++            }
++
++            if (uiState.musicViewMode == MusicViewMode.GRID) {
++              LazyVerticalGrid(
++                columns = GridCells.Adaptive(minSize = 145.dp),
++                modifier = Modifier.fillMaxSize(),
++                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = navigationBarHeight + 84.dp),
++                horizontalArrangement = Arrangement.spacedBy(14.dp),
++                verticalArrangement = Arrangement.spacedBy(14.dp),
++              ) {
++                items(sortedTracks, key = { it.id }) { track ->
++                  val imageUrl = remember(server.serverUrl, track.id, track.primaryImageTag, server.accessToken) {
++                    if (!track.primaryImageTag.isNullOrBlank()) {
++                      JellyfinClient.getImageUrl(
++                        serverUrl = server.serverUrl,
++                        itemId = track.id,
++                        imageTag = track.primaryImageTag,
++                        maxWidth = 300,
++                        token = server.accessToken,
++                      )
++                    } else null
++                  }
++                  val isPlaying = remember(currentSessionItem, track.id) {
++                    if (currentSessionItem == null || track.id.isBlank()) false
++                    else {
++                      val orig = currentSessionItem.originalUri
++                      val play = currentSessionItem.playableUri
++                      orig.contains(track.id, ignoreCase = true) || play.contains(track.id, ignoreCase = true)
++                    }
++                  }
++                  val artistName = track.seriesName ?: track.overview ?: ""
++                  SharedMusicGridCard(
++                    title = track.name,
++                    subtitle = artistName,
++                    thirdLine = track.durationSeconds.takeIf { it > 0 }?.let { DateUtils.formatElapsedTime(it) },
++                    artworkUrl = imageUrl,
++                    isPlaying = isPlaying,
++                    onClick = { onItemClick(track) },
++                    onLongClick = { onItemLongClick(track) },
++                  )
++                }
++              }
++            } else {
++              LazyColumn(
++                modifier = Modifier.fillMaxSize(),
++                contentPadding = PaddingValues(start = 0.dp, top = 8.dp, end = 0.dp, bottom = navigationBarHeight + 84.dp),
++              ) {
++                items(sortedTracks, key = { it.id }) { track ->
++                  val imageUrl = remember(server.serverUrl, track.id, track.primaryImageTag, server.accessToken) {
++                    if (!track.primaryImageTag.isNullOrBlank()) {
++                      JellyfinClient.getImageUrl(
++                        serverUrl = server.serverUrl,
++                        itemId = track.id,
++                        imageTag = track.primaryImageTag,
++                        maxWidth = 200,
++                        token = server.accessToken,
++                      )
++                    } else null
++                  }
++                  val isPlaying = remember(currentSessionItem, track.id) {
++                    if (currentSessionItem == null || track.id.isBlank()) false
++                    else {
++                      val orig = currentSessionItem.originalUri
++                      val play = currentSessionItem.playableUri
++                      orig.contains(track.id, ignoreCase = true) || play.contains(track.id, ignoreCase = true)
++                    }
++                  }
++                  val subtitle = track.seriesName ?: track.overview ?: ""
++                  SharedMusicTrackListItem(
++                    title = track.name,
++                    subtitle = subtitle,
++                    artworkUrl = imageUrl,
++                    durationSeconds = track.durationSeconds,
++                    isPlaying = isPlaying,
++                    coverArtSizeDp = coverArtSizeDp,
++                    onClick = { onItemClick(track) },
++                    onLongClick = { onItemLongClick(track) },
++                  )
++                }
++              }
++            }
+           }
+         }
+         JellyfinMusicTab.ALBUMS -> {
+@@ -143,13 +239,79 @@ fun JellyfinMusicView(
+               CircularProgressIndicator()
+             }
+           } else {
+-            JellyfinMusicGrid(
+-              items = uiState.musicAlbums,
+-              server = server,
+-              onItemClick = onItemClick,
+-              onItemLongClick = onItemLongClick,
+-              navigationBarHeight = navigationBarHeight,
+-            )
++            val sortedAlbums = remember(uiState.musicAlbums, uiState.musicSortField, uiState.musicSortOrder) {
++              val sorted = when (uiState.musicSortField) {
++                MusicSortField.TITLE -> uiState.musicAlbums.sortedBy { it.name.lowercase() }
++                MusicSortField.ARTIST -> uiState.musicAlbums.sortedBy { (it.seriesName ?: it.overview ?: "").lowercase() }
++                MusicSortField.YEAR -> uiState.musicAlbums.sortedBy { it.productionYear ?: 0 }
++                MusicSortField.TRACK_COUNT -> uiState.musicAlbums.sortedBy { it.childCount ?: 0 }
++                MusicSortField.DURATION -> uiState.musicAlbums.sortedBy { it.durationSeconds }
++                else -> uiState.musicAlbums.sortedBy { it.name.lowercase() }
++              }
++              if (uiState.musicSortOrder == MusicSortOrder.DESCENDING) sorted.reversed() else sorted
++            }
++
++            if (uiState.musicViewMode == MusicViewMode.GRID) {
++              LazyVerticalGrid(
++                columns = GridCells.Adaptive(minSize = 145.dp),
++                modifier = Modifier.fillMaxSize(),
++                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = navigationBarHeight + 84.dp),
++                horizontalArrangement = Arrangement.spacedBy(14.dp),
++                verticalArrangement = Arrangement.spacedBy(14.dp),
++              ) {
++                items(sortedAlbums, key = { it.id }) { album ->
++                  val imageUrl = remember(server.serverUrl, album.id, album.primaryImageTag, server.accessToken) {
++                    if (!album.primaryImageTag.isNullOrBlank()) {
++                      JellyfinClient.getImageUrl(
++                        serverUrl = server.serverUrl,
++                        itemId = album.id,
++                        imageTag = album.primaryImageTag,
++                        maxWidth = 300,
++                        token = server.accessToken,
++                      )
++                    } else null
++                  }
++                  val artistName = album.seriesName ?: album.overview ?: ""
++                  SharedMusicGridCard(
++                    title = album.name,
++                    subtitle = artistName,
++                    thirdLine = album.childCount?.let { if (it == 1) "1 song" else "$it songs" },
++                    artworkUrl = imageUrl,
++                    onClick = { onItemClick(album) },
++                    onLongClick = { onItemLongClick(album) },
++                  )
++                }
++              }
++            } else {
++              LazyColumn(
++                modifier = Modifier.fillMaxSize(),
++                contentPadding = PaddingValues(start = 0.dp, top = 8.dp, end = 0.dp, bottom = navigationBarHeight + 84.dp),
++              ) {
++                items(sortedAlbums, key = { it.id }) { album ->
++                  val imageUrl = remember(server.serverUrl, album.id, album.primaryImageTag, server.accessToken) {
++                    if (!album.primaryImageTag.isNullOrBlank()) {
++                      JellyfinClient.getImageUrl(
++                        serverUrl = server.serverUrl,
++                        itemId = album.id,
++                        imageTag = album.primaryImageTag,
++                        maxWidth = 200,
++                        token = server.accessToken,
++                      )
++                    } else null
++                  }
++                  val artistName = album.seriesName ?: album.overview ?: ""
++                  SharedMusicTrackListItem(
++                    title = album.name,
++                    subtitle = artistName,
++                    trailingText = album.childCount?.let { if (it == 1) "1 song" else "$it songs" },
++                    artworkUrl = imageUrl,
++                    coverArtSizeDp = coverArtSizeDp,
++                    onClick = { onItemClick(album) },
++                    onLongClick = { onItemLongClick(album) },
++                  )
++                }
++              }
++            }
+           }
+         }
+         JellyfinMusicTab.ARTISTS -> {
+@@ -161,13 +323,75 @@ fun JellyfinMusicView(
+               CircularProgressIndicator()
+             }
+           } else {
+-            JellyfinArtistsGrid(
+-              artists = uiState.musicArtists,
+-              server = server,
+-              onItemClick = onItemClick,
+-              onItemLongClick = onItemLongClick,
+-              navigationBarHeight = navigationBarHeight,
+-            )
++            val sortedArtists = remember(uiState.musicArtists, uiState.musicSortField, uiState.musicSortOrder) {
++              val sorted = when (uiState.musicSortField) {
++                MusicSortField.TRACK_COUNT -> uiState.musicArtists.sortedBy { it.childCount ?: 0 }
++                else -> uiState.musicArtists.sortedBy { it.name.lowercase() }
++              }
++              if (uiState.musicSortOrder == MusicSortOrder.DESCENDING) sorted.reversed() else sorted
++            }
++
++            if (uiState.musicViewMode == MusicViewMode.GRID) {
++              LazyVerticalGrid(
++                columns = GridCells.Adaptive(minSize = 160.dp),
++                modifier = Modifier.fillMaxSize(),
++                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = navigationBarHeight + 84.dp),
++                horizontalArrangement = Arrangement.spacedBy(16.dp),
++                verticalArrangement = Arrangement.spacedBy(16.dp),
++              ) {
++                items(sortedArtists, key = { it.id }) { artist ->
++                  val imageUrl = remember(server.serverUrl, artist.id, artist.primaryImageTag, server.accessToken) {
++                    if (!artist.primaryImageTag.isNullOrBlank()) {
++                      JellyfinClient.getImageUrl(
++                        serverUrl = server.serverUrl,
++                        itemId = artist.id,
++                        imageTag = artist.primaryImageTag,
++                        maxWidth = 300,
++                        token = server.accessToken,
++                      )
++                    } else null
++                  }
++                  SharedMusicGridCard(
++                    title = artist.name,
++                    subtitle = artist.childCount?.let { if (it == 1) "1 album" else "$it albums" } ?: "",
++                    artworkUrl = imageUrl,
++                    isCircular = true,
++                    fallbackIcon = Icons.RoundedFilled.Person,
++                    onClick = { onItemClick(artist) },
++                    onLongClick = { onItemLongClick(artist) },
++                  )
++                }
++              }
++            } else {
++              LazyColumn(
++                modifier = Modifier.fillMaxSize(),
++                contentPadding = PaddingValues(start = 0.dp, top = 8.dp, end = 0.dp, bottom = navigationBarHeight + 84.dp),
++              ) {
++                items(sortedArtists, key = { it.id }) { artist ->
++                  val imageUrl = remember(server.serverUrl, artist.id, artist.primaryImageTag, server.accessToken) {
++                    if (!artist.primaryImageTag.isNullOrBlank()) {
++                      JellyfinClient.getImageUrl(
++                        serverUrl = server.serverUrl,
++                        itemId = artist.id,
++                        imageTag = artist.primaryImageTag,
++                        maxWidth = 200,
++                        token = server.accessToken,
++                      )
++                    } else null
++                  }
++                  SharedMusicTrackListItem(
++                    title = artist.name,
++                    subtitle = artist.childCount?.let { if (it == 1) "1 album" else "$it albums" },
++                    artworkUrl = imageUrl,
++                    isCircular = true,
++                    fallbackIcon = Icons.RoundedFilled.Person,
++                    coverArtSizeDp = coverArtSizeDp,
++                    onClick = { onItemClick(artist) },
++                    onLongClick = { onItemLongClick(artist) },
++                  )
++                }
++              }
++            }
+           }
+         }
+         JellyfinMusicTab.PLAYLISTS -> {
+@@ -179,13 +403,77 @@ fun JellyfinMusicView(
+               CircularProgressIndicator()
+             }
+           } else {
+-            JellyfinMusicGrid(
+-              items = uiState.musicPlaylists,
+-              server = server,
+-              onItemClick = onItemClick,
+-              onItemLongClick = onItemLongClick,
+-              navigationBarHeight = navigationBarHeight,
+-            )
++            val sortedPlaylists = remember(uiState.musicPlaylists, uiState.musicSortField, uiState.musicSortOrder) {
++              val favorites = uiState.musicPlaylists.filter { it.id == "virtual_favorites_playlist" || it.id == "favorites" }
++              val others = uiState.musicPlaylists.filter { it.id != "virtual_favorites_playlist" && it.id != "favorites" }
++              val sorted = when (uiState.musicSortField) {
++                MusicSortField.TRACK_COUNT -> others.sortedBy { it.childCount ?: 0 }
++                MusicSortField.DURATION -> others.sortedBy { it.durationSeconds }
++                else -> others.sortedBy { it.name.lowercase() }
++              }
++              val result = if (uiState.musicSortOrder == MusicSortOrder.DESCENDING) sorted.reversed() else sorted
++              favorites + result
++            }
++
++            if (uiState.musicViewMode == MusicViewMode.GRID) {
++              LazyVerticalGrid(
++                columns = GridCells.Adaptive(minSize = 145.dp),
++                modifier = Modifier.fillMaxSize(),
++                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = navigationBarHeight + 84.dp),
++                horizontalArrangement = Arrangement.spacedBy(14.dp),
++                verticalArrangement = Arrangement.spacedBy(14.dp),
++              ) {
++                items(sortedPlaylists, key = { it.id }) { playlist ->
++                  val imageUrl = remember(server.serverUrl, playlist.id, playlist.primaryImageTag, server.accessToken) {
++                    if (!playlist.primaryImageTag.isNullOrBlank()) {
++                      JellyfinClient.getImageUrl(
++                        serverUrl = server.serverUrl,
++                        itemId = playlist.id,
++                        imageTag = playlist.primaryImageTag,
++                        maxWidth = 300,
++                        token = server.accessToken,
++                      )
++                    } else null
++                  }
++                  SharedMusicGridCard(
++                    title = playlist.name,
++                    subtitle = playlist.childCount?.let { if (it == 1) "1 track" else "$it tracks" } ?: "",
++                    artworkUrl = imageUrl,
++                    fallbackIcon = if (playlist.id == "virtual_favorites_playlist" || playlist.id == "favorites") Icons.RoundedFilled.Favorite else Icons.RoundedFilled.QueueMusic,
++                    onClick = { onItemClick(playlist) },
++                    onLongClick = { onItemLongClick(playlist) },
++                  )
++                }
++              }
++            } else {
++              LazyColumn(
++                modifier = Modifier.fillMaxSize(),
++                contentPadding = PaddingValues(start = 0.dp, top = 8.dp, end = 0.dp, bottom = navigationBarHeight + 84.dp),
++              ) {
++                items(sortedPlaylists, key = { it.id }) { playlist ->
++                  val imageUrl = remember(server.serverUrl, playlist.id, playlist.primaryImageTag, server.accessToken) {
++                    if (!playlist.primaryImageTag.isNullOrBlank()) {
++                      JellyfinClient.getImageUrl(
++                        serverUrl = server.serverUrl,
++                        itemId = playlist.id,
++                        imageTag = playlist.primaryImageTag,
++                        maxWidth = 200,
++                        token = server.accessToken,
++                      )
++                    } else null
++                  }
++                  SharedMusicTrackListItem(
++                    title = playlist.name,
++                    subtitle = playlist.childCount?.let { if (it == 1) "1 track" else "$it tracks" },
++                    artworkUrl = imageUrl,
++                    fallbackIcon = if (playlist.id == "virtual_favorites_playlist" || playlist.id == "favorites") Icons.RoundedFilled.Favorite else Icons.RoundedFilled.QueueMusic,
++                    coverArtSizeDp = coverArtSizeDp,
++                    onClick = { onItemClick(playlist) },
++                    onLongClick = { onItemLongClick(playlist) },
++                  )
++                }
++              }
++            }
+           }
+         }
+       }
+@@ -320,6 +608,7 @@ fun JellyfinPlaylistsRowSection(
+       } else null
+     },
+     fallbackIcon = Icons.RoundedFilled.QueueMusic,
++    getFallbackIcon = { if (it.id == "virtual_favorites_playlist" || it.id == "favorites") Icons.RoundedFilled.Favorite else Icons.RoundedFilled.QueueMusic },
+     onClick = onPlaylistClick,
+     onLongClick = onPlaylistLongClick,
+     onSeeAllClick = onSeeAllClick,
+@@ -436,107 +725,3 @@ fun JellyfinMusicCard(
+   )
+ }
+ 
+-@Composable
+-fun JellyfinMusicGrid(
+-  items: List<JellyfinItem>,
+-  server: JellyfinServer,
+-  onItemClick: (JellyfinItem) -> Unit,
+-  onItemLongClick: (JellyfinItem) -> Unit,
+-  navigationBarHeight: Dp,
+-  modifier: Modifier = Modifier,
+-) {
+-  LazyVerticalGrid(
+-    columns = GridCells.Adaptive(minSize = 140.dp),
+-    modifier = modifier.fillMaxSize(),
+-    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = navigationBarHeight + 84.dp),
+-    horizontalArrangement = Arrangement.spacedBy(12.dp),
+-    verticalArrangement = Arrangement.spacedBy(16.dp),
+-  ) {
+-    items(items, key = { it.id }) { item ->
+-      JellyfinMusicCard(
+-        item = item,
+-        server = server,
+-        onClick = { onItemClick(item) },
+-        onLongClick = { onItemLongClick(item) },
+-      )
+-    }
+-  }
+-}
+-
+-@Composable
+-fun JellyfinArtistsGrid(
+-  artists: List<JellyfinItem>,
+-  server: JellyfinServer,
+-  onItemClick: (JellyfinItem) -> Unit,
+-  onItemLongClick: (JellyfinItem) -> Unit,
+-  navigationBarHeight: Dp,
+-  modifier: Modifier = Modifier,
+-) {
+-  LazyVerticalGrid(
+-    columns = GridCells.Adaptive(minSize = 130.dp),
+-    modifier = modifier.fillMaxSize(),
+-    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = navigationBarHeight + 84.dp),
+-    horizontalArrangement = Arrangement.spacedBy(16.dp),
+-    verticalArrangement = Arrangement.spacedBy(16.dp),
+-  ) {
+-    items(artists, key = { it.id }) { artist ->
+-      JellyfinMusicCard(
+-        item = artist,
+-        server = server,
+-        onClick = { onItemClick(artist) },
+-        onLongClick = { onItemLongClick(artist) },
+-        cardWidth = 130.dp,
+-      )
+-    }
+-  }
+-}
+-
+-@Composable
+-fun JellyfinTracksList(
+-  tracks: List<JellyfinItem>,
+-  server: JellyfinServer,
+-  onTrackClick: (JellyfinItem) -> Unit,
+-  onTrackLongClick: (JellyfinItem) -> Unit,
+-  navigationBarHeight: Dp,
+-  modifier: Modifier = Modifier,
+-) {
+-  val queueState by PlaybackSession.queue.collectAsStateWithLifecycle()
+-  val currentSessionItem = queueState.currentItem
+-
+-  LazyColumn(
+-    modifier = modifier.fillMaxSize(),
+-    contentPadding = PaddingValues(bottom = navigationBarHeight + 84.dp),
+-  ) {
+-    items(tracks, key = { it.id }) { track ->
+-      val imageUrl = remember(server.serverUrl, track.id, track.primaryImageTag, server.accessToken) {
+-        JellyfinClient.getImageUrl(
+-          serverUrl = server.serverUrl,
+-          itemId = track.id,
+-          imageTag = track.primaryImageTag,
+-          maxWidth = 200,
+-          token = server.accessToken,
+-        )
+-      }
+-
+-      val isPlaying = remember(currentSessionItem, track.id) {
+-        if (currentSessionItem == null || track.id.isBlank()) false
+-        else {
+-          val orig = currentSessionItem.originalUri
+-          val play = currentSessionItem.playableUri
+-          orig.contains(track.id, ignoreCase = true) || play.contains(track.id, ignoreCase = true)
+-        }
+-      }
+-      val subtitle = track.seriesName ?: track.overview ?: ""
+-
+-      SharedMusicTrackListItem(
+-        title = track.name,
+-        subtitle = subtitle,
+-        artworkUrl = if (!track.primaryImageTag.isNullOrBlank()) imageUrl else null,
+-        durationSeconds = track.durationSeconds,
+-        isPlaying = isPlaying,
+-        onClick = { onTrackClick(track) },
+-        onLongClick = { onTrackLongClick(track) },
+-      )
+-    }
+-  }
+-}
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinViewModel.kt b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinViewModel.kt
+index dff8fc5e..592e1b28 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinViewModel.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinViewModel.kt
+@@ -32,8 +32,12 @@ import com.quantummpv.app.domain.jellyfin.JellyfinSortBy
+ import com.quantummpv.app.domain.jellyfin.JellyfinSortOrder
+ import com.quantummpv.app.domain.playbackstate.repository.PlaybackStateRepository
+ import com.quantummpv.app.preferences.AudioPreferences
++import com.quantummpv.app.preferences.BrowserPreferences
+ import com.quantummpv.app.preferences.SubtitlesPreferences
+ import com.quantummpv.app.repository.JellyfinRepository
++import com.quantummpv.app.ui.browser.music.MusicSortField
++import com.quantummpv.app.ui.browser.music.MusicSortOrder
++import com.quantummpv.app.ui.browser.music.MusicViewMode
+ import com.quantummpv.app.ui.player.PlaybackIdentity
+ import com.quantummpv.app.utils.media.MediaUtils
+ import kotlinx.coroutines.Dispatchers
+@@ -108,6 +112,9 @@ data class JellyfinUiState(
+ 
+   // Jellyfin Music Tab State (AFinity style)
+   val musicActiveTab: JellyfinMusicTab = JellyfinMusicTab.HOME,
++  val musicViewMode: MusicViewMode = MusicViewMode.GRID,
++  val musicSortField: MusicSortField = MusicSortField.TITLE,
++  val musicSortOrder: MusicSortOrder = MusicSortOrder.ASCENDING,
+   val musicFavorites: List<JellyfinItem> = emptyList(),
+   val musicJumpBackIn: List<JellyfinItem> = emptyList(),
+   val musicRecentlyPlayedAlbums: List<JellyfinItem> = emptyList(),
+@@ -140,6 +147,7 @@ class JellyfinViewModel(
+   private val playbackStateRepository: PlaybackStateRepository by inject()
+   private val subtitlesPreferences: SubtitlesPreferences by inject()
+   private val audioPreferences: AudioPreferences by inject()
++  private val browserPreferences: BrowserPreferences by inject()
+   private val downloadManager: AppDownloadManager by inject()
+ 
+   private var loadDashboardJob: Job? = null
+@@ -150,7 +158,13 @@ class JellyfinViewModel(
+   private var musicLoadJob: Job? = null
+   private var loadedMusicHomeLibraryId: String? = null
+ 
+-  private val _uiState = MutableStateFlow(JellyfinUiState())
++  private val _uiState = MutableStateFlow(
++    JellyfinUiState(
++      musicViewMode = browserPreferences.jellyfinMusicViewMode.get(),
++      musicSortField = browserPreferences.jellyfinMusicSortField.get(),
++      musicSortOrder = browserPreferences.jellyfinMusicSortOrder.get(),
++    )
++  )
+   val uiState: StateFlow<JellyfinUiState> = _uiState.asStateFlow()
+ 
+   init {
+@@ -735,6 +749,21 @@ class JellyfinViewModel(
+     }
+   }
+ 
++  fun setMusicViewMode(mode: MusicViewMode) {
++    browserPreferences.jellyfinMusicViewMode.set(mode)
++    _uiState.update { it.copy(musicViewMode = mode) }
++  }
++
++  fun setMusicSortField(field: MusicSortField) {
++    browserPreferences.jellyfinMusicSortField.set(field)
++    _uiState.update { it.copy(musicSortField = field) }
++  }
++
++  fun setMusicSortOrder(order: MusicSortOrder) {
++    browserPreferences.jellyfinMusicSortOrder.set(order)
++    _uiState.update { it.copy(musicSortOrder = order) }
++  }
++
+   private fun loadMusicTabItems(
+     server: JellyfinServer,
+     library: JellyfinLibraryView,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/music/SharedMusicComponents.kt b/app/src/main/java/com/quantummpv/app/ui/browser/music/SharedMusicComponents.kt
+index b8edf313..64c3697d 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/music/SharedMusicComponents.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/music/SharedMusicComponents.kt
+@@ -32,7 +32,10 @@ import androidx.compose.foundation.lazy.grid.items
+ import androidx.compose.foundation.shape.CircleShape
+ import androidx.compose.foundation.shape.RoundedCornerShape
+ import androidx.compose.material3.Button
++import androidx.compose.material3.Card
++import androidx.compose.material3.CardDefaults
+ import androidx.compose.material3.FilledTonalButton
++import androidx.compose.material3.IconButton
+ import androidx.compose.material3.MaterialTheme
+ import androidx.compose.material3.Surface
+ import androidx.compose.material3.Text
+@@ -47,6 +50,7 @@ import androidx.compose.ui.layout.ContentScale
+ import androidx.compose.ui.platform.LocalConfiguration
+ import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.text.font.FontWeight
++import androidx.compose.ui.text.style.TextAlign
+ import androidx.compose.ui.text.style.TextOverflow
+ import androidx.compose.ui.unit.Dp
+ import androidx.compose.ui.unit.dp
+@@ -67,9 +71,15 @@ fun SharedMusicTrackListItem(
+   artworkUrl: String? = null,
+   albumArtUri: Uri? = null,
+   durationSeconds: Long? = null,
++  trailingText: String? = null,
+   isPlaying: Boolean = false,
+   isSelected: Boolean = false,
+-  coverArtSizeDp: Int = 44,
++  fallbackIcon: AppIcon = Icons.RoundedFilled.Audiotrack,
++  isCircular: Boolean = false,
++  coverArtSizeDp: Int = 48,
++  isFavorite: Boolean = false,
++  onFavoriteClick: (() -> Unit)? = null,
++  trailingContent: (@Composable () -> Unit)? = null,
+   onClick: () -> Unit,
+   onLongClick: (() -> Unit)? = null,
+   modifier: Modifier = Modifier,
+@@ -99,10 +109,11 @@ fun SharedMusicTrackListItem(
+         .padding(horizontal = 12.dp, vertical = 8.dp),
+       verticalAlignment = Alignment.CenterVertically,
+     ) {
++      val itemArtSize = if (isCircular) (coverArtSizeDp * 1.3f).toInt().coerceAtLeast(48).dp else coverArtSizeDp.dp
+       Box(
+         modifier = Modifier
+-          .size(coverArtSizeDp.dp)
+-          .clip(AppShapeScale.medium)
++          .size(itemArtSize)
++          .clip(if (isCircular) CircleShape else AppShapeScale.medium)
+           .background(MaterialTheme.colorScheme.surfaceVariant),
+         contentAlignment = Alignment.Center,
+       ) {
+@@ -124,10 +135,10 @@ fun SharedMusicTrackListItem(
+           }
+           else -> {
+             Icon(
+-              imageVector = Icons.RoundedFilled.Audiotrack,
++              imageVector = fallbackIcon,
+               contentDescription = null,
+               tint = if (isPlaying) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+-              modifier = Modifier.size(20.dp),
++              modifier = Modifier.size(if (isCircular) 28.dp else 20.dp),
+             )
+           }
+         }
+@@ -136,6 +147,7 @@ fun SharedMusicTrackListItem(
+           Box(
+             modifier = Modifier
+               .fillMaxSize()
++              .then(if (isCircular) Modifier.clip(CircleShape) else Modifier)
+               .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)),
+             contentAlignment = Alignment.Center,
+           ) {
+@@ -152,6 +164,7 @@ fun SharedMusicTrackListItem(
+           Box(
+             modifier = Modifier
+               .fillMaxSize()
++              .then(if (isCircular) Modifier.clip(CircleShape) else Modifier)
+               .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)),
+             contentAlignment = Alignment.Center,
+           ) {
+@@ -194,6 +207,33 @@ fun SharedMusicTrackListItem(
+           style = MaterialTheme.typography.labelMedium,
+           color = if (isPlaying) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+         )
++      } else if (!trailingText.isNullOrBlank()) {
++        Spacer(modifier = Modifier.width(8.dp))
++        Text(
++          text = trailingText,
++          style = MaterialTheme.typography.labelMedium,
++          color = if (isPlaying) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
++        )
++      }
++
++      if (onFavoriteClick != null) {
++        Spacer(modifier = Modifier.width(4.dp))
++        IconButton(
++          onClick = onFavoriteClick,
++          modifier = Modifier.size(36.dp),
++        ) {
++          Icon(
++            imageVector = if (isFavorite) Icons.RoundedFilled.Favorite else Icons.RoundedFilled.FavoriteBorder,
++            contentDescription = if (isFavorite) "Remove from favorites" else "Add to favorites",
++            tint = if (isFavorite) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
++            modifier = Modifier.size(20.dp),
++          )
++        }
++      }
++
++      if (trailingContent != null) {
++        Spacer(modifier = Modifier.width(4.dp))
++        trailingContent()
+       }
+     }
+   }
+@@ -204,103 +244,149 @@ fun SharedMusicTrackListItem(
+ fun SharedMusicGridCard(
+   title: String,
+   subtitle: String? = null,
++  thirdLine: String? = null,
+   artworkUrl: String? = null,
+   albumArtUri: Uri? = null,
+   fallbackIcon: AppIcon = Icons.RoundedFilled.Audiotrack,
+   isCircular: Boolean = false,
+-  cardWidth: Dp = 145.dp,
++  cardWidth: Dp? = null,
+   isSelected: Boolean = false,
++  isPlaying: Boolean = false,
+   onClick: () -> Unit,
+   onLongClick: (() -> Unit)? = null,
+   modifier: Modifier = Modifier,
+ ) {
+-  Column(
++  Card(
+     modifier = modifier
+-      .width(cardWidth)
+-      .clip(if (isCircular) CircleShape else AppShapeScale.extraLarge)
+-      .then(
+-        if (onLongClick != null) {
+-          Modifier.combinedClickable(onClick = onClick, onLongClick = onLongClick)
+-        } else {
+-          Modifier.clickable(onClick = onClick)
+-        }
+-      )
+-      .padding(4.dp),
+-    horizontalAlignment = Alignment.CenterHorizontally,
++      .then(if (cardWidth != null) Modifier.width(cardWidth) else Modifier.fillMaxWidth())
++      .clip(AppShapeScale.large)
++      .combinedClickable(onClick = onClick, onLongClick = onLongClick),
++    shape = AppShapeScale.large,
++    colors = CardDefaults.cardColors(
++      containerColor = when {
++        isSelected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
++        isPlaying -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
++        else -> Color.Transparent
++      }
++    )
+   ) {
+-    Box(
++    Column(
+       modifier = Modifier
+         .fillMaxWidth()
+-        .aspectRatio(1f)
+-        .clip(if (isCircular) CircleShape else AppShapeScale.large)
+-        .background(
+-          if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+-          else MaterialTheme.colorScheme.surfaceVariant
+-        ),
+-      contentAlignment = Alignment.Center,
++        .padding(if (isCircular) 14.dp else 8.dp),
++      horizontalAlignment = if (isCircular) Alignment.CenterHorizontally else Alignment.Start,
+     ) {
+-      when {
+-        !artworkUrl.isNullOrBlank() -> {
+-          RemoteImage(
+-            url = artworkUrl,
+-            contentDescription = title,
+-            contentScale = ContentScale.Crop,
+-            modifier = Modifier.fillMaxSize(),
+-          )
++      Box(
++        modifier = Modifier
++          .fillMaxWidth()
++          .aspectRatio(1f)
++          .clip(if (isCircular) CircleShape else AppShapeScale.medium)
++          .background(MaterialTheme.colorScheme.surfaceVariant),
++        contentAlignment = Alignment.Center,
++      ) {
++        when {
++          !artworkUrl.isNullOrBlank() -> {
++            RemoteImage(
++              url = artworkUrl,
++              contentDescription = title,
++              contentScale = ContentScale.Crop,
++              modifier = Modifier.fillMaxSize(),
++            )
++          }
++          albumArtUri != null -> {
++            LocalAlbumArtImage(
++              uri = albumArtUri,
++              contentDescription = title,
++              modifier = Modifier.fillMaxSize(),
++            )
++          }
++          else -> {
++            Icon(
++              imageVector = fallbackIcon,
++              contentDescription = null,
++              tint = MaterialTheme.colorScheme.primary,
++              modifier = Modifier.size(if (isCircular) 48.dp else 36.dp),
++            )
++          }
+         }
+-        albumArtUri != null -> {
+-          LocalAlbumArtImage(
+-            uri = albumArtUri,
+-            contentDescription = title,
+-            modifier = Modifier.fillMaxSize(),
+-          )
++
++        if (isSelected) {
++          Box(
++            modifier = Modifier
++              .fillMaxSize()
++              .then(if (isCircular) Modifier.clip(CircleShape) else Modifier)
++              .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)),
++            contentAlignment = Alignment.Center,
++          ) {
++            Icon(
++              imageVector = Icons.RoundedFilled.CheckCircle,
++              contentDescription = "Selected",
++              tint = Color.White,
++              modifier = Modifier.size(36.dp),
++            )
++          }
++        } else if (isPlaying) {
++          val paused by PlaybackSession.propBoolean["pause"].collectAsState()
++          val isPlaybackActive = paused != true
++          Box(
++            modifier = Modifier
++              .fillMaxSize()
++              .then(if (isCircular) Modifier.clip(CircleShape) else Modifier)
++              .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)),
++            contentAlignment = Alignment.Center,
++          ) {
++            MiniAudioVisualizer(
++              isPlaying = isPlaybackActive,
++              color = Color.White,
++              modifier = Modifier.size(width = 28.dp, height = 24.dp),
++              barCount = 4,
++            )
++          }
+         }
+-        else -> {
+-          Icon(
+-            imageVector = fallbackIcon,
+-            contentDescription = null,
+-            tint = MaterialTheme.colorScheme.primary,
+-            modifier = Modifier.size(36.dp),
++      }
++
++      Spacer(modifier = Modifier.height(if (isCircular) 8.dp else 6.dp))
++
++      Column(
++        modifier = Modifier.fillMaxWidth(),
++        horizontalAlignment = if (isCircular) Alignment.CenterHorizontally else Alignment.Start,
++      ) {
++        Text(
++          text = title,
++          style = if (isCircular) MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
++          else MaterialTheme.typography.bodyLarge.copy(
++            fontWeight = if (isPlaying) FontWeight.ExtraBold else FontWeight.Bold
++          ),
++          maxLines = 1,
++          overflow = TextOverflow.Ellipsis,
++          color = if (isPlaying) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
++          textAlign = if (isCircular) TextAlign.Center else TextAlign.Start,
++          modifier = Modifier.fillMaxWidth(),
++        )
++
++        if (!subtitle.isNullOrBlank()) {
++          Text(
++            text = subtitle,
++            style = MaterialTheme.typography.bodySmall,
++            maxLines = 1,
++            overflow = TextOverflow.Ellipsis,
++            color = if (isPlaying) MaterialTheme.colorScheme.primary.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant,
++            textAlign = if (isCircular) TextAlign.Center else TextAlign.Start,
++            modifier = Modifier.fillMaxWidth(),
+           )
+         }
+-      }
+ 
+-      if (isSelected) {
+-        Box(
+-          modifier = Modifier
+-            .fillMaxSize()
+-            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)),
+-          contentAlignment = Alignment.Center,
+-        ) {
+-          Icon(
+-            imageVector = Icons.RoundedFilled.CheckCircle,
+-            contentDescription = "Selected",
+-            tint = Color.White,
+-            modifier = Modifier.size(32.dp),
++        if (!thirdLine.isNullOrBlank()) {
++          Text(
++            text = thirdLine,
++            style = MaterialTheme.typography.labelSmall,
++            color = MaterialTheme.colorScheme.primary,
++            textAlign = if (isCircular) TextAlign.Center else TextAlign.Start,
++            modifier = Modifier.fillMaxWidth(),
+           )
+         }
+       }
+     }
+-
+-    Spacer(modifier = Modifier.height(6.dp))
+-
+-    Text(
+-      text = title,
+-      style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+-      maxLines = 1,
+-      overflow = TextOverflow.Ellipsis,
+-      color = MaterialTheme.colorScheme.onSurface,
+-    )
+-
+-    if (!subtitle.isNullOrBlank()) {
+-      Text(
+-        text = subtitle,
+-        style = MaterialTheme.typography.bodySmall,
+-        maxLines = 1,
+-        overflow = TextOverflow.Ellipsis,
+-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+-      )
+-    }
+   }
+ }
+ 
+@@ -444,6 +530,7 @@ fun <T> SharedMusicCarouselSection(
+   isCircular: Boolean = false,
+   cardWidth: Dp = if (isCircular) 130.dp else 140.dp,
+   fallbackIcon: AppIcon = if (isCircular) Icons.RoundedFilled.Person else Icons.RoundedFilled.Audiotrack,
++  getFallbackIcon: ((T) -> AppIcon)? = null,
+ ) {
+   Column(modifier = modifier) {
+     SharedMusicSectionHeader(
+@@ -459,7 +546,7 @@ fun <T> SharedMusicCarouselSection(
+           title = getTitle(item),
+           subtitle = getSubtitle(item),
+           artworkUrl = getArtworkUrl(item),
+-          fallbackIcon = fallbackIcon,
++          fallbackIcon = getFallbackIcon?.invoke(item) ?: fallbackIcon,
+           isCircular = isCircular,
+           cardWidth = cardWidth,
+           onClick = { onClick(item) },
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/navidrome/NavidromeContent.kt b/app/src/main/java/com/quantummpv/app/ui/browser/navidrome/NavidromeContent.kt
+index e39e2798..bef8743c 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/navidrome/NavidromeContent.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/navidrome/NavidromeContent.kt
+@@ -81,6 +81,8 @@ import com.quantummpv.app.ui.browser.music.SharedMusicTrackListItem
+ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
+ import com.quantummpv.app.ui.utils.LocalBackStack
++import com.quantummpv.app.ui.browser.dialogs.MusicSortDialog
++import com.quantummpv.app.ui.browser.music.MusicSortField
+ import com.quantummpv.app.ui.browser.LocalNavigationBarHeight
+ import kotlinx.coroutines.launch
+ import org.koin.compose.koinInject
+@@ -105,6 +107,7 @@ fun NavidromeContent(
+ 
+   var isSearching by rememberSaveable { mutableStateOf(false) }
+   var isAddDialogOpen by remember { mutableStateOf(false) }
++  var isSortDialogOpen by rememberSaveable { mutableStateOf(false) }
+   val searchFocusRequester = remember { FocusRequester() }
+ 
+   val musicTabs = remember {
+@@ -219,6 +222,9 @@ fun NavidromeContent(
+           selectedCount = 0,
+           totalCount = 0,
+           onCancelSelection = { },
++          onSortClick = if (uiState.activeTab != NavidromeMusicTab.HOME) {
++            { isSortDialogOpen = true }
++          } else null,
+           onSearchClick = { isSearching = true },
+           onSettingsClick = {
+             backstack.add(com.quantummpv.app.ui.preferences.PreferencesScreen)
+@@ -496,7 +502,7 @@ fun NavidromeContent(
+               title = song.title,
+               subtitle = song.artist,
+               durationSeconds = song.durationSeconds.toLong(),
+-              artworkUrl = navidromeRepository.getCoverArtUrl(server, song.coverArtId),
++              artworkUrl = navidromeRepository.getSongCoverArtUrl(server, song),
+               onClick = { viewModel.playSong(context, song) },
+             )
+           }
+@@ -521,6 +527,26 @@ fun NavidromeContent(
+             )
+           }
+         }
++
++        if (result.artists.isNotEmpty()) {
++          item {
++            Text(
++              text = "Artists (${result.artists.size})",
++              style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
++              color = MaterialTheme.colorScheme.onSurface,
++              modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
++            )
++          }
++          items(result.artists, key = { it.id }) { artist ->
++            SharedMusicTrackListItem(
++              title = artist.name,
++              subtitle = "${artist.albumCount} albums",
++              durationSeconds = null,
++              artworkUrl = navidromeRepository.getArtistImageUrl(server, artist),
++              onClick = { viewModel.openArtistDetail(artist) },
++            )
++          }
++        }
+       }
+     } else {
+       PullToRefreshBox(
+@@ -562,6 +588,48 @@ fun NavidromeContent(
+       )
+     }
+ 
++    // Sort & View dialog
++    val availableFields = remember(uiState.activeTab) {
++      when (uiState.activeTab) {
++        NavidromeMusicTab.TRACKS -> listOf(
++          MusicSortField.TITLE,
++          MusicSortField.ARTIST,
++          MusicSortField.ALBUM,
++          MusicSortField.DURATION,
++          MusicSortField.YEAR,
++        )
++        NavidromeMusicTab.ALBUMS -> listOf(
++          MusicSortField.TITLE,
++          MusicSortField.ARTIST,
++          MusicSortField.YEAR,
++          MusicSortField.TRACK_COUNT,
++          MusicSortField.DURATION,
++        )
++        NavidromeMusicTab.ARTISTS -> listOf(
++          MusicSortField.ARTIST,
++          MusicSortField.TRACK_COUNT,
++        )
++        NavidromeMusicTab.PLAYLISTS -> listOf(
++          MusicSortField.TITLE,
++          MusicSortField.TRACK_COUNT,
++          MusicSortField.DURATION,
++        )
++        else -> emptyList()
++      }
++    }
++
++    MusicSortDialog(
++      isOpen = isSortDialogOpen,
++      onDismiss = { isSortDialogOpen = false },
++      sortField = uiState.sortField,
++      sortOrder = uiState.sortOrder,
++      viewMode = uiState.viewMode,
++      onSortFieldChange = { viewModel.setSortField(it) },
++      onSortOrderChange = { viewModel.setSortOrder(it) },
++      onViewModeChange = { viewModel.setViewMode(it) },
++      availableFields = availableFields,
++    )
++
+     // Add server dialog
+     AddNavidromeServerDialog(
+       isOpen = isAddDialogOpen,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/navidrome/NavidromeDetailSheet.kt b/app/src/main/java/com/quantummpv/app/ui/browser/navidrome/NavidromeDetailSheet.kt
+index 0c6da621..9e55da32 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/navidrome/NavidromeDetailSheet.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/navidrome/NavidromeDetailSheet.kt
+@@ -39,9 +39,13 @@ import androidx.compose.material3.IconButton
+ import androidx.compose.material3.MaterialTheme
+ import androidx.compose.material3.ModalBottomSheet
+ import androidx.compose.material3.SheetValue
+-import androidx.compose.material3.Text
+ import androidx.compose.material3.rememberBottomSheetState
++import androidx.compose.material3.Text
+ import androidx.compose.runtime.Composable
++import androidx.compose.runtime.getValue
++import androidx.compose.runtime.remember
++import androidx.lifecycle.compose.collectAsStateWithLifecycle
++import com.quantummpv.app.ui.player.PlaybackSession
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.draw.clip
+@@ -90,6 +94,9 @@ fun NavidromeDetailSheet(
+       enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded),
+     )
+ 
++  val queueState by PlaybackSession.queue.collectAsStateWithLifecycle()
++  val currentSessionItem = queueState.currentItem
++
+   ModalBottomSheet(
+     onDismissRequest = onDismiss,
+     sheetState = sheetState,
+@@ -110,80 +117,136 @@ fun NavidromeDetailSheet(
+             if (album.songCount > 0) add("${album.songCount} tracks")
+           }.joinToString(" • ")
+ 
+-          SharedMusicDetailHeader(
+-            title = album.title,
+-            subtitle = album.artist.ifBlank { null },
+-            itemCountText = details.ifBlank { null },
+-            artworkUrl = navidromeRepository.getCoverArtUrl(server, album.coverArtId, size = 300),
+-            onPlayAll = { viewModel.playAll(context, album.songs, 0) },
+-            onShuffle = { viewModel.shufflePlay(context, album.songs) },
+-            trailingAction = {
+-              IconButton(onClick = { viewModel.toggleAlbumFavorite(album) }) {
+-                Icon(
+-                  imageVector = if (album.isFavorite) Icons.RoundedFilled.Favorite else Icons.RoundedFilled.FavoriteBorder,
+-                  contentDescription = null,
+-                  tint = if (album.isFavorite) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+-                )
+-              }
+-            },
+-          )
+-          Spacer(Modifier.height(8.dp))
+-          HorizontalDivider()
++          Box(
++            modifier = Modifier
++              .fillMaxWidth()
++              .padding(horizontal = 16.dp, vertical = 8.dp),
++          ) {
++            SharedMusicDetailHeader(
++              title = album.title,
++              subtitle = album.artist.ifBlank { null },
++              itemCountText = details.ifBlank { null },
++              artworkUrl = navidromeRepository.getCoverArtUrl(server, album.coverArtId, size = 300),
++              onPlayAll = { viewModel.playAll(context, album.songs, 0) },
++              onShuffle = { viewModel.shufflePlay(context, album.songs) },
++              trailingAction = {
++                IconButton(onClick = { viewModel.toggleAlbumFavorite(album) }) {
++                  Icon(
++                    imageVector = if (album.isFavorite) Icons.RoundedFilled.Favorite else Icons.RoundedFilled.FavoriteBorder,
++                    contentDescription = null,
++                    tint = if (album.isFavorite) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
++                  )
++                }
++              },
++            )
++          }
++
++          if (album.songs.isNotEmpty()) {
++            Spacer(Modifier.height(8.dp))
++            Text(
++              text = "Tracks",
++              style = MaterialTheme.typography.titleMedium,
++              fontWeight = FontWeight.Bold,
++              color = MaterialTheme.colorScheme.onSurface,
++              modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
++            )
++          }
+         }
+ 
+         itemsIndexed(album.songs, key = { _, s -> s.id }) { index, song ->
++          val isTrackPlaying = remember(currentSessionItem, song.id) {
++            if (currentSessionItem == null || song.id.isBlank()) false
++            else {
++              val orig = currentSessionItem.originalUri
++              val play = currentSessionItem.playableUri
++              orig.contains(song.id, ignoreCase = true) || play.contains(song.id, ignoreCase = true)
++            }
++          }
+           SharedMusicTrackListItem(
+             title = song.title,
+             subtitle = song.artist,
+             durationSeconds = song.durationSeconds.toLong(),
+-            artworkUrl = navidromeRepository.getCoverArtUrl(server, song.coverArtId),
++            artworkUrl = navidromeRepository.getSongCoverArtUrl(server, song),
++            isPlaying = isTrackPlaying,
++            isFavorite = song.isFavorite,
++            onFavoriteClick = { viewModel.toggleFavorite(song) },
+             onClick = { viewModel.playSong(context, song) },
+           )
+         }
+       } else if (playlist != null) {
+         item {
+-          SharedMusicDetailHeader(
+-            title = playlist.name,
+-            subtitle = null,
+-            itemCountText = "${playlist.songCount} tracks",
+-            artworkUrl = navidromeRepository.getCoverArtUrl(server, playlist.coverArtId, size = 300),
+-            fallbackIcon = Icons.RoundedFilled.QueueMusic,
+-            onPlayAll = { viewModel.playAll(context, playlist.songs, 0) },
+-            onShuffle = { viewModel.shufflePlay(context, playlist.songs) },
+-          )
+-          Spacer(Modifier.height(8.dp))
+-          HorizontalDivider()
++          Box(
++            modifier = Modifier
++              .fillMaxWidth()
++              .padding(horizontal = 16.dp, vertical = 8.dp),
++          ) {
++            SharedMusicDetailHeader(
++              title = playlist.name,
++              subtitle = null,
++              itemCountText = "${playlist.songCount} tracks",
++              artworkUrl = navidromeRepository.getCoverArtUrl(server, playlist.coverArtId, size = 300),
++              fallbackIcon = if (playlist.id == "virtual_favorites_playlist" || playlist.id == "favorites") Icons.RoundedFilled.Favorite else Icons.RoundedFilled.QueueMusic,
++              onPlayAll = { viewModel.playAll(context, playlist.songs, 0) },
++              onShuffle = { viewModel.shufflePlay(context, playlist.songs) },
++            )
++          }
++
++          if (playlist.songs.isNotEmpty()) {
++            Spacer(Modifier.height(8.dp))
++            Text(
++              text = "Tracks",
++              style = MaterialTheme.typography.titleMedium,
++              fontWeight = FontWeight.Bold,
++              color = MaterialTheme.colorScheme.onSurface,
++              modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
++            )
++          }
+         }
+ 
+         itemsIndexed(playlist.songs, key = { _, s -> s.id }) { index, song ->
++          val isTrackPlaying = remember(currentSessionItem, song.id) {
++            if (currentSessionItem == null || song.id.isBlank()) false
++            else {
++              val orig = currentSessionItem.originalUri
++              val play = currentSessionItem.playableUri
++              orig.contains(song.id, ignoreCase = true) || play.contains(song.id, ignoreCase = true)
++            }
++          }
+           SharedMusicTrackListItem(
+             title = song.title,
+             subtitle = song.artist,
+             durationSeconds = song.durationSeconds.toLong(),
+-            artworkUrl = navidromeRepository.getCoverArtUrl(server, song.coverArtId),
++            artworkUrl = navidromeRepository.getSongCoverArtUrl(server, song),
++            isPlaying = isTrackPlaying,
++            isFavorite = song.isFavorite,
++            onFavoriteClick = { viewModel.toggleFavorite(song) },
+             onClick = { viewModel.playSong(context, song) },
+           )
+         }
+       } else if (artist != null) {
+         item {
+-          SharedMusicDetailHeader(
+-            title = artist.name,
+-            subtitle = "${artist.albumCount} albums",
+-            artworkUrl = navidromeRepository.getCoverArtUrl(server, artist.artistImageUrl, size = 300),
+-            fallbackIcon = Icons.RoundedFilled.Person,
+-            isCircular = true,
+-            trailingAction = {
+-              IconButton(onClick = { viewModel.toggleArtistFavorite(artist) }) {
+-                Icon(
+-                  imageVector = if (artist.isFavorite) Icons.RoundedFilled.Favorite else Icons.RoundedFilled.FavoriteBorder,
+-                  contentDescription = null,
+-                  tint = if (artist.isFavorite) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+-                )
+-              }
+-            },
+-          )
+-          Spacer(Modifier.height(8.dp))
+-          HorizontalDivider()
++          Box(
++            modifier = Modifier
++              .fillMaxWidth()
++              .padding(horizontal = 16.dp, vertical = 8.dp),
++          ) {
++            SharedMusicDetailHeader(
++              title = artist.name,
++              subtitle = "${artist.albumCount} albums",
++              artworkUrl = navidromeRepository.getArtistImageUrl(server, artist, size = 300),
++              fallbackIcon = Icons.RoundedFilled.Person,
++              isCircular = true,
++              trailingAction = {
++                IconButton(onClick = { viewModel.toggleArtistFavorite(artist) }) {
++                  Icon(
++                    imageVector = if (artist.isFavorite) Icons.RoundedFilled.Favorite else Icons.RoundedFilled.FavoriteBorder,
++                    contentDescription = null,
++                    tint = if (artist.isFavorite) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
++                  )
++                }
++              },
++            )
++          }
+         }
+ 
+         if (artist.albums.isNotEmpty()) {
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/navidrome/NavidromeMusicView.kt b/app/src/main/java/com/quantummpv/app/ui/browser/navidrome/NavidromeMusicView.kt
+index 6ff93261..6d1d1c28 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/navidrome/NavidromeMusicView.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/navidrome/NavidromeMusicView.kt
+@@ -9,6 +9,8 @@
+ 
+ package com.quantummpv.app.ui.browser.navidrome
+ 
++import android.content.res.Configuration
++import android.text.format.DateUtils
+ import androidx.compose.foundation.background
+ import androidx.compose.foundation.clickable
+ import androidx.compose.foundation.layout.Arrangement
+@@ -22,49 +24,42 @@ import androidx.compose.foundation.layout.fillMaxHeight
+ import androidx.compose.foundation.layout.fillMaxSize
+ import androidx.compose.foundation.layout.fillMaxWidth
+ import androidx.compose.foundation.layout.height
+-import androidx.compose.foundation.layout.padding
+-import androidx.compose.foundation.layout.size
+-import androidx.compose.foundation.layout.width
+ import androidx.compose.foundation.lazy.LazyColumn
+-import androidx.compose.foundation.lazy.LazyRow
+ import androidx.compose.foundation.lazy.grid.GridCells
+-import androidx.compose.foundation.lazy.grid.LazyHorizontalGrid
+ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+ import androidx.compose.foundation.lazy.grid.items
+ import androidx.compose.foundation.lazy.items
+ import androidx.compose.foundation.pager.HorizontalPager
+ import androidx.compose.foundation.pager.PagerState
+-import androidx.compose.foundation.shape.CircleShape
+-import androidx.compose.foundation.shape.RoundedCornerShape
+-import androidx.compose.material3.Card
+-import androidx.compose.material3.CardDefaults
+ import androidx.compose.material3.CircularProgressIndicator
+ import androidx.compose.material3.MaterialTheme
+-import androidx.compose.material3.Text
+ import androidx.compose.runtime.Composable
++import androidx.compose.runtime.getValue
++import androidx.compose.runtime.remember
++import com.quantummpv.app.preferences.preference.collectAsState
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+-import androidx.compose.ui.draw.clip
+-import androidx.compose.ui.layout.ContentScale
+ import androidx.compose.ui.platform.LocalConfiguration
+-import androidx.compose.ui.text.font.FontWeight
+-import androidx.compose.ui.text.style.TextOverflow
+ import androidx.compose.ui.unit.Dp
+ import androidx.compose.ui.unit.dp
++import androidx.lifecycle.compose.collectAsStateWithLifecycle
+ import com.quantummpv.app.domain.navidrome.NavidromeAlbum
+ import com.quantummpv.app.domain.navidrome.NavidromeArtist
+ import com.quantummpv.app.domain.navidrome.NavidromeMusicTab
+ import com.quantummpv.app.domain.navidrome.NavidromePlaylist
+ import com.quantummpv.app.domain.navidrome.NavidromeServer
+ import com.quantummpv.app.domain.navidrome.NavidromeSong
+-import com.quantummpv.app.presentation.components.RemoteImage
++import com.quantummpv.app.preferences.BrowserPreferences
+ import com.quantummpv.app.repository.NavidromeRepository
++import com.quantummpv.app.ui.browser.music.MusicSortField
++import com.quantummpv.app.ui.browser.music.MusicSortOrder
++import com.quantummpv.app.ui.browser.music.MusicViewMode
+ import com.quantummpv.app.ui.browser.music.SharedCompactTrackGridSection
+ import com.quantummpv.app.ui.browser.music.SharedMusicCarouselSection
+ import com.quantummpv.app.ui.browser.music.SharedMusicGridCard
+ import com.quantummpv.app.ui.browser.music.SharedMusicTrackListItem
+-import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
++import com.quantummpv.app.ui.player.PlaybackSession
+ import org.koin.compose.koinInject
+ 
+ @Composable
+@@ -83,6 +78,10 @@ fun NavidromeMusicView(
+   modifier: Modifier = Modifier,
+ ) {
+   val navidromeRepository = koinInject<NavidromeRepository>()
++  val browserPreferences = koinInject<BrowserPreferences>()
++  val coverArtSizeDp by browserPreferences.musicCoverArtSize.collectAsState()
++  val queueState by PlaybackSession.queue.collectAsStateWithLifecycle()
++  val currentSessionItem = queueState.currentItem
+ 
+   HorizontalPager(
+     state = pagerState,
+@@ -121,18 +120,71 @@ fun NavidromeMusicView(
+               CircularProgressIndicator()
+             }
+           } else {
+-            LazyColumn(
+-              modifier = Modifier.fillMaxSize(),
+-              contentPadding = PaddingValues(top = 8.dp, bottom = navigationBarHeight + 84.dp),
+-            ) {
+-              items(uiState.tracks, key = { it.id }) { song ->
+-                SharedMusicTrackListItem(
+-                  title = song.title,
+-                  subtitle = song.artist,
+-                  durationSeconds = song.durationSeconds.toLong(),
+-                  artworkUrl = navidromeRepository.getCoverArtUrl(server, song.coverArtId),
+-                  onClick = { onSongClick(song) },
+-                )
++            val sortedTracks = remember(uiState.tracks, uiState.sortField, uiState.sortOrder) {
++              val sorted = when (uiState.sortField) {
++                MusicSortField.TITLE -> uiState.tracks.sortedBy { it.title.lowercase() }
++                MusicSortField.ARTIST -> uiState.tracks.sortedBy { it.artist.lowercase() }
++                MusicSortField.ALBUM -> uiState.tracks.sortedBy { it.album.lowercase() }
++                MusicSortField.DURATION -> uiState.tracks.sortedBy { it.durationSeconds }
++                MusicSortField.YEAR -> uiState.tracks.sortedBy { it.year ?: 0 }
++                else -> uiState.tracks.sortedBy { it.title.lowercase() }
++              }
++              if (uiState.sortOrder == MusicSortOrder.DESCENDING) sorted.reversed() else sorted
++            }
++
++            if (uiState.viewMode == MusicViewMode.GRID) {
++              LazyVerticalGrid(
++                columns = GridCells.Adaptive(minSize = 145.dp),
++                modifier = Modifier.fillMaxSize(),
++                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = navigationBarHeight + 84.dp),
++                horizontalArrangement = Arrangement.spacedBy(14.dp),
++                verticalArrangement = Arrangement.spacedBy(14.dp),
++              ) {
++                items(sortedTracks, key = { it.id }) { song ->
++                  val isPlaying = remember(currentSessionItem, song.id) {
++                    if (currentSessionItem == null || song.id.isBlank()) false
++                    else {
++                      val orig = currentSessionItem.originalUri
++                      val play = currentSessionItem.playableUri
++                      orig.contains(song.id, ignoreCase = true) || play.contains(song.id, ignoreCase = true)
++                    }
++                  }
++                  SharedMusicGridCard(
++                    title = song.title,
++                    subtitle = song.artist,
++                    thirdLine = DateUtils.formatElapsedTime(song.durationSeconds.toLong()),
++                    artworkUrl = navidromeRepository.getSongCoverArtUrl(server, song),
++                    isPlaying = isPlaying,
++                    onClick = { onSongClick(song) },
++                  )
++                }
++              }
++            } else {
++              LazyColumn(
++                modifier = Modifier.fillMaxSize(),
++                contentPadding = PaddingValues(start = 0.dp, top = 8.dp, end = 0.dp, bottom = navigationBarHeight + 84.dp),
++              ) {
++                items(sortedTracks, key = { it.id }) { song ->
++                  val isPlaying = remember(currentSessionItem, song.id) {
++                    if (currentSessionItem == null || song.id.isBlank()) false
++                    else {
++                      val orig = currentSessionItem.originalUri
++                      val play = currentSessionItem.playableUri
++                      orig.contains(song.id, ignoreCase = true) || play.contains(song.id, ignoreCase = true)
++                    }
++                  }
++                  SharedMusicTrackListItem(
++                    title = song.title,
++                    subtitle = "${song.artist} • ${song.album}",
++                    durationSeconds = song.durationSeconds.toLong(),
++                    artworkUrl = navidromeRepository.getSongCoverArtUrl(server, song),
++                    isPlaying = isPlaying,
++                    isFavorite = song.isFavorite,
++                    onFavoriteClick = { onToggleFavorite(song) },
++                    coverArtSizeDp = coverArtSizeDp,
++                    onClick = { onSongClick(song) },
++                  )
++                }
+               }
+             }
+           }
+@@ -144,22 +196,51 @@ fun NavidromeMusicView(
+               CircularProgressIndicator()
+             }
+           } else {
+-            val isLandscape = LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+-            val columns = if (isLandscape) 4 else 2
+-            LazyVerticalGrid(
+-              columns = GridCells.Fixed(columns),
+-              modifier = Modifier.fillMaxSize(),
+-              contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = navigationBarHeight + 84.dp),
+-              horizontalArrangement = Arrangement.spacedBy(12.dp),
+-              verticalArrangement = Arrangement.spacedBy(12.dp),
+-            ) {
+-              items(uiState.albums, key = { it.id }) { album ->
+-                SharedMusicGridCard(
+-                  title = album.title,
+-                  subtitle = album.artist,
+-                  artworkUrl = navidromeRepository.getCoverArtUrl(server, album.coverArtId),
+-                  onClick = { onAlbumClick(album) },
+-                )
++            val sortedAlbums = remember(uiState.albums, uiState.sortField, uiState.sortOrder) {
++              val sorted = when (uiState.sortField) {
++                MusicSortField.TITLE -> uiState.albums.sortedBy { it.title.lowercase() }
++                MusicSortField.ARTIST -> uiState.albums.sortedBy { it.artist.lowercase() }
++                MusicSortField.YEAR -> uiState.albums.sortedBy { it.year ?: 0 }
++                MusicSortField.TRACK_COUNT -> uiState.albums.sortedBy { it.songCount }
++                MusicSortField.DURATION -> uiState.albums.sortedBy { it.durationSeconds }
++                else -> uiState.albums.sortedBy { it.title.lowercase() }
++              }
++              if (uiState.sortOrder == MusicSortOrder.DESCENDING) sorted.reversed() else sorted
++            }
++
++            if (uiState.viewMode == MusicViewMode.GRID) {
++              LazyVerticalGrid(
++                columns = GridCells.Adaptive(minSize = 145.dp),
++                modifier = Modifier.fillMaxSize(),
++                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = navigationBarHeight + 84.dp),
++                horizontalArrangement = Arrangement.spacedBy(14.dp),
++                verticalArrangement = Arrangement.spacedBy(14.dp),
++              ) {
++                items(sortedAlbums, key = { it.id }) { album ->
++                  SharedMusicGridCard(
++                    title = album.title,
++                    subtitle = album.artist,
++                    thirdLine = "${album.songCount} songs",
++                    artworkUrl = navidromeRepository.getCoverArtUrl(server, album.coverArtId),
++                    onClick = { onAlbumClick(album) },
++                  )
++                }
++              }
++            } else {
++              LazyColumn(
++                modifier = Modifier.fillMaxSize(),
++                contentPadding = PaddingValues(start = 0.dp, top = 8.dp, end = 0.dp, bottom = navigationBarHeight + 84.dp),
++              ) {
++                items(sortedAlbums, key = { it.id }) { album ->
++                  SharedMusicTrackListItem(
++                    title = album.title,
++                    subtitle = album.artist,
++                    trailingText = "${album.songCount} songs",
++                    artworkUrl = navidromeRepository.getCoverArtUrl(server, album.coverArtId),
++                    coverArtSizeDp = coverArtSizeDp,
++                    onClick = { onAlbumClick(album) },
++                  )
++                }
+               }
+             }
+           }
+@@ -171,23 +252,49 @@ fun NavidromeMusicView(
+               CircularProgressIndicator()
+             }
+           } else {
+-            LazyVerticalGrid(
+-              columns = GridCells.Adaptive(minSize = 130.dp),
+-              modifier = Modifier.fillMaxSize(),
+-              contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = navigationBarHeight + 84.dp),
+-              horizontalArrangement = Arrangement.spacedBy(16.dp),
+-              verticalArrangement = Arrangement.spacedBy(16.dp),
+-            ) {
+-              items(uiState.artists, key = { it.id }) { artist ->
+-                SharedMusicGridCard(
+-                  title = artist.name,
+-                  subtitle = null,
+-                  artworkUrl = navidromeRepository.getCoverArtUrl(server, artist.artistImageUrl),
+-                  isCircular = true,
+-                  cardWidth = 130.dp,
+-                  fallbackIcon = Icons.RoundedFilled.Person,
+-                  onClick = { onArtistClick(artist) },
+-                )
++            val sortedArtists = remember(uiState.artists, uiState.sortField, uiState.sortOrder) {
++              val sorted = when (uiState.sortField) {
++                MusicSortField.TRACK_COUNT -> uiState.artists.sortedBy { it.albumCount }
++                else -> uiState.artists.sortedBy { it.name.lowercase() }
++              }
++              if (uiState.sortOrder == MusicSortOrder.DESCENDING) sorted.reversed() else sorted
++            }
++
++            if (uiState.viewMode == MusicViewMode.GRID) {
++              LazyVerticalGrid(
++                columns = GridCells.Adaptive(minSize = 160.dp),
++                modifier = Modifier.fillMaxSize(),
++                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = navigationBarHeight + 84.dp),
++                horizontalArrangement = Arrangement.spacedBy(16.dp),
++                verticalArrangement = Arrangement.spacedBy(16.dp),
++              ) {
++                items(sortedArtists, key = { it.id }) { artist ->
++                  SharedMusicGridCard(
++                    title = artist.name,
++                    subtitle = "${artist.albumCount} albums",
++                    artworkUrl = navidromeRepository.getArtistImageUrl(server, artist),
++                    isCircular = true,
++                    fallbackIcon = Icons.RoundedFilled.Person,
++                    onClick = { onArtistClick(artist) },
++                  )
++                }
++              }
++            } else {
++              LazyColumn(
++                modifier = Modifier.fillMaxSize(),
++                contentPadding = PaddingValues(start = 0.dp, top = 8.dp, end = 0.dp, bottom = navigationBarHeight + 84.dp),
++              ) {
++                items(sortedArtists, key = { it.id }) { artist ->
++                  SharedMusicTrackListItem(
++                    title = artist.name,
++                    subtitle = "${artist.albumCount} albums",
++                    artworkUrl = navidromeRepository.getArtistImageUrl(server, artist),
++                    isCircular = true,
++                    fallbackIcon = Icons.RoundedFilled.Person,
++                    coverArtSizeDp = coverArtSizeDp,
++                    onClick = { onArtistClick(artist) },
++                  )
++                }
+               }
+             }
+           }
+@@ -199,22 +306,52 @@ fun NavidromeMusicView(
+               CircularProgressIndicator()
+             }
+           } else {
+-            val isLandscape = LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+-            val columns = if (isLandscape) 4 else 2
+-            LazyVerticalGrid(
+-              columns = GridCells.Fixed(columns),
+-              modifier = Modifier.fillMaxSize(),
+-              contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = navigationBarHeight + 84.dp),
+-              horizontalArrangement = Arrangement.spacedBy(12.dp),
+-              verticalArrangement = Arrangement.spacedBy(12.dp),
+-            ) {
+-              items(uiState.playlists, key = { it.id }) { playlist ->
+-                SharedMusicGridCard(
+-                  title = playlist.name,
+-                  subtitle = "${playlist.songCount} tracks",
+-                  artworkUrl = navidromeRepository.getCoverArtUrl(server, playlist.coverArtId),
+-                  onClick = { onPlaylistClick(playlist) },
+-                )
++            val sortedPlaylists = remember(uiState.playlists, uiState.sortField, uiState.sortOrder) {
++              val favorites = uiState.playlists.filter { it.id == "virtual_favorites_playlist" || it.id == "favorites" }
++              val others = uiState.playlists.filter { it.id != "virtual_favorites_playlist" && it.id != "favorites" }
++              val sorted = when (uiState.sortField) {
++                MusicSortField.TRACK_COUNT -> others.sortedBy { it.songCount }
++                MusicSortField.DURATION -> others.sortedBy { it.durationSeconds }
++                else -> others.sortedBy { it.name.lowercase() }
++              }
++              val result = if (uiState.sortOrder == MusicSortOrder.DESCENDING) sorted.reversed() else sorted
++              favorites + result
++            }
++
++            if (uiState.viewMode == MusicViewMode.GRID) {
++              LazyVerticalGrid(
++                columns = GridCells.Adaptive(minSize = 145.dp),
++                modifier = Modifier.fillMaxSize(),
++                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = navigationBarHeight + 84.dp),
++                horizontalArrangement = Arrangement.spacedBy(14.dp),
++                verticalArrangement = Arrangement.spacedBy(14.dp),
++              ) {
++                items(sortedPlaylists, key = { it.id }) { playlist ->
++                  SharedMusicGridCard(
++                    title = playlist.name,
++                    subtitle = "${playlist.songCount} tracks",
++                    artworkUrl = navidromeRepository.getCoverArtUrl(server, playlist.coverArtId),
++                    fallbackIcon = if (playlist.id == "virtual_favorites_playlist" || playlist.id == "favorites") Icons.RoundedFilled.Favorite else Icons.RoundedFilled.QueueMusic,
++                    onClick = { onPlaylistClick(playlist) },
++                  )
++                }
++              }
++            } else {
++              LazyColumn(
++                modifier = Modifier.fillMaxSize(),
++                contentPadding = PaddingValues(start = 0.dp, top = 8.dp, end = 0.dp, bottom = navigationBarHeight + 84.dp),
++              ) {
++                items(sortedPlaylists, key = { it.id }) { playlist ->
++                  SharedMusicTrackListItem(
++                    title = playlist.name,
++                    subtitle = "${playlist.songCount} tracks",
++                    durationSeconds = playlist.durationSeconds.toLong(),
++                    artworkUrl = navidromeRepository.getCoverArtUrl(server, playlist.coverArtId),
++                    fallbackIcon = if (playlist.id == "virtual_favorites_playlist" || playlist.id == "favorites") Icons.RoundedFilled.Favorite else Icons.RoundedFilled.QueueMusic,
++                    coverArtSizeDp = coverArtSizeDp,
++                    onClick = { onPlaylistClick(playlist) },
++                  )
++                }
+               }
+             }
+           }
+@@ -250,7 +387,7 @@ private fun NavidromeHomeContent(
+           getId = { it.id },
+           getTitle = { it.title },
+           getSubtitle = { it.artist },
+-          getArtworkUrl = { navidromeRepository.getCoverArtUrl(server, it.coverArtId, size = 200) },
++          getArtworkUrl = { navidromeRepository.getSongCoverArtUrl(server, it, size = 200) },
+           onTrackClick = onSongClick,
+           onSeeAllClick = { onTabSelected(NavidromeMusicTab.TRACKS) },
+         )
+@@ -268,6 +405,7 @@ private fun NavidromeHomeContent(
+           getSubtitle = { "${it.songCount} tracks" },
+           getArtworkUrl = { navidromeRepository.getCoverArtUrl(server, it.coverArtId) },
+           fallbackIcon = Icons.RoundedFilled.QueueMusic,
++          getFallbackIcon = { if (it.id == "virtual_favorites_playlist" || it.id == "favorites") Icons.RoundedFilled.Favorite else Icons.RoundedFilled.QueueMusic },
+           onClick = onPlaylistClick,
+           onSeeAllClick = { onTabSelected(NavidromeMusicTab.PLAYLISTS) },
+           cardWidth = 140.dp,
+@@ -301,7 +439,7 @@ private fun NavidromeHomeContent(
+           getId = { it.id },
+           getTitle = { it.name },
+           getSubtitle = { "" },
+-          getArtworkUrl = { navidromeRepository.getCoverArtUrl(server, it.artistImageUrl) },
++          getArtworkUrl = { navidromeRepository.getArtistImageUrl(server, it) },
+           isCircular = true,
+           cardWidth = 130.dp,
+           fallbackIcon = Icons.RoundedFilled.Person,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/navidrome/NavidromeViewModel.kt b/app/src/main/java/com/quantummpv/app/ui/browser/navidrome/NavidromeViewModel.kt
+index a8d3e3bb..ad4a46e3 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/navidrome/NavidromeViewModel.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/navidrome/NavidromeViewModel.kt
+@@ -31,12 +31,18 @@ import com.quantummpv.app.preferences.MusicSourceProvider
+ import com.quantummpv.app.repository.NavidromeRepository
+ import com.quantummpv.app.utils.media.MediaUtils
+ import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.async
++import kotlinx.coroutines.coroutineScope
+ import kotlinx.coroutines.flow.MutableStateFlow
+ import kotlinx.coroutines.flow.StateFlow
+ import kotlinx.coroutines.flow.asStateFlow
+ import kotlinx.coroutines.flow.firstOrNull
+ import kotlinx.coroutines.flow.update
+ import kotlinx.coroutines.launch
++import com.quantummpv.app.preferences.BrowserPreferences
++import com.quantummpv.app.ui.browser.music.MusicSortField
++import com.quantummpv.app.ui.browser.music.MusicSortOrder
++import com.quantummpv.app.ui.browser.music.MusicViewMode
+ import kotlinx.coroutines.withContext
+ import org.koin.core.component.KoinComponent
+ import org.koin.core.component.inject
+@@ -61,6 +67,9 @@ data class NavidromeUiState(
+   val detailPlaylist: NavidromePlaylist? = null,
+   val isConnectingServer: Boolean = false,
+   val connectServerError: String? = null,
++  val sortField: MusicSortField = MusicSortField.TITLE,
++  val sortOrder: MusicSortOrder = MusicSortOrder.ASCENDING,
++  val viewMode: MusicViewMode = MusicViewMode.GRID,
+ )
+ 
+ class NavidromeViewModel(
+@@ -69,8 +78,15 @@ class NavidromeViewModel(
+   private val navidromeRepository: NavidromeRepository by inject()
+   private val navidromeClient: NavidromeClient by inject()
+   private val mediaServerPreferences: MediaServerPreferences by inject()
++  private val browserPreferences: BrowserPreferences by inject()
+ 
+-  private val _uiState = MutableStateFlow(NavidromeUiState())
++  private val _uiState = MutableStateFlow(
++    NavidromeUiState(
++      sortField = browserPreferences.navidromeSortField.get(),
++      sortOrder = browserPreferences.navidromeSortOrder.get(),
++      viewMode = browserPreferences.navidromeViewMode.get(),
++    )
++  )
+   val uiState: StateFlow<NavidromeUiState> = _uiState.asStateFlow()
+ 
+   init {
+@@ -90,6 +106,11 @@ class NavidromeViewModel(
+         }
+       }
+     }
++    viewModelScope.launch {
++      navidromeRepository.favoriteUpdates.collect { (songId, isFav) ->
++        applyFavoriteUpdate(songId, isFav)
++      }
++    }
+   }
+ 
+   fun setMusicTab(tab: NavidromeMusicTab) {
+@@ -143,37 +164,45 @@ class NavidromeViewModel(
+     _uiState.update { it.copy(isLoading = true, error = null) }
+ 
+     try {
+-      // 1. Home quick mix & tracks
+-      val randomSongsResult = navidromeRepository.getRandomSongs(server, 50)
+-      val randomSongs = randomSongsResult.getOrDefault(emptyList())
+-
+-      // 2. Playlists
+-      val playlistsResult = navidromeRepository.getPlaylists(server)
+-      val playlists = playlistsResult.getOrDefault(emptyList())
+-
+-      // 3. Recently added albums
+-      val recentAlbumsResult = navidromeRepository.getAlbums(server, type = "recent", size = 20)
+-      val recentAlbums = recentAlbumsResult.getOrDefault(emptyList())
+-
+-      // 4. Alphabetical albums
+-      val allAlbumsResult = navidromeRepository.getAlbums(server, type = "alphabeticalByName", size = 500)
+-      val allAlbums = allAlbumsResult.getOrDefault(emptyList())
+-
+-      // 5. Artists
+-      val artistsResult = navidromeRepository.getArtists(server)
+-      val artists = artistsResult.getOrDefault(emptyList())
+-
+-      _uiState.update {
+-        it.copy(
+-          isLoading = false,
+-          jumpBackIn = randomSongs.take(12),
+-          tracks = randomSongs,
+-          playlists = playlists,
+-          recentlyAddedAlbums = recentAlbums,
+-          artistsToExplore = artists.shuffled().take(15),
+-          albums = allAlbums,
+-          artists = artists,
++      coroutineScope {
++        val randomSongsDeferred = async { navidromeRepository.getRandomSongs(server, 50).getOrDefault(emptyList()) }
++        val playlistsDeferred = async { navidromeRepository.getPlaylists(server).getOrDefault(emptyList()) }
++        val starredDeferred = async { navidromeRepository.getStarred(server).getOrDefault(emptyList()).map { it.copy(isFavorite = true) } }
++        val recentAlbumsDeferred = async { navidromeRepository.getAlbums(server, type = "recent", size = 20).getOrDefault(emptyList()) }
++        val allAlbumsDeferred = async { navidromeRepository.getAlbums(server, type = "alphabeticalByName", size = 500).getOrDefault(emptyList()) }
++        val artistsDeferred = async { navidromeRepository.getArtists(server).getOrDefault(emptyList()) }
++
++        val rawRandomSongs = randomSongsDeferred.await()
++        val serverPlaylists = playlistsDeferred.await()
++        val starredSongs = starredDeferred.await()
++        val recentAlbums = recentAlbumsDeferred.await()
++        val allAlbums = allAlbumsDeferred.await()
++        val artists = artistsDeferred.await()
++
++        val starredSongIds = starredSongs.map { it.id }.toSet()
++        val randomSongs = rawRandomSongs.map { if (it.id in starredSongIds) it.copy(isFavorite = true) else it }
++
++        val favoritesVirtualPlaylist = NavidromePlaylist(
++          id = "virtual_favorites_playlist",
++          name = "Favorites",
++          songCount = starredSongs.size,
++          durationSeconds = starredSongs.sumOf { it.durationSeconds },
++          songs = starredSongs,
+         )
++        val combinedPlaylists = listOf(favoritesVirtualPlaylist) + serverPlaylists.filter { !it.name.equals("Favorites", ignoreCase = true) }
++
++        _uiState.update {
++          it.copy(
++            isLoading = false,
++            jumpBackIn = randomSongs.take(12),
++            tracks = randomSongs,
++            playlists = combinedPlaylists,
++            recentlyAddedAlbums = recentAlbums,
++            artistsToExplore = artists.shuffled().take(15),
++            albums = allAlbums,
++            artists = artists,
++          )
++        }
+       }
+     } catch (e: Exception) {
+       _uiState.update { it.copy(isLoading = false, error = e.message) }
+@@ -197,13 +226,38 @@ class NavidromeViewModel(
+     viewModelScope.launch(Dispatchers.IO) {
+       val fullArtist = navidromeRepository.getArtist(server, artist.id).getOrNull()
+       if (fullArtist != null) {
+-        _uiState.update { it.copy(detailArtist = fullArtist) }
++        _uiState.update {
++          it.copy(
++            detailArtist = fullArtist.copy(
++              artistImageUrl = fullArtist.artistImageUrl ?: artist.artistImageUrl,
++              coverArtId = fullArtist.coverArtId ?: artist.coverArtId,
++            )
++          )
++        }
+       }
+     }
+   }
+ 
+   fun openPlaylistDetail(playlist: NavidromePlaylist) {
+     val server = _uiState.value.activeServer ?: return
++    if (playlist.id == "virtual_favorites_playlist" || playlist.id == "favorites") {
++      _uiState.update { it.copy(detailPlaylist = playlist, detailAlbum = null, detailArtist = null) }
++      viewModelScope.launch(Dispatchers.IO) {
++        val starredSongs = navidromeRepository.getStarred(server).getOrDefault(emptyList()).map { it.copy(isFavorite = true) }
++        _uiState.update { current ->
++          val updatedFav = playlist.copy(
++            songCount = starredSongs.size,
++            durationSeconds = starredSongs.sumOf { s -> s.durationSeconds },
++            songs = starredSongs,
++          )
++          current.copy(
++            detailPlaylist = updatedFav,
++            playlists = listOf(updatedFav) + current.playlists.filterNot { it.id == "virtual_favorites_playlist" || it.id == "favorites" },
++          )
++        }
++      }
++      return
++    }
+     _uiState.update { it.copy(detailPlaylist = playlist, detailAlbum = null, detailArtist = null) }
+     viewModelScope.launch(Dispatchers.IO) {
+       val fullPlaylist = navidromeRepository.getPlaylist(server, playlist.id).getOrNull()
+@@ -247,13 +301,13 @@ class NavidromeViewModel(
+   ) {
+     if (songs.isEmpty()) return
+     val currentSong = songs.getOrNull(startIndex) ?: songs.first()
+-    val streamUrl = navidromeRepository.getStreamUrl(server, currentSong.id)
+-    val posterUrl = navidromeRepository.getCoverArtUrl(server, currentSong.coverArtId)
++    val posterUrl = navidromeRepository.getSongCoverArtUrl(server, currentSong)
+ 
+     val playlistUris = songs.map { Uri.parse(navidromeRepository.getStreamUrl(server, it.id)) }
++    val streamUrl = playlistUris.getOrNull(startIndex)?.toString() ?: navidromeRepository.getStreamUrl(server, currentSong.id)
+     val playlistTitles = songs.map { it.title }
+     val playlistArtists = songs.map { it.artist }
+-    val playlistArtworkUrls = songs.map { navidromeRepository.getCoverArtUrl(server, it.coverArtId) ?: "" }
++    val playlistArtworkUrls = songs.map { navidromeRepository.getSongCoverArtUrl(server, it) ?: "" }
+ 
+     MediaUtils.playFile(
+       source = streamUrl,
+@@ -270,23 +324,90 @@ class NavidromeViewModel(
+     )
+   }
+ 
++  fun setSortField(field: MusicSortField) {
++    browserPreferences.navidromeSortField.set(field)
++    _uiState.update { it.copy(sortField = field) }
++  }
++
++  fun setSortOrder(order: MusicSortOrder) {
++    browserPreferences.navidromeSortOrder.set(order)
++    _uiState.update { it.copy(sortOrder = order) }
++  }
++
++  fun setViewMode(mode: MusicViewMode) {
++    browserPreferences.navidromeViewMode.set(mode)
++    _uiState.update { it.copy(viewMode = mode) }
++  }
++
+   fun toggleFavorite(song: NavidromeSong) {
+     val server = _uiState.value.activeServer ?: return
+     val newFav = !song.isFavorite
++    applyFavoriteUpdate(song.id, newFav, song)
+     viewModelScope.launch(Dispatchers.IO) {
+       navidromeRepository.toggleFavorite(server, song, newFav)
+-      _uiState.update { current ->
+-        current.copy(
+-          tracks = current.tracks.map { if (it.id == song.id) it.copy(isFavorite = newFav) else it },
+-          jumpBackIn = current.jumpBackIn.map { if (it.id == song.id) it.copy(isFavorite = newFav) else it },
+-          detailAlbum = current.detailAlbum?.copy(
+-            songs = current.detailAlbum.songs.map { if (it.id == song.id) it.copy(isFavorite = newFav) else it }
+-          ),
+-          detailPlaylist = current.detailPlaylist?.copy(
+-            songs = current.detailPlaylist.songs.map { if (it.id == song.id) it.copy(isFavorite = newFav) else it }
+-          ),
++    }
++  }
++
++  fun applyFavoriteUpdate(songId: String, isFav: Boolean, songHint: NavidromeSong? = null) {
++    _uiState.update { current ->
++      val updatedTracks = current.tracks.map { if (it.id == songId) it.copy(isFavorite = isFav) else it }
++      val updatedJump = current.jumpBackIn.map { if (it.id == songId) it.copy(isFavorite = isFav) else it }
++      val updatedSearch = current.searchResult?.let { res ->
++        res.copy(songs = res.songs.map { if (it.id == songId) it.copy(isFavorite = isFav) else it })
++      }
++      val updatedDetailAlbum = current.detailAlbum?.let { alb ->
++        alb.copy(songs = alb.songs.map { if (it.id == songId) it.copy(isFavorite = isFav) else it })
++      }
++
++      val existingFavPlaylist = current.playlists.firstOrNull { it.id == "virtual_favorites_playlist" || it.id == "favorites" }
++      val targetSong = songHint
++        ?: current.tracks.firstOrNull { it.id == songId }
++        ?: current.jumpBackIn.firstOrNull { it.id == songId }
++        ?: current.detailPlaylist?.songs?.firstOrNull { it.id == songId }
++        ?: current.detailAlbum?.songs?.firstOrNull { it.id == songId }
++
++      val updatedFavSongs = if (existingFavPlaylist != null) {
++        if (isFav) {
++          if (existingFavPlaylist.songs.any { it.id == songId }) {
++            existingFavPlaylist.songs.map { if (it.id == songId) it.copy(isFavorite = true) else it }
++          } else if (targetSong != null) {
++            listOf(targetSong.copy(isFavorite = true)) + existingFavPlaylist.songs
++          } else existingFavPlaylist.songs
++        } else {
++          existingFavPlaylist.songs.filterNot { it.id == songId }
++        }
++      } else {
++        if (isFav && targetSong != null) listOf(targetSong.copy(isFavorite = true)) else emptyList()
++      }
++
++      val updatedFavPlaylist = (existingFavPlaylist ?: NavidromePlaylist(
++        id = "virtual_favorites_playlist",
++        name = "Favorites",
++      )).copy(
++        songCount = updatedFavSongs.size,
++        durationSeconds = updatedFavSongs.sumOf { it.durationSeconds },
++        songs = updatedFavSongs,
++      )
++
++      val otherPlaylists = current.playlists.filterNot { it.id == "virtual_favorites_playlist" || it.id == "favorites" }
++      val updatedPlaylists = listOf(updatedFavPlaylist) + otherPlaylists
++
++      val updatedDetailPlaylist = if (current.detailPlaylist?.id == "virtual_favorites_playlist" || current.detailPlaylist?.id == "favorites") {
++        updatedFavPlaylist
++      } else {
++        current.detailPlaylist?.copy(
++          songs = current.detailPlaylist.songs.map { if (it.id == songId) it.copy(isFavorite = isFav) else it }
+         )
+       }
++
++      current.copy(
++        tracks = updatedTracks,
++        jumpBackIn = updatedJump,
++        searchResult = updatedSearch,
++        detailAlbum = updatedDetailAlbum,
++        detailPlaylist = updatedDetailPlaylist,
++        playlists = updatedPlaylists,
++      )
+     }
+   }
+ 
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt b/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
+index f1dc123c..517c3d7f 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
+@@ -5350,13 +5350,20 @@ val isBrightnessSliderShown = MutableStateFlow(false)
+       val localPath = uri.extractLocalPath() ?: if (uri.scheme == "file") uri.path else null
+       val path = localPath ?: resolvedUri.path?.takeIf { File(it).exists() } ?: resolvedUri.toString()
+       val isAudio =
++        isAudioOnly.value ||
++        item.mimeType?.startsWith("audio/", ignoreCase = true) == true ||
+         path
+           .substringBefore('?')
+           .substringBefore('#')
+           .substringAfterLast('.', "")
+           .lowercase() in FileTypeUtils.AUDIO_EXTENSIONS ||
+-          resolvedUri.toString().lowercase().contains("audio") ||
+-          uri.toString().lowercase().contains("audio")
++        resolvedUri.toString().lowercase().contains("audio") ||
++        uri.toString().lowercase().contains("audio") ||
++        resolvedUri.toString().lowercase().contains("stream.view") ||
++        uri.toString().lowercase().contains("stream.view") ||
++        resolvedUri.toString().lowercase().contains("/rest/stream") ||
++        uri.toString().lowercase().contains("/rest/stream") ||
++        (item.artist?.isNotBlank() == true && item.durationSeconds != null)
+       val isCurrentlyPlaying = index == queue.currentIndex
+ 
+       // Try to get from cache first (synchronized access)
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/AudioPlayerControls.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/AudioPlayerControls.kt
+index 96e1a70e..c7bf146e 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/AudioPlayerControls.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/AudioPlayerControls.kt
+@@ -578,9 +578,10 @@ fun AudioPlayerControls(
+   val queueState by PlaybackSession.queue.collectAsStateWithLifecycle()
+   val currentItem = playbackState.currentItem ?: queueState.currentItem
+   val playlistItems by viewModel.playlistItems.collectAsState()
++  val isAudioOnly by viewModel.isAudioOnly.collectAsState()
+   val filteredPlaylist =
+-    remember(playlistItems) {
+-      playlistItems.filter { it.isAudio }
++    remember(playlistItems, isAudioOnly) {
++      if (isAudioOnly) playlistItems else playlistItems.filter { it.isAudio }
+     }
+ 
+   var showInPlaceLyrics by rememberSaveable { mutableStateOf(false) }
+@@ -879,14 +880,16 @@ fun AudioPlayerControls(
+     }
+   }
+ 
+-  val navidromeInfo = remember(activeTrackPath, mediaPath) {
+-    val path = mediaPath?.takeIf { it.isNotBlank() } ?: activeTrackPath
++  val navidromeInfo = remember(activeTrackPath, mediaPath, currentMediaSource) {
++    val path = mediaPath?.takeIf { it.isNotBlank() } ?: activeTrackPath ?: currentMediaSource
+     if (path.isNullOrBlank()) null
+     else {
+       val uri = runCatching { Uri.parse(path) }.getOrNull()
+       if (uri == null) null
+       else {
+-        if (uri.path?.contains("/rest/stream", ignoreCase = true) == true) {
++        if (uri.path?.contains("/rest/stream", ignoreCase = true) == true ||
++            uri.path?.contains("stream.view", ignoreCase = true) == true ||
++            uri.query?.contains("stream.view", ignoreCase = true) == true) {
+           val songId = uri.getQueryParameter("id")
+           val username = uri.getQueryParameter("u")
+           val scheme = uri.scheme ?: "http"
+@@ -944,8 +947,6 @@ fun AudioPlayerControls(
+     viewModel.refreshPlaylistItems()
+   }
+ 
+-  val isAudioOnly by viewModel.isAudioOnly.collectAsState()
+-
+   val configuration = LocalConfiguration.current
+   val isPortrait = configuration.orientation == Configuration.ORIENTATION_PORTRAIT
+   val isTablet = configuration.smallestScreenWidthDp >= 600
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/PlaylistSheet.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/PlaylistSheet.kt
+index 902a9327..4179f75b 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/PlaylistSheet.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/PlaylistSheet.kt
+@@ -574,7 +574,7 @@ fun PlaylistTrackListItem(
+   modifier: Modifier = Modifier,
+   dragHandle: @Composable () -> Unit = {},
+ ) {
+-  val isAudioItem = item.isAudio
++  val isAudioItem = item.isAudio || isAudioOnly
+   val effectiveItem =
+     remember(item, isAudioItem) {
+       if (item.isAudio != isAudioItem) item.copy(isAudio = isAudioItem) else item
+@@ -805,7 +805,7 @@ fun PlaylistTrackGridItem(
+   isAudioOnly: Boolean = false,
+   modifier: Modifier = Modifier,
+ ) {
+-  val isAudioItem = item.isAudio
++  val isAudioItem = item.isAudio || isAudioOnly
+   val effectiveItem =
+     remember(item, isAudioItem) {
+       if (item.isAudio != isAudioItem) item.copy(isAudio = isAudioItem) else item
+-- 
+2.25.1
+

@@ -1,0 +1,248 @@
+From 3960d507e971a20f5e357b6b8539dd958538a0cc Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <riteshp2001@gmail.com>
+Date: Fri, 18 Sep 2026 13:27:16 +0530
+Subject: [PATCH 137/140] feat(gestures): make nested tab swipes configurable
+
+- Add a persistent nested_tab_swipes_enabled preference, defaulting to true
+  to preserve the currently enabled inner-tab gestures.
+- Expose Swipe between inner tabs in Settings > Gestures beside the existing
+  media-item swipe settings, using the standard switch and preference divider.
+- Gate opted-in nested pagers in the shared NavigationPager with the live
+  preference. Music, Network, and Recents respond without an app restart.
+- Keep main navigation, tab taps, item swipe actions, and other nested pager
+  defaults unchanged. Disabled nested pagers retain the pass-through scroll
+  connection instead of consuming parent navigation gestures.
+- Register a settings-search target with nested/inner/tab/navigation keywords.
+- Translate the title and summary in the default resources and all nine
+  existing non-English locales.
+
+Validation: focused editor diagnostics, source/call-site review, XML parsing
+and unique-key checks across all ten resource sets, and git diff --check.
+No build, tests, emulator, or device gesture checks were run under the standing
+static-only constraint. No generated schemas or changelog files were edited.
+---
+ .../gyrolet/mpvrx/preferences/GesturePreferences.kt    |  1 +
+ .../mpvrx/ui/preferences/GesturePreferencesScreen.kt   | 10 ++++++++++
+ .../mpvrx/ui/preferences/SearchablePreference.kt       |  8 ++++++++
+ .../java/com/quantummpv/app/ui/utils/NavigationPager.kt |  5 ++++-
+ app/src/main/res/values-ar/strings.xml                 |  2 ++
+ app/src/main/res/values-de/strings.xml                 |  2 ++
+ app/src/main/res/values-es/strings.xml                 |  2 ++
+ app/src/main/res/values-fr/strings.xml                 |  2 ++
+ app/src/main/res/values-hi/strings.xml                 |  2 ++
+ app/src/main/res/values-ja/strings.xml                 |  2 ++
+ app/src/main/res/values-pt-rBR/strings.xml             |  2 ++
+ app/src/main/res/values-ru/strings.xml                 |  2 ++
+ app/src/main/res/values-zh-rCN/strings.xml             |  2 ++
+ app/src/main/res/values/strings.xml                    |  2 ++
+ 14 files changed, 43 insertions(+), 1 deletion(-)
+
+diff --git a/app/src/main/java/com/quantummpv/app/preferences/GesturePreferences.kt b/app/src/main/java/com/quantummpv/app/preferences/GesturePreferences.kt
+index 46955da4..b929b3ab 100644
+--- a/app/src/main/java/com/quantummpv/app/preferences/GesturePreferences.kt
++++ b/app/src/main/java/com/quantummpv/app/preferences/GesturePreferences.kt
+@@ -17,6 +17,7 @@ class GesturePreferences(
+   preferenceStore: PreferenceStore,
+ ) {
+   val hapticFeedbackEnabled = preferenceStore.getBoolean("haptic_feedback_enabled", true)
++  val nestedTabSwipesEnabled = preferenceStore.getBoolean("nested_tab_swipes_enabled", true)
+   val doubleTapToSeekDuration = preferenceStore.getInt("double_tap_to_seek_duration", 10)
+   val doubleTapSeekAreaWidth = preferenceStore.getInt("double_tap_seek_area_width", 35)
+   val leftSingleActionGesture = preferenceStore.getEnum("left_double_tap_gesture", SingleActionGesture.Seek)
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/GesturePreferencesScreen.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/GesturePreferencesScreen.kt
+index 09538a59..94cdc30e 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/GesturePreferencesScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/GesturePreferencesScreen.kt
+@@ -137,6 +137,16 @@ object GesturePreferencesScreen : Screen {
+               )
+               PreferenceDivider()
+ 
++              val nestedTabSwipesEnabled by preferences.nestedTabSwipesEnabled.collectAsState()
++              SwitchPreference(
++                modifier = Modifier.settingsSearchTarget(R.string.pref_nested_tab_swipes_title),
++                value = nestedTabSwipesEnabled,
++                onValueChange = preferences.nestedTabSwipesEnabled::set,
++                title = { Text(stringResource(R.string.pref_nested_tab_swipes_title)) },
++                summary = { Text(stringResource(R.string.pref_nested_tab_swipes_summary)) },
++              )
++              PreferenceDivider()
++
+               val brightnessGesture by playerPreferences.brightnessGesture.collectAsState()
+               SwitchPreference(
+                 modifier = Modifier.settingsSearchTarget(R.string.pref_player_gestures_brightness),
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/SearchablePreference.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/SearchablePreference.kt
+index dd7db11d..5f00d014 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/SearchablePreference.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/SearchablePreference.kt
+@@ -482,6 +482,14 @@ object SearchablePreferences {
+           screen = GesturePreferencesScreen,
+         ),
+       )
++      add(
++        SearchablePreference(
++          titleRes = R.string.pref_nested_tab_swipes_title,
++          keywords = listOf("swipe", "nested", "inner", "tabs", "navigation", "music", "network", "recents"),
++          category = "Gestures",
++          screen = GesturePreferencesScreen,
++        ),
++      )
+       add(
+         SearchablePreference(
+           titleRes = R.string.pref_video_swipe_right,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/utils/NavigationPager.kt b/app/src/main/java/com/quantummpv/app/ui/utils/NavigationPager.kt
+index a41c81a8..c9f1e35c 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/utils/NavigationPager.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/utils/NavigationPager.kt
+@@ -30,6 +30,7 @@ import androidx.compose.ui.focus.focusProperties
+ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+ import androidx.compose.ui.semantics.hideFromAccessibility
+ import androidx.compose.ui.semantics.semantics
++import com.quantummpv.app.preferences.GesturePreferences
+ import com.quantummpv.app.preferences.PlayerPreferences
+ import com.quantummpv.app.preferences.preference.collectAsState
+ import com.quantummpv.app.ui.player.NavigationAnimStyle
+@@ -60,8 +61,10 @@ internal fun NavigationPager(
+   allowNestedSwipes: Boolean = false,
+   content: @Composable PagerScope.(Int) -> Unit,
+ ) {
++  val gesturePreferences = koinInject<GesturePreferences>()
++  val nestedTabSwipesEnabled by gesturePreferences.nestedTabSwipesEnabled.collectAsState()
+   val isNestedPager = LocalNavigationPagerPresent.current
+-  val ownsHorizontalSwipes = userScrollEnabled && (!isNestedPager || allowNestedSwipes)
++  val ownsHorizontalSwipes = userScrollEnabled && (!isNestedPager || (allowNestedSwipes && nestedTabSwipesEnabled))
+   val nestedScrollConnection = if (ownsHorizontalSwipes) {
+     PagerDefaults.pageNestedScrollConnection(state, Orientation.Horizontal)
+   } else {
+diff --git a/app/src/main/res/values-ar/strings.xml b/app/src/main/res/values-ar/strings.xml
+index 4bb2fdf7..a02d65a1 100644
+--- a/app/src/main/res/values-ar/strings.xml
++++ b/app/src/main/res/values-ar/strings.xml
+@@ -2210,6 +2210,8 @@
+   <string name="wallpaper_save_failed">تعذر حفظ الخلفية. يرجى اختيار الصورة مرة أخرى.</string>
+   <string name="pref_haptic_feedback_title">استجابة لمسية</string>
+   <string name="pref_haptic_feedback_summary">استجابة لمسية للتحديد والسحب وضبط عناصر التحكم. تراعي إعدادات النظام.</string>
++  <string name="pref_nested_tab_swipes_title">السحب بين علامات التبويب الداخلية</string>
++  <string name="pref_nested_tab_swipes_summary">تفعيل السحب لليسار واليمين داخل الموسيقى والشبكة والعناصر الأخيرة. لا تتغير إجراءات السحب للتنقل الرئيسي أو للعناصر.</string>
+   <string name="oss_kmp_vibrate_description">مكتبة استجابة لمسية من WonDDak (jmseb3).</string>
+   <string name="ambient_style_youtube">YouTube</string>
+   <string name="ambient_youtube_auto_hint">يعمل وضع YouTube تلقائيًا بالكامل: تُضاء الأشرطة بإسقاط ناعم وضبابي للإطار الحالي، كما في وضع الإضاءة المحيطة في YouTube.</string>
+diff --git a/app/src/main/res/values-de/strings.xml b/app/src/main/res/values-de/strings.xml
+index 4e95fb62..fe3cb611 100644
+--- a/app/src/main/res/values-de/strings.xml
++++ b/app/src/main/res/values-de/strings.xml
+@@ -2196,6 +2196,8 @@ Bitte starten Sie die App neu, damit alle Änderungen wirksam werden.</string>
+   <string name="wallpaper_save_failed">Das Hintergrundbild konnte nicht gespeichert werden. Bitte wähle das Bild erneut aus.</string>
+   <string name="pref_haptic_feedback_title">Haptisches Feedback</string>
+   <string name="pref_haptic_feedback_summary">Tastbare Rückmeldung beim Auswählen, Ziehen und Einstellen. Beachtet die Systemeinstellungen.</string>
++  <string name="pref_nested_tab_swipes_title">Zwischen inneren Tabs wischen</string>
++  <string name="pref_nested_tab_swipes_summary">Wischen nach links/rechts innerhalb von Musik, Netzwerk und zuletzt verwendeten Medien aktivieren. Hauptnavigation und Wischaktionen für Einträge bleiben unverändert.</string>
+   <string name="oss_kmp_vibrate_description">Bibliothek für haptisches Feedback von WonDDak (jmseb3).</string>
+   <string name="ambient_style_youtube">YouTube</string>
+   <string name="ambient_youtube_auto_hint">Der YouTube-Modus arbeitet vollautomatisch: Die Balken werden durch eine weichgezeichnete Projektion des aktuellen Bildes beleuchtet, wie im Ambient-Modus von YouTube.</string>
+diff --git a/app/src/main/res/values-es/strings.xml b/app/src/main/res/values-es/strings.xml
+index ab29a901..d32fe8c0 100644
+--- a/app/src/main/res/values-es/strings.xml
++++ b/app/src/main/res/values-es/strings.xml
+@@ -2196,6 +2196,8 @@ Reinicia la aplicación para que se apliquen todos los cambios.</string>
+   <string name="wallpaper_save_failed">No se pudo guardar el fondo. Vuelve a seleccionar la imagen.</string>
+   <string name="pref_haptic_feedback_title">Respuesta háptica</string>
+   <string name="pref_haptic_feedback_summary">Respuesta táctil al seleccionar, arrastrar y ajustar controles. Respeta los ajustes del sistema.</string>
++  <string name="pref_nested_tab_swipes_title">Deslizar entre pestañas internas</string>
++  <string name="pref_nested_tab_swipes_summary">Permitir deslizamientos a izquierda/derecha dentro de Música, Red y Recientes. La navegación principal y las acciones de deslizamiento de los elementos no cambian.</string>
+   <string name="oss_kmp_vibrate_description">Biblioteca de respuesta háptica de WonDDak (jmseb3).</string>
+   <string name="ambient_style_youtube">YouTube</string>
+   <string name="ambient_youtube_auto_hint">El modo YouTube es totalmente automático: las franjas se iluminan con una proyección suave y desenfocada del fotograma actual, como en el modo ambiente de YouTube.</string>
+diff --git a/app/src/main/res/values-fr/strings.xml b/app/src/main/res/values-fr/strings.xml
+index a66ed049..e851dd9d 100644
+--- a/app/src/main/res/values-fr/strings.xml
++++ b/app/src/main/res/values-fr/strings.xml
+@@ -2196,6 +2196,8 @@ Veuillez redémarrer l’application pour appliquer toutes les modifications.</s
+   <string name="wallpaper_save_failed">Impossible de sauvegarder le fond. Veuillez sélectionner à nouveau l’image.</string>
+   <string name="pref_haptic_feedback_title">Retour haptique</string>
+   <string name="pref_haptic_feedback_summary">Retour tactile lors de la sélection, du déplacement et des réglages. Respecte les paramètres du système.</string>
++  <string name="pref_nested_tab_swipes_title">Balayer entre les onglets internes</string>
++  <string name="pref_nested_tab_swipes_summary">Activer le balayage gauche/droite dans Musique, Réseau et Récents. La navigation principale et les actions de balayage des éléments restent inchangées.</string>
+   <string name="oss_kmp_vibrate_description">Bibliothèque de retour haptique de WonDDak (jmseb3).</string>
+   <string name="ambient_style_youtube">YouTube</string>
+   <string name="ambient_youtube_auto_hint">Le mode YouTube est entièrement automatique : les bandes sont éclairées par une projection douce et floutée de l\'image actuelle, comme dans le mode ambiant de YouTube.</string>
+diff --git a/app/src/main/res/values-hi/strings.xml b/app/src/main/res/values-hi/strings.xml
+index b050df66..edcaa640 100644
+--- a/app/src/main/res/values-hi/strings.xml
++++ b/app/src/main/res/values-hi/strings.xml
+@@ -2100,6 +2100,8 @@
+   <string name="wallpaper_save_failed">वॉलपेपर सहेजा नहीं जा सका। कृपया चित्र फिर से चुनें।</string>
+   <string name="pref_haptic_feedback_title">हैप्टिक फ़ीडबैक</string>
+   <string name="pref_haptic_feedback_summary">चयन, खींचने और नियंत्रण समायोजन पर स्पर्श प्रतिक्रिया। सिस्टम सेटिंग का पालन करता है।</string>
++  <string name="pref_nested_tab_swipes_title">अंदरूनी टैब के बीच स्वाइप करें</string>
++  <string name="pref_nested_tab_swipes_summary">संगीत, नेटवर्क और हाल के आइटम में बाएँ/दाएँ स्वाइप चालू करें। मुख्य नेविगेशन और आइटम की स्वाइप कार्रवाइयाँ नहीं बदलेंगी।</string>
+   <string name="oss_kmp_vibrate_description">WonDDak (jmseb3) की हैप्टिक फ़ीडबैक लाइब्रेरी।</string>
+   <string name="ambient_style_youtube">YouTube</string>
+   <string name="ambient_youtube_auto_hint">YouTube मोड पूरी तरह स्वचालित है। YouTube के एम्बिएंट मोड की तरह, मौजूदा फ़्रेम का हल्का धुंधला प्रक्षेपण खाली पट्टियों को रोशन करता है।</string>
+diff --git a/app/src/main/res/values-ja/strings.xml b/app/src/main/res/values-ja/strings.xml
+index 07ba69d3..c1c72f72 100644
+--- a/app/src/main/res/values-ja/strings.xml
++++ b/app/src/main/res/values-ja/strings.xml
+@@ -2192,6 +2192,8 @@
+   <string name="wallpaper_save_failed">壁紙を保存できませんでした。画像を選び直してください。</string>
+   <string name="pref_haptic_feedback_title">触覚フィードバック</string>
+   <string name="pref_haptic_feedback_summary">選択、ドラッグ、コントロールの調整時に触覚で反応します。システム設定に従います。</string>
++  <string name="pref_nested_tab_swipes_title">内部タブ間のスワイプ</string>
++  <string name="pref_nested_tab_swipes_summary">音楽・ネットワーク・履歴内での左右スワイプを有効にします。メイン画面の切り替えや項目のスワイプ操作は変更されません。</string>
+   <string name="oss_kmp_vibrate_description">WonDDak (jmseb3) による触覚フィードバックライブラリ。</string>
+   <string name="ambient_style_youtube">YouTube</string>
+   <string name="ambient_youtube_auto_hint">YouTube モードは完全自動です。YouTube のアンビエントモードのように、現在のフレームをぼかして投影し、帯状の余白を柔らかく照らします。</string>
+diff --git a/app/src/main/res/values-pt-rBR/strings.xml b/app/src/main/res/values-pt-rBR/strings.xml
+index 2f782474..c8aad9f9 100644
+--- a/app/src/main/res/values-pt-rBR/strings.xml
++++ b/app/src/main/res/values-pt-rBR/strings.xml
+@@ -2196,6 +2196,8 @@ Reinicie o aplicativo para que todas as alterações entrem em vigor.</string>
+   <string name="wallpaper_save_failed">Não foi possível salvar o papel de parede. Selecione a imagem novamente.</string>
+   <string name="pref_haptic_feedback_title">Resposta tátil</string>
+   <string name="pref_haptic_feedback_summary">Resposta tátil ao selecionar, arrastar e ajustar controles. Respeita as configurações do sistema.</string>
++  <string name="pref_nested_tab_swipes_title">Deslizar entre abas internas</string>
++  <string name="pref_nested_tab_swipes_summary">Ativar deslizes para a esquerda/direita em Música, Rede e Recentes. A navegação principal e as ações de deslizar itens permanecem inalteradas.</string>
+   <string name="oss_kmp_vibrate_description">Biblioteca de feedback tátil de WonDDak (jmseb3).</string>
+   <string name="ambient_style_youtube">YouTube</string>
+   <string name="ambient_youtube_auto_hint">O modo YouTube é totalmente automático: as faixas são iluminadas por uma projeção suave e desfocada do quadro atual, como no modo ambiente do YouTube.</string>
+diff --git a/app/src/main/res/values-ru/strings.xml b/app/src/main/res/values-ru/strings.xml
+index fd2c9594..97ef4312 100644
+--- a/app/src/main/res/values-ru/strings.xml
++++ b/app/src/main/res/values-ru/strings.xml
+@@ -2204,6 +2204,8 @@
+   <string name="wallpaper_save_failed">Не удалось сохранить обои. Выберите изображение ещё раз.</string>
+   <string name="pref_haptic_feedback_title">Тактильный отклик</string>
+   <string name="pref_haptic_feedback_summary">Отклик при выборе, перетаскивании и настройке элементов управления. Учитывает настройки системы.</string>
++  <string name="pref_nested_tab_swipes_title">Свайпы между внутренними вкладками</string>
++  <string name="pref_nested_tab_swipes_summary">Разрешить свайпы влево/вправо внутри разделов «Музыка», «Сеть» и «Недавние». Основная навигация и действия с элементами при свайпе не изменятся.</string>
+   <string name="oss_kmp_vibrate_description">Библиотека тактильного отклика от WonDDak (jmseb3).</string>
+   <string name="ambient_style_youtube">YouTube</string>
+   <string name="ambient_youtube_auto_hint">Режим YouTube работает полностью автоматически: полосы подсвечиваются мягкой размытой проекцией текущего кадра, как в фоновой подсветке YouTube.</string>
+diff --git a/app/src/main/res/values-zh-rCN/strings.xml b/app/src/main/res/values-zh-rCN/strings.xml
+index 57a1b79a..0d43969a 100644
+--- a/app/src/main/res/values-zh-rCN/strings.xml
++++ b/app/src/main/res/values-zh-rCN/strings.xml
+@@ -2194,6 +2194,8 @@
+   <string name="wallpaper_save_failed">无法保存壁纸，请重新选择图片。</string>
+   <string name="pref_haptic_feedback_title">触觉反馈</string>
+   <string name="pref_haptic_feedback_summary">选择、拖动和调整控件时提供触觉反馈。遵循系统设置。</string>
++  <string name="pref_nested_tab_swipes_title">滑动切换内部标签页</string>
++  <string name="pref_nested_tab_swipes_summary">允许在音乐、网络和最近播放中左右滑动切换标签页。主导航和列表项的滑动操作不受影响。</string>
+   <string name="oss_kmp_vibrate_description">由 WonDDak (jmseb3) 开发的触觉反馈库。</string>
+   <string name="ambient_style_youtube">YouTube</string>
+   <string name="ambient_youtube_auto_hint">YouTube 模式完全自动运行：将当前画面柔和模糊地投射到黑边区域，形成与 YouTube 氛围模式类似的光效。</string>
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index dfce566b..9573bb38 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -2281,6 +2281,8 @@
+   <string name="wallpaper_save_failed">Could not save the wallpaper. Please choose the image again.</string>
+   <string name="pref_haptic_feedback_title">Haptic feedback</string>
+   <string name="pref_haptic_feedback_summary">Tactile feedback for selection, dragging, and control adjustments. Respects system settings.</string>
++  <string name="pref_nested_tab_swipes_title">Swipe between inner tabs</string>
++  <string name="pref_nested_tab_swipes_summary">Enable left/right swipes inside Music, Network and Recents. Main navigation and item swipe actions are unchanged.</string>
+ 
+   <!-- Post-Processing Effects -->
+   <string name="btn_label_post_processing">Post-Processing</string>
+-- 
+2.25.1
+

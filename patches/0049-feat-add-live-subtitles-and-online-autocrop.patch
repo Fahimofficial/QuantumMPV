@@ -1,0 +1,4214 @@
+From 1dfa4a063c9e3295698233fe9c4d1c0fdee9b8bf Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <riteshp2001@gmail.com>
+Date: Tue, 8 Sep 2026 13:01:03 +0530
+Subject: [PATCH 049/140] feat: add live subtitles and online autocrop
+
+Restore the custom expanding navigation dock, add seek-aware translated live captions and reliable SRT generation, support active-player autocrop for online streams, and refresh model catalogs across AI providers.
+---
+ .../java/com/quantummpv/app/di/DomainModule.kt |   2 +-
+ .../mpvrx/preferences/AiPreferences.kt        |  31 ++
+ .../gyrolet/mpvrx/repository/ai/AiClient.kt   |  11 +
+ .../repository/ai/AiModelCapabilities.kt      |  23 +-
+ .../gyrolet/mpvrx/repository/ai/AiService.kt  |  88 +++-
+ .../mpvrx/repository/ai/AnthropicClient.kt    |  81 ++-
+ .../gyrolet/mpvrx/repository/ai/GroqClient.kt |  53 +-
+ .../mpvrx/repository/ai/GroqSpeechClient.kt   |  65 ++-
+ .../mpvrx/repository/ai/OpenAiClient.kt       |  56 +-
+ .../mpvrx/repository/ai/OpenCodeClient.kt     |  59 ++-
+ .../mpvrx/repository/ai/OpenRouterClient.kt   |  63 +--
+ .../repository/ai/OpenRouterSpeechClient.kt   |  51 +-
+ .../ai/RealtimeAudioChunkExtractor.kt         | 293 +++++++++++
+ .../repository/ai/RealtimeSubtitleService.kt  | 485 ++++++++++--------
+ .../repository/ai/RealtimeSubtitleTimeline.kt | 104 ++++
+ .../ai/SubtitleGenerationService.kt           | 199 ++-----
+ .../mpvrx/repository/ai/TogetherClient.kt     |  59 +--
+ .../gyrolet/mpvrx/ui/browser/MainScreen.kt    | 222 ++++----
+ .../mpvrx/ui/player/PlayerViewModel.kt        | 484 ++++++++++++++---
+ .../ui/player/controls/PlayerControls.kt      |   3 +
+ .../controls/PlayerControlsLandscape.kt       |   3 +-
+ .../player/controls/PlayerControlsPortrait.kt |   3 +-
+ .../mpvrx/ui/player/controls/PlayerSheets.kt  |   8 +
+ .../components/sheets/SubtitleTracksSheet.kt  |  58 ++-
+ .../ui/preferences/AiIntegrationScreen.kt     | 137 +++--
+ app/src/main/res/values-ar/strings.xml        |  11 +
+ app/src/main/res/values-de/strings.xml        |  11 +
+ app/src/main/res/values-es/strings.xml        |  11 +
+ app/src/main/res/values-fr/strings.xml        |  11 +
+ app/src/main/res/values-hi/strings.xml        |  11 +
+ app/src/main/res/values-ja/strings.xml        |  11 +
+ app/src/main/res/values-pt-rBR/strings.xml    |  11 +
+ app/src/main/res/values-ru/strings.xml        |  11 +
+ app/src/main/res/values-zh-rCN/strings.xml    |  11 +
+ app/src/main/res/values/strings.xml           |  11 +
+ 35 files changed, 1942 insertions(+), 809 deletions(-)
+ create mode 100644 app/src/main/java/com/quantummpv/app/repository/ai/RealtimeAudioChunkExtractor.kt
+ create mode 100644 app/src/main/java/com/quantummpv/app/repository/ai/RealtimeSubtitleTimeline.kt
+
+diff --git a/app/src/main/java/com/quantummpv/app/di/DomainModule.kt b/app/src/main/java/com/quantummpv/app/di/DomainModule.kt
+index 7fced608..969450d5 100644
+--- a/app/src/main/java/com/quantummpv/app/di/DomainModule.kt
++++ b/app/src/main/java/com/quantummpv/app/di/DomainModule.kt
+@@ -73,7 +73,7 @@ val domainModule =
+     single<AiClient>(named("openrouter")) { OpenRouterClient(get(), get()) }
+     single<AiClient>(named("together")) { TogetherClient(get(), get()) }
+     single { SubtitleGenerationService(androidContext(), get(), get(), get(), get(), get()) }
+-    single { RealtimeSubtitleService(androidContext(), get(), get(), get(), get(), get()) }
++    single { RealtimeSubtitleService(androidContext(), get(), get(), get(), get(), get(), get()) }
+     single {
+       AiService(
+         androidContext(),
+diff --git a/app/src/main/java/com/quantummpv/app/preferences/AiPreferences.kt b/app/src/main/java/com/quantummpv/app/preferences/AiPreferences.kt
+index 1e9038e3..d3ee5b13 100644
+--- a/app/src/main/java/com/quantummpv/app/preferences/AiPreferences.kt
++++ b/app/src/main/java/com/quantummpv/app/preferences/AiPreferences.kt
+@@ -62,6 +62,12 @@ class AiPreferences(
+   val sttProvider = preferenceStore.getEnum("ai_stt_provider", AiProvider.GROQ)
+   val sttModel = preferenceStore.getString("ai_stt_model", "")
+   val sttAvailableModels = preferenceStore.getString("ai_stt_available_models", "[]")
++  private val groqSttModel = preferenceStore.getString("ai_stt_model_groq", "")
++  private val openAiSttModel = preferenceStore.getString("ai_stt_model_openai", "")
++  private val openRouterSttModel = preferenceStore.getString("ai_stt_model_openrouter", "")
++  private val groqSttAvailableModels = preferenceStore.getString("ai_stt_available_models_groq", "[]")
++  private val openAiSttAvailableModels = preferenceStore.getString("ai_stt_available_models_openai", "[]")
++  private val openRouterSttAvailableModels = preferenceStore.getString("ai_stt_available_models_openrouter", "[]")
+   val sttLanguage = preferenceStore.getString("ai_stt_language", "")
+ 
+   // Auto-translate target languages (comma-separated codes: "en,es,fr")
+@@ -93,6 +99,15 @@ class AiPreferences(
+     if (providerModels.get() == "[]" && availableModels.get() != "[]") {
+       providerModels.set(availableModels.get())
+     }
++    val currentSttProvider = sttProvider.get()
++    val providerSttModel = sttModelFor(currentSttProvider)
++    if (providerSttModel.get().isBlank() && sttModel.get().isNotBlank()) {
++      providerSttModel.set(sttModel.get())
++    }
++    val providerSttModels = sttAvailableModelsFor(currentSttProvider)
++    if (providerSttModels.get() == "[]" && sttAvailableModels.get() != "[]") {
++      providerSttModels.set(sttAvailableModels.get())
++    }
+   }
+ 
+   fun selectedModelFor(provider: AiProvider): Preference<String> =
+@@ -114,4 +129,20 @@ class AiPreferences(
+       AiProvider.OPENROUTER -> openRouterAvailableModels
+       AiProvider.TOGETHER -> togetherAvailableModels
+     }
++
++  fun sttModelFor(provider: AiProvider): Preference<String> =
++    when (provider) {
++      AiProvider.GROQ -> groqSttModel
++      AiProvider.OPENAI -> openAiSttModel
++      AiProvider.OPENROUTER -> openRouterSttModel
++      else -> sttModel
++    }
++
++  fun sttAvailableModelsFor(provider: AiProvider): Preference<String> =
++    when (provider) {
++      AiProvider.GROQ -> groqSttAvailableModels
++      AiProvider.OPENAI -> openAiSttAvailableModels
++      AiProvider.OPENROUTER -> openRouterSttAvailableModels
++      else -> sttAvailableModels
++    }
+ }
+diff --git a/app/src/main/java/com/quantummpv/app/repository/ai/AiClient.kt b/app/src/main/java/com/quantummpv/app/repository/ai/AiClient.kt
+index d4cffdee..fd8588b7 100644
+--- a/app/src/main/java/com/quantummpv/app/repository/ai/AiClient.kt
++++ b/app/src/main/java/com/quantummpv/app/repository/ai/AiClient.kt
+@@ -9,6 +9,8 @@
+ 
+ package com.quantummpv.app.repository.ai
+ 
++import kotlinx.coroutines.CancellationException
++
+ data class AiGenerationOptions(
+   val maxTokens: Int = 200,
+   val temperature: Double = 0.3,
+@@ -38,3 +40,12 @@ interface AiClient {
+     options: AiGenerationOptions = AiGenerationOptions(),
+   ): Result<AiGeneratedContent>
+ }
++
++internal suspend inline fun <T> runCatchingCancellable(crossinline block: suspend () -> T): Result<T> =
++  try {
++    Result.success(block())
++  } catch (cancellation: CancellationException) {
++    throw cancellation
++  } catch (error: Exception) {
++    Result.failure(error)
++  }
+diff --git a/app/src/main/java/com/quantummpv/app/repository/ai/AiModelCapabilities.kt b/app/src/main/java/com/quantummpv/app/repository/ai/AiModelCapabilities.kt
+index 666baa39..c87d3fe2 100644
+--- a/app/src/main/java/com/quantummpv/app/repository/ai/AiModelCapabilities.kt
++++ b/app/src/main/java/com/quantummpv/app/repository/ai/AiModelCapabilities.kt
+@@ -9,15 +9,18 @@
+ 
+ package com.quantummpv.app.repository.ai
+ 
++import java.util.Locale
++
+ internal object AiModelCapabilities {
+   fun isTextGenerationModel(id: String): Boolean {
+-    val value = id.lowercase()
++    val value = id.lowercase(Locale.ROOT)
+     return listOf(
+       "whisper",
+       "transcribe",
+       "tts",
+       "speech",
+-      "embedding",
++      "embed",
++      "rerank",
+       "moderation",
+       "dall-e",
+       "gpt-image",
+@@ -27,4 +30,20 @@ internal object AiModelCapabilities {
+       "safety",
+     ).none(value::contains)
+   }
++
++  fun isSpeechToTextModel(id: String): Boolean {
++    val value = id.lowercase(Locale.ROOT)
++    if (listOf("tts", "text-to-speech", "speech-generation").any(value::contains)) return false
++    return listOf("whisper", "transcribe", "speech-to-text", "speech_to_text").any(value::contains)
++  }
++
++  fun normalize(models: List<AiModelInfo>): List<AiModelInfo> =
++    models
++      .asSequence()
++      .filter { it.id.isNotBlank() }
++      .distinctBy { it.id.lowercase(Locale.ROOT) }
++      .sortedWith(
++        compareBy<AiModelInfo> { it.displayName.lowercase(Locale.ROOT) }
++          .thenBy { it.id.lowercase(Locale.ROOT) },
++      ).toList()
+ }
+diff --git a/app/src/main/java/com/quantummpv/app/repository/ai/AiService.kt b/app/src/main/java/com/quantummpv/app/repository/ai/AiService.kt
+index bac4e628..05cd1bde 100644
+--- a/app/src/main/java/com/quantummpv/app/repository/ai/AiService.kt
++++ b/app/src/main/java/com/quantummpv/app/repository/ai/AiService.kt
+@@ -78,32 +78,50 @@ class AiService(
+       }
+ 
+       val client = clients[provider] ?: return@withContext Result.failure(Exception("Unknown provider: $provider"))
+-      client.fetchModels(apiKey)
++      client.fetchModels(apiKey).mapCatching { fetched ->
++        AiModelCapabilities
++          .normalize(fetched.filter { model -> AiModelCapabilities.isTextGenerationModel(model.id) })
++          .also { models -> check(models.isNotEmpty()) { "$provider returned no compatible text-generation models" } }
++      }
++    }
++
++  suspend fun fetchSpeechModelsForProvider(provider: AiProvider): Result<List<AiModelInfo>> =
++    withContext(Dispatchers.IO) {
++      if (provider !in setOf(AiProvider.GROQ, AiProvider.OPENAI, AiProvider.OPENROUTER)) {
++        return@withContext Result.failure(IllegalArgumentException("$provider does not provide speech-to-text in mpvRx"))
++      }
++      val apiKey = getApiKey(provider)
++      if (apiKey.isBlank()) {
++        return@withContext Result.failure(Exception("API key not configured for $provider"))
++      }
++      val client = clients[provider] ?: return@withContext Result.failure(Exception("Unknown provider: $provider"))
++      client.fetchModels(apiKey).mapCatching { fetched ->
++        val liveModels = fetched.filter { model -> AiModelCapabilities.isSpeechToTextModel(model.id) }
++        AiModelCapabilities
++          .normalize(liveModels.ifEmpty { fallbackSpeechModels(provider) })
++          .also { models -> check(models.isNotEmpty()) { "$provider returned no speech-to-text models" } }
++      }
+     }
+ 
+-  fun fetchSpeechModelsForProvider(provider: AiProvider): Result<List<AiModelInfo>> =
++  private fun fallbackSpeechModels(provider: AiProvider): List<AiModelInfo> =
+     when (provider) {
+       AiProvider.GROQ ->
+-        Result.success(
+-          listOf(
+-            AiModelInfo("whisper-large-v3-turbo", "Whisper Large V3 Turbo"),
+-            AiModelInfo("whisper-large-v3", "Whisper Large V3"),
+-          ),
++        listOf(
++          AiModelInfo("whisper-large-v3-turbo", "Whisper Large V3 Turbo"),
++          AiModelInfo("whisper-large-v3", "Whisper Large V3"),
+         )
+       AiProvider.OPENAI ->
+-        Result.success(
+-          listOf(
+-            AiModelInfo("whisper-1", "Whisper"),
+-          ),
++        listOf(
++          AiModelInfo("gpt-4o-mini-transcribe", "GPT-4o Mini Transcribe"),
++          AiModelInfo("gpt-4o-transcribe", "GPT-4o Transcribe"),
++          AiModelInfo("whisper-1", "Whisper"),
+         )
+       AiProvider.OPENROUTER ->
+-        Result.success(
+-          listOf(
+-            AiModelInfo("openai/whisper-large-v3-turbo", "Whisper Large V3 Turbo"),
+-            AiModelInfo("openai/whisper-large-v3", "Whisper Large V3"),
+-          ),
++        listOf(
++          AiModelInfo("openai/whisper-large-v3-turbo", "Whisper Large V3 Turbo"),
++          AiModelInfo("openai/whisper-large-v3", "Whisper Large V3"),
+         )
+-      else -> Result.failure(IllegalArgumentException("$provider does not provide speech-to-text in mpvRx"))
++      else -> emptyList()
+     }
+ 
+   suspend fun verifyKey(): Result<String> =
+@@ -166,6 +184,42 @@ class AiService(
+       client.generateContent(apiKey, model, instruction, userInput, options).map { it.text }
+     }
+ 
++  suspend fun translateRealtimeCues(
++    texts: List<String>,
++    targetLanguage: String,
++  ): Result<List<String>> =
++    withContext(Dispatchers.IO) {
++      if (texts.isEmpty()) return@withContext Result.success(emptyList())
++      if (targetLanguage.isBlank()) return@withContext Result.success(texts)
++
++      val input =
++        texts.mapIndexed { index, text ->
++          "[CUE_$index] ${text.replace(Regex("\\s+"), " ").trim()}"
++        }.joinToString("\n")
++      val instruction =
++        "TARGET LANGUAGE: $targetLanguage\n" +
++          "Translate each cue independently. Return exactly one line per cue using the unchanged " +
++          "[CUE_n] marker followed by its translation. Preserve cue order and do not add commentary."
++
++      generateWithAi(input, AiTask.TRANSLATE, instruction).mapCatching { response ->
++        val cleaned = response.replace(Regex("<think>.*?</think>", RegexOption.DOT_MATCHES_ALL), "").trim()
++        val marker = Regex("^\\s*\\[CUE_(\\d+)]\\s*(.+?)\\s*$")
++        val translated = MutableList<String?>(texts.size) { null }
++        cleaned.lineSequence().forEach { line ->
++          val match = marker.matchEntire(line) ?: return@forEach
++          val index = match.groupValues[1].toIntOrNull() ?: return@forEach
++          val value = match.groupValues[2].trim()
++          if (index in translated.indices && value.isNotBlank()) translated[index] = value
++        }
++
++        if (texts.size == 1 && translated[0] == null && cleaned.isNotBlank() && !cleaned.contains("[CUE_")) {
++          translated[0] = cleaned
++        }
++        check(translated.all { !it.isNullOrBlank() }) { "AI returned an incomplete real-time subtitle translation" }
++        translated.map { requireNotNull(it) }
++      }
++    }
++
+   private fun generationOptionsFor(task: AiTask): AiGenerationOptions =
+     when (task) {
+       AiTask.RENAME -> AiGenerationOptions(maxTokens = 1024, temperature = 0.1)
+diff --git a/app/src/main/java/com/quantummpv/app/repository/ai/AnthropicClient.kt b/app/src/main/java/com/quantummpv/app/repository/ai/AnthropicClient.kt
+index 3a0afd57..407deb0e 100644
+--- a/app/src/main/java/com/quantummpv/app/repository/ai/AnthropicClient.kt
++++ b/app/src/main/java/com/quantummpv/app/repository/ai/AnthropicClient.kt
+@@ -9,6 +9,7 @@
+ 
+ package com.quantummpv.app.repository.ai
+ 
++import com.quantummpv.app.network.awaitResponse
+ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.withContext
+ import kotlinx.serialization.SerialName
+@@ -32,6 +33,8 @@ private data class AnthropicModel(
+ @Serializable
+ private data class AnthropicModelListResponse(
+   val data: List<AnthropicModel> = emptyList(),
++  @SerialName("has_more") val hasMore: Boolean = false,
++  @SerialName("last_id") val lastId: String? = null,
+ )
+ 
+ @Serializable
+@@ -73,6 +76,8 @@ class AnthropicClient(
+     private const val BASE_URL = "https://api.anthropic.com/v1"
+     private val JSON_MEDIA_TYPE = "application/json".toMediaType()
+     private const val ANTHROPIC_VERSION = "2023-06-01"
++    private const val MODEL_PAGE_SIZE = 1_000
++    private const val MAX_MODEL_PAGES = 20
+   }
+ 
+   private val apiClient: OkHttpClient =
+@@ -85,23 +90,45 @@ class AnthropicClient(
+ 
+   override suspend fun fetchModels(apiKey: String): Result<List<AiModelInfo>> =
+     withContext(Dispatchers.IO) {
+-      runCatching {
+-        val request =
+-          Request
+-            .Builder()
+-            .url("$BASE_URL/models")
+-            .header("x-api-key", apiKey)
+-            .header("anthropic-version", ANTHROPIC_VERSION)
+-            .get()
+-            .build()
+-
+-        val response = apiClient.newCall(request).execute()
+-        val body = response.body.string()
+-
+-        if (!response.isSuccessful) throw Exception("Anthropic API error ${response.code}: ${parseError(body)}")
++      runCatchingCancellable {
++        val models = mutableListOf<AnthropicModel>()
++        var afterId: String? = null
++        var page = 0
++        while (page < MAX_MODEL_PAGES) {
++          val url =
++            okhttp3.HttpUrl
++              .Builder()
++              .scheme("https")
++              .host("api.anthropic.com")
++              .addPathSegments("v1/models")
++              .addQueryParameter("limit", MODEL_PAGE_SIZE.toString())
++              .apply { afterId?.let { addQueryParameter("after_id", it) } }
++              .build()
++          val request =
++            Request
++              .Builder()
++              .url(url)
++              .header("x-api-key", apiKey)
++              .header("anthropic-version", ANTHROPIC_VERSION)
++              .get()
++              .build()
++
++          val parsed =
++            apiClient.newCall(request).awaitResponse().use { response ->
++              val body = response.body.string()
++              if (!response.isSuccessful) throw Exception("Anthropic API error ${response.code}: ${parseError(body)}")
++              json.decodeFromString<AnthropicModelListResponse>(body)
++            }
++          models += parsed.data
++          if (!parsed.hasMore) break
++          val nextAfterId = parsed.lastId?.takeIf { it.isNotBlank() && it != afterId }
++            ?: throw IllegalStateException("Anthropic returned an invalid model pagination cursor")
++          afterId = nextAfterId
++          page++
++        }
++        if (page >= MAX_MODEL_PAGES) throw IllegalStateException("Anthropic model catalog exceeded $MAX_MODEL_PAGES pages")
+ 
+-        val parsed = json.decodeFromString<AnthropicModelListResponse>(body)
+-        parsed.data.map { model ->
++        models.map { model ->
+           AiModelInfo(
+             id = model.id,
+             displayName = model.display_name ?: model.id,
+@@ -113,7 +140,7 @@ class AnthropicClient(
+ 
+   override suspend fun verifyKey(apiKey: String): Result<String> =
+     withContext(Dispatchers.IO) {
+-      runCatching {
++      runCatchingCancellable {
+         val request =
+           Request
+             .Builder()
+@@ -123,9 +150,10 @@ class AnthropicClient(
+             .get()
+             .build()
+ 
+-        val response = apiClient.newCall(request).execute()
+-        if (!response.isSuccessful) throw Exception("Invalid API key: ${response.code}")
+-        "API key verified successfully"
++        apiClient.newCall(request).awaitResponse().use { response ->
++          if (!response.isSuccessful) throw Exception("Invalid API key: ${response.code}")
++          "API key verified successfully"
++        }
+       }
+     }
+ 
+@@ -137,7 +165,7 @@ class AnthropicClient(
+     options: AiGenerationOptions,
+   ): Result<AiGeneratedContent> =
+     withContext(Dispatchers.IO) {
+-      runCatching {
++      runCatchingCancellable {
+         val requestBody =
+           json.encodeToString(
+             AnthropicMessagesRequest.serializer(),
+@@ -163,12 +191,11 @@ class AnthropicClient(
+             .post(requestBody.toRequestBody(JSON_MEDIA_TYPE))
+             .build()
+ 
+-        val response = apiClient.newCall(request).execute()
+-        val body = response.body.string()
+-
+-        if (!response.isSuccessful) throw Exception("Anthropic generate error ${response.code}: ${parseError(body)}")
+-
+-        AiResponseParser.anthropic(json, body, "Anthropic")
++        apiClient.newCall(request).awaitResponse().use { response ->
++          val body = response.body.string()
++          if (!response.isSuccessful) throw Exception("Anthropic generate error ${response.code}: ${parseError(body)}")
++          AiResponseParser.anthropic(json, body, "Anthropic")
++        }
+       }
+     }
+ 
+diff --git a/app/src/main/java/com/quantummpv/app/repository/ai/GroqClient.kt b/app/src/main/java/com/quantummpv/app/repository/ai/GroqClient.kt
+index 19bb7af1..df424afd 100644
+--- a/app/src/main/java/com/quantummpv/app/repository/ai/GroqClient.kt
++++ b/app/src/main/java/com/quantummpv/app/repository/ai/GroqClient.kt
+@@ -9,6 +9,7 @@
+ 
+ package com.quantummpv.app.repository.ai
+ 
++import com.quantummpv.app.network.awaitResponse
+ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.withContext
+ import kotlinx.serialization.SerialName
+@@ -68,7 +69,7 @@ class GroqClient(
+ 
+   override suspend fun fetchModels(apiKey: String): Result<List<AiModelInfo>> =
+     withContext(Dispatchers.IO) {
+-      runCatching {
++      runCatchingCancellable {
+         val request =
+           Request
+             .Builder()
+@@ -77,18 +78,15 @@ class GroqClient(
+             .get()
+             .build()
+ 
+-        val response = apiClient.newCall(request).execute()
+-        val body = response.body.string()
+-
+-        if (!response.isSuccessful) {
+-          val errorMsg = parseError(body)
+-          throw Exception("Groq API error ${response.code}: $errorMsg")
+-        }
++        apiClient.newCall(request).awaitResponse().use { response ->
++          val body = response.body.string()
++          if (!response.isSuccessful) {
++            val errorMsg = parseError(body)
++            throw Exception("Groq API error ${response.code}: $errorMsg")
++          }
+ 
+-        val parsed = json.decodeFromString<GroqModelListResponse>(body)
+-        parsed.data
+-          .filter { AiModelCapabilities.isTextGenerationModel(it.id) }
+-          .map {
++          val parsed = json.decodeFromString<GroqModelListResponse>(body)
++          parsed.data.map {
+             val displayName = if (it.owned_by != null) "${it.id} (${it.owned_by})" else it.id
+             AiModelInfo(
+               id = it.id,
+@@ -96,12 +94,13 @@ class GroqClient(
+               isFree = AiModelPricing.isZeroCost(it.pricing),
+             )
+           }
++        }
+       }
+     }
+ 
+   override suspend fun verifyKey(apiKey: String): Result<String> =
+     withContext(Dispatchers.IO) {
+-      runCatching {
++      runCatchingCancellable {
+         val request =
+           Request
+             .Builder()
+@@ -110,12 +109,13 @@ class GroqClient(
+             .get()
+             .build()
+ 
+-        val response = apiClient.newCall(request).execute()
+-        if (!response.isSuccessful) {
+-          val body = response.body.string()
+-          throw Exception("Invalid API key: ${response.code} $body")
++        apiClient.newCall(request).awaitResponse().use { response ->
++          if (!response.isSuccessful) {
++            val body = response.body.string()
++            throw Exception("Invalid API key: ${response.code} $body")
++          }
++          "API key verified successfully"
+         }
+-        "API key verified successfully"
+       }
+     }
+ 
+@@ -127,7 +127,7 @@ class GroqClient(
+     options: AiGenerationOptions,
+   ): Result<AiGeneratedContent> =
+     withContext(Dispatchers.IO) {
+-      runCatching {
++      runCatchingCancellable {
+         val requestBody =
+           json.encodeToString(
+             GroqChatRequest.serializer(),
+@@ -151,15 +151,14 @@ class GroqClient(
+             .post(requestBody.toRequestBody(JSON_MEDIA_TYPE))
+             .build()
+ 
+-        val response = apiClient.newCall(request).execute()
+-        val body = response.body.string()
+-
+-        if (!response.isSuccessful) {
+-          val errorMsg = parseError(body)
+-          throw Exception("Groq generate error ${response.code}: $errorMsg")
++        apiClient.newCall(request).awaitResponse().use { response ->
++          val body = response.body.string()
++          if (!response.isSuccessful) {
++            val errorMsg = parseError(body)
++            throw Exception("Groq generate error ${response.code}: $errorMsg")
++          }
++          AiResponseParser.openAiCompatible(json, body, "Groq")
+         }
+-
+-        AiResponseParser.openAiCompatible(json, body, "Groq")
+       }
+     }
+ 
+diff --git a/app/src/main/java/com/quantummpv/app/repository/ai/GroqSpeechClient.kt b/app/src/main/java/com/quantummpv/app/repository/ai/GroqSpeechClient.kt
+index 3ec08c63..47b15d6c 100644
+--- a/app/src/main/java/com/quantummpv/app/repository/ai/GroqSpeechClient.kt
++++ b/app/src/main/java/com/quantummpv/app/repository/ai/GroqSpeechClient.kt
+@@ -9,6 +9,8 @@
+ 
+ package com.quantummpv.app.repository.ai
+ 
++import com.quantummpv.app.network.awaitResponse
++import kotlinx.coroutines.CancellationException
+ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.withContext
+ import kotlinx.serialization.Serializable
+@@ -29,7 +31,6 @@ class GroqSpeechClient(
+   companion object {
+     private const val BASE_URL = "https://api.groq.com/openai/v1/audio/transcriptions"
+     private const val MAX_FILE_BYTES = 22L * 1024 * 1024
+-    private val AUDIO_MEDIA_TYPE = "audio/mp4".toMediaType()
+   }
+ 
+   private val apiClient: OkHttpClient =
+@@ -47,7 +48,7 @@ class GroqSpeechClient(
+     model: String?,
+   ): Result<SpeechTranscript> =
+     withContext(Dispatchers.IO) {
+-      runCatching {
++      try {
+         val fileSizeMb = audioFile.length() / (1024 * 1024)
+         if (audioFile.length() > MAX_FILE_BYTES) {
+           throw Exception(
+@@ -64,7 +65,7 @@ class GroqSpeechClient(
+               model?.takeIf { it.contains("whisper", ignoreCase = true) } ?: "whisper-large-v3-turbo",
+             ).addFormDataPart("response_format", "verbose_json")
+             .addFormDataPart("temperature", "0")
+-            .addFormDataPart("file", audioFile.name, audioFile.asRequestBody(AUDIO_MEDIA_TYPE))
++            .addFormDataPart("file", audioFile.name, audioFile.asRequestBody(audioMediaType(audioFile)))
+ 
+         languageCode(language)?.let { bodyBuilder.addFormDataPart("language", it) }
+ 
+@@ -76,32 +77,50 @@ class GroqSpeechClient(
+             .post(bodyBuilder.build())
+             .build()
+ 
+-        val response = apiClient.newCall(request).execute()
+-        val responseBody = response.body.string()
+-        if (!response.isSuccessful) {
+-          throw Exception("Groq transcription failed: HTTP ${response.code} ${responseBody.take(240)}")
+-        }
++        apiClient.newCall(request).awaitResponse().use { response ->
++          val responseBody = response.body.string()
++          if (!response.isSuccessful) {
++            throw Exception("Groq transcription failed: HTTP ${response.code} ${responseBody.take(240)}")
++          }
+ 
+-        val parsed = json.decodeFromString(GroqTranscriptionResponse.serializer(), responseBody)
+-        SpeechTranscript(
+-          text = parsed.text.orEmpty().trim(),
+-          segments =
+-            parsed.segments.mapNotNull { segment ->
+-              val text = segment.text?.trim().orEmpty()
+-              if (text.isBlank()) return@mapNotNull null
+-              SpeechSegment(
+-                startMs = (segment.start * 1000).toLong(),
+-                endMs = (segment.end * 1000).toLong(),
+-                text = text,
+-              )
+-            },
+-        )
++          val parsed = json.decodeFromString(GroqTranscriptionResponse.serializer(), responseBody)
++          Result.success(
++            SpeechTranscript(
++              text = parsed.text.orEmpty().trim(),
++              segments =
++                parsed.segments.mapNotNull { segment ->
++                  val text = segment.text?.trim().orEmpty()
++                  if (text.isBlank()) return@mapNotNull null
++                  SpeechSegment(
++                    startMs = (segment.start * 1000).toLong(),
++                    endMs = (segment.end * 1000).toLong(),
++                    text = text,
++                  )
++                },
++            ),
++          )
++        }
++      } catch (cancellation: CancellationException) {
++        throw cancellation
++      } catch (error: Exception) {
++        Result.failure(error)
+       }
+     }
+ 
++  private fun audioMediaType(audioFile: File) =
++    when (audioFile.extension.lowercase(Locale.ROOT)) {
++      "wav" -> "audio/wav"
++      "webm" -> "audio/webm"
++      "ogg" -> "audio/ogg"
++      "mp3" -> "audio/mpeg"
++      else -> "audio/mp4"
++    }.toMediaType()
++
+   private fun languageCode(language: String?): String? {
+     if (language.isNullOrBlank()) return null
+-    return when (language.lowercase(Locale.ROOT)) {
++    val normalized = language.trim().lowercase(Locale.ROOT)
++    if (normalized.matches(Regex("[a-z]{2,3}"))) return normalized
++    return when (normalized) {
+       "english" -> "en"
+       "hindi" -> "hi"
+       "spanish" -> "es"
+diff --git a/app/src/main/java/com/quantummpv/app/repository/ai/OpenAiClient.kt b/app/src/main/java/com/quantummpv/app/repository/ai/OpenAiClient.kt
+index ccc36f79..5bb431c3 100644
+--- a/app/src/main/java/com/quantummpv/app/repository/ai/OpenAiClient.kt
++++ b/app/src/main/java/com/quantummpv/app/repository/ai/OpenAiClient.kt
+@@ -9,6 +9,7 @@
+ 
+ package com.quantummpv.app.repository.ai
+ 
++import com.quantummpv.app.network.awaitResponse
+ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.withContext
+ import kotlinx.serialization.SerialName
+@@ -75,7 +76,7 @@ class OpenAiClient(
+ 
+   override suspend fun fetchModels(apiKey: String): Result<List<AiModelInfo>> =
+     withContext(Dispatchers.IO) {
+-      runCatching {
++      runCatchingCancellable {
+         val request =
+           Request
+             .Builder()
+@@ -84,25 +85,25 @@ class OpenAiClient(
+             .get()
+             .build()
+ 
+-        val response = apiClient.newCall(request).execute()
+-        val body = response.body.string()
+-
+-        if (!response.isSuccessful) throw Exception("OpenAI API error ${response.code}: ${parseError(body)}")
+-
+-        val parsed = json.decodeFromString<OpenAiModelListResponse>(body)
+-        parsed.data.filter { AiModelCapabilities.isTextGenerationModel(it.id) }.map { model ->
+-          AiModelInfo(
+-            id = model.id,
+-            displayName = model.id,
+-            isFree = AiModelPricing.isZeroCost(model.pricing),
+-          )
++        apiClient.newCall(request).awaitResponse().use { response ->
++          val body = response.body.string()
++          if (!response.isSuccessful) throw Exception("OpenAI API error ${response.code}: ${parseError(body)}")
++
++          val parsed = json.decodeFromString<OpenAiModelListResponse>(body)
++          parsed.data.map { model ->
++            AiModelInfo(
++              id = model.id,
++              displayName = model.id,
++              isFree = AiModelPricing.isZeroCost(model.pricing),
++            )
++          }
+         }
+       }
+     }
+ 
+   override suspend fun verifyKey(apiKey: String): Result<String> =
+     withContext(Dispatchers.IO) {
+-      runCatching {
++      runCatchingCancellable {
+         val request =
+           Request
+             .Builder()
+@@ -111,9 +112,10 @@ class OpenAiClient(
+             .get()
+             .build()
+ 
+-        val response = apiClient.newCall(request).execute()
+-        if (!response.isSuccessful) throw Exception("Invalid API key: ${response.code}")
+-        "API key verified successfully"
++        apiClient.newCall(request).awaitResponse().use { response ->
++          if (!response.isSuccessful) throw Exception("Invalid API key: ${response.code}")
++          "API key verified successfully"
++        }
+       }
+     }
+ 
+@@ -125,7 +127,7 @@ class OpenAiClient(
+     options: AiGenerationOptions,
+   ): Result<AiGeneratedContent> =
+     withContext(Dispatchers.IO) {
+-      runCatching {
++      runCatchingCancellable {
+         val requestBody =
+           json.encodeToString(
+             OpenAiChatRequest.serializer(),
+@@ -149,12 +151,11 @@ class OpenAiClient(
+             .post(requestBody.toRequestBody(JSON_MEDIA_TYPE))
+             .build()
+ 
+-        val response = apiClient.newCall(request).execute()
+-        val body = response.body.string()
+-
+-        if (!response.isSuccessful) throw Exception("OpenAI generate error ${response.code}: ${parseError(body)}")
+-
+-        AiResponseParser.openAiCompatible(json, body, "OpenAI")
++        apiClient.newCall(request).awaitResponse().use { response ->
++          val body = response.body.string()
++          if (!response.isSuccessful) throw Exception("OpenAI generate error ${response.code}: ${parseError(body)}")
++          AiResponseParser.openAiCompatible(json, body, "OpenAI")
++        }
+       }
+     }
+ 
+@@ -168,10 +169,9 @@ class OpenAiClient(
+ 
+   private fun isReasoningModel(model: String): Boolean {
+     val id = model.substringAfterLast('/').lowercase()
+-    return id.startsWith("o1") ||
+-      id.startsWith("o3") ||
+-      id.startsWith("o4") ||
+-      id.startsWith("gpt-5") ||
++    return id.matches(Regex("^o\\d.*")) ||
++      id.matches(Regex("^gpt-[5-9].*")) ||
++      id.contains("reasoning") ||
+       id.contains("codex")
+   }
+ }
+diff --git a/app/src/main/java/com/quantummpv/app/repository/ai/OpenCodeClient.kt b/app/src/main/java/com/quantummpv/app/repository/ai/OpenCodeClient.kt
+index c5656ce0..f543759a 100644
+--- a/app/src/main/java/com/quantummpv/app/repository/ai/OpenCodeClient.kt
++++ b/app/src/main/java/com/quantummpv/app/repository/ai/OpenCodeClient.kt
+@@ -9,6 +9,7 @@
+ 
+ package com.quantummpv.app.repository.ai
+ 
++import com.quantummpv.app.network.awaitResponse
+ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.withContext
+ import kotlinx.serialization.json.Json
+@@ -46,8 +47,8 @@ class OpenCodeClient(
+ 
+   override suspend fun fetchModels(apiKey: String): Result<List<AiModelInfo>> =
+     withContext(Dispatchers.IO) {
+-      runCatching {
+-        val response =
++      runCatchingCancellable {
++        val call =
+           apiClient
+             .newCall(
+               Request
+@@ -56,21 +57,22 @@ class OpenCodeClient(
+                 .header("Authorization", "Bearer $apiKey")
+                 .get()
+                 .build(),
+-            ).execute()
+-        val body = response.body.string()
+-        if (!response.isSuccessful) {
+-          throw IllegalStateException("OpenCode API error ${response.code}: ${AiResponseParser.error(json, body)}")
+-        }
+-        AiResponseParser.modelArray(json, body, "OpenCode").mapNotNull { model ->
+-          val id = model.string("id") ?: return@mapNotNull null
+-          if (!AiModelCapabilities.isTextGenerationModel(id)) return@mapNotNull null
+-          val displayName = model.string("name") ?: model.string("display_name") ?: id
+-          val pricing = model["pricing"] as? JsonObject
+-          AiModelInfo(
+-            id = id,
+-            displayName = displayName,
+-            isFree = AiModelPricing.isZeroCost(pricing) || id.endsWith("-free", ignoreCase = true),
+-          )
++            )
++        call.awaitResponse().use { response ->
++          val body = response.body.string()
++          if (!response.isSuccessful) {
++            throw IllegalStateException("OpenCode API error ${response.code}: ${AiResponseParser.error(json, body)}")
++          }
++          AiResponseParser.modelArray(json, body, "OpenCode").mapNotNull { model ->
++            val id = model.string("id") ?: return@mapNotNull null
++            val displayName = model.string("name") ?: model.string("display_name") ?: id
++            val pricing = model["pricing"] as? JsonObject
++            AiModelInfo(
++              id = id,
++              displayName = displayName,
++              isFree = AiModelPricing.isZeroCost(pricing) || id.endsWith("-free", ignoreCase = true),
++            )
++          }
+         }
+       }
+     }
+@@ -88,7 +90,7 @@ class OpenCodeClient(
+     options: AiGenerationOptions,
+   ): Result<AiGeneratedContent> =
+     withContext(Dispatchers.IO) {
+-      runCatching {
++      runCatchingCancellable {
+         val apiModel = model.removePrefix("opencode/")
+         val protocol = protocolFor(apiModel)
+         val payload =
+@@ -119,16 +121,17 @@ class OpenCodeClient(
+               if (protocol == Protocol.GOOGLE) header("x-goog-api-key", apiKey)
+             }.post(payload.toString().toRequestBody(JSON_MEDIA_TYPE))
+             .build()
+-        val response = apiClient.newCall(request).execute()
+-        val body = response.body.string()
+-        if (!response.isSuccessful) {
+-          throw IllegalStateException("OpenCode generate error ${response.code}: ${AiResponseParser.error(json, body)}")
+-        }
+-        when (protocol) {
+-          Protocol.RESPONSES -> AiResponseParser.openAiResponses(json, body, "OpenCode")
+-          Protocol.ANTHROPIC -> AiResponseParser.anthropic(json, body, "OpenCode")
+-          Protocol.GOOGLE -> AiResponseParser.google(json, body, "OpenCode")
+-          Protocol.CHAT_COMPLETIONS -> AiResponseParser.openAiCompatible(json, body, "OpenCode")
++        apiClient.newCall(request).awaitResponse().use { response ->
++          val body = response.body.string()
++          if (!response.isSuccessful) {
++            throw IllegalStateException("OpenCode generate error ${response.code}: ${AiResponseParser.error(json, body)}")
++          }
++          when (protocol) {
++            Protocol.RESPONSES -> AiResponseParser.openAiResponses(json, body, "OpenCode")
++            Protocol.ANTHROPIC -> AiResponseParser.anthropic(json, body, "OpenCode")
++            Protocol.GOOGLE -> AiResponseParser.google(json, body, "OpenCode")
++            Protocol.CHAT_COMPLETIONS -> AiResponseParser.openAiCompatible(json, body, "OpenCode")
++          }
+         }
+       }
+     }
+diff --git a/app/src/main/java/com/quantummpv/app/repository/ai/OpenRouterClient.kt b/app/src/main/java/com/quantummpv/app/repository/ai/OpenRouterClient.kt
+index 6294e64f..5269877d 100644
+--- a/app/src/main/java/com/quantummpv/app/repository/ai/OpenRouterClient.kt
++++ b/app/src/main/java/com/quantummpv/app/repository/ai/OpenRouterClient.kt
+@@ -9,6 +9,7 @@
+ 
+ package com.quantummpv.app.repository.ai
+ 
++import com.quantummpv.app.network.awaitResponse
+ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.withContext
+ import kotlinx.serialization.SerialName
+@@ -83,7 +84,7 @@ class OpenRouterClient(
+ 
+   override suspend fun fetchModels(apiKey: String): Result<List<AiModelInfo>> =
+     withContext(Dispatchers.IO) {
+-      runCatching {
++      runCatchingCancellable {
+         val request =
+           Request
+             .Builder()
+@@ -92,32 +93,32 @@ class OpenRouterClient(
+             .get()
+             .build()
+ 
+-        val response = apiClient.newCall(request).execute()
+-        val body = response.body.string()
+-
+-        if (!response.isSuccessful) throw Exception("OpenRouter API error ${response.code}: ${parseError(body)}")
+-
+-        val parsed = json.decodeFromString<OrModelListResponse>(body)
+-        parsed.data.filter { AiModelCapabilities.isTextGenerationModel(it.id) }.map { model ->
+-          val isFree =
+-            model.pricing?.let { p ->
+-              p.prompt.toDoubleOrNull() == 0.0 &&
+-                p.completion.toDoubleOrNull() == 0.0 &&
+-                p.image.toDoubleOrNull() == 0.0 &&
+-                p.request.toDoubleOrNull() == 0.0
+-            } ?: false
+-          AiModelInfo(
+-            id = model.id,
+-            displayName = model.name ?: model.id,
+-            isFree = isFree,
+-          )
++        apiClient.newCall(request).awaitResponse().use { response ->
++          val body = response.body.string()
++          if (!response.isSuccessful) throw Exception("OpenRouter API error ${response.code}: ${parseError(body)}")
++
++          val parsed = json.decodeFromString<OrModelListResponse>(body)
++          parsed.data.map { model ->
++            val isFree =
++              model.pricing?.let { p ->
++                p.prompt.toDoubleOrNull() == 0.0 &&
++                  p.completion.toDoubleOrNull() == 0.0 &&
++                  p.image.toDoubleOrNull() == 0.0 &&
++                  p.request.toDoubleOrNull() == 0.0
++              } ?: false
++            AiModelInfo(
++              id = model.id,
++              displayName = model.name ?: model.id,
++              isFree = isFree,
++            )
++          }
+         }
+       }
+     }
+ 
+   override suspend fun verifyKey(apiKey: String): Result<String> =
+     withContext(Dispatchers.IO) {
+-      runCatching {
++      runCatchingCancellable {
+         val request =
+           Request
+             .Builder()
+@@ -126,9 +127,10 @@ class OpenRouterClient(
+             .get()
+             .build()
+ 
+-        val response = apiClient.newCall(request).execute()
+-        if (!response.isSuccessful) throw Exception("Invalid API key: ${response.code}")
+-        "API key verified successfully"
++        apiClient.newCall(request).awaitResponse().use { response ->
++          if (!response.isSuccessful) throw Exception("Invalid API key: ${response.code}")
++          "API key verified successfully"
++        }
+       }
+     }
+ 
+@@ -140,7 +142,7 @@ class OpenRouterClient(
+     options: AiGenerationOptions,
+   ): Result<AiGeneratedContent> =
+     withContext(Dispatchers.IO) {
+-      runCatching {
++      runCatchingCancellable {
+         val requestBody =
+           json.encodeToString(
+             OrChatRequest.serializer(),
+@@ -166,12 +168,11 @@ class OpenRouterClient(
+             .post(requestBody.toRequestBody(JSON_MEDIA_TYPE))
+             .build()
+ 
+-        val response = apiClient.newCall(request).execute()
+-        val body = response.body.string()
+-
+-        if (!response.isSuccessful) throw Exception("OpenRouter generate error ${response.code}: ${parseError(body)}")
+-
+-        AiResponseParser.openAiCompatible(json, body, "OpenRouter")
++        apiClient.newCall(request).awaitResponse().use { response ->
++          val body = response.body.string()
++          if (!response.isSuccessful) throw Exception("OpenRouter generate error ${response.code}: ${parseError(body)}")
++          AiResponseParser.openAiCompatible(json, body, "OpenRouter")
++        }
+       }
+     }
+ 
+diff --git a/app/src/main/java/com/quantummpv/app/repository/ai/OpenRouterSpeechClient.kt b/app/src/main/java/com/quantummpv/app/repository/ai/OpenRouterSpeechClient.kt
+index 017ae5c5..cd1d2e82 100644
+--- a/app/src/main/java/com/quantummpv/app/repository/ai/OpenRouterSpeechClient.kt
++++ b/app/src/main/java/com/quantummpv/app/repository/ai/OpenRouterSpeechClient.kt
+@@ -10,6 +10,8 @@
+ package com.quantummpv.app.repository.ai
+ 
+ import android.util.Base64
++import com.quantummpv.app.network.awaitResponse
++import kotlinx.coroutines.CancellationException
+ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.withContext
+ import kotlinx.serialization.json.Json
+@@ -50,7 +52,7 @@ class OpenRouterSpeechClient(
+     model: String?,
+   ): Result<SpeechTranscript> =
+     withContext(Dispatchers.IO) {
+-      runCatching {
++      try {
+         val encoded = Base64.encodeToString(audioFile.readBytes(), Base64.NO_WRAP)
+         val format =
+           audioFile.extension.lowercase(Locale.ROOT).let {
+@@ -72,7 +74,7 @@ class OpenRouterSpeechClient(
+             if (!language.isNullOrBlank()) put("language", language)
+             put("temperature", 0)
+           }
+-        val response =
++        val request =
+           apiClient
+             .newCall(
+               Request
+@@ -83,32 +85,29 @@ class OpenRouterSpeechClient(
+                 .header("X-OpenRouter-Title", "mpvRx")
+                 .post(payload.toString().toRequestBody(JSON_MEDIA_TYPE))
+                 .build(),
+-            ).execute()
+-        val body = response.body.string()
+-        if (!response.isSuccessful) {
+-          throw IllegalStateException(
+-            "OpenRouter transcription failed ${response.code}: ${AiResponseParser.error(json, body)}",
+-          )
++            )
++        request.awaitResponse().use { response ->
++          val body = response.body.string()
++          if (!response.isSuccessful) {
++            throw IllegalStateException(
++              "OpenRouter transcription failed ${response.code}: ${AiResponseParser.error(json, body)}",
++            )
++          }
++          val root = json.parseToJsonElement(body).jsonObject
++          val text =
++            root["text"]
++              ?.jsonPrimitive
++              ?.contentOrNull
++              .orEmpty()
++              .trim()
++          if (text.isBlank()) throw IllegalStateException("OpenRouter returned an empty transcription")
++              Result.success(SpeechTranscript(text))
+         }
+-        val root = json.parseToJsonElement(body).jsonObject
+-        val text =
+-          root["text"]
+-            ?.jsonPrimitive
+-            ?.contentOrNull
+-            .orEmpty()
+-            .trim()
+-        if (text.isBlank()) throw IllegalStateException("OpenRouter returned an empty transcription")
+-        SpeechTranscript(text, createHeuristicSegments(text))
++      } catch (cancellation: CancellationException) {
++        throw cancellation
++      } catch (error: Exception) {
++        Result.failure(error)
+       }
+     }
+ 
+-  private fun createHeuristicSegments(text: String): List<SpeechSegment> =
+-    text
+-      .split(Regex("\\s+"))
+-      .filter { it.isNotBlank() }
+-      .chunked(9)
+-      .mapIndexed { index, words ->
+-        val startMs = index * 3_500L
+-        SpeechSegment(startMs, startMs + 3_200L, words.joinToString(" "))
+-      }
+ }
+diff --git a/app/src/main/java/com/quantummpv/app/repository/ai/RealtimeAudioChunkExtractor.kt b/app/src/main/java/com/quantummpv/app/repository/ai/RealtimeAudioChunkExtractor.kt
+new file mode 100644
+index 00000000..4bf284b2
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/repository/ai/RealtimeAudioChunkExtractor.kt
+@@ -0,0 +1,293 @@
++/*
++ * SPDX-License-Identifier: AGPL-3.0-or-later
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Affero General Public License as published
++ * by the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ */
++
++package com.quantummpv.app.repository.ai
++
++import android.content.Context
++import android.media.AudioFormat
++import android.media.MediaCodec
++import android.media.MediaExtractor
++import android.media.MediaFormat
++import android.net.Uri
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.currentCoroutineContext
++import kotlinx.coroutines.ensureActive
++import kotlinx.coroutines.withContext
++import java.io.ByteArrayOutputStream
++import java.io.DataOutputStream
++import java.io.File
++import java.io.FileOutputStream
++import java.nio.ByteBuffer
++import java.nio.ByteOrder
++import kotlin.math.roundToInt
++
++internal data class RealtimeMediaInput(
++  val source: String,
++  val headers: Map<String, String> = emptyMap(),
++  val audioTrackIndex: Int? = null,
++  val audioTrackOrdinal: Int = 0,
++)
++
++internal class RealtimeAudioChunkExtractor(
++  private val context: Context,
++) {
++  suspend fun extract(
++    input: RealtimeMediaInput,
++    startMs: Long,
++    endMs: Long,
++  ): File =
++    withContext(Dispatchers.IO) {
++      require(input.source.isNotBlank()) { "Media source is unavailable" }
++      require(endMs > startMs) { "Audio chunk has an invalid time range" }
++
++      val outputFile = File.createTempFile("realtime_audio_", ".wav", context.cacheDir)
++      val extractor = MediaExtractor()
++      var codec: MediaCodec? = null
++      try {
++        setDataSource(extractor, input)
++        val extractorTrack = resolveTrackIndex(extractor, input)
++        val inputFormat = extractor.getTrackFormat(extractorTrack)
++        val mime =
++          inputFormat.getString(MediaFormat.KEY_MIME)
++            ?.takeIf { it.startsWith("audio/") }
++            ?: error("Selected stream is not audio")
++
++        extractor.selectTrack(extractorTrack)
++        extractor.seekTo(startMs * 1_000L, MediaExtractor.SEEK_TO_PREVIOUS_SYNC)
++
++        codec = MediaCodec.createDecoderByType(mime)
++        codec.configure(inputFormat, null, null, 0)
++        codec.start()
++
++        val pcm = ByteArrayOutputStream()
++        val targetSampleCount = ((endMs - startMs) * TARGET_SAMPLE_RATE / 1_000L).coerceAtLeast(1L)
++        var outputFormat = inputFormat
++        var inputEnded = false
++        var outputEnded = false
++        var lastTargetSample = -1L
++        val bufferInfo = MediaCodec.BufferInfo()
++
++        while (!outputEnded) {
++          currentCoroutineContext().ensureActive()
++
++          if (!inputEnded) {
++            val inputIndex = codec.dequeueInputBuffer(DEQUEUE_TIMEOUT_US)
++            if (inputIndex >= 0) {
++              val sampleTimeUs = extractor.sampleTime
++              if (sampleTimeUs < 0L || sampleTimeUs >= endMs * 1_000L) {
++                codec.queueInputBuffer(inputIndex, 0, 0, endMs * 1_000L, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
++                inputEnded = true
++              } else {
++                val inputBuffer = codec.getInputBuffer(inputIndex) ?: error("Audio decoder input buffer unavailable")
++                val sampleSize = extractor.readSampleData(inputBuffer, 0)
++                if (sampleSize < 0) {
++                  codec.queueInputBuffer(inputIndex, 0, 0, sampleTimeUs.coerceAtLeast(0L), MediaCodec.BUFFER_FLAG_END_OF_STREAM)
++                  inputEnded = true
++                } else {
++                  codec.queueInputBuffer(inputIndex, 0, sampleSize, sampleTimeUs.coerceAtLeast(0L), extractor.sampleFlags)
++                  extractor.advance()
++                }
++              }
++            }
++          }
++
++          when (val outputIndex = codec.dequeueOutputBuffer(bufferInfo, DEQUEUE_TIMEOUT_US)) {
++            MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> outputFormat = codec.outputFormat
++            MediaCodec.INFO_TRY_AGAIN_LATER -> Unit
++            else -> {
++              if (outputIndex >= 0) {
++                codec.getOutputBuffer(outputIndex)?.let { outputBuffer ->
++                  if (bufferInfo.size > 0) {
++                    lastTargetSample =
++                      appendMonoPcm16(
++                        destination = pcm,
++                        buffer = outputBuffer,
++                        offset = bufferInfo.offset,
++                        size = bufferInfo.size,
++                        presentationTimeUs = bufferInfo.presentationTimeUs,
++                        outputFormat = outputFormat,
++                        startUs = startMs * 1_000L,
++                        endUs = endMs * 1_000L,
++                        targetSampleCount = targetSampleCount,
++                        lastTargetSample = lastTargetSample,
++                      )
++                  }
++                }
++                outputEnded = bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0
++                codec.releaseOutputBuffer(outputIndex, false)
++              }
++            }
++          }
++        }
++
++        check(pcm.size() > 0) { "Decoder produced no audio in the selected time range" }
++        writeWav(outputFile, pcm.toByteArray())
++        outputFile
++      } catch (error: Throwable) {
++        outputFile.delete()
++        throw error
++      } finally {
++        runCatching { codec?.stop() }
++        runCatching { codec?.release() }
++        runCatching { extractor.release() }
++      }
++    }
++
++  private fun setDataSource(
++    extractor: MediaExtractor,
++    input: RealtimeMediaInput,
++  ) {
++    val uri = Uri.parse(input.source)
++    when (uri.scheme?.lowercase()) {
++      "content", "android.resource" -> extractor.setDataSource(context, uri, input.headers)
++      "file" -> extractor.setDataSource(requireNotNull(uri.path))
++      "http", "https" -> extractor.setDataSource(input.source, input.headers)
++      null -> extractor.setDataSource(input.source)
++      else -> extractor.setDataSource(context, uri, input.headers)
++    }
++  }
++
++  private fun resolveTrackIndex(
++    extractor: MediaExtractor,
++    input: RealtimeMediaInput,
++  ): Int {
++    input.audioTrackIndex?.takeIf { index ->
++      index in 0 until extractor.trackCount &&
++        extractor.getTrackFormat(index).getString(MediaFormat.KEY_MIME)?.startsWith("audio/") == true
++    }?.let { return it }
++
++    val audioTracks =
++      (0 until extractor.trackCount).filter { index ->
++        extractor.getTrackFormat(index).getString(MediaFormat.KEY_MIME)?.startsWith("audio/") == true
++      }
++    return audioTracks.getOrNull(input.audioTrackOrdinal.coerceAtLeast(0))
++      ?: audioTracks.firstOrNull()
++      ?: error("No decodable audio stream found")
++  }
++
++  private fun appendMonoPcm16(
++    destination: ByteArrayOutputStream,
++    buffer: ByteBuffer,
++    offset: Int,
++    size: Int,
++    presentationTimeUs: Long,
++    outputFormat: MediaFormat,
++    startUs: Long,
++    endUs: Long,
++    targetSampleCount: Long,
++    lastTargetSample: Long,
++  ): Long {
++    val channelCount = outputFormat.integerOrNull(MediaFormat.KEY_CHANNEL_COUNT)?.coerceAtLeast(1) ?: 1
++    val sampleRate = outputFormat.integerOrNull(MediaFormat.KEY_SAMPLE_RATE)?.coerceAtLeast(1) ?: TARGET_SAMPLE_RATE
++    val pcmEncoding = outputFormat.integerOrNull(MediaFormat.KEY_PCM_ENCODING) ?: AudioFormat.ENCODING_PCM_16BIT
++    val bytesPerSample = bytesPerSample(pcmEncoding)
++    val frameSize = bytesPerSample * channelCount
++    if (frameSize <= 0 || size < frameSize) return lastTargetSample
++
++    val data = buffer.duplicate().order(ByteOrder.LITTLE_ENDIAN)
++    val frameCount = size / frameSize
++    var writtenTargetSample = lastTargetSample
++
++    for (frame in 0 until frameCount) {
++      val frameTimeUs = presentationTimeUs + frame * 1_000_000L / sampleRate
++      if (frameTimeUs < startUs) continue
++      if (frameTimeUs >= endUs) break
++
++      val targetSample = ((frameTimeUs - startUs) * TARGET_SAMPLE_RATE / 1_000_000L).coerceAtMost(targetSampleCount - 1L)
++      if (targetSample <= writtenTargetSample) continue
++
++      var mixedSample = 0f
++      for (channel in 0 until channelCount) {
++        val sampleOffset = offset + (frame * channelCount + channel) * bytesPerSample
++        if (sampleOffset + bytesPerSample > offset + size) break
++        mixedSample += readSample(data, sampleOffset, pcmEncoding)
++      }
++      val pcm16 = ((mixedSample / channelCount).coerceIn(-1f, 1f) * Short.MAX_VALUE).roundToInt().toShort()
++      while (writtenTargetSample < targetSample) {
++        destination.write(pcm16.toInt() and 0xFF)
++        destination.write((pcm16.toInt() ushr 8) and 0xFF)
++        writtenTargetSample++
++      }
++    }
++
++    return writtenTargetSample
++  }
++
++  private fun writeWav(
++    outputFile: File,
++    pcm: ByteArray,
++  ) {
++    DataOutputStream(FileOutputStream(outputFile)).use { output ->
++      output.writeBytes("RIFF")
++      output.writeLittleEndianInt(36 + pcm.size)
++      output.writeBytes("WAVE")
++      output.writeBytes("fmt ")
++      output.writeLittleEndianInt(16)
++      output.writeLittleEndianShort(1)
++      output.writeLittleEndianShort(TARGET_CHANNEL_COUNT)
++      output.writeLittleEndianInt(TARGET_SAMPLE_RATE)
++      output.writeLittleEndianInt(TARGET_SAMPLE_RATE * TARGET_CHANNEL_COUNT * BYTES_PER_TARGET_SAMPLE)
++      output.writeLittleEndianShort(TARGET_CHANNEL_COUNT * BYTES_PER_TARGET_SAMPLE)
++      output.writeLittleEndianShort(BITS_PER_TARGET_SAMPLE)
++      output.writeBytes("data")
++      output.writeLittleEndianInt(pcm.size)
++      output.write(pcm)
++    }
++  }
++
++  private fun bytesPerSample(encoding: Int): Int =
++    when (encoding) {
++      AudioFormat.ENCODING_PCM_FLOAT, AudioFormat.ENCODING_PCM_32BIT -> 4
++      AudioFormat.ENCODING_PCM_24BIT_PACKED -> 3
++      AudioFormat.ENCODING_PCM_8BIT -> 1
++      else -> 2
++    }
++
++  private fun readSample(
++    buffer: ByteBuffer,
++    offset: Int,
++    encoding: Int,
++  ): Float =
++    when (encoding) {
++      AudioFormat.ENCODING_PCM_FLOAT -> buffer.getFloat(offset)
++      AudioFormat.ENCODING_PCM_32BIT -> buffer.getInt(offset) / Int.MAX_VALUE.toFloat()
++      AudioFormat.ENCODING_PCM_24BIT_PACKED -> {
++        val value =
++          (buffer.get(offset).toInt() and 0xFF) or
++            ((buffer.get(offset + 1).toInt() and 0xFF) shl 8) or
++            (buffer.get(offset + 2).toInt() shl 16)
++        value / 8_388_607f
++      }
++      AudioFormat.ENCODING_PCM_8BIT -> ((buffer.get(offset).toInt() and 0xFF) - 128) / 128f
++      else -> buffer.getShort(offset) / Short.MAX_VALUE.toFloat()
++    }
++
++  private fun MediaFormat.integerOrNull(key: String): Int? =
++    if (containsKey(key)) runCatching { getInteger(key) }.getOrNull() else null
++
++  private fun DataOutputStream.writeLittleEndianInt(value: Int) {
++    writeByte(value and 0xFF)
++    writeByte((value ushr 8) and 0xFF)
++    writeByte((value ushr 16) and 0xFF)
++    writeByte((value ushr 24) and 0xFF)
++  }
++
++  private fun DataOutputStream.writeLittleEndianShort(value: Int) {
++    writeByte(value and 0xFF)
++    writeByte((value ushr 8) and 0xFF)
++  }
++
++  private companion object {
++    const val DEQUEUE_TIMEOUT_US = 10_000L
++    const val TARGET_SAMPLE_RATE = 16_000
++    const val TARGET_CHANNEL_COUNT = 1
++    const val BITS_PER_TARGET_SAMPLE = 16
++    const val BYTES_PER_TARGET_SAMPLE = BITS_PER_TARGET_SAMPLE / 8
++  }
++}
+diff --git a/app/src/main/java/com/quantummpv/app/repository/ai/RealtimeSubtitleService.kt b/app/src/main/java/com/quantummpv/app/repository/ai/RealtimeSubtitleService.kt
+index 04525c3b..a07d689c 100644
+--- a/app/src/main/java/com/quantummpv/app/repository/ai/RealtimeSubtitleService.kt
++++ b/app/src/main/java/com/quantummpv/app/repository/ai/RealtimeSubtitleService.kt
+@@ -10,16 +10,24 @@
+ package com.quantummpv.app.repository.ai
+ 
+ import android.content.Context
+-import android.media.MediaCodec
+-import android.media.MediaExtractor
+-import android.media.MediaFormat
+-import android.media.MediaMuxer
+-import android.net.Uri
++import com.quantummpv.app.R
++import com.quantummpv.app.network.awaitResponse
+ import com.quantummpv.app.preferences.AiPreferences
+ import com.quantummpv.app.preferences.AiProvider
++import kotlinx.coroutines.CancellationException
+ import kotlinx.coroutines.CoroutineScope
+ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.Job
++import kotlinx.coroutines.async
++import kotlinx.coroutines.awaitCancellation
++import kotlinx.coroutines.channels.Channel
++import kotlinx.coroutines.coroutineScope
++import kotlinx.coroutines.currentCoroutineContext
++import kotlinx.coroutines.delay
++import kotlinx.coroutines.ensureActive
++import kotlinx.coroutines.flow.collectLatest
++import kotlinx.coroutines.flow.onStart
++import kotlinx.coroutines.flow.receiveAsFlow
+ import kotlinx.coroutines.isActive
+ import kotlinx.coroutines.launch
+ import kotlinx.coroutines.withContext
+@@ -30,7 +38,6 @@ import okhttp3.OkHttpClient
+ import okhttp3.Request
+ import okhttp3.RequestBody.Companion.asRequestBody
+ import java.io.File
+-import java.nio.ByteBuffer
+ import java.util.concurrent.TimeUnit
+ 
+ @kotlinx.serialization.Serializable
+@@ -46,6 +53,14 @@ private data class OpenAiTranscriptionSegment(
+   val text: String? = null,
+ )
+ 
++internal data class RealtimeSubtitleRequest(
++  val mediaInput: RealtimeMediaInput,
++  val videoDurationMs: Long,
++  val startPositionMs: Long,
++  val sourceLanguage: String?,
++  val targetLanguage: String?,
++)
++
+ class RealtimeSubtitleService(
+   private val context: Context,
+   private val preferences: AiPreferences,
+@@ -53,15 +68,25 @@ class RealtimeSubtitleService(
+   private val openRouterSpeechClient: OpenRouterSpeechClient,
+   private val okHttpClient: OkHttpClient,
+   private val json: Json,
++  private val aiService: AiService,
+ ) {
+   companion object {
+-    private const val CHUNK_DURATION_MS = 15_000L
+-    private const val CHUNK_OVERLAP_MS = 5_000L
++    private const val CHUNK_DURATION_MS = 5_000L
++    private const val CHUNK_OVERLAP_MS = 1_000L
+     private const val CHUNK_STEP_MS = CHUNK_DURATION_MS - CHUNK_OVERLAP_MS
++    private const val LOOKAHEAD_MS = 20_000L
++    private const val SEEK_PREROLL_MS = 1_000L
++    private const val POSITION_WAIT_MS = 250L
++    private const val MAX_CONCURRENT_CHUNKS = 2
++    private const val MAX_TRANSCRIPTION_RETRIES = 2
++    private const val INITIAL_RETRY_DELAY_MS = 500L
+     private const val MAX_CHUNK_SIZE_BYTES = 20L * 1024 * 1024
++    private const val SEEK_IN_PROGRESS = -1L
+   }
+ 
++  private val audioExtractor = RealtimeAudioChunkExtractor(context)
+   private var job: Job? = null
++  private var seekRequests: Channel<Long>? = null
+ 
+   data class RealtimeProgress(
+     val chunkIndex: Int,
+@@ -69,214 +94,248 @@ class RealtimeSubtitleService(
+     val stage: String,
+   )
+ 
+-  fun start(
+-    videoUri: Uri,
+-    videoDurationMs: Long,
+-    language: String?,
++  internal fun start(
++    request: RealtimeSubtitleRequest,
+     scope: CoroutineScope,
++    positionProvider: () -> Long,
+     onProgress: (RealtimeProgress) -> Unit,
+     onNewContent: (String) -> Unit,
+     onComplete: () -> Unit,
+     onError: (String) -> Unit,
+   ) {
+     stop()
++    val requests = Channel<Long>(Channel.CONFLATED)
++    seekRequests = requests
+     job =
+       scope.launch(Dispatchers.IO) {
++        val timeline = RealtimeSubtitleTimeline()
+         try {
+-          val totalChunks =
+-            ((videoDurationMs + CHUNK_STEP_MS - 1) / CHUNK_STEP_MS).toInt()
+-          val allSegments = mutableListOf<SpeechSegment>()
+-          var previousEndMs = 0L
+-
+-          for (chunkIndex in 0 until totalChunks) {
+-            if (!isActive) break
+-
+-            val chunkStartMs = chunkIndex * CHUNK_STEP_MS
+-            val chunkEndMs =
+-              (chunkStartMs + CHUNK_DURATION_MS).coerceAtMost(videoDurationMs)
+-
+-            onProgress(
+-              RealtimeProgress(
+-                chunkIndex = chunkIndex,
+-                totalChunks = totalChunks,
+-                stage = "Extracting audio chunk ${chunkIndex + 1}/$totalChunks",
+-              ),
+-            )
+-
+-            val audioChunk = extractAudioChunk(videoUri, chunkStartMs, chunkEndMs)
+-            if (audioChunk == null) {
+-              onProgress(
+-                RealtimeProgress(
+-                  chunkIndex = chunkIndex,
+-                  totalChunks = totalChunks,
+-                  stage = "Skipping chunk ${chunkIndex + 1}/$totalChunks",
+-                ),
+-              )
+-              continue
+-            }
+-
+-            try {
+-              onProgress(
+-                RealtimeProgress(
+-                  chunkIndex = chunkIndex,
+-                  totalChunks = totalChunks,
+-                  stage = "Transcribing chunk ${chunkIndex + 1}/$totalChunks",
+-                ),
+-              )
+-
+-              val transcript = transcribe(audioChunk, language)
+-              if (transcript == null || transcript.segments.isEmpty()) continue
+-
+-              val newSegments =
+-                transcript.segments
+-                  .filter { segment ->
+-                    segment.endMs > previousEndMs
+-                  }.map { segment ->
+-                    SpeechSegment(
+-                      startMs = chunkStartMs + segment.startMs,
+-                      endMs = chunkStartMs + segment.endMs,
+-                      text = segment.text,
+-                    )
+-                  }
+-
+-              if (newSegments.isNotEmpty()) {
+-                allSegments.addAll(newSegments)
+-                allSegments.sortBy { it.startMs }
+-                deduplicateSegments(allSegments)
+-                previousEndMs = allSegments.lastOrNull()?.endMs ?: 0L
+-
+-                val srtContent = toSrt(allSegments)
+-                withContext(Dispatchers.Main) { onNewContent(srtContent) }
++          requests
++            .receiveAsFlow()
++            .onStart { emit(request.startPositionMs) }
++            .collectLatest { positionMs ->
++              if (positionMs == SEEK_IN_PROGRESS) awaitCancellation()
++              if (
++                processFromPosition(
++                  request = request,
++                  restartPositionMs = positionMs,
++                  timeline = timeline,
++                  positionProvider = positionProvider,
++                  onProgress = onProgress,
++                  onNewContent = onNewContent,
++                )
++              ) {
++                throw SessionCompleted()
+               }
+-            } finally {
+-              audioChunk.delete()
+             }
+-          }
+-
++        } catch (_: SessionCompleted) {
+           withContext(Dispatchers.Main) { onComplete() }
+-        } catch (e: Exception) {
++        } catch (cancellation: CancellationException) {
++          throw cancellation
++        } catch (error: Exception) {
+           withContext(Dispatchers.Main) {
+-            onError(e.message ?: "Unknown error")
++            onError(error.message ?: "Real-time subtitle processing failed")
+           }
++        } finally {
++          if (seekRequests === requests) seekRequests = null
+         }
+       }
+   }
+ 
++  internal fun seekTo(positionMs: Long) {
++    seekRequests?.trySend(positionMs.coerceAtLeast(0L))
++  }
++
++  internal fun onSeekStarted() {
++    seekRequests?.trySend(SEEK_IN_PROGRESS)
++  }
++
+   fun stop() {
++    seekRequests?.close()
++    seekRequests = null
+     job?.cancel()
+     job = null
+   }
+ 
+-  private suspend fun extractAudioChunk(
+-    videoUri: Uri,
+-    startMs: Long,
+-    endMs: Long,
+-  ): File? =
+-    withContext(Dispatchers.IO) {
+-      runCatching {
+-        val extractor = MediaExtractor()
+-        var outputFile: File? = null
+-        try {
+-          extractor.setDataSource(context, videoUri, null)
+-
+-          var audioTrackIndex = -1
+-          for (i in 0 until extractor.trackCount) {
+-            val format = extractor.getTrackFormat(i)
+-            val mime = format.getString(MediaFormat.KEY_MIME) ?: continue
+-            if (mime.startsWith("audio/")) {
+-              audioTrackIndex = i
+-              break
++  private suspend fun processFromPosition(
++    request: RealtimeSubtitleRequest,
++    restartPositionMs: Long,
++    timeline: RealtimeSubtitleTimeline,
++    positionProvider: () -> Long,
++    onProgress: (RealtimeProgress) -> Unit,
++    onNewContent: (String) -> Unit,
++  ): Boolean {
++    val firstChunkStart =
++      (restartPositionMs - SEEK_PREROLL_MS)
++        .coerceIn(0L, (request.videoDurationMs - 1L).coerceAtLeast(0L))
++    val totalChunks =
++      ((request.videoDurationMs - firstChunkStart + CHUNK_STEP_MS - 1L) / CHUNK_STEP_MS)
++        .toInt()
++        .coerceAtLeast(1)
++    var nextChunkStart = firstChunkStart
++    var completedChunks = 0
++
++    while (currentCoroutineContext().isActive && nextChunkStart < request.videoDurationMs) {
++      val playbackPosition = maxOf(restartPositionMs, positionProvider()).coerceIn(0L, request.videoDurationMs)
++      val allowedStart = (playbackPosition + LOOKAHEAD_MS).coerceAtMost(request.videoDurationMs)
++      if (nextChunkStart > allowedStart) {
++        delay(POSITION_WAIT_MS)
++        continue
++      }
++
++      val batchStarts =
++        buildList {
++          var candidate = nextChunkStart
++          repeat(MAX_CONCURRENT_CHUNKS) {
++            if (candidate < request.videoDurationMs && candidate <= allowedStart) {
++              add(candidate)
++              candidate += CHUNK_STEP_MS
+             }
+           }
+-          if (audioTrackIndex < 0) return@runCatching null
+-
+-          val audioFormat = extractor.getTrackFormat(audioTrackIndex)
+-          val audioMime = audioFormat.getString(MediaFormat.KEY_MIME) ?: return@runCatching null
+-          val isWebm = audioMime == "audio/opus" || audioMime == "audio/vorbis"
++        }
++      if (batchStarts.isEmpty()) {
++        delay(POSITION_WAIT_MS)
++        continue
++      }
+ 
+-          outputFile =
+-            File.createTempFile(
+-              "rt_chunk_",
+-              if (isWebm) ".webm" else ".m4a",
+-              context.cacheDir,
+-            )
+-          if (!isActive) {
+-            outputFile!!.delete()
+-            return@runCatching null
++      emitProgress(
++        onProgress,
++        completedChunks,
++        totalChunks,
++        context.getString(
++          R.string.realtime_subtitles_processing,
++          (completedChunks + 1).coerceAtMost(totalChunks),
++          totalChunks,
++        ),
++      )
++      coroutineScope {
++        val pending =
++          batchStarts.map { chunkStartMs ->
++            async { transcribeChunk(request, chunkStartMs) }
+           }
+ 
+-          extractor.selectTrack(audioTrackIndex)
+-          extractor.seekTo(startMs * 1000, MediaExtractor.SEEK_TO_CLOSEST_SYNC)
+-
+-          val muxer =
+-            MediaMuxer(
+-              outputFile!!.absolutePath,
+-              if (isWebm) {
+-                MediaMuxer.OutputFormat.MUXER_OUTPUT_WEBM
+-              } else {
+-                MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4
+-              },
++        pending.forEach { deferred ->
++          currentCoroutineContext().ensureActive()
++          val chunk = deferred.await()
++          var candidates =
++            timeline.absoluteCandidates(
++              chunkStartMs = chunk.startMs,
++              chunkDurationMs = chunk.endMs - chunk.startMs,
++              segments = chunk.transcript.segments,
+             )
+-          try {
+-            val muxerTrackIndex = muxer.addTrack(audioFormat)
+-            muxer.start()
++          if (!request.targetLanguage.isNullOrBlank() && candidates.isNotEmpty()) {
++            emitProgress(onProgress, completedChunks, totalChunks, context.getString(R.string.realtime_subtitles_translating))
++            val translation = aiService.translateRealtimeCues(candidates.map(RealtimeSubtitleCue::sourceText), request.targetLanguage)
++            translation
++              .onSuccess { translated ->
++                candidates = candidates.mapIndexed { index, cue -> cue.copy(displayText = translated[index]) }
++              }.onFailure {
++                emitProgress(
++                  onProgress,
++                  completedChunks,
++                  totalChunks,
++                  context.getString(R.string.realtime_subtitles_translation_fallback),
++                )
++              }
++          }
+ 
+-            val buffer = ByteBuffer.allocate(512 * 1024)
+-            val bufferInfo = MediaCodec.BufferInfo()
++          if (candidates.isNotEmpty()) {
++            val snapshot = timeline.merge(candidates)
++            withContext(Dispatchers.Main) { onNewContent(snapshot.toSrt()) }
++          }
++          completedChunks++
++          emitProgress(
++            onProgress,
++            completedChunks,
++            totalChunks,
++            context.getString(
++              R.string.realtime_subtitles_processing,
++              completedChunks.coerceAtMost(totalChunks),
++              totalChunks,
++            ),
++          )
++        }
++      }
+ 
+-            while (isActive) {
+-              val sampleSize = extractor.readSampleData(buffer, 0)
+-              if (sampleSize < 0) break
++      nextChunkStart = batchStarts.last() + CHUNK_STEP_MS
++    }
+ 
+-              val sampleTimeUs = extractor.sampleTime
+-              if (sampleTimeUs > endMs * 1000) break
++    return nextChunkStart >= request.videoDurationMs
++  }
+ 
+-              bufferInfo.set(0, sampleSize, sampleTimeUs, extractor.sampleFlags)
+-              muxer.writeSampleData(muxerTrackIndex, buffer, bufferInfo)
+-              extractor.advance()
++  private suspend fun transcribeChunk(
++    request: RealtimeSubtitleRequest,
++    startMs: Long,
++  ): TranscribedChunk {
++    val endMs = (startMs + CHUNK_DURATION_MS).coerceAtMost(request.videoDurationMs)
++    val audioFile = audioExtractor.extract(request.mediaInput, startMs, endMs)
++    try {
++      check(audioFile.length() <= MAX_CHUNK_SIZE_BYTES) { "Audio chunk exceeds the transcription provider limit" }
++      var lastError: Throwable? = null
++      repeat(MAX_TRANSCRIPTION_RETRIES + 1) { attempt ->
++        currentCoroutineContext().ensureActive()
++        val result = transcribe(audioFile, request.sourceLanguage)
++        result.getOrNull()?.let { transcript ->
++          val normalizedTranscript =
++            if (transcript.segments.isEmpty() && transcript.text.isNotBlank()) {
++              transcript.copy(
++                segments =
++                  listOf(
++                    SpeechSegment(
++                      startMs = 0L,
++                      endMs = endMs - startMs,
++                      text = transcript.text.trim(),
++                    ),
++                  ),
++              )
++            } else {
++              transcript
+             }
+-
+-            muxer.stop()
+-          } finally {
+-            muxer.release()
+-          }
+-        } finally {
+-          extractor.release()
+-        }
+-
+-        if (!isActive) {
+-          outputFile.delete()
+-          return@runCatching null
++          return TranscribedChunk(startMs, endMs, normalizedTranscript)
+         }
+-
+-        if (outputFile.length() > MAX_CHUNK_SIZE_BYTES) {
+-          val mb = outputFile.length() / (1024 * 1024)
+-          android.util.Log.w("RealtimeSubtitle", "Chunk too large ($mb MB), skipping")
+-          outputFile.delete()
+-          return@runCatching null
++        lastError = result.exceptionOrNull()
++        if (attempt < MAX_TRANSCRIPTION_RETRIES) {
++          delay(INITIAL_RETRY_DELAY_MS shl attempt)
+         }
++      }
++      throw IllegalStateException(
++        "Transcription failed at ${startMs / 1000}s after ${MAX_TRANSCRIPTION_RETRIES + 1} attempts: " +
++          (lastError?.message ?: "unknown provider error"),
++        lastError,
++      )
++    } finally {
++      audioFile.delete()
++    }
++  }
+ 
+-        outputFile
+-      }.getOrNull()
++  private suspend fun emitProgress(
++    callback: (RealtimeProgress) -> Unit,
++    chunkIndex: Int,
++    totalChunks: Int,
++    stage: String,
++  ) {
++    withContext(Dispatchers.Main) {
++      callback(RealtimeProgress(chunkIndex.coerceAtMost(totalChunks), totalChunks, stage))
+     }
++  }
+ 
+   private suspend fun transcribe(
+     audioFile: File,
+     language: String?,
+-  ): SpeechTranscript? {
++  ): Result<SpeechTranscript> {
+     val provider = preferences.sttProvider.get()
+-    val sttModel = preferences.sttModel.get()
++    val sttModel = preferences.sttModelFor(provider).get()
+ 
+     return when (provider) {
+       AiProvider.GROQ -> {
+         val key = preferences.groqApiKey.get()
+-        if (key.isBlank()) return null
+-        groqSpeechClient.transcribe(key, audioFile, language, sttModel).getOrNull()
++        if (key.isBlank()) return Result.failure(IllegalStateException("Groq API key is not configured"))
++        groqSpeechClient.transcribe(key, audioFile, language, sttModel)
+       }
+ 
+       AiProvider.OPENAI -> {
+         val key = preferences.openaiApiKey.get()
+-        if (key.isBlank()) return null
++        if (key.isBlank()) return Result.failure(IllegalStateException("OpenAI API key is not configured"))
+         transcribeOpenAiCompatible(
+           baseUrl = "https://api.openai.com/v1/audio/transcriptions",
+           apiKey = key,
+@@ -288,18 +347,11 @@ class RealtimeSubtitleService(
+ 
+       AiProvider.OPENROUTER -> {
+         val key = preferences.openrouterApiKey.get()
+-        if (key.isBlank()) return null
+-        openRouterSpeechClient.transcribe(key, audioFile, language, sttModel).getOrNull()
++        if (key.isBlank()) return Result.failure(IllegalStateException("OpenRouter API key is not configured"))
++        openRouterSpeechClient.transcribe(key, audioFile, language, sttModel)
+       }
+ 
+-      else -> {
+-        val groqKey = preferences.groqApiKey.get()
+-        if (groqKey.isNotBlank()) {
+-          groqSpeechClient.transcribe(groqKey, audioFile, language, sttModel).getOrNull()
+-        } else {
+-          null
+-        }
+-      }
++      else -> Result.failure(IllegalStateException("$provider does not support speech-to-text"))
+     }
+   }
+ 
+@@ -309,9 +361,9 @@ class RealtimeSubtitleService(
+     model: String,
+     audioFile: File,
+     language: String?,
+-  ): SpeechTranscript? =
++  ): Result<SpeechTranscript> =
+     withContext(Dispatchers.IO) {
+-      runCatching {
++      try {
+         val fileSizeMb = audioFile.length() / (1024 * 1024)
+         if (audioFile.length() > MAX_CHUNK_SIZE_BYTES) {
+           throw Exception("Audio file too large ($fileSizeMb MB) for transcription API limit. Try a shorter video.")
+@@ -330,7 +382,7 @@ class RealtimeSubtitleService(
+             .Builder()
+             .setType(MultipartBody.FORM)
+             .addFormDataPart("model", model)
+-            .addFormDataPart("response_format", "verbose_json")
++            .addFormDataPart("response_format", if (model.startsWith("whisper", ignoreCase = true)) "verbose_json" else "json")
+             .addFormDataPart("temperature", "0")
+             .addFormDataPart("file", audioFile.name, audioFile.asRequestBody(audioMediaType(audioFile)))
+ 
+@@ -346,60 +398,49 @@ class RealtimeSubtitleService(
+             .post(bodyBuilder.build())
+             .build()
+ 
+-        val response = apiClient.newCall(request).execute()
+-        val body = response.body.string()
+-        if (!response.isSuccessful) {
+-          throw Exception("STT failed: HTTP ${response.code} ${body.take(240)}")
+-        }
+-
+-        val parsed = json.decodeFromString(OpenAiTranscriptionResponse.serializer(), body)
+-        SpeechTranscript(
+-          text = parsed.text.orEmpty().trim(),
+-          segments =
+-            parsed.segments.mapNotNull { segment ->
+-              val text = segment.text?.trim().orEmpty()
+-              if (text.isBlank()) return@mapNotNull null
+-              SpeechSegment(
+-                startMs = (segment.start * 1000).toLong(),
+-                endMs = (segment.end * 1000).toLong(),
+-                text = text,
+-              )
+-            },
+-        )
+-      }.getOrNull()
+-    }
++        apiClient.newCall(request).awaitResponse().use { response ->
++          val body = response.body.string()
++          if (!response.isSuccessful) {
++            throw Exception("OpenAI transcription failed: HTTP ${response.code} ${body.take(240)}")
++          }
+ 
+-  private fun deduplicateSegments(segments: MutableList<SpeechSegment>) {
+-    var i = 0
+-    while (i < segments.size - 1) {
+-      val current = segments[i]
+-      val next = segments[i + 1]
+-      if (current.endMs >= next.startMs && current.text == next.text) {
+-        segments.removeAt(i + 1)
+-      } else {
+-        i++
++          val parsed = json.decodeFromString(OpenAiTranscriptionResponse.serializer(), body)
++          Result.success(
++            SpeechTranscript(
++              text = parsed.text.orEmpty().trim(),
++              segments =
++                parsed.segments.mapNotNull { segment ->
++                  val text = segment.text?.trim().orEmpty()
++                  if (text.isBlank()) return@mapNotNull null
++                  SpeechSegment(
++                    startMs = (segment.start * 1000).toLong(),
++                    endMs = (segment.end * 1000).toLong(),
++                    text = text,
++                  )
++                },
++            ),
++          )
++        }
++      } catch (cancellation: CancellationException) {
++        throw cancellation
++      } catch (error: Exception) {
++        Result.failure(error)
+       }
+     }
+-  }
+ 
+-  private fun toSrt(segments: List<SpeechSegment>): String =
+-    segments
+-      .mapIndexed { index, segment ->
+-        "${index + 1}\n${formatSrtTime(segment.startMs)} --> ${formatSrtTime(segment.endMs)}\n${segment.text.trim()}"
+-      }.joinToString("\n\n")
+-
+-  private fun formatSrtTime(ms: Long): String {
+-    val hours = ms / 3_600_000
+-    val minutes = (ms % 3_600_000) / 60_000
+-    val seconds = (ms % 60_000) / 1000
+-    val millis = ms % 1000
+-    return "%02d:%02d:%02d,%03d".format(hours, minutes, seconds, millis)
+-  }
++  private data class TranscribedChunk(
++    val startMs: Long,
++    val endMs: Long,
++    val transcript: SpeechTranscript,
++  )
++
++  private class SessionCompleted : RuntimeException()
+ }
+ 
+ private fun audioMediaType(file: File): okhttp3.MediaType {
+   val ext = file.name.substringAfterLast('.', "").lowercase()
+   return when (ext) {
++    "wav" -> "audio/wav".toMediaType()
+     "webm" -> "audio/webm".toMediaType()
+     else -> "audio/mp4".toMediaType()
+   }
+diff --git a/app/src/main/java/com/quantummpv/app/repository/ai/RealtimeSubtitleTimeline.kt b/app/src/main/java/com/quantummpv/app/repository/ai/RealtimeSubtitleTimeline.kt
+new file mode 100644
+index 00000000..33993faf
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/repository/ai/RealtimeSubtitleTimeline.kt
+@@ -0,0 +1,104 @@
++/*
++ * SPDX-License-Identifier: AGPL-3.0-or-later
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Affero General Public License as published
++ * by the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ */
++
++package com.quantummpv.app.repository.ai
++
++import java.util.Locale
++
++internal data class RealtimeSubtitleCue(
++  val startMs: Long,
++  val endMs: Long,
++  val sourceText: String,
++  val displayText: String = sourceText,
++)
++
++internal class RealtimeSubtitleTimeline {
++  private val cues = mutableListOf<RealtimeSubtitleCue>()
++
++  fun absoluteCandidates(
++    chunkStartMs: Long,
++    chunkDurationMs: Long,
++    segments: List<SpeechSegment>,
++  ): List<RealtimeSubtitleCue> =
++    segments.mapNotNull { segment ->
++      val sourceText = segment.text.trim()
++      if (sourceText.isEmpty()) return@mapNotNull null
++
++      val relativeStart = segment.startMs.coerceIn(0L, chunkDurationMs)
++      val relativeEnd = segment.endMs.coerceIn(relativeStart, chunkDurationMs)
++      if (relativeEnd <= relativeStart) return@mapNotNull null
++
++      RealtimeSubtitleCue(
++        startMs = chunkStartMs + relativeStart,
++        endMs = chunkStartMs + relativeEnd,
++        sourceText = sourceText,
++      )
++    }
++
++  fun merge(incoming: List<RealtimeSubtitleCue>): List<RealtimeSubtitleCue> {
++    incoming.forEach { candidate ->
++      val duplicateIndex =
++        cues.indexOfFirst { existing ->
++          overlaps(existing, candidate) && isEquivalentText(existing.sourceText, candidate.sourceText)
++        }
++      if (duplicateIndex < 0) {
++        cues += candidate
++      } else {
++        val existing = cues[duplicateIndex]
++        val preferred = if (candidate.sourceText.length > existing.sourceText.length) candidate else existing
++        cues[duplicateIndex] =
++          preferred.copy(
++            startMs = minOf(existing.startMs, candidate.startMs),
++            endMs = maxOf(existing.endMs, candidate.endMs),
++          )
++      }
++    }
++    cues.sortBy(RealtimeSubtitleCue::startMs)
++    return cues.toList()
++  }
++
++  private fun overlaps(
++    first: RealtimeSubtitleCue,
++    second: RealtimeSubtitleCue,
++  ): Boolean = minOf(first.endMs, second.endMs) > maxOf(first.startMs, second.startMs)
++
++  private fun isEquivalentText(
++    first: String,
++    second: String,
++  ): Boolean {
++    val normalizedFirst = normalize(first)
++    val normalizedSecond = normalize(second)
++    if (normalizedFirst == normalizedSecond) return true
++    if (normalizedFirst.isEmpty() || normalizedSecond.isEmpty()) return false
++
++    val shorter = if (normalizedFirst.length <= normalizedSecond.length) normalizedFirst else normalizedSecond
++    val longer = if (normalizedFirst.length > normalizedSecond.length) normalizedFirst else normalizedSecond
++    return shorter.length >= longer.length * 3 / 4 && longer.contains(shorter)
++  }
++
++  private fun normalize(text: String): String =
++    text
++      .lowercase(Locale.ROOT)
++      .replace(Regex("[^\\p{L}\\p{N}]+"), " ")
++      .trim()
++      .replace(Regex("\\s+"), " ")
++}
++
++internal fun List<RealtimeSubtitleCue>.toSrt(): String =
++  mapIndexed { index, cue ->
++    "${index + 1}\n${formatSrtTime(cue.startMs)} --> ${formatSrtTime(cue.endMs)}\n${cue.displayText.trim()}"
++  }.joinToString("\n\n")
++
++private fun formatSrtTime(milliseconds: Long): String {
++  val hours = milliseconds / 3_600_000
++  val minutes = (milliseconds % 3_600_000) / 60_000
++  val seconds = (milliseconds % 60_000) / 1000
++  val millis = milliseconds % 1000
++  return "%02d:%02d:%02d,%03d".format(Locale.ROOT, hours, minutes, seconds, millis)
++}
+diff --git a/app/src/main/java/com/quantummpv/app/repository/ai/SubtitleGenerationService.kt b/app/src/main/java/com/quantummpv/app/repository/ai/SubtitleGenerationService.kt
+index 86eba211..f4e05a4d 100644
+--- a/app/src/main/java/com/quantummpv/app/repository/ai/SubtitleGenerationService.kt
++++ b/app/src/main/java/com/quantummpv/app/repository/ai/SubtitleGenerationService.kt
+@@ -10,15 +10,12 @@
+ package com.quantummpv.app.repository.ai
+ 
+ import android.content.Context
+-import android.media.MediaCodec
+-import android.media.MediaExtractor
+-import android.media.MediaFormat
+-import android.media.MediaMuxer
+-import android.net.Uri
++import com.quantummpv.app.network.awaitResponse
+ import com.quantummpv.app.preferences.AiPreferences
+ import com.quantummpv.app.preferences.AiProvider
+ import kotlinx.coroutines.Dispatchers
+-import kotlinx.coroutines.isActive
++import kotlinx.coroutines.currentCoroutineContext
++import kotlinx.coroutines.ensureActive
+ import kotlinx.coroutines.withContext
+ import kotlinx.serialization.json.Json
+ import okhttp3.MediaType.Companion.toMediaType
+@@ -27,7 +24,6 @@ import okhttp3.OkHttpClient
+ import okhttp3.Request
+ import okhttp3.RequestBody.Companion.asRequestBody
+ import java.io.File
+-import java.nio.ByteBuffer
+ import java.util.Locale
+ import java.util.concurrent.TimeUnit
+ 
+@@ -68,26 +64,28 @@ class SubtitleGenerationService(
+     private const val CHUNK_STEP_MS = CHUNK_DURATION_MS - CHUNK_OVERLAP_MS
+   }
+ 
+-  suspend fun generateSubtitles(
+-    videoUri: Uri,
++  private val audioExtractor = RealtimeAudioChunkExtractor(context)
++
++  internal suspend fun generateSubtitles(
++    mediaInput: RealtimeMediaInput,
++    videoDurationMs: Long,
+     language: String?,
+     outputFormat: String,
+     onProgress: (SubtitleGenerationProgress) -> Unit = {},
+   ): Result<GeneratedSubtitle> =
+     withContext(Dispatchers.IO) {
+-      runCatching {
++      runCatchingCancellable {
++        require(videoDurationMs > 0L) { "Video duration is unavailable" }
+         val normalizedFormat =
+           outputFormat.lowercase(Locale.ROOT).let {
+             if (it == "vtt") "vtt" else "srt"
+           }
+-
+-        val videoDurationMs = getVideoDurationMs(videoUri)
+         val totalChunks = ((videoDurationMs + CHUNK_STEP_MS - 1) / CHUNK_STEP_MS).toInt()
+         val allSegments = mutableListOf<SpeechSegment>()
+         var previousEndMs = 0L
+ 
+         for (chunkIndex in 0 until totalChunks) {
+-          if (!isActive) break
++          currentCoroutineContext().ensureActive()
+ 
+           val chunkStartMs = chunkIndex * CHUNK_STEP_MS
+           val chunkEndMs = (chunkStartMs + CHUNK_DURATION_MS).coerceAtMost(videoDurationMs)
+@@ -100,8 +98,7 @@ class SubtitleGenerationService(
+             ),
+           )
+ 
+-          val audioChunk = extractAudioChunk(videoUri, chunkStartMs, chunkEndMs)
+-          if (audioChunk == null) continue
++          val audioChunk = audioExtractor.extract(mediaInput, chunkStartMs, chunkEndMs)
+ 
+           try {
+             val transcribeProgress = 0.45f + (chunkIndex.toFloat() / totalChunks) * 0.45f
+@@ -112,20 +109,30 @@ class SubtitleGenerationService(
+               ),
+             )
+ 
+-            val transcript = transcribe(audioChunk, language).getOrNull()
+-            if (transcript == null || transcript.segments.isEmpty()) continue
++            val transcript =
++              transcribe(audioChunk, language).getOrElse { error ->
++                throw IllegalStateException(
++                  "Transcription failed for chunk ${chunkIndex + 1}/$totalChunks: ${error.message}",
++                  error,
++                )
++              }
++            val relativeSegments =
++              if (transcript.segments.isEmpty() && transcript.text.isNotBlank()) {
++                listOf(SpeechSegment(0L, chunkEndMs - chunkStartMs, transcript.text.trim()))
++              } else {
++                transcript.segments
++              }
++            if (relativeSegments.isEmpty()) continue
+ 
+             val newSegments =
+-              transcript.segments
+-                .filter { segment ->
+-                  segment.endMs > previousEndMs
+-                }.map { segment ->
++              relativeSegments
++                .map { segment ->
+                   SpeechSegment(
+                     startMs = chunkStartMs + segment.startMs,
+                     endMs = chunkStartMs + segment.endMs,
+                     text = segment.text,
+                   )
+-                }
++                }.filter { segment -> segment.endMs > previousEndMs }
+ 
+             if (newSegments.isNotEmpty()) {
+               allSegments.addAll(newSegments)
+@@ -138,6 +145,7 @@ class SubtitleGenerationService(
+           }
+         }
+ 
++        currentCoroutineContext().ensureActive()
+         onProgress(SubtitleGenerationProgress(0.9f, "Writing subtitle"))
+ 
+         val segments =
+@@ -156,114 +164,19 @@ class SubtitleGenerationService(
+       }
+     }
+ 
+-  private fun getVideoDurationMs(videoUri: Uri): Long {
+-    val extractor = MediaExtractor()
+-    try {
+-      extractor.setDataSource(context, videoUri, null)
+-      val durationUs = extractor.getTrackFormat(0).getLong(MediaFormat.KEY_DURATION)
+-      return durationUs / 1000
+-    } finally {
+-      extractor.release()
+-    }
+-  }
+-
+-  private suspend fun extractAudioChunk(
+-    videoUri: Uri,
+-    startMs: Long,
+-    endMs: Long,
+-  ): File? =
+-    withContext(Dispatchers.IO) {
+-      runCatching {
+-        val extractor = MediaExtractor()
+-        var outputFile: File? = null
+-        try {
+-          extractor.setDataSource(context, videoUri, null)
+-
+-          var audioTrackIndex = -1
+-          for (i in 0 until extractor.trackCount) {
+-            val format = extractor.getTrackFormat(i)
+-            val mime = format.getString(MediaFormat.KEY_MIME) ?: continue
+-            if (mime.startsWith("audio/")) {
+-              audioTrackIndex = i
+-              break
+-            }
+-          }
+-          if (audioTrackIndex < 0) return@runCatching null
+-
+-          val audioFormat = extractor.getTrackFormat(audioTrackIndex)
+-          val audioMime = audioFormat.getString(MediaFormat.KEY_MIME) ?: return@runCatching null
+-          val isWebm = audioMime == "audio/opus" || audioMime == "audio/vorbis"
+-
+-          outputFile =
+-            File.createTempFile(
+-              "sub_chunk_",
+-              if (isWebm) ".webm" else ".m4a",
+-              context.cacheDir,
+-            )
+-          if (!isActive) {
+-            outputFile!!.delete()
+-            return@runCatching null
+-          }
+-
+-          extractor.selectTrack(audioTrackIndex)
+-          extractor.seekTo(startMs * 1000, MediaExtractor.SEEK_TO_CLOSEST_SYNC)
+-
+-          val muxer =
+-            MediaMuxer(
+-              outputFile!!.absolutePath,
+-              if (isWebm) {
+-                MediaMuxer.OutputFormat.MUXER_OUTPUT_WEBM
+-              } else {
+-                MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4
+-              },
+-            )
+-          try {
+-            val muxerTrackIndex = muxer.addTrack(audioFormat)
+-            muxer.start()
+-
+-            val buffer = ByteBuffer.allocate(512 * 1024)
+-            val bufferInfo = MediaCodec.BufferInfo()
+-
+-            while (isActive) {
+-              val sampleSize = extractor.readSampleData(buffer, 0)
+-              if (sampleSize < 0) break
+-
+-              val sampleTimeUs = extractor.sampleTime
+-              if (sampleTimeUs > endMs * 1000) break
+-
+-              bufferInfo.set(0, sampleSize, sampleTimeUs, extractor.sampleFlags)
+-              muxer.writeSampleData(muxerTrackIndex, buffer, bufferInfo)
+-              extractor.advance()
+-            }
+-
+-            muxer.stop()
+-          } finally {
+-            muxer.release()
+-          }
+-        } finally {
+-          extractor.release()
+-        }
+-
+-        if (!isActive) {
+-          outputFile.delete()
+-          return@runCatching null
+-        }
+-        outputFile
+-      }.getOrNull()
+-    }
+-
+   private suspend fun transcribe(
+     audioFile: File,
+     language: String?,
+   ): Result<SpeechTranscript> {
+     val provider = preferences.sttProvider.get()
++    val sttModel = preferences.sttModelFor(provider).get()
+     return when (provider) {
+       AiProvider.GROQ -> {
+         val key = preferences.groqApiKey.get()
+         if (key.isBlank()) {
+           Result.failure(Exception("Groq API key not configured."))
+         } else {
+-          groqSpeechClient.transcribe(key, audioFile, language, preferences.sttModel.get())
++          groqSpeechClient.transcribe(key, audioFile, language, sttModel)
+         }
+       }
+       AiProvider.OPENAI -> {
+@@ -274,7 +187,7 @@ class SubtitleGenerationService(
+           transcribeOpenAiCompatible(
+             "https://api.openai.com/v1/audio/transcriptions",
+             key,
+-            preferences.sttModel.get().takeIf { it.startsWith("whisper") || it.contains("transcribe") } ?: "whisper-1",
++            sttModel.takeIf { it.startsWith("whisper") || it.contains("transcribe") } ?: "whisper-1",
+             audioFile,
+             language,
+           )
+@@ -285,7 +198,7 @@ class SubtitleGenerationService(
+         if (key.isBlank()) {
+           Result.failure(Exception("OpenRouter API key not configured."))
+         } else {
+-          openRouterSpeechClient.transcribe(key, audioFile, language, preferences.sttModel.get())
++          openRouterSpeechClient.transcribe(key, audioFile, language, sttModel)
+         }
+       }
+       else -> Result.failure(Exception("Only online providers (Groq, OpenAI, OpenRouter) are supported."))
+@@ -300,7 +213,7 @@ class SubtitleGenerationService(
+     language: String?,
+   ): Result<SpeechTranscript> =
+     withContext(Dispatchers.IO) {
+-      runCatching {
++      runCatchingCancellable {
+         val apiClient =
+           okHttpClient
+             .newBuilder()
+@@ -314,7 +227,7 @@ class SubtitleGenerationService(
+             .Builder()
+             .setType(MultipartBody.FORM)
+             .addFormDataPart("model", model)
+-            .addFormDataPart("response_format", "verbose_json")
++            .addFormDataPart("response_format", if (model.startsWith("whisper", ignoreCase = true)) "verbose_json" else "json")
+             .addFormDataPart("temperature", "0")
+             .addFormDataPart("file", audioFile.name, audioFile.asRequestBody(audioMediaType(audioFile)))
+ 
+@@ -328,26 +241,27 @@ class SubtitleGenerationService(
+             .post(bodyBuilder.build())
+             .build()
+ 
+-        val response = apiClient.newCall(request).execute()
+-        val responseBody = response.body.string()
+-        if (!response.isSuccessful) {
+-          throw Exception("STT failed: HTTP ${response.code} ${responseBody.take(240)}")
+-        }
++        apiClient.newCall(request).awaitResponse().use { response ->
++          val responseBody = response.body.string()
++          if (!response.isSuccessful) {
++            throw Exception("STT failed: HTTP ${response.code} ${responseBody.take(240)}")
++          }
+ 
+-        val parsed = json.decodeFromString(SttResponse.serializer(), responseBody)
+-        SpeechTranscript(
+-          text = parsed.text.orEmpty().trim(),
+-          segments =
+-            parsed.segments.mapNotNull { segment ->
+-              val text = segment.text?.trim().orEmpty()
+-              if (text.isBlank()) return@mapNotNull null
+-              SpeechSegment(
+-                startMs = (segment.start * 1000).toLong(),
+-                endMs = (segment.end * 1000).toLong(),
+-                text = text,
+-              )
+-            },
+-        )
++          val parsed = json.decodeFromString(SttResponse.serializer(), responseBody)
++          SpeechTranscript(
++            text = parsed.text.orEmpty().trim(),
++            segments =
++              parsed.segments.mapNotNull { segment ->
++                val text = segment.text?.trim().orEmpty()
++                if (text.isBlank()) return@mapNotNull null
++                SpeechSegment(
++                  startMs = (segment.start * 1000).toLong(),
++                  endMs = (segment.end * 1000).toLong(),
++                  text = text,
++                )
++              },
++          )
++        }
+       }
+     }
+ 
+@@ -403,6 +317,7 @@ class SubtitleGenerationService(
+ private fun audioMediaType(file: File): okhttp3.MediaType {
+   val ext = file.name.substringAfterLast('.', "").lowercase()
+   return when (ext) {
++    "wav" -> "audio/wav".toMediaType()
+     "webm" -> "audio/webm".toMediaType()
+     else -> "audio/mp4".toMediaType()
+   }
+diff --git a/app/src/main/java/com/quantummpv/app/repository/ai/TogetherClient.kt b/app/src/main/java/com/quantummpv/app/repository/ai/TogetherClient.kt
+index 1a15537c..fe6340f5 100644
+--- a/app/src/main/java/com/quantummpv/app/repository/ai/TogetherClient.kt
++++ b/app/src/main/java/com/quantummpv/app/repository/ai/TogetherClient.kt
+@@ -9,6 +9,7 @@
+ 
+ package com.quantummpv.app.repository.ai
+ 
++import com.quantummpv.app.network.awaitResponse
+ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.withContext
+ import kotlinx.serialization.SerialName
+@@ -73,7 +74,7 @@ class TogetherClient(
+ 
+   override suspend fun fetchModels(apiKey: String): Result<List<AiModelInfo>> =
+     withContext(Dispatchers.IO) {
+-      runCatching {
++      runCatchingCancellable {
+         val request =
+           Request
+             .Builder()
+@@ -82,29 +83,29 @@ class TogetherClient(
+             .get()
+             .build()
+ 
+-        val response = apiClient.newCall(request).execute()
+-        val body = response.body.string()
+-
+-        if (!response.isSuccessful) throw Exception("Together API error ${response.code}: ${parseError(body)}")
+-
+-        AiResponseParser
+-          .modelArray(json, body, "Together")
+-          .mapNotNull { element ->
+-            runCatching { json.decodeFromJsonElement(TogModel.serializer(), element) }.getOrNull()
+-          }.filter { it.type == null || it.type == "chat" || it.type == "language" }
+-          .map { model ->
+-            AiModelInfo(
+-              id = model.id,
+-              displayName = model.displayName ?: model.display_name ?: model.id,
+-              isFree = AiModelPricing.isZeroCost(model.pricing),
+-            )
+-          }
++        apiClient.newCall(request).awaitResponse().use { response ->
++          val body = response.body.string()
++          if (!response.isSuccessful) throw Exception("Together API error ${response.code}: ${parseError(body)}")
++
++          AiResponseParser
++            .modelArray(json, body, "Together")
++            .mapNotNull { element ->
++              runCatching { json.decodeFromJsonElement(TogModel.serializer(), element) }.getOrNull()
++            }.filter { it.type == null || it.type == "chat" || it.type == "language" }
++            .map { model ->
++              AiModelInfo(
++                id = model.id,
++                displayName = model.displayName ?: model.display_name ?: model.id,
++                isFree = AiModelPricing.isZeroCost(model.pricing),
++              )
++            }
++        }
+       }
+     }
+ 
+   override suspend fun verifyKey(apiKey: String): Result<String> =
+     withContext(Dispatchers.IO) {
+-      runCatching {
++      runCatchingCancellable {
+         val request =
+           Request
+             .Builder()
+@@ -113,9 +114,10 @@ class TogetherClient(
+             .get()
+             .build()
+ 
+-        val response = apiClient.newCall(request).execute()
+-        if (!response.isSuccessful) throw Exception("Invalid API key: ${response.code}")
+-        "API key verified successfully"
++        apiClient.newCall(request).awaitResponse().use { response ->
++          if (!response.isSuccessful) throw Exception("Invalid API key: ${response.code}")
++          "API key verified successfully"
++        }
+       }
+     }
+ 
+@@ -127,7 +129,7 @@ class TogetherClient(
+     options: AiGenerationOptions,
+   ): Result<AiGeneratedContent> =
+     withContext(Dispatchers.IO) {
+-      runCatching {
++      runCatchingCancellable {
+         val requestBody =
+           json.encodeToString(
+             TogChatRequest.serializer(),
+@@ -151,12 +153,11 @@ class TogetherClient(
+             .post(requestBody.toRequestBody(JSON_MEDIA_TYPE))
+             .build()
+ 
+-        val response = apiClient.newCall(request).execute()
+-        val body = response.body.string()
+-
+-        if (!response.isSuccessful) throw Exception("Together generate error ${response.code}: ${parseError(body)}")
+-
+-        AiResponseParser.openAiCompatible(json, body, "Together")
++        apiClient.newCall(request).awaitResponse().use { response ->
++          val body = response.body.string()
++          if (!response.isSuccessful) throw Exception("Together generate error ${response.code}: ${parseError(body)}")
++          AiResponseParser.openAiCompatible(json, body, "Together")
++        }
+       }
+     }
+ 
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/MainScreen.kt b/app/src/main/java/com/quantummpv/app/ui/browser/MainScreen.kt
+index ca92e3ac..b21c44e1 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/MainScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/MainScreen.kt
+@@ -32,14 +32,17 @@ import androidx.compose.foundation.layout.Box
+ import androidx.compose.foundation.layout.BoxWithConstraints
+ import androidx.compose.foundation.layout.Column
+ import androidx.compose.foundation.layout.Row
++import androidx.compose.foundation.layout.Spacer
+ import androidx.compose.foundation.layout.fillMaxSize
+ import androidx.compose.foundation.layout.fillMaxWidth
+ import androidx.compose.foundation.layout.height
+ import androidx.compose.foundation.layout.navigationBarsPadding
++import androidx.compose.foundation.layout.offset
+ import androidx.compose.foundation.layout.padding
+ import androidx.compose.foundation.layout.size
+ import androidx.compose.foundation.background
+ import androidx.compose.foundation.layout.width
++import androidx.compose.foundation.layout.wrapContentWidth
+ import com.quantummpv.app.ui.utils.NavigationPager
+ import androidx.compose.foundation.pager.PagerState
+ import androidx.compose.foundation.pager.rememberPagerState
+@@ -68,10 +71,6 @@ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.draw.clip
+ import androidx.compose.ui.draw.clipToBounds
+-import androidx.compose.ui.draw.drawBehind
+-import androidx.compose.ui.geometry.CornerRadius
+-import androidx.compose.ui.geometry.Offset
+-import androidx.compose.ui.geometry.Size
+ import androidx.compose.ui.graphics.Color
+ import androidx.compose.ui.graphics.graphicsLayer
+ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+@@ -85,7 +84,6 @@ import androidx.compose.ui.semantics.Role
+ import androidx.compose.ui.text.font.FontWeight
+ import androidx.compose.ui.text.style.TextAlign
+ import androidx.compose.ui.text.style.TextOverflow
+-import androidx.compose.ui.unit.LayoutDirection
+ import androidx.compose.ui.unit.dp
+ import kotlin.math.roundToInt
+ import com.quantummpv.app.R
+@@ -623,69 +621,106 @@ private fun ExpressivePillNavigationBar(
+   val haptics = LocalHapticFeedback.current
+   val initialFocusRequester = rememberTvInitialFocusRequester(visibleTabs.isNotEmpty())
+ 
+-  BoxWithConstraints(modifier = modifier) {
+-    // The dock follows the same progress as the pages, without per-frame composition or layout.
+-    fun position(): Float =
+-      if (pagerState != null && visibleTabs.isNotEmpty()) {
+-        (pagerState.currentPage + pagerState.currentPageOffsetFraction).coerceIn(
+-          0f,
+-          (visibleTabs.size - 1).toFloat(),
+-        )
+-      } else {
+-        visibleTabs.indexOf(selectedTab).coerceAtLeast(0).toFloat()
+-      }
++  val position =
++    if (pagerState != null) {
++      (pagerState.currentPage + pagerState.currentPageOffsetFraction).coerceIn(
++        0f,
++        (visibleTabs.size - 1).toFloat(),
++      )
++    } else {
++      visibleTabs.indexOf(selectedTab).coerceAtLeast(0).toFloat()
++    }
++
++  fun activeTabWidth(tab: MainScreen.MainTab) =
++    when (tab) {
++      MainScreen.MainTab.HOME -> 92.dp
++      MainScreen.MainTab.MUSIC -> 92.dp
++      MainScreen.MainTab.RECENTS -> 104.dp
++      MainScreen.MainTab.PLAYLISTS -> 108.dp
++      MainScreen.MainTab.NETWORK -> 106.dp
++      MainScreen.MainTab.JELLYFIN -> 100.dp
++    }
+ 
+-    val startPadding = 6.dp
+-    val barWidth = (64.dp * visibleTabs.size + startPadding * 2).coerceAtMost(maxWidth)
+-    val indicatorColor = MaterialTheme.colorScheme.primaryContainer
+-    fun tabFraction(index: Int, progress: Float): Float = (1f - kotlin.math.abs(progress - index)).coerceIn(0f, 1f)
+-
+-    Surface(
+-      modifier = Modifier.width(barWidth),
+-      shape = CircleShape,
+-      color = MaterialTheme.colorScheme.surfaceContainerHigh,
+-      tonalElevation = 6.dp,
+-      shadowElevation = 8.dp,
+-      border =
+-        BorderStroke(
+-          width = 1.dp,
+-          color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
+-        ),
++  val inactiveTabWidth = 44.dp
++  val spacing = 4.dp
++  val startPadding = 6.dp
++  val tabWidths =
++    visibleTabs.mapIndexed { index, tab ->
++      val fraction = (1f - kotlin.math.abs(position - index)).coerceIn(0f, 1f)
++      androidx.compose.ui.unit.lerp(inactiveTabWidth, activeTabWidth(tab), fraction)
++    }
++  val tabOffsets =
++    buildList {
++      var offset = startPadding
++      tabWidths.forEach { width ->
++        add(offset)
++        offset += width + spacing
++      }
++    }
++  val pageFloor = position.toInt().coerceIn(visibleTabs.indices)
++  val pageCeil = (pageFloor + 1).coerceIn(visibleTabs.indices)
++  val pageFraction = (position - pageFloor).coerceIn(0f, 1f)
++  val indicatorLeft = androidx.compose.ui.unit.lerp(tabOffsets[pageFloor], tabOffsets[pageCeil], pageFraction)
++  val indicatorWidth = androidx.compose.ui.unit.lerp(tabWidths[pageFloor], tabWidths[pageCeil], pageFraction)
++
++  Surface(
++    modifier = modifier,
++    shape = CircleShape,
++    color = MaterialTheme.colorScheme.surfaceContainerHigh,
++    tonalElevation = 6.dp,
++    shadowElevation = 8.dp,
++    border =
++      BorderStroke(
++        width = 1.dp,
++        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
++      ),
++  ) {
++    Box(
++      modifier =
++        Modifier
++          .wrapContentWidth()
++          .padding(horizontal = startPadding, vertical = 6.dp),
+     ) {
+-      Row(
++      Box(
+         modifier =
+           Modifier
+-            .padding(horizontal = startPadding, vertical = 6.dp)
+-            .selectableGroup()
+-            .drawBehind {
+-              val progress = position()
+-              val visualPosition = if (layoutDirection == LayoutDirection.Rtl) visibleTabs.lastIndex - progress else progress
+-              val slotWidth = size.width / visibleTabs.size
+-              val width = minOf(48.dp.toPx(), slotWidth - 4.dp.toPx()).coerceAtLeast(0f)
+-              drawRoundRect(
+-                color = indicatorColor,
+-                topLeft = Offset(slotWidth * (visualPosition + 0.5f) - width / 2, 4.dp.toPx()),
+-                size = Size(width, 32.dp.toPx()),
+-                cornerRadius = CornerRadius(16.dp.toPx()),
+-              )
+-            },
++            .offset(x = indicatorLeft - startPadding)
++            .width(indicatorWidth)
++            .height(44.dp)
++            .clip(CircleShape)
++            .background(MaterialTheme.colorScheme.primaryContainer),
++      )
++
++      Row(
++        modifier = Modifier.selectableGroup(),
++        horizontalArrangement = Arrangement.spacedBy(spacing, Alignment.CenterHorizontally),
+         verticalAlignment = Alignment.CenterVertically,
+       ) {
+         visibleTabs.forEachIndexed { index, tab ->
+           key(tab) {
+-            // Stable touch targets and labels: only the highlight and icon layers move.
+-            Column(
++            val activeFraction = (1f - kotlin.math.abs(position - index)).coerceIn(0f, 1f)
++            val label =
++              when (tab) {
++                MainScreen.MainTab.HOME -> stringResource(R.string.ui_home)
++                MainScreen.MainTab.MUSIC -> stringResource(R.string.ui_music)
++                MainScreen.MainTab.RECENTS -> stringResource(R.string.ui_recents)
++                MainScreen.MainTab.PLAYLISTS -> stringResource(R.string.ui_playlists)
++                MainScreen.MainTab.NETWORK -> stringResource(R.string.ui_network)
++                MainScreen.MainTab.JELLYFIN -> stringResource(R.string.ui_jellyfin)
++              }
++            val contentColor =
++              androidx.compose.ui.graphics.lerp(
++                MaterialTheme.colorScheme.onSurfaceVariant,
++                MaterialTheme.colorScheme.onPrimaryContainer,
++                activeFraction,
++              )
++
++            Box(
+               modifier =
+                 Modifier
+-                  .weight(1f)
+-                  .height(60.dp)
+-                  .then(
+-                    if (tab == selectedTab) {
+-                      Modifier.tvInitialFocus(initialFocusRequester)
+-                    } else {
+-                      Modifier
+-                    },
+-                  )
++                  .width(tabWidths[index])
++                  .height(44.dp)
++                  .then(if (tab == selectedTab) Modifier.tvInitialFocus(initialFocusRequester) else Modifier)
+                   .tvFocusHighlight(CircleShape, focusedScale = 1.06f)
+                   .clip(CircleShape)
+                   .selectable(
+@@ -696,49 +731,32 @@ private fun ExpressivePillNavigationBar(
+                   ) {
+                     if (tab != selectedTab) haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                     onTabSelected(tab)
+-                  }
+-                  .padding(top = 4.dp),
+-              horizontalAlignment = Alignment.CenterHorizontally,
+-              verticalArrangement = Arrangement.Top,
++                  },
++              contentAlignment = Alignment.Center,
+             ) {
+-              Box(
+-                modifier = Modifier.size(32.dp).graphicsLayer {
+-                  val fraction = tabFraction(index, position())
+-                  scaleX = 1f + 0.06f * fraction
+-                  scaleY = scaleX
+-                  translationY = -1.dp.toPx() * fraction
+-                },
+-                contentAlignment = Alignment.Center,
++              Row(
++                modifier = Modifier.padding(horizontal = 8.dp),
++                horizontalArrangement = Arrangement.Center,
++                verticalAlignment = Alignment.CenterVertically,
+               ) {
+-                Box(Modifier.graphicsLayer { alpha = 1f - tabFraction(index, position()) }) {
+-                  MainTabIcon(tab, MaterialTheme.colorScheme.onSurfaceVariant)
+-                }
+-                Box(Modifier.graphicsLayer { alpha = tabFraction(index, position()) }) {
+-                  MainTabIcon(tab, MaterialTheme.colorScheme.onPrimaryContainer)
++                MainTabIcon(tab, contentColor, label)
++                if (activeFraction > 0.05f) {
++                  Spacer(modifier = Modifier.width(androidx.compose.ui.unit.lerp(0.dp, 6.dp, activeFraction)))
++                  Text(
++                    text = label,
++                    style = MaterialTheme.typography.labelMedium,
++                    fontWeight = FontWeight.Bold,
++                    color = contentColor,
++                    maxLines = 1,
++                    softWrap = false,
++                    overflow = TextOverflow.Clip,
++                    modifier =
++                      Modifier.graphicsLayer {
++                        alpha = ((activeFraction - 0.25f) / 0.75f).coerceIn(0f, 1f)
++                      },
++                  )
+                 }
+               }
+-              Text(
+-                text =
+-                  when (tab) {
+-                    MainScreen.MainTab.HOME -> stringResource(R.string.ui_home)
+-                    MainScreen.MainTab.MUSIC -> stringResource(R.string.ui_music)
+-                    MainScreen.MainTab.RECENTS -> stringResource(R.string.ui_recents)
+-                    MainScreen.MainTab.PLAYLISTS -> stringResource(R.string.ui_playlists)
+-                    MainScreen.MainTab.NETWORK -> stringResource(R.string.ui_network)
+-                    MainScreen.MainTab.JELLYFIN -> stringResource(R.string.ui_jellyfin)
+-                  },
+-                style = MaterialTheme.typography.labelSmall,
+-                fontWeight = FontWeight.SemiBold,
+-                color = MaterialTheme.colorScheme.onSurface,
+-                textAlign = TextAlign.Center,
+-                maxLines = 1,
+-                softWrap = false,
+-                overflow = TextOverflow.Ellipsis,
+-                modifier =
+-                  Modifier.fillMaxWidth().padding(horizontal = 2.dp).graphicsLayer {
+-                    alpha = 0.65f + 0.35f * tabFraction(index, position())
+-                  },
+-              )
+             }
+           }
+         }
+@@ -748,7 +766,11 @@ private fun ExpressivePillNavigationBar(
+ }
+ 
+ @Composable
+-private fun MainTabIcon(tab: MainScreen.MainTab, tint: Color) {
++private fun MainTabIcon(
++  tab: MainScreen.MainTab,
++  tint: Color,
++  contentDescription: String?,
++) {
+   val icon = when (tab) {
+     MainScreen.MainTab.HOME -> Icons.RoundedFilled.Home
+     MainScreen.MainTab.MUSIC -> Icons.RoundedFilled.Audiotrack
+@@ -760,14 +782,14 @@ private fun MainTabIcon(tab: MainScreen.MainTab, tint: Color) {
+   if (icon == null) {
+     androidx.compose.material3.Icon(
+       painter = painterResource(R.drawable.ic_jellyfin),
+-      contentDescription = null,
++      contentDescription = contentDescription,
+       tint = tint,
+       modifier = Modifier.size(22.dp),
+     )
+   } else {
+     Icon(
+       icon,
+-      contentDescription = null,
++      contentDescription = contentDescription,
+       tint = tint,
+       modifier = Modifier.size(22.dp),
+     )
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt b/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
+index 24ae73c8..41d2c756 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
+@@ -60,6 +60,8 @@ import com.quantummpv.app.preferences.SubtitlesPreferences
+ import com.quantummpv.app.repository.IntroDbLookupOutcome
+ import com.quantummpv.app.repository.IntroDbLookupRequest
+ import com.quantummpv.app.repository.IntroDbRepository
++import com.quantummpv.app.repository.ai.RealtimeMediaInput
++import com.quantummpv.app.repository.ai.RealtimeSubtitleRequest
+ import com.quantummpv.app.repository.ai.SubtitleGenerationService
+ import com.quantummpv.app.repository.subtitle.OnlineSubtitle
+ import com.quantummpv.app.repository.subtitle.OnlineSubtitleOrchestrator
+@@ -126,6 +128,7 @@ import kotlinx.serialization.json.JsonPrimitive
+ import org.koin.core.component.KoinComponent
+ import org.koin.core.component.inject
+ import java.io.File
++import java.io.FileOutputStream
+ import java.security.MessageDigest
+ import java.lang.ref.WeakReference
+ import java.util.concurrent.atomic.AtomicLong
+@@ -309,11 +312,18 @@ class PlayerViewModel : ViewModel(),
+   private val _realtimeSubsProgress = MutableStateFlow(0f)
+   val realtimeSubsProgress: StateFlow<Float> = _realtimeSubsProgress.asStateFlow()
+ 
++  private val _realtimeSubsStatus = MutableStateFlow("")
++  val realtimeSubsStatus: StateFlow<String> = _realtimeSubsStatus.asStateFlow()
++
+   private val _torrentState = MutableStateFlow<TorrentStreamingState>(TorrentStreamingState.Idle)
+   val torrentState: StateFlow<TorrentStreamingState> = _torrentState.asStateFlow()
+ 
+-  private var realtimeSubsJob: Job? = null
+   private var realtimeSrtFile: java.io.File? = null
++  private var realtimeSubtitleTrackId: Int? = null
++  private var realtimeTargetLanguage: String? = null
++  private var realtimeSubtitleSessionId = 0L
++  private var realtimePlaybackGeneration = -1L
++  private val realtimeSubtitleUpdateMutex = Mutex()
+ 
+   private var playlistMetadataJob: Job? = null
+   private var controlsVisibleForPolling = false
+@@ -507,6 +517,23 @@ class PlayerViewModel : ViewModel(),
+     val framesWereRotated: Boolean,
+   )
+ 
++  private sealed interface AutoCropAnalysisResult {
++    data class Detected(
++      val edges: AutoCropEdges,
++    ) : AutoCropAnalysisResult
++
++    data object NoBars : AutoCropAnalysisResult
++
++    data object Unavailable : AutoCropAnalysisResult
++  }
++
++  private data class AutoCropMetadata(
++    val width: Int,
++    val height: Int,
++    val x: Int,
++    val y: Int,
++  )
++
+   private fun updateMetadataCache(
+     key: String,
+     value: Pair<String, String>,
+@@ -1965,6 +1992,8 @@ val isBrightnessSliderShown = MutableStateFlow(false)
+ 
+   /** Stops every ViewModel path that can read or write libmpv during native teardown. */
+   fun onMpvCoreStopping() {
++    stopRealtimeSubtitles(showToastMessage = false)
++    cancelAutoCropAnalysis()
+     disableAmbientShader()
+     _isMpvCoreReady.value = false
+     isMpvReadyForCustomButtons = false
+@@ -1990,6 +2019,38 @@ val isBrightnessSliderShown = MutableStateFlow(false)
+         launch { PlaybackSession.propInt["time-pos"].collect { _pos.value = it } }
+         launch { PlaybackSession.propInt["duration"].collect { _duration.value = it } }
+         launch { PlaybackSession.propInt["volume-max"].collect { _volumeBoostCap.value = it } }
++        launch {
++          var wasSeeking = false
++          PlaybackSession.propBoolean["seeking"].collect { seeking ->
++            when {
++              seeking == true -> {
++                wasSeeking = true
++                if (_isRealtimeSubsActive.value) realtimeSubtitleService.onSeekStarted()
++              }
++              wasSeeking -> {
++                wasSeeking = false
++                if (_isRealtimeSubsActive.value) {
++                  val positionMs = ((PlaybackSession.getPropertyDouble("time-pos") ?: _precisePosition.value.toDouble()) * 1000).toLong()
++                  realtimeSubtitleService.seekTo(positionMs)
++                }
++              }
++            }
++          }
++        }
++        launch {
++          audioTracks
++            .map { tracks -> tracks.firstOrNull(TrackNode::isSelected)?.id }
++            .distinctUntilChanged()
++            .drop(1)
++            .collect { selectedId ->
++              val targetLanguage = realtimeTargetLanguage
++              if (_isRealtimeSubsActive.value && selectedId != null) {
++                withContext(Dispatchers.Main) {
++                  startRealtimeSubtitles(targetLanguage.orEmpty())
++                }
++              }
++            }
++        }
+         launch {
+           PlaybackSession.queue
+             .map { it.repeatMode }
+@@ -2058,11 +2119,9 @@ val isBrightnessSliderShown = MutableStateFlow(false)
+   }
+ 
+   fun onVideoLoadStarted() {
++    stopRealtimeSubtitles(showToastMessage = false)
+     introLookupJob?.cancel()
+-    autoCropJob?.cancel()
+-    autoCropJob = null
+-    autoCropReadinessJob?.cancel()
+-    autoCropReadinessJob = null
++    cancelAutoCropAnalysis()
+     autoCropAnalyzedGeneration = -1L
+     if (autoCropApplied || playerPreferences.autoCropBlackBars.get()) {
+       clearAutoCropProperty()
+@@ -2527,6 +2586,15 @@ val isBrightnessSliderShown = MutableStateFlow(false)
+     const val AUTO_CROP_THUMBNAIL_SIZE = 640
+     const val AUTO_CROP_READY_TIMEOUT_MS = 15_000L
+     const val AUTO_CROP_CACHE_CAPACITY = 20
++    const val AUTO_CROP_FILTER_LABEL = "mpvrx_autocrop_detect"
++    const val AUTO_CROP_DETECT_LIMIT = "24/255"
++    const val AUTO_CROP_DETECT_ROUND = 2
++    const val AUTO_CROP_ACTIVE_DETECT_TIMEOUT_MS = 1_600L
++    const val AUTO_CROP_ACTIVE_SETTLE_MS = 1_000L
++    const val AUTO_CROP_METADATA_POLL_MS = 100L
++    const val AUTO_CROP_HWDEC_TIMEOUT_MS = 1_500L
++    const val AUTO_CROP_ACTIVE_FRAME_TIMEOUT_MS = 2_500L
++    const val AUTO_CROP_ACTIVE_FRAME_INTERVAL_MS = 300L
+     const val AUTO_SHOW_SKIP_CHIP_DURATION = 10.0
+     const val SEEK_COALESCE_DELAY_MS = 60L
+     const val RELATIVE_SEEK_EOF_GUARD_SECONDS = 0.25
+@@ -2861,6 +2929,16 @@ val isBrightnessSliderShown = MutableStateFlow(false)
+       showToast("Could not find current video path")
+       return
+     }
++    val mediaInput = currentRealtimeMediaInput()
++    if (mediaInput == null) {
++      showToast(appContext.getString(R.string.subtitle_generation_audio_unavailable))
++      return
++    }
++    val videoDurationMs = (_preciseDuration.value * 1000f).toLong()
++    if (videoDurationMs <= 0L) {
++      showToast(appContext.getString(R.string.subtitle_generation_duration_unknown))
++      return
++    }
+ 
+     val actualLanguage = if (language.isBlank()) aiPreferences.sttLanguage.get().ifBlank { "en" } else language
+     val actualFormat = if (outputFormat.isBlank()) aiPreferences.subtitleGenerationOutputFormat.get() else outputFormat
+@@ -2873,7 +2951,8 @@ val isBrightnessSliderShown = MutableStateFlow(false)
+       try {
+         val result =
+           subtitleGenerationService.generateSubtitles(
+-            videoUri = videoUri,
++            mediaInput = mediaInput,
++            videoDurationMs = videoDurationMs,
+             language = actualLanguage,
+             outputFormat = actualFormat,
+           ) { progress ->
+@@ -2915,80 +2994,218 @@ val isBrightnessSliderShown = MutableStateFlow(false)
+     return if (media.startsWith("/")) File(media).toUri() else Uri.parse(media)
+   }
+ 
+-  fun startRealtimeSubtitles(language: String) {
+-    val videoUri = currentVideoUriForSubtitleGeneration()
+-    if (videoUri == null) {
+-      showToast("Could not find current video path")
++  private fun currentRealtimeMediaInput(): RealtimeMediaInput? {
++    val item = PlaybackSession.state.value.currentItem
++    val tracks = audioTracks.value
++    val selectedAudio = tracks.firstOrNull(TrackNode::isSelected) ?: tracks.firstOrNull()
++    val selectedAudioSource =
++      selectedAudio
++        ?.externalFilename
++        ?.takeIf(String::isNotBlank)
++        ?.let { path -> mpvPathToUriMap[path] ?: path }
++    val runtimeSource =
++      PlaybackSession.getPropertyString("stream-open-filename")
++        ?.takeIf(String::isNotBlank)
++        ?: PlaybackSession.getPropertyString("path")?.takeIf(String::isNotBlank)
++    val source =
++      selectedAudioSource
++        ?: runtimeSource?.takeUnless { it.startsWith("fd://") || it.startsWith("memory://") }
++        ?: item?.originalUri?.takeIf(String::isNotBlank)
++        ?: item?.playableUri?.takeIf(String::isNotBlank)
++        ?: host.currentMediaLookupHint()?.takeIf(String::isNotBlank)
++        ?: return null
++    val audioTrackOrdinal =
++      selectedAudio
++        ?.let { selected -> tracks.indexOfFirst { it.id == selected.id } }
++        ?.coerceAtLeast(0)
++        ?: 0
++    return RealtimeMediaInput(
++      source = source,
++      headers = item?.headers.orEmpty(),
++      audioTrackIndex = selectedAudio?.ffIndex?.toInt(),
++      audioTrackOrdinal = audioTrackOrdinal,
++    )
++  }
++
++  fun startRealtimeSubtitles(targetLanguage: String = "") {
++    val mediaInput = currentRealtimeMediaInput()
++    if (mediaInput == null) {
++      showToast(appContext.getString(R.string.realtime_subtitles_media_unavailable))
+       return
+     }
+     val videoDurationMs = (_preciseDuration.value * 1000f).toLong()
+     if (videoDurationMs <= 0) {
+-      showToast("Video duration unknown")
++      showToast(appContext.getString(R.string.subtitle_generation_duration_unknown))
+       return
+     }
+ 
++    stopRealtimeSubtitles(showToastMessage = false)
++    val sessionId = ++realtimeSubtitleSessionId
++    val sourceLanguage = aiPreferences.sttLanguage.get().trim().takeIf(String::isNotBlank)
++    val resolvedTargetLanguage = targetLanguage.trim().takeIf(String::isNotBlank)
++    val startPositionMs = (_precisePosition.value * 1000f).toLong().coerceIn(0L, videoDurationMs)
++    val playbackGeneration = PlaybackSession.state.value.generation
+     realtimeSrtFile = java.io.File.createTempFile("realtime_subs_", ".srt", appContext.cacheDir)
++    realtimeSubtitleTrackId = null
++    realtimeTargetLanguage = resolvedTargetLanguage
++    realtimePlaybackGeneration = playbackGeneration
+ 
+     _isRealtimeSubsActive.value = true
+-    _realtimeSubsLanguage.value = language
++    _realtimeSubsLanguage.value = resolvedTargetLanguage ?: sourceLanguage ?: "Auto"
+     _realtimeSubsProgress.value = 0f
+ 
+     realtimeSubtitleService.start(
+-      videoUri = videoUri,
+-      videoDurationMs = videoDurationMs,
+-      language = language,
++      request =
++        RealtimeSubtitleRequest(
++          mediaInput = mediaInput,
++          videoDurationMs = videoDurationMs,
++          startPositionMs = startPositionMs,
++          sourceLanguage = sourceLanguage,
++          targetLanguage = resolvedTargetLanguage,
++        ),
+       scope = viewModelScope,
++      positionProvider = { (_precisePosition.value * 1000f).toLong() },
+       onProgress = { progress ->
++        if (sessionId != realtimeSubtitleSessionId || playbackGeneration != PlaybackSession.state.value.generation) return@start
+         _realtimeSubsProgress.value = progress.chunkIndex.toFloat() / progress.totalChunks.coerceAtLeast(1)
+-        _translationStatus.value = "Chunk ${progress.chunkIndex + 1}/${progress.totalChunks}"
++        _realtimeSubsStatus.value = progress.stage
+       },
+       onNewContent = { srtContent ->
+-        realtimeSrtFile?.writeText(srtContent)
+-        val srtPath = realtimeSrtFile?.absolutePath ?: return@start
+-        viewModelScope.launch(Dispatchers.Main) {
+-          if (realtimeSrtFileAdded) {
+-            PlaybackSession.command("sub-reload", srtPath)
+-          } else {
+-            PlaybackSession.command("sub-add", srtPath, "select")
+-            realtimeSrtFileAdded = true
+-          }
+-        }
++        updateRealtimeSubtitleContent(sessionId, playbackGeneration, srtContent)
+       },
+       onComplete = {
++        if (sessionId != realtimeSubtitleSessionId || playbackGeneration != PlaybackSession.state.value.generation) return@start
+         _isRealtimeSubsActive.value = false
+-        _realtimeSubsLanguage.value = ""
+         _realtimeSubsProgress.value = 0f
+-        _translationStatus.value = ""
+-        realtimeSrtFile = null
+-        showToast("Real-time subtitles complete")
++        _realtimeSubsStatus.value = ""
++        realtimeTargetLanguage = null
++        showToast(appContext.getString(R.string.realtime_subtitles_complete))
+       },
+       onError = { error ->
++        if (sessionId != realtimeSubtitleSessionId || playbackGeneration != PlaybackSession.state.value.generation) return@start
+         _isRealtimeSubsActive.value = false
+-        _realtimeSubsLanguage.value = ""
+         _realtimeSubsProgress.value = 0f
+-        _translationStatus.value = ""
+-        showToast("Real-time subtitles error: $error")
++        _realtimeSubsStatus.value = ""
++        realtimeTargetLanguage = null
++        Log.e(TAG, "Real-time subtitles failed: $error")
++        showToast(appContext.getString(R.string.realtime_subtitles_failed))
+       },
+     )
+   }
+ 
++  private fun updateRealtimeSubtitleContent(
++    sessionId: Long,
++    playbackGeneration: Long,
++    content: String,
++  ) {
++    viewModelScope.launch(Dispatchers.IO) {
++      try {
++        realtimeSubtitleUpdateMutex.withLock {
++          if (sessionId != realtimeSubtitleSessionId || playbackGeneration != PlaybackSession.state.value.generation) return@withLock
++          val file = realtimeSrtFile ?: return@withLock
++          FileOutputStream(file, false).use { output ->
++            output.write(content.toByteArray())
++            output.fd.sync()
++          }
++          if (sessionId != realtimeSubtitleSessionId || playbackGeneration != PlaybackSession.state.value.generation) return@withLock
++
++          val path = file.absolutePath
++          var trackId = realtimeSubtitleTrackId ?: findRealtimeSubtitleTrackId(path)
++          if (trackId == null) {
++            withContext(Dispatchers.Main) {
++              PlaybackSession.command("sub-add", path, "select")
++            }
++            trackId = awaitRealtimeSubtitleTrackId(path, sessionId, playbackGeneration)
++            if (sessionId != realtimeSubtitleSessionId || playbackGeneration != PlaybackSession.state.value.generation) {
++              trackId?.let { staleTrackId ->
++                withContext(Dispatchers.Main) {
++                  PlaybackSession.command("sub-remove", staleTrackId.toString())
++                }
++              }
++              return@withLock
++            }
++            if (trackId == null) throw IllegalStateException("mpv did not expose the live subtitle track")
++            realtimeSubtitleTrackId = trackId
++          } else {
++            withContext(Dispatchers.Main) {
++              PlaybackSession.command("sub-reload", trackId.toString())
++              PlaybackSession.setPropertyInt("sid", trackId)
++            }
++          }
++        }
++      } catch (cancellation: kotlinx.coroutines.CancellationException) {
++        throw cancellation
++      } catch (error: Exception) {
++        withContext(Dispatchers.Main) {
++          if (sessionId == realtimeSubtitleSessionId && playbackGeneration == PlaybackSession.state.value.generation) {
++            realtimeSubtitleService.stop()
++            _isRealtimeSubsActive.value = false
++            _realtimeSubsProgress.value = 0f
++            _realtimeSubsStatus.value = ""
++            realtimeTargetLanguage = null
++            Log.e(TAG, "Could not update live subtitles", error)
++            showToast(appContext.getString(R.string.realtime_subtitles_update_failed))
++          }
++        }
++      }
++    }
++  }
++
++  private suspend fun awaitRealtimeSubtitleTrackId(
++    path: String,
++    sessionId: Long,
++    playbackGeneration: Long,
++  ): Int? =
++    withTimeoutOrNull(5_000L) {
++      var pollDelayMs = 50L
++      while (
++        currentCoroutineContext().isActive &&
++        sessionId == realtimeSubtitleSessionId &&
++        playbackGeneration == PlaybackSession.state.value.generation
++      ) {
++        findRealtimeSubtitleTrackId(path)?.let { return@withTimeoutOrNull it }
++        delay(pollDelayMs)
++        pollDelayMs = (pollDelayMs * 2).coerceAtMost(200L)
++      }
++      null
++    }
++
++  private fun findRealtimeSubtitleTrackId(path: String): Int? {
++    val count = PlaybackSession.getPropertyInt("track-list/count")
++    if (count != null) {
++      for (index in 0 until count) {
++        if (PlaybackSession.getPropertyString("track-list/$index/type") != "sub") continue
++        if (PlaybackSession.getPropertyString("track-list/$index/external-filename") != path) continue
++        return PlaybackSession.getPropertyInt("track-list/$index/id")
++      }
++    }
++    return subtitleTracks.value.firstOrNull { it.externalFilename == path }?.id
++  }
++
+   fun stopRealtimeSubtitles(showToastMessage: Boolean = true) {
+     val wasActive = _isRealtimeSubsActive.value
++    val subtitlePath = realtimeSrtFile?.absolutePath
++    realtimeSubtitleSessionId++
+     realtimeSubtitleService.stop()
++    if (realtimePlaybackGeneration == PlaybackSession.state.value.generation) {
++      (realtimeSubtitleTrackId ?: subtitlePath?.let(::findRealtimeSubtitleTrackId))?.let { trackId ->
++        runCatching { PlaybackSession.command("sub-remove", trackId.toString()) }
++      }
++    }
+     _isRealtimeSubsActive.value = false
+     _realtimeSubsLanguage.value = ""
+     _realtimeSubsProgress.value = 0f
+-    _translationStatus.value = ""
++    _realtimeSubsStatus.value = ""
++    realtimeTargetLanguage = null
++    realtimePlaybackGeneration = -1L
+     realtimeSrtFile?.delete()
+     realtimeSrtFile = null
+-    realtimeSrtFileAdded = false
++    realtimeSubtitleTrackId = null
+     if (showToastMessage && wasActive) {
+-      showToast("Real-time subtitles stopped")
++      showToast(appContext.getString(R.string.realtime_subtitles_stopped))
+     }
+   }
+ 
+-  private var realtimeSrtFileAdded = false
+-
+   private fun saveTranslatedSubtitle(
+     originalUri: Uri,
+     newFileName: String,
+@@ -4587,10 +4804,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
+ 
+   fun setAutoCropBlackBars(enabled: Boolean) {
+     playerPreferences.autoCropBlackBars.set(enabled)
+-    autoCropJob?.cancel()
+-    autoCropJob = null
+-    autoCropReadinessJob?.cancel()
+-    autoCropReadinessJob = null
++    cancelAutoCropAnalysis()
+     autoCropAnalyzedGeneration = -1L
+     if (!enabled) {
+       clearAutoCropProperty()
+@@ -4652,7 +4866,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
+     val sourceWidth = PlaybackSession.getPropertyInt("video-params/w") ?: 0
+     val sourceHeight = PlaybackSession.getPropertyInt("video-params/h") ?: 0
+     val rotation = (PlaybackSession.getPropertyInt("video-params/rotate") ?: 0).mod(360)
+-    if (source == null || durationSeconds <= 0.0 || sourceWidth <= 0 || sourceHeight <= 0) {
++    if (sourceWidth <= 0 || sourceHeight <= 0) {
+       autoCropAnalyzedGeneration = generation
+       _autoCropState.value = AutoCropState.UNSUPPORTED
+       return
+@@ -4661,42 +4875,60 @@ val isBrightnessSliderShown = MutableStateFlow(false)
+     autoCropAnalyzedGeneration = generation
+     autoCropJob?.cancel()
+     _autoCropState.value = AutoCropState.ANALYZING
+-    val cacheKey = "$source|$sourceWidth|$sourceHeight|${durationSeconds.toLong()}"
++    val sourceIdentity = source ?: session.currentItem?.stableId ?: "generation:$generation"
++    val cacheKey = "$sourceIdentity|$sourceWidth|$sourceHeight|${durationSeconds.toLong()}"
+     autoCropJob =
+       viewModelScope.launch(Dispatchers.IO) {
+-        Log.i(TAG, "Auto-crop analyzing generation=$generation source=$source")
+-        val combined =
+-          autoCropResultCache.get(cacheKey)?.let { cached ->
+-            AutoCropSamples(listOf(cached, cached, cached), framesWereRotated = false)
+-          } ?: run {
+-            val positions = autoCropSamplePositions(source, durationSeconds)
+-            extractAutoCropSamples(source, positions)
++        Log.i(TAG, "Auto-crop analyzing generation=$generation source=$sourceIdentity")
++        val result =
++          try {
++            val cached = autoCropResultCache.get(cacheKey)
++            if (cached != null) {
++              AutoCropAnalysisResult.Detected(cached)
++            } else if (source != null && durationSeconds > 0.0 && isAndroidReadableMediaSource(source)) {
++              val positions = autoCropSamplePositions(source, durationSeconds)
++              val combined = extractAutoCropSamples(source, positions)
++              when {
++                combined == null -> detectAutoCropFromActivePlayback(generation, sourceWidth, sourceHeight)
++                else -> {
++                  val detected = AutoCropAnalyzer.combine(combined.edges)
++                  if (detected == null) {
++                    AutoCropAnalysisResult.NoBars
++                  } else {
++                    val sourceEdges =
++                      if (combined.framesWereRotated) mapRotatedEdgesToSource(detected, rotation) else detected
++                    AutoCropAnalysisResult.Detected(sourceEdges)
++                  }
++                }
++              }
++            } else {
++              detectAutoCropFromActivePlayback(generation, sourceWidth, sourceHeight)
++            }
++          } catch (cancellation: kotlinx.coroutines.CancellationException) {
++            throw cancellation
++          } catch (error: Exception) {
++            Log.w(TAG, "Auto-crop analysis failed for generation=$generation", error)
++            AutoCropAnalysisResult.Unavailable
+           }
+-        val detected = combined?.let { AutoCropAnalyzer.combine(it.edges) }
+ 
+         withContext(Dispatchers.Main) {
+           if (!PlaybackSession.isCurrentGeneration(generation) || !playerPreferences.autoCropBlackBars.get()) {
+             return@withContext
+           }
+-          if (combined == null) {
+-            Log.w(TAG, "Auto-crop could not decode enough frames for generation=$generation")
++          if (result == AutoCropAnalysisResult.Unavailable) {
++            Log.w(TAG, "Auto-crop could not inspect active video frames for generation=$generation")
+             clearAutoCropProperty()
+             _autoCropState.value = AutoCropState.ERROR
+             return@withContext
+           }
+-          if (detected == null) {
++          if (result == AutoCropAnalysisResult.NoBars) {
+             Log.i(TAG, "Auto-crop found no persistent black bars for generation=$generation")
+             clearAutoCropProperty()
+             _autoCropState.value = AutoCropState.NO_BARS
+             return@withContext
+           }
+ 
+-          val sourceEdges =
+-            if (combined.framesWereRotated) {
+-              mapRotatedEdgesToSource(detected, rotation)
+-            } else {
+-              detected
+-            }
++          val sourceEdges = (result as AutoCropAnalysisResult.Detected).edges
+           val cropValue = buildAutoCropValue(sourceEdges, sourceWidth, sourceHeight)
+           if (cropValue == null) {
+             Log.i(TAG, "Auto-crop result was too small or unsafe for generation=$generation edges=$sourceEdges")
+@@ -4714,6 +4946,126 @@ val isBrightnessSliderShown = MutableStateFlow(false)
+       }
+   }
+ 
++  private suspend fun detectAutoCropFromActivePlayback(
++    generation: Long,
++    sourceWidth: Int,
++    sourceHeight: Int,
++  ): AutoCropAnalysisResult {
++    if (MpvConfigOverridePolicy.isOwnedByMpvConf("vf")) return detectAutoCropFromCurrentFrames(generation)
++    if (PlaybackSession.getPropertyBoolean("current-tracks/video/image") == true) {
++      return AutoCropAnalysisResult.Unavailable
++    }
++
++    var hwdecBackup: String? = null
++    try {
++      PlaybackSession.command("vf", "remove", "@$AUTO_CROP_FILTER_LABEL")
++      val activeHwdec = PlaybackSession.getPropertyString("hwdec-current").orEmpty()
++      val needsSoftwareFrames =
++        activeHwdec.isNotBlank() &&
++          activeHwdec != "no" &&
++          !activeHwdec.endsWith("-copy") &&
++          activeHwdec !in setOf("crystalhd", "rkmpp")
++      if (needsSoftwareFrames) {
++        if (MpvConfigOverridePolicy.isOwnedByMpvConf("hwdec")) {
++          return detectAutoCropFromCurrentFrames(generation)
++        }
++        hwdecBackup = PlaybackSession.getPropertyString("hwdec")?.takeIf(String::isNotBlank)
++        PlaybackSession.setPropertyString("hwdec", "no")
++        withTimeoutOrNull(AUTO_CROP_HWDEC_TIMEOUT_MS) {
++          while (currentCoroutineContext().isActive && PlaybackSession.isCurrentGeneration(generation)) {
++            if (PlaybackSession.getPropertyString("hwdec-current").orEmpty() in setOf("", "no")) return@withTimeoutOrNull
++            delay(AUTO_CROP_METADATA_POLL_MS)
++          }
++        }
++      }
++
++      if (!PlaybackSession.isCurrentGeneration(generation)) return AutoCropAnalysisResult.Unavailable
++      PlaybackSession.command(
++        "vf",
++        "pre",
++        "@$AUTO_CROP_FILTER_LABEL:cropdetect=limit=$AUTO_CROP_DETECT_LIMIT:round=$AUTO_CROP_DETECT_ROUND:reset=0",
++      )
++
++      val startedAt = SystemClock.elapsedRealtime()
++      val deadline = startedAt + AUTO_CROP_ACTIVE_DETECT_TIMEOUT_MS
++      var metadata: AutoCropMetadata? = null
++      while (
++        currentCoroutineContext().isActive &&
++        PlaybackSession.isCurrentGeneration(generation) &&
++        SystemClock.elapsedRealtime() < deadline
++      ) {
++        delay(AUTO_CROP_METADATA_POLL_MS)
++        metadata = readAutoCropMetadata()
++        if (metadata != null && SystemClock.elapsedRealtime() - startedAt >= AUTO_CROP_ACTIVE_SETTLE_MS) break
++      }
++
++      if (!PlaybackSession.isCurrentGeneration(generation)) return AutoCropAnalysisResult.Unavailable
++      return metadata?.toAutoCropResult(sourceWidth, sourceHeight) ?: detectAutoCropFromCurrentFrames(generation)
++    } finally {
++      PlaybackSession.command("vf", "remove", "@$AUTO_CROP_FILTER_LABEL")
++      val backup = hwdecBackup
++      if (backup != null && PlaybackSession.getPropertyString("hwdec") == "no") {
++        PlaybackSession.setPropertyString("hwdec", backup)
++      }
++    }
++  }
++
++  private suspend fun detectAutoCropFromCurrentFrames(generation: Long): AutoCropAnalysisResult {
++    val samples = mutableListOf<AutoCropEdges>()
++    val deadline = SystemClock.elapsedRealtime() + AUTO_CROP_ACTIVE_FRAME_TIMEOUT_MS
++    while (
++      samples.size < AUTO_CROP_MIN_VALID_SAMPLES &&
++      currentCoroutineContext().isActive &&
++      PlaybackSession.isCurrentGeneration(generation) &&
++      SystemClock.elapsedRealtime() < deadline
++    ) {
++      PlaybackSession.grabThumbnail(AUTO_CROP_THUMBNAIL_SIZE)?.analyzeAndRecycle()?.let(samples::add)
++      if (samples.size < AUTO_CROP_MIN_VALID_SAMPLES) delay(AUTO_CROP_ACTIVE_FRAME_INTERVAL_MS)
++    }
++    if (!PlaybackSession.isCurrentGeneration(generation)) return AutoCropAnalysisResult.Unavailable
++    if (samples.size < AUTO_CROP_MIN_VALID_SAMPLES) return AutoCropAnalysisResult.Unavailable
++    return AutoCropAnalyzer.combine(samples)
++      ?.let(AutoCropAnalysisResult::Detected)
++      ?: AutoCropAnalysisResult.NoBars
++  }
++
++  private fun readAutoCropMetadata(): AutoCropMetadata? {
++    fun value(key: String): Int? =
++      PlaybackSession
++        .getPropertyString("vf-metadata/$AUTO_CROP_FILTER_LABEL/lavfi.cropdetect.$key")
++        ?.toIntOrNull()
++
++    return AutoCropMetadata(
++      width = value("w") ?: return null,
++      height = value("h") ?: return null,
++      x = value("x") ?: return null,
++      y = value("y") ?: return null,
++    )
++  }
++
++  private fun AutoCropMetadata.toAutoCropResult(
++    sourceWidth: Int,
++    sourceHeight: Int,
++  ): AutoCropAnalysisResult {
++    if (width <= 0 || height <= 0 || x < 0 || y < 0) return AutoCropAnalysisResult.Unavailable
++    if (x + width > sourceWidth + AUTO_CROP_DETECT_ROUND || y + height > sourceHeight + AUTO_CROP_DETECT_ROUND) {
++      return AutoCropAnalysisResult.Unavailable
++    }
++    if (width < sourceWidth / 2 || height < sourceHeight / 2) return AutoCropAnalysisResult.NoBars
++
++    val right = (sourceWidth - width - x).coerceAtLeast(0)
++    val bottom = (sourceHeight - height - y).coerceAtLeast(0)
++    if (x < 2 && y < 2 && right < 2 && bottom < 2) return AutoCropAnalysisResult.NoBars
++    return AutoCropAnalysisResult.Detected(
++      AutoCropEdges(
++        left = x.toFloat() / sourceWidth,
++        top = y.toFloat() / sourceHeight,
++        right = right.toFloat() / sourceWidth,
++        bottom = bottom.toFloat() / sourceHeight,
++      ),
++    )
++  }
++
+   private fun autoCropSamplePositions(
+     source: String,
+     durationSeconds: Double,
+@@ -4836,10 +5188,19 @@ val isBrightnessSliderShown = MutableStateFlow(false)
+   }
+ 
+   private fun clearAutoCropProperty() {
++    PlaybackSession.command("vf", "remove", "@$AUTO_CROP_FILTER_LABEL")
+     PlaybackSession.setPropertyString("video-crop", "")
+     autoCropApplied = false
+   }
+ 
++  private fun cancelAutoCropAnalysis() {
++    autoCropJob?.cancel()
++    autoCropJob = null
++    autoCropReadinessJob?.cancel()
++    autoCropReadinessJob = null
++    PlaybackSession.command("vf", "remove", "@$AUTO_CROP_FILTER_LABEL")
++  }
++
+   private fun refreshStretchAspectAfterCropChange() {
+     if (playerPreferences.lastCustomAspectRatio.get() > 0f) return
+     if (playerPreferences.lastVideoAspect.get() != VideoAspect.Stretch) return
+@@ -6468,6 +6829,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
+     // Without this the file lingers in cacheDir until the system reclaims
+     // it, and the service may keep an active session open.
+     runCatching { stopRealtimeSubtitles(showToastMessage = false) }
++    runCatching { cancelAutoCropAnalysis() }
+ 
+ 
+     // The metadataCache (Pair<String, String> entries) is small and
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControls.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControls.kt
+index f00b61d0..4fc20742 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControls.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControls.kt
+@@ -783,6 +783,7 @@ fun PlayerControls(
+           val translatingTrackName by viewModel.translatingTrackName.collectAsState()
+           val isRealtimeSubsActive by viewModel.isRealtimeSubsActive.collectAsState()
+           val realtimeSubsLanguage by viewModel.realtimeSubsLanguage.collectAsState()
++          val realtimeSubsStatus by viewModel.realtimeSubsStatus.collectAsState()
+           val isGeneratingSubtitles by viewModel.isGeneratingSubtitles.collectAsState()
+           val subtitleGenerationProgress by viewModel.subtitleGenerationProgress.collectAsState()
+           val subtitleGenerationStatus by viewModel.subtitleGenerationStatus.collectAsState()
+@@ -1784,6 +1785,7 @@ is PlayerUpdates.FrameInfo -> {
+                 isTranslatingSub = showAiIndicators && isTranslatingSub,
+                 isRealtimeSubsActive = showRealtimeSubs && isRealtimeSubsActive,
+                 realtimeSubsLanguage = realtimeSubsLanguage,
++                realtimeSubsStatus = realtimeSubsStatus,
+                 translationStatus = translationStatus,
+                 translatingTrackName = translatingTrackName,
+               )
+@@ -1797,6 +1799,7 @@ is PlayerUpdates.FrameInfo -> {
+                 isTranslatingSub = showAiIndicators && isTranslatingSub,
+                 isRealtimeSubsActive = showRealtimeSubs && isRealtimeSubsActive,
+                 realtimeSubsLanguage = realtimeSubsLanguage,
++                realtimeSubsStatus = realtimeSubsStatus,
+                 translationStatus = translationStatus,
+                 translatingTrackName = translatingTrackName,
+               )
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControlsLandscape.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControlsLandscape.kt
+index 7f4fb89e..1b4c6cc5 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControlsLandscape.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControlsLandscape.kt
+@@ -64,6 +64,7 @@ fun TopLeftPlayerControlsLandscape(
+   isTranslatingSub: Boolean = false,
+   isRealtimeSubsActive: Boolean = false,
+   realtimeSubsLanguage: String = "",
++  realtimeSubsStatus: String = "",
+   translationStatus: String = "",
+   translatingTrackName: String = "",
+ ) {
+@@ -206,7 +207,7 @@ fun TopLeftPlayerControlsLandscape(
+           Text(
+             text =
+               if (isRealtimeSubsActive) {
+-                "Real-time subs: ${realtimeSubsLanguage.ifBlank { "?" }} ${translationStatus.ifBlank { "" }}"
++                "${stringResource(R.string.realtime_subtitles_label)}: ${realtimeSubsLanguage.ifBlank { "?" }} ${realtimeSubsStatus.ifBlank { "" }}"
+               } else {
+                 "Translating ${translatingTrackName.ifBlank { "subs" }} ${translationStatus.ifBlank { "" }}"
+               },
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControlsPortrait.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControlsPortrait.kt
+index 46d45935..be8317cc 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControlsPortrait.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControlsPortrait.kt
+@@ -63,6 +63,7 @@ fun TopPlayerControlsPortrait(
+   isTranslatingSub: Boolean = false,
+   isRealtimeSubsActive: Boolean = false,
+   realtimeSubsLanguage: String = "",
++  realtimeSubsStatus: String = "",
+   translationStatus: String = "",
+   translatingTrackName: String = "",
+ ) {
+@@ -163,7 +164,7 @@ fun TopPlayerControlsPortrait(
+           Text(
+             text =
+               if (isRealtimeSubsActive) {
+-                "Real-time subs: ${realtimeSubsLanguage.ifBlank { "?" }} ${translationStatus.ifBlank { "" }}"
++                "${stringResource(R.string.realtime_subtitles_label)}: ${realtimeSubsLanguage.ifBlank { "?" }} ${realtimeSubsStatus.ifBlank { "" }}"
+               } else {
+                 "Translating ${translatingTrackName.ifBlank { "subs" }} ${translationStatus.ifBlank { "" }}"
+               },
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerSheets.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerSheets.kt
+index 9202ea37..7628f238 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerSheets.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerSheets.kt
+@@ -173,6 +173,9 @@ fun PlayerSheets(
+       val isGeneratingSubtitles by viewModel.isGeneratingSubtitles.composeCollectAsState()
+       val subtitleGenerationProgress by viewModel.subtitleGenerationProgress.composeCollectAsState()
+       val subtitleGenerationStatus by viewModel.subtitleGenerationStatus.composeCollectAsState()
++      val isRealtimeSubsActive by viewModel.isRealtimeSubsActive.composeCollectAsState()
++      val realtimeSubsProgress by viewModel.realtimeSubsProgress.composeCollectAsState()
++      val realtimeSubsStatus by viewModel.realtimeSubsStatus.composeCollectAsState()
+       val aiPreferences = koinInject<com.quantummpv.app.preferences.AiPreferences>()
+       val aiEnabled by aiPreferences.enabled.collectAsState()
+       val realtimeSubsEnabled by aiPreferences.realtimeSubsEnabled.collectAsState()
+@@ -202,12 +205,17 @@ fun PlayerSheets(
+         onDismissRequest = onDismissRequest,
+         onTranslateSubtitle = { track, lang -> viewModel.translateSubtitle(track, lang) },
+         onGenerateSubtitle = { viewModel.generateSubtitles("", "") },
++        onStartRealtimeSubtitle = viewModel::startRealtimeSubtitles,
++        onStopRealtimeSubtitle = { viewModel.stopRealtimeSubtitles() },
+         onCancelTranslation = { viewModel.cancelTranslation() },
+         isTranslating = isTranslating,
+         translationProgress = translationProgress,
+         translationStatus = translationStatus,
++        realtimeSubsStatus = realtimeSubsStatus,
+         translationEnabled = aiEnabled && translationEnabled,
+         isGeneratingSubtitles = isGeneratingSubtitles,
++        isRealtimeSubsActive = isRealtimeSubsActive,
++        realtimeSubsProgress = realtimeSubsProgress,
+         subtitleGenerationProgress = subtitleGenerationProgress,
+         subtitleGenerationStatus = subtitleGenerationStatus,
+         translatingTrackId = translatingTrackId,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/SubtitleTracksSheet.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/SubtitleTracksSheet.kt
+index 706f8435..fae78d30 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/SubtitleTracksSheet.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/SubtitleTracksSheet.kt
+@@ -86,12 +86,17 @@ fun SubtitlesSheet(
+   onDismissRequest: () -> Unit,
+   onTranslateSubtitle: (TrackNode, String) -> Unit,
+   onGenerateSubtitle: () -> Unit,
++  onStartRealtimeSubtitle: (String) -> Unit,
++  onStopRealtimeSubtitle: () -> Unit,
+   onCancelTranslation: () -> Unit,
+   isTranslating: Boolean,
+   translationProgress: Float,
+   translationStatus: String,
++  realtimeSubsStatus: String,
+   translationEnabled: Boolean,
+   isGeneratingSubtitles: Boolean,
++  isRealtimeSubsActive: Boolean,
++  realtimeSubsProgress: Float,
+   subtitleGenerationProgress: Float,
+   subtitleGenerationStatus: String,
+   translatingTrackId: Int? = null,
+@@ -239,8 +244,9 @@ fun SubtitlesSheet(
+ 
+   var langSearch by remember { mutableStateOf("") }
+   var showLanguagePicker by remember { androidx.compose.runtime.mutableStateOf<TrackNode?>(null) }
++  var showRealtimeLanguagePicker by remember { mutableStateOf(false) }
+ 
+-  if (showLanguagePicker != null) {
++  if (showLanguagePicker != null || showRealtimeLanguagePicker) {
+     val languagesToShow =
+       remember(configuredLanguages, langSearch) {
+         val source =
+@@ -258,6 +264,7 @@ fun SubtitlesSheet(
+     androidx.compose.material3.AlertDialog(
+       onDismissRequest = {
+         showLanguagePicker = null
++        showRealtimeLanguagePicker = false
+         langSearch = ""
+       },
+       title = {
+@@ -289,8 +296,13 @@ fun SubtitlesSheet(
+                   Modifier
+                     .fillMaxWidth()
+                     .clickable {
+-                      onTranslateSubtitle(showLanguagePicker!!, lang)
++                      if (showRealtimeLanguagePicker) {
++                        onStartRealtimeSubtitle(lang)
++                      } else {
++                        showLanguagePicker?.let { track -> onTranslateSubtitle(track, lang) }
++                      }
+                       showLanguagePicker = null
++                      showRealtimeLanguagePicker = false
+                       langSearch = ""
+                     }.padding(MaterialTheme.spacing.medium),
+               )
+@@ -311,6 +323,7 @@ fun SubtitlesSheet(
+       confirmButton = {
+         androidx.compose.material3.TextButton(onClick = {
+           showLanguagePicker = null
++          showRealtimeLanguagePicker = false
+           langSearch = ""
+         }) {
+           Text(
+@@ -332,8 +345,26 @@ fun SubtitlesSheet(
+             Icon(Icons.RoundedFilled.Search, null)
+           }
+           if (aiEnabled && realtimeSubsEnabled) {
++            IconButton(
++              onClick = {
++                if (isRealtimeSubsActive) {
++                  onStopRealtimeSubtitle()
++                } else if (configuredLanguages.isEmpty()) {
++                  onStartRealtimeSubtitle("")
++                } else if (configuredLanguages.size == 1) {
++                  onStartRealtimeSubtitle(codeToName[configuredLanguages.first()] ?: configuredLanguages.first())
++                } else {
++                  showRealtimeLanguagePicker = true
++                }
++              },
++            ) {
++              Icon(
++                if (isRealtimeSubsActive) Icons.RoundedFilled.Close else Icons.RoundedFilled.Translate,
++                stringResource(R.string.pref_stt_title),
++              )
++            }
+             IconButton(onClick = onGenerateSubtitle) {
+-              Icon(Icons.RoundedFilled.Subtitles, "Generate subtitles")
++              Icon(Icons.RoundedFilled.Subtitles, stringResource(R.string.ui_include_auto_generated_subtitles))
+             }
+           }
+           IconButton(onClick = onOpenSubtitleSettings) {
+@@ -389,7 +420,7 @@ fun SubtitlesSheet(
+             }
+           }
+           LinearProgressIndicator(
+-            progress = { translationProgress },
++            progress = { realtimeSubsProgress },
+             modifier = Modifier.fillMaxWidth(),
+           )
+         }
+@@ -414,6 +445,25 @@ fun SubtitlesSheet(
+         }
+       }
+ 
++      if (aiEnabled && isRealtimeSubsActive) {
++        Column(
++          modifier = Modifier.padding(MaterialTheme.spacing.medium),
++          verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.extraSmall),
++        ) {
++          Text(
++            realtimeSubsStatus.ifBlank { stringResource(R.string.pref_stt_title) },
++            style = MaterialTheme.typography.bodySmall,
++            color = MaterialTheme.colorScheme.primary,
++            maxLines = 1,
++            overflow = TextOverflow.Ellipsis,
++          )
++          LinearProgressIndicator(
++            progress = { translationProgress },
++            modifier = Modifier.fillMaxWidth(),
++          )
++        }
++      }
++
+       LazyColumn {
+         items(
+           items,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/AiIntegrationScreen.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/AiIntegrationScreen.kt
+index 066a9198..1941f1e9 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/AiIntegrationScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/AiIntegrationScreen.kt
+@@ -79,6 +79,7 @@ import com.quantummpv.app.ui.preferences.components.SwitchPreference
+ import com.quantummpv.app.ui.utils.LocalBackStack
+ import com.quantummpv.app.ui.utils.LocalShowSettingsBackArrow
+ import com.quantummpv.app.ui.utils.popSafely
++import kotlinx.coroutines.delay
+ import kotlinx.coroutines.launch
+ import kotlinx.serialization.Serializable
+ import kotlinx.serialization.json.Json
+@@ -177,18 +178,29 @@ object AiIntegrationScreen : Screen {
+     var showApiKey by remember { mutableStateOf(false) }
+     var modelLoadError by remember { mutableStateOf<String?>(null) }
+     var showSubtitleTranslationWarning by remember { mutableStateOf(false) }
++    var modelLoadRequestId by remember { mutableStateOf(0) }
+ 
+     val json = koinInject<Json>()
++    val activeApiKey =
++      when (provider) {
++        AiProvider.OPENCODE -> openCodeKey
++        AiProvider.GROQ -> groqKey
++        AiProvider.OPENAI -> openaiKey
++        AiProvider.ANTHROPIC -> anthropicKey
++        AiProvider.OPENROUTER -> openrouterKey
++        AiProvider.TOGETHER -> togetherKey
++      }
+ 
+     fun loadModels() {
+-      if (isLoadingModels) return
+       val requestedProvider = provider
++      val requestId = ++modelLoadRequestId
+       scope.launch {
+         isLoadingModels = true
+         modelLoadError = null
+         aiService
+           .fetchModelsForProvider(requestedProvider)
+           .onSuccess { fetchedModels ->
++            if (requestId != modelLoadRequestId) return@onSuccess
+             if (provider == requestedProvider) models = fetchedModels
+             preferences.availableModelsFor(requestedProvider).set(
+               json.encodeToString(
+@@ -196,14 +208,23 @@ object AiIntegrationScreen : Screen {
+                 fetchedModels,
+               ),
+             )
++            val selectedPreference = preferences.selectedModelFor(requestedProvider)
++            if (fetchedModels.none { it.id == selectedPreference.get() }) {
++              selectedPreference.set(fetchedModels.first().id)
++            }
+           }.onFailure { e ->
+-            modelLoadError = e.message
++            if (requestId == modelLoadRequestId && provider == requestedProvider) {
++              modelLoadError = e.message
++            }
+           }
+-        isLoadingModels = false
++        if (requestId == modelLoadRequestId) isLoadingModels = false
+       }
+     }
+ 
+-    LaunchedEffect(provider) {
++    LaunchedEffect(provider, activeApiKey) {
++      modelLoadRequestId++
++      isLoadingModels = false
++      modelLoadError = null
+       models = emptyList()
+       val stored = preferences.availableModelsFor(provider).get()
+       if (stored.isNotBlank() && stored != "[]") {
+@@ -216,7 +237,8 @@ object AiIntegrationScreen : Screen {
+         } catch (_: Exception) {
+         }
+       }
+-      if (models.isEmpty()) {
++      if (activeApiKey.isNotBlank()) {
++        delay(600L)
+         loadModels()
+       }
+     }
+@@ -809,7 +831,7 @@ val apiKeyInfo =
+                 PreferenceCard {
+                   val sttProviders = listOf(AiProvider.GROQ, AiProvider.OPENAI, AiProvider.OPENROUTER)
+                   val sttProvider by preferences.sttProvider.collectAsState()
+-                  val sttModel by preferences.sttModel.collectAsState()
++                  val sttModel by preferences.sttModelFor(sttProvider).collectAsState()
+ 
+                   SwitchPreference(
+                     value = realtimeSubsEnabled,
+@@ -857,10 +879,7 @@ val apiKeyInfo =
+ 
+                   ListPreference(
+                     value = sttProvider,
+-                    onValueChange = {
+-                      preferences.sttProvider.set(it)
+-                      preferences.sttModel.set("")
+-                    },
++                    onValueChange = preferences.sttProvider::set,
+                     values = sttProviders,
+                     valueToText = {
+                       androidx.compose.ui.text
+@@ -886,7 +905,14 @@ val apiKeyInfo =
+                   SttModelSelector(
+                     sttProvider = sttProvider,
+                     sttModel = sttModel,
+-                    onSelectModel = { preferences.sttModel.set(it) },
++                    apiKey =
++                      when (sttProvider) {
++                        AiProvider.GROQ -> groqKey
++                        AiProvider.OPENAI -> openaiKey
++                        AiProvider.OPENROUTER -> openrouterKey
++                        else -> ""
++                      },
++                    onSelectModel = { preferences.sttModelFor(sttProvider).set(it) },
+                   )
+ 
+                   PreferenceDivider()
+@@ -1196,48 +1222,81 @@ val apiKeyInfo =
+   private fun SttModelSelector(
+     sttProvider: AiProvider,
+     sttModel: String,
++    apiKey: String,
+     onSelectModel: (String) -> Unit,
+   ) {
+     val aiService = koinInject<AiService>()
++    val preferences = koinInject<AiPreferences>()
++    val json = koinInject<Json>()
+     val context = LocalContext.current
+     var showDialog by remember { mutableStateOf(false) }
+     var sttModels by remember { mutableStateOf<List<AiModelInfo>>(emptyList()) }
+     var isLoadingStt by remember { mutableStateOf(false) }
++    var requestId by remember { mutableStateOf(0) }
+     val scope = rememberCoroutineScope()
+ 
+-    val modelKey = "${sttProvider.name}_stt"
+-    val cachedModels = remember(modelKey) { mutableStateOf<List<AiModelInfo>?>(null) }
++    fun cachedModels(): List<AiModelInfo> =
++      runCatching {
++        json.decodeFromString(
++          kotlinx.serialization.builtins.ListSerializer(AiModelInfo.serializer()),
++          preferences.sttAvailableModelsFor(sttProvider).get(),
++        )
++      }.getOrDefault(emptyList())
++
++    fun refreshModels(
++      openWhenReady: Boolean,
++      showError: Boolean,
++    ) {
++      val requestedProvider = sttProvider
++      val currentRequest = ++requestId
++      isLoadingStt = true
++      scope.launch {
++        aiService
++          .fetchSpeechModelsForProvider(requestedProvider)
++          .onSuccess { fetchedModels ->
++            if (currentRequest != requestId || requestedProvider != sttProvider) return@onSuccess
++            sttModels = fetchedModels
++            preferences.sttAvailableModelsFor(requestedProvider).set(
++              json.encodeToString(
++                kotlinx.serialization.builtins.ListSerializer(AiModelInfo.serializer()),
++                fetchedModels,
++              ),
++            )
++            if (fetchedModels.none { it.id == sttModel }) onSelectModel(fetchedModels.first().id)
++            if (openWhenReady) showDialog = true
++          }.onFailure { error ->
++            if (currentRequest == requestId && showError) {
++              Toast
++                .makeText(
++                  context,
++                  context.getString(
++                    R.string.toast_failed_to_load_models,
++                    error.message ?: context.getString(R.string.generic_unknown_error),
++                  ),
++                  Toast.LENGTH_SHORT,
++                ).show()
++            }
++          }
++        if (currentRequest == requestId) isLoadingStt = false
++      }
++    }
++
++    LaunchedEffect(sttProvider, apiKey) {
++      requestId++
++      isLoadingStt = false
++      sttModels = cachedModels()
++      if (apiKey.isNotBlank()) {
++        delay(600L)
++        refreshModels(openWhenReady = false, showError = false)
++      }
++    }
+ 
+     Surface(
+       onClick = {
+-        if (isLoadingStt) return@Surface
+-        val cached = cachedModels.value
+-        if (cached != null) {
+-          sttModels = cached
++        if (sttModels.isNotEmpty()) {
+           showDialog = true
+-        } else {
+-          isLoadingStt = true
+-          scope.launch {
+-            aiService
+-              .fetchSpeechModelsForProvider(sttProvider)
+-              .onSuccess { sttOnly ->
+-                cachedModels.value = sttOnly
+-                sttModels = sttOnly
+-                showDialog = true
+-              }.onFailure { e ->
+-                Toast
+-                  .makeText(
+-                    context,
+-                    context.getString(
+-                      R.string.toast_failed_to_load_models,
+-                      e.message ?: context.getString(R.string.generic_unknown_error),
+-                    ),
+-                    Toast.LENGTH_SHORT,
+-                  ).show()
+-              }
+-            isLoadingStt = false
+-          }
+         }
++        if (!isLoadingStt) refreshModels(openWhenReady = sttModels.isEmpty(), showError = true)
+       },
+       shape = MaterialTheme.shapes.medium,
+       color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+diff --git a/app/src/main/res/values-ar/strings.xml b/app/src/main/res/values-ar/strings.xml
+index ab8edc39..47807f87 100644
+--- a/app/src/main/res/values-ar/strings.xml
++++ b/app/src/main/res/values-ar/strings.xml
+@@ -804,6 +804,17 @@
+   <string name="pref_ai_search_summary">تنسيق عناوين الفيديو تلقائيًا للبحث عن ترجمة Wyzie/SubHub</string>
+   <string name="pref_stt_section">تحويل الكلام إلى نص [تجريبي للغاية]</string>
+   <string name="pref_stt_title">إنشاء ترجمة نصية في الوقت الفعلي</string>
++  <string name="realtime_subtitles_label">تسميات توضيحية مباشرة</string>
++  <string name="realtime_subtitles_processing">التسميات المباشرة %1$d/%2$d</string>
++  <string name="realtime_subtitles_translating">جارٍ ترجمة التسميات المباشرة</string>
++  <string name="realtime_subtitles_translation_fallback">الترجمة غير متاحة؛ يتم عرض النص المفرغ</string>
++  <string name="realtime_subtitles_complete">اكتملت التسميات المباشرة</string>
++  <string name="realtime_subtitles_failed">فشلت التسميات المباشرة</string>
++  <string name="realtime_subtitles_stopped">تم إيقاف التسميات المباشرة</string>
++  <string name="realtime_subtitles_media_unavailable">الوسائط الحالية غير متاحة للتسميات المباشرة</string>
++  <string name="realtime_subtitles_update_failed">تعذر تحديث التسميات المباشرة</string>
++  <string name="subtitle_generation_audio_unavailable">تعذر فتح المسار الصوتي المحدد</string>
++  <string name="subtitle_generation_duration_unknown">مدة الفيديو غير متاحة</string>
+   <string name="pref_stt_summary">إنشاء ترجمة نصية من الصوت أثناء تشغيل الفيديو</string>
+   <string name="pref_stt_output_format_title">تنسيق الإخراج الافتراضي</string>
+   <string name="pref_stt_provider_title">مزوّد تحويل الكلام إلى نص</string>
+diff --git a/app/src/main/res/values-de/strings.xml b/app/src/main/res/values-de/strings.xml
+index dd46b363..0b5d0627 100644
+--- a/app/src/main/res/values-de/strings.xml
++++ b/app/src/main/res/values-de/strings.xml
+@@ -804,6 +804,17 @@ Bitte starten Sie die App neu, damit alle Änderungen wirksam werden.</string>
+   <string name="pref_ai_search_summary">Videotitel automatisch für die Wyzie/SubHub-Untertitelsuche formatieren</string>
+   <string name="pref_stt_section">Sprache-zu-Text [extrem experimentell]</string>
+   <string name="pref_stt_title">Untertitelerstellung in Echtzeit</string>
++  <string name="realtime_subtitles_label">Live-Untertitel</string>
++  <string name="realtime_subtitles_processing">Live-Untertitel %1$d/%2$d</string>
++  <string name="realtime_subtitles_translating">Live-Untertitel werden übersetzt</string>
++  <string name="realtime_subtitles_translation_fallback">Übersetzung nicht verfügbar; Transkript wird angezeigt</string>
++  <string name="realtime_subtitles_complete">Live-Untertitel abgeschlossen</string>
++  <string name="realtime_subtitles_failed">Live-Untertitel fehlgeschlagen</string>
++  <string name="realtime_subtitles_stopped">Live-Untertitel gestoppt</string>
++  <string name="realtime_subtitles_media_unavailable">Das aktuelle Medium ist für Live-Untertitel nicht verfügbar</string>
++  <string name="realtime_subtitles_update_failed">Live-Untertitel konnten nicht aktualisiert werden</string>
++  <string name="subtitle_generation_audio_unavailable">Die ausgewählte Audiospur konnte nicht geöffnet werden</string>
++  <string name="subtitle_generation_duration_unknown">Die Videodauer ist nicht verfügbar</string>
+   <string name="pref_stt_summary">Während der Videowiedergabe Untertitel aus Audio erzeugen</string>
+   <string name="pref_stt_output_format_title">Standard-Ausgabeformat</string>
+   <string name="pref_stt_provider_title">Sprache-zu-Text-Anbieter</string>
+diff --git a/app/src/main/res/values-es/strings.xml b/app/src/main/res/values-es/strings.xml
+index e55ff91f..0c0deacc 100644
+--- a/app/src/main/res/values-es/strings.xml
++++ b/app/src/main/res/values-es/strings.xml
+@@ -804,6 +804,17 @@ Reinicia la aplicación para que se apliquen todos los cambios.</string>
+   <string name="pref_ai_search_summary">Dar formato automático a títulos de vídeo para buscar subtítulos en Wyzie/SubHub</string>
+   <string name="pref_stt_section">Voz a texto [muy experimental]</string>
+   <string name="pref_stt_title">Generación de subtítulos en tiempo real</string>
++  <string name="realtime_subtitles_label">Subtítulos en directo</string>
++  <string name="realtime_subtitles_processing">Subtítulos en directo %1$d/%2$d</string>
++  <string name="realtime_subtitles_translating">Traduciendo subtítulos en directo</string>
++  <string name="realtime_subtitles_translation_fallback">Traducción no disponible; se muestra la transcripción</string>
++  <string name="realtime_subtitles_complete">Subtítulos en directo completados</string>
++  <string name="realtime_subtitles_failed">Error en los subtítulos en directo</string>
++  <string name="realtime_subtitles_stopped">Subtítulos en directo detenidos</string>
++  <string name="realtime_subtitles_media_unavailable">El contenido actual no está disponible para subtítulos en directo</string>
++  <string name="realtime_subtitles_update_failed">No se pudieron actualizar los subtítulos en directo</string>
++  <string name="subtitle_generation_audio_unavailable">No se pudo abrir la pista de audio seleccionada</string>
++  <string name="subtitle_generation_duration_unknown">La duración del vídeo no está disponible</string>
+   <string name="pref_stt_summary">Generar subtítulos desde el audio mientras se reproduce el vídeo</string>
+   <string name="pref_stt_output_format_title">Formato de salida predeterminado</string>
+   <string name="pref_stt_provider_title">Proveedor de voz a texto</string>
+diff --git a/app/src/main/res/values-fr/strings.xml b/app/src/main/res/values-fr/strings.xml
+index a29d60a7..2a11f711 100644
+--- a/app/src/main/res/values-fr/strings.xml
++++ b/app/src/main/res/values-fr/strings.xml
+@@ -804,6 +804,17 @@ Veuillez redémarrer l’application pour appliquer toutes les modifications.</s
+   <string name="pref_ai_search_summary">Mettre automatiquement en forme les titres vidéo pour la recherche de sous-titres Wyzie/SubHub</string>
+   <string name="pref_stt_section">Reconnaissance vocale [extrêmement expérimentale]</string>
+   <string name="pref_stt_title">Génération de sous-titres en temps réel</string>
++  <string name="realtime_subtitles_label">Sous-titres en direct</string>
++  <string name="realtime_subtitles_processing">Sous-titres en direct %1$d/%2$d</string>
++  <string name="realtime_subtitles_translating">Traduction des sous-titres en direct</string>
++  <string name="realtime_subtitles_translation_fallback">Traduction indisponible ; affichage de la transcription</string>
++  <string name="realtime_subtitles_complete">Sous-titres en direct terminés</string>
++  <string name="realtime_subtitles_failed">Échec des sous-titres en direct</string>
++  <string name="realtime_subtitles_stopped">Sous-titres en direct arrêtés</string>
++  <string name="realtime_subtitles_media_unavailable">Le média actuel n’est pas disponible pour les sous-titres en direct</string>
++  <string name="realtime_subtitles_update_failed">Impossible de mettre à jour les sous-titres en direct</string>
++  <string name="subtitle_generation_audio_unavailable">Impossible d’ouvrir la piste audio sélectionnée</string>
++  <string name="subtitle_generation_duration_unknown">La durée de la vidéo n’est pas disponible</string>
+   <string name="pref_stt_summary">Générer des sous-titres à partir de l’audio pendant la lecture</string>
+   <string name="pref_stt_output_format_title">Format de sortie par défaut</string>
+   <string name="pref_stt_provider_title">Fournisseur de reconnaissance vocale</string>
+diff --git a/app/src/main/res/values-hi/strings.xml b/app/src/main/res/values-hi/strings.xml
+index 1ac3c70c..aa4a71e3 100644
+--- a/app/src/main/res/values-hi/strings.xml
++++ b/app/src/main/res/values-hi/strings.xml
+@@ -756,6 +756,17 @@
+   <string name="pref_ai_search_summary">Wyzie/SubHub सबटाइटल खोज के लिए वीडियो टाइटल अपने आप फॉर्मेट करें</string>
+   <string name="pref_stt_section">स्पीच-टू-टेक्स्ट [अत्यंत प्रायोगिक]</string>
+   <string name="pref_stt_title">रीयल-टाइम सबटाइटल जनरेशन</string>
++  <string name="realtime_subtitles_label">लाइव कैप्शन</string>
++  <string name="realtime_subtitles_processing">लाइव कैप्शन %1$d/%2$d</string>
++  <string name="realtime_subtitles_translating">लाइव कैप्शन का अनुवाद हो रहा है</string>
++  <string name="realtime_subtitles_translation_fallback">अनुवाद उपलब्ध नहीं है; ट्रांसक्रिप्ट दिखाई जा रही है</string>
++  <string name="realtime_subtitles_complete">लाइव कैप्शन पूरे हुए</string>
++  <string name="realtime_subtitles_failed">लाइव कैप्शन विफल रहे</string>
++  <string name="realtime_subtitles_stopped">लाइव कैप्शन रोक दिए गए</string>
++  <string name="realtime_subtitles_media_unavailable">वर्तमान मीडिया लाइव कैप्शन के लिए उपलब्ध नहीं है</string>
++  <string name="realtime_subtitles_update_failed">लाइव कैप्शन अपडेट नहीं किए जा सके</string>
++  <string name="subtitle_generation_audio_unavailable">चुना गया ऑडियो ट्रैक खोला नहीं जा सका</string>
++  <string name="subtitle_generation_duration_unknown">वीडियो की अवधि उपलब्ध नहीं है</string>
+   <string name="pref_stt_summary">वीडियो चलाते समय ऑडियो से सबटाइटल जनरेट करें</string>
+   <string name="pref_stt_output_format_title">डिफ़ॉल्ट आउटपुट फॉर्मेट</string>
+   <string name="pref_stt_provider_title">स्पीच-टू-टेक्स्ट प्रोवाइडर</string>
+diff --git a/app/src/main/res/values-ja/strings.xml b/app/src/main/res/values-ja/strings.xml
+index a057adc6..9bbdfb06 100644
+--- a/app/src/main/res/values-ja/strings.xml
++++ b/app/src/main/res/values-ja/strings.xml
+@@ -804,6 +804,17 @@
+   <string name="pref_ai_search_summary">Wyzie/SubHub字幕検索用に動画タイトルを自動整形します</string>
+   <string name="pref_stt_section">音声認識［非常に試験的］</string>
+   <string name="pref_stt_title">リアルタイム字幕生成</string>
++  <string name="realtime_subtitles_label">ライブ字幕</string>
++  <string name="realtime_subtitles_processing">ライブ字幕 %1$d/%2$d</string>
++  <string name="realtime_subtitles_translating">ライブ字幕を翻訳中</string>
++  <string name="realtime_subtitles_translation_fallback">翻訳を利用できないため、文字起こしを表示しています</string>
++  <string name="realtime_subtitles_complete">ライブ字幕が完了しました</string>
++  <string name="realtime_subtitles_failed">ライブ字幕に失敗しました</string>
++  <string name="realtime_subtitles_stopped">ライブ字幕を停止しました</string>
++  <string name="realtime_subtitles_media_unavailable">現在のメディアではライブ字幕を利用できません</string>
++  <string name="realtime_subtitles_update_failed">ライブ字幕を更新できませんでした</string>
++  <string name="subtitle_generation_audio_unavailable">選択した音声トラックを開けませんでした</string>
++  <string name="subtitle_generation_duration_unknown">動画の長さを取得できません</string>
+   <string name="pref_stt_summary">動画再生中に音声から字幕を生成します</string>
+   <string name="pref_stt_output_format_title">デフォルト出力形式</string>
+   <string name="pref_stt_provider_title">音声認識の提供元</string>
+diff --git a/app/src/main/res/values-pt-rBR/strings.xml b/app/src/main/res/values-pt-rBR/strings.xml
+index bd0cc27c..e48a3864 100644
+--- a/app/src/main/res/values-pt-rBR/strings.xml
++++ b/app/src/main/res/values-pt-rBR/strings.xml
+@@ -804,6 +804,17 @@ Reinicie o aplicativo para que todas as alterações entrem em vigor.</string>
+   <string name="pref_ai_search_summary">Formatar automaticamente títulos de vídeo para pesquisa de legendas Wyzie/SubHub</string>
+   <string name="pref_stt_section">Fala para texto [extremamente experimental]</string>
+   <string name="pref_stt_title">Geração de legendas em tempo real</string>
++  <string name="realtime_subtitles_label">Legendas ao vivo</string>
++  <string name="realtime_subtitles_processing">Legendas ao vivo %1$d/%2$d</string>
++  <string name="realtime_subtitles_translating">Traduzindo legendas ao vivo</string>
++  <string name="realtime_subtitles_translation_fallback">Tradução indisponível; exibindo a transcrição</string>
++  <string name="realtime_subtitles_complete">Legendas ao vivo concluídas</string>
++  <string name="realtime_subtitles_failed">Falha nas legendas ao vivo</string>
++  <string name="realtime_subtitles_stopped">Legendas ao vivo interrompidas</string>
++  <string name="realtime_subtitles_media_unavailable">A mídia atual não está disponível para legendas ao vivo</string>
++  <string name="realtime_subtitles_update_failed">Não foi possível atualizar as legendas ao vivo</string>
++  <string name="subtitle_generation_audio_unavailable">Não foi possível abrir a faixa de áudio selecionada</string>
++  <string name="subtitle_generation_duration_unknown">A duração do vídeo não está disponível</string>
+   <string name="pref_stt_summary">Gerar legendas a partir do áudio durante a reprodução</string>
+   <string name="pref_stt_output_format_title">Formato de saída padrão</string>
+   <string name="pref_stt_provider_title">Provedor de fala para texto</string>
+diff --git a/app/src/main/res/values-ru/strings.xml b/app/src/main/res/values-ru/strings.xml
+index fdba0ee0..74ac4aae 100644
+--- a/app/src/main/res/values-ru/strings.xml
++++ b/app/src/main/res/values-ru/strings.xml
+@@ -804,6 +804,17 @@
+   <string name="pref_ai_search_summary">Автоматически форматировать названия видео для поиска субтитров Wyzie/SubHub</string>
+   <string name="pref_stt_section">Речь в текст [крайне экспериментально]</string>
+   <string name="pref_stt_title">Создание субтитров в реальном времени</string>
++  <string name="realtime_subtitles_label">Живые субтитры</string>
++  <string name="realtime_subtitles_processing">Живые субтитры %1$d/%2$d</string>
++  <string name="realtime_subtitles_translating">Перевод живых субтитров</string>
++  <string name="realtime_subtitles_translation_fallback">Перевод недоступен; показана расшифровка</string>
++  <string name="realtime_subtitles_complete">Живые субтитры готовы</string>
++  <string name="realtime_subtitles_failed">Не удалось создать живые субтитры</string>
++  <string name="realtime_subtitles_stopped">Живые субтитры остановлены</string>
++  <string name="realtime_subtitles_media_unavailable">Текущее медиа недоступно для живых субтитров</string>
++  <string name="realtime_subtitles_update_failed">Не удалось обновить живые субтитры</string>
++  <string name="subtitle_generation_audio_unavailable">Не удалось открыть выбранную звуковую дорожку</string>
++  <string name="subtitle_generation_duration_unknown">Длительность видео недоступна</string>
+   <string name="pref_stt_summary">Создавать субтитры из аудио во время воспроизведения</string>
+   <string name="pref_stt_output_format_title">Формат вывода по умолчанию</string>
+   <string name="pref_stt_provider_title">Поставщик распознавания речи</string>
+diff --git a/app/src/main/res/values-zh-rCN/strings.xml b/app/src/main/res/values-zh-rCN/strings.xml
+index 4556d453..f0d53bef 100644
+--- a/app/src/main/res/values-zh-rCN/strings.xml
++++ b/app/src/main/res/values-zh-rCN/strings.xml
+@@ -806,6 +806,17 @@
+   <string name="pref_ai_search_summary">自动格式化视频标题，以便进行 Wyzie/SubHub 字幕搜索</string>
+   <string name="pref_stt_section">语音转文字［极度实验性］</string>
+   <string name="pref_stt_title">实时字幕生成</string>
++  <string name="realtime_subtitles_label">实时字幕</string>
++  <string name="realtime_subtitles_processing">实时字幕 %1$d/%2$d</string>
++  <string name="realtime_subtitles_translating">正在翻译实时字幕</string>
++  <string name="realtime_subtitles_translation_fallback">翻译不可用；正在显示转录文本</string>
++  <string name="realtime_subtitles_complete">实时字幕已完成</string>
++  <string name="realtime_subtitles_failed">实时字幕失败</string>
++  <string name="realtime_subtitles_stopped">实时字幕已停止</string>
++  <string name="realtime_subtitles_media_unavailable">当前媒体无法用于实时字幕</string>
++  <string name="realtime_subtitles_update_failed">无法更新实时字幕</string>
++  <string name="subtitle_generation_audio_unavailable">无法打开所选音轨</string>
++  <string name="subtitle_generation_duration_unknown">无法获取视频时长</string>
+   <string name="pref_stt_summary">播放视频时从音频生成字幕</string>
+   <string name="pref_stt_output_format_title">默认输出格式</string>
+   <string name="pref_stt_provider_title">语音转文字提供商</string>
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index 9bde9054..c31e8956 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -943,6 +943,17 @@
+   <string name="pref_ai_search_summary">Auto-format video titles for Wyzie/SubHub subtitle search</string>
+   <string name="pref_stt_section">Speech-to-Text [Extreme Experimental]</string>
+   <string name="pref_stt_title">Real-time Subtitle Generation</string>
++  <string name="realtime_subtitles_label">Live captions</string>
++  <string name="realtime_subtitles_processing">Live captions %1$d/%2$d</string>
++  <string name="realtime_subtitles_translating">Translating live captions</string>
++  <string name="realtime_subtitles_translation_fallback">Translation unavailable; showing transcript</string>
++  <string name="realtime_subtitles_complete">Live captions complete</string>
++  <string name="realtime_subtitles_failed">Live captions failed</string>
++  <string name="realtime_subtitles_stopped">Live captions stopped</string>
++  <string name="realtime_subtitles_media_unavailable">Current media is unavailable for live captions</string>
++  <string name="realtime_subtitles_update_failed">Could not update live captions</string>
++  <string name="subtitle_generation_audio_unavailable">Could not open the selected audio track</string>
++  <string name="subtitle_generation_duration_unknown">Video duration is unavailable</string>
+   <string name="pref_stt_summary">Generate subtitles from audio while playing video</string>
+   <string name="pref_stt_output_format_title">Default Output Format</string>
+   <string name="pref_stt_provider_title">Speech-to-Text Provider</string>
+-- 
+2.25.1
+

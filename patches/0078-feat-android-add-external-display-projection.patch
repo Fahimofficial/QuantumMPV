@@ -1,0 +1,637 @@
+From 3ce153e436353e028626baddfaf26227dbc742f3 Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <riteshp2001@gmail.com>
+Date: Thu, 10 Sep 2026 12:58:37 +0530
+Subject: [PATCH 078/140] feat(android): add external display projection
+
+---
+ .../mpvrx/preferences/PlayerPreferences.kt    |  1 +
+ .../mpvrx/ui/player/ExternalDisplayManager.kt | 89 +++++++++++++++++++
+ .../ui/player/ExternalDisplayPresentation.kt  | 50 +++++++++++
+ .../com/quantummpv/app/ui/player/MPVView.kt    |  6 ++
+ .../mpvrx/ui/player/MediaPlaybackService.kt   | 32 +++++++
+ .../gyrolet/mpvrx/ui/player/PlayerActivity.kt | 50 ++++++++++-
+ .../ui/preferences/PlayerPreferencesScreen.kt | 20 +++++
+ .../ui/preferences/SearchablePreference.kt    |  9 ++
+ .../preferences/SettingsSearchNavigation.kt   |  1 +
+ app/src/main/res/layout/player_layout.xml     | 11 +++
+ app/src/main/res/values-ar/strings.xml        |  2 +
+ app/src/main/res/values-de/strings.xml        |  2 +
+ app/src/main/res/values-es/strings.xml        |  2 +
+ app/src/main/res/values-fr/strings.xml        |  2 +
+ app/src/main/res/values-hi/strings.xml        |  2 +
+ app/src/main/res/values-ja/strings.xml        |  2 +
+ app/src/main/res/values-pt-rBR/strings.xml    |  2 +
+ app/src/main/res/values-ru/strings.xml        |  2 +
+ app/src/main/res/values-zh-rCN/strings.xml    |  2 +
+ app/src/main/res/values/strings.xml           |  2 +
+ 20 files changed, 286 insertions(+), 3 deletions(-)
+ create mode 100644 app/src/main/java/com/quantummpv/app/ui/player/ExternalDisplayManager.kt
+ create mode 100644 app/src/main/java/com/quantummpv/app/ui/player/ExternalDisplayPresentation.kt
+
+diff --git a/app/src/main/java/com/quantummpv/app/preferences/PlayerPreferences.kt b/app/src/main/java/com/quantummpv/app/preferences/PlayerPreferences.kt
+index 35f2aa00..831960fe 100644
+--- a/app/src/main/java/com/quantummpv/app/preferences/PlayerPreferences.kt
++++ b/app/src/main/java/com/quantummpv/app/preferences/PlayerPreferences.kt
+@@ -136,6 +136,7 @@ class PlayerPreferences(
+   val enableVideoMiniPlayer = DependentBooleanPreference(storedEnableVideoMiniPlayer, videoBackgroundPlayback)
+ 
+   val keepScreenOnWhenPaused = preferenceStore.getBoolean("keep_screen_on_when_paused", false)
++  val externalDisplayProjection = preferenceStore.getBoolean("external_display_projection", true)
+   val autoplayAfterScreenUnlock = preferenceStore.getBoolean("autoplay_after_screen_unlock", false)
+   val enableMediaInfoIntent = preferenceStore.getBoolean("enable_mediainfo_intent", true)
+   val enableWebStreamLinkIntents = preferenceStore.getBoolean("enable_web_stream_link_intents", true)
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/ExternalDisplayManager.kt b/app/src/main/java/com/quantummpv/app/ui/player/ExternalDisplayManager.kt
+new file mode 100644
+index 00000000..445d0aad
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/ui/player/ExternalDisplayManager.kt
+@@ -0,0 +1,89 @@
++package com.quantummpv.app.ui.player
++
++import android.content.Context
++import android.hardware.display.DisplayManager
++import android.os.Handler
++import android.os.Looper
++import android.util.Log
++
++class ExternalDisplayManager(
++  context: Context,
++  private val onStateChanged: (Boolean) -> Unit,
++) {
++  private val appContext = context.applicationContext
++  private val displayManager = appContext.getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
++  private val handler = Handler(Looper.getMainLooper())
++  private var presentation: ExternalDisplayPresentation? = null
++  private var released = false
++
++  var enabled = true
++    set(value) {
++      field = value
++      reconcile()
++    }
++
++  val isActive: Boolean
++    get() = presentation != null
++
++  private val displayListener =
++    object : DisplayManager.DisplayListener {
++      override fun onDisplayAdded(displayId: Int) = reconcile()
++
++      override fun onDisplayRemoved(displayId: Int) = reconcile()
++
++      override fun onDisplayChanged(displayId: Int) = reconcile()
++    }
++
++  fun start() {
++    released = false
++    displayManager.registerDisplayListener(displayListener, handler)
++    reconcile()
++  }
++
++  fun release() {
++    released = true
++    displayManager.unregisterDisplayListener(displayListener)
++    presentation?.dismiss()
++    presentation = null
++    onStateChanged(false)
++  }
++
++  private fun reconcile() {
++    if (released) return
++
++    val target =
++      if (enabled) {
++        displayManager
++          .getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION)
++          .firstOrNull()
++      } else {
++        null
++      }
++    val currentDisplayId = presentation?.display?.displayId
++
++    if (target == null || target.displayId != currentDisplayId) {
++      presentation?.dismiss()
++      presentation = null
++      if (currentDisplayId != null) onStateChanged(false)
++    }
++
++    if (target != null && presentation == null) {
++      Log.d(TAG, "Showing external display on ${target.name} (${target.displayId})")
++      val shown = ExternalDisplayPresentation(appContext, target)
++      shown.setOnDismissListener {
++        if (presentation === shown) {
++          presentation = null
++          onStateChanged(false)
++          reconcile()
++        }
++      }
++      presentation = shown
++      shown.show()
++      onStateChanged(true)
++    }
++  }
++
++  companion object {
++    private const val TAG = "ExternalDisplayManager"
++  }
++}
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/ExternalDisplayPresentation.kt b/app/src/main/java/com/quantummpv/app/ui/player/ExternalDisplayPresentation.kt
+new file mode 100644
+index 00000000..00758ffe
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/ui/player/ExternalDisplayPresentation.kt
+@@ -0,0 +1,50 @@
++package com.quantummpv.app.ui.player
++
++import android.app.Presentation
++import android.content.Context
++import android.os.Bundle
++import android.view.Display
++import android.view.SurfaceHolder
++import android.view.SurfaceView
++import android.view.View
++import android.view.ViewGroup
++
++class ExternalDisplayPresentation(
++  context: Context,
++  display: Display,
++) : Presentation(context, display) {
++  private val surfaceOwner = Any()
++
++  override fun onCreate(savedInstanceState: Bundle?) {
++    super.onCreate(savedInstanceState)
++    window?.decorView?.setBackgroundColor(android.graphics.Color.BLACK)
++
++    val surfaceView = SurfaceView(context)
++    surfaceView.setBackgroundColor(android.graphics.Color.BLACK)
++    surfaceView.holder.addCallback(
++      object : SurfaceHolder.Callback {
++        override fun surfaceCreated(holder: SurfaceHolder) {
++          PlaybackSession.bindSurface(
++            surface = holder.surface,
++            width = surfaceView.width,
++            height = surfaceView.height,
++            owner = surfaceOwner,
++            ownerIsActive = { isShowing },
++          )
++        }
++
++        override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
++          PlaybackSession.resizeSurface(width, height, surfaceOwner)
++        }
++
++        override fun surfaceDestroyed(holder: SurfaceHolder) {
++          PlaybackSession.unbindSurface(surfaceOwner)
++        }
++      },
++    )
++    setContentView(
++      surfaceView,
++      ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT),
++    )
++  }
++}
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/MPVView.kt b/app/src/main/java/com/quantummpv/app/ui/player/MPVView.kt
+index 05655e43..275375ab 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/MPVView.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/MPVView.kt
+@@ -107,6 +107,12 @@ class MPVView(
+     }
+   }
+ 
++  fun rebindCurrentSurface() {
++    if (!holder.surface.isValid) return
++    isSurfaceReady = false
++    surfaceCreated(holder)
++  }
++
+   private data class RenderBackendSelection(
+     val vo: String,
+     val gpuApi: String,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/MediaPlaybackService.kt b/app/src/main/java/com/quantummpv/app/ui/player/MediaPlaybackService.kt
+index 7ba76861..272db547 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/MediaPlaybackService.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/MediaPlaybackService.kt
+@@ -29,6 +29,7 @@ import android.media.AudioManager
+ import android.os.Binder
+ import android.os.Build
+ import android.os.IBinder
++import android.os.PowerManager
+ import android.os.SystemClock
+ import android.support.v4.media.MediaBrowserCompat
+ import android.support.v4.media.MediaDescriptionCompat
+@@ -109,6 +110,7 @@ class MediaPlaybackService :
+     const val ACTION_NOTIFICATION_MEDIA_FAVORITE = "com.quantummpv.app.action.NOTIFICATION_MEDIA_FAVORITE"
+     const val ACTION_NOTIFICATION_CLOSE = "com.quantummpv.app.action.NOTIFICATION_CLOSE"
+     const val ACTION_NOTIFICATION_STOP = "com.quantummpv.app.action.NOTIFICATION_STOP"
++    const val EXTRA_EXTERNAL_DISPLAY_ACTIVE = "external_display_active"
+ 
+     @Volatile
+     internal var thumbnail: Bitmap? = null
+@@ -167,6 +169,10 @@ class MediaPlaybackService :
+ 
+     internal fun takeAudioOwnershipForDetachedPlayback(): Boolean = activeInstance?.takeAudioOwnership() == true
+ 
++    internal fun setExternalDisplayActive(active: Boolean) {
++      activeInstance?.updateExternalDisplayWakeLock(active)
++    }
++
+     /**
+      * Marks that playback is being handed back to a foreground Activity (e.g. reopening the
+      * player from the Mini Player / playback notification). Release the service-owned focus
+@@ -200,6 +206,13 @@ class MediaPlaybackService :
+       }
+     }
+ 
++    internal fun stopExternalDisplayBackground() {
++      activeInstance?.let { service ->
++        service.stopForegroundNotification()
++        service.stopSelf()
++      }
++    }
++
+     fun createNotificationChannel(context: Context) {
+       val channel =
+         NotificationChannel(
+@@ -267,6 +280,7 @@ class MediaPlaybackService :
+   @Volatile private var mpvAccessReleased = false
+   @Volatile private var isCurrentFavorite = false
+   private var usesAudioBackgroundPlayback = false
++  private var externalDisplayWakeLock: PowerManager.WakeLock? = null
+   private val audioManager by lazy { getSystemService(AUDIO_SERVICE) as AudioManager }
+ 
+   // Mutated from the framework's audio-focus callback thread as well as serviceScope and the
+@@ -338,6 +352,20 @@ class MediaPlaybackService :
+ 
+   fun isForegroundReady(): Boolean = foregroundReady
+ 
++  private fun updateExternalDisplayWakeLock(active: Boolean) {
++    if (active) {
++      if (externalDisplayWakeLock?.isHeld != true) {
++        externalDisplayWakeLock =
++          (getSystemService(POWER_SERVICE) as PowerManager)
++            .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "$TAG:external-display")
++            .apply { acquire() }
++      }
++    } else {
++      externalDisplayWakeLock?.let { if (it.isHeld) it.release() }
++      externalDisplayWakeLock = null
++    }
++  }
++
+   private fun deactivateMediaSession() {
+     foregroundReady = false
+     if (::mediaSession.isInitialized) mediaSession.isActive = false
+@@ -474,6 +502,9 @@ class MediaPlaybackService :
+       }
+ 
+       val title = it.getStringExtra("media_title")
++      if (it.hasExtra(EXTRA_EXTERNAL_DISPLAY_ACTIVE)) {
++        updateExternalDisplayWakeLock(it.getBooleanExtra(EXTRA_EXTERNAL_DISPLAY_ACTIVE, false))
++      }
+       val artist = it.getStringExtra("media_artist")
+       val uri = it.getStringExtra("media_uri")
+       val identifier = it.getStringExtra("media_identifier")
+@@ -1917,6 +1948,7 @@ class MediaPlaybackService :
+     try {
+       Log.d(TAG, "Service destroyed")
+ 
++      updateExternalDisplayWakeLock(false)
+       releaseMpvAccessBeforeShutdown()
+       foregroundReady = false
+       abandonAudioOwnership()
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt b/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt
+index 231ab303..37c00082 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt
+@@ -413,6 +413,7 @@ class PlayerActivity :
+    */
+   private lateinit var pipHelper: MPVPipHelper
+   private lateinit var castPlaybackController: CastPlaybackController
++  private var externalDisplayManager: ExternalDisplayManager? = null
+ 
+   private var isReady = false // Single flag: true when video loaded and ready
+   private var isUserFinishing = false
+@@ -650,6 +651,13 @@ class PlayerActivity :
+       finish()
+       return
+     }
++    externalDisplayManager =
++      ExternalDisplayManager(this) { active ->
++        onExternalDisplayStateChanged(active)
++      }.also {
++        it.enabled = playerPreferences.externalDisplayProjection.get()
++        it.start()
++      }
+     // Construct the Activity-scoped adapter only after the process-wide native core exists;
+     // its StateFlow declarations register native properties during ViewModel initialization.
+     viewModel.attachHost(this)
+@@ -1501,6 +1509,8 @@ class PlayerActivity :
+ 
+ 
+     runCatching {
++      externalDisplayManager?.release()
++      externalDisplayManager = null
+       mediaLoadJob?.cancel()
+       cancelPlaybackLoadRecovery()
+       if (::castPlaybackController.isInitialized) castPlaybackController.release()
+@@ -1857,7 +1867,7 @@ class PlayerActivity :
+ 
+       if (
+         PlayerLifecyclePolicy.shouldStartBackgroundPlaybackOnStop(
+-          backgroundPlaybackEnabled = isBackgroundPlaybackEnabled(),
++          backgroundPlaybackEnabled = isBackgroundPlaybackEnabled() || externalDisplayManager?.isActive == true,
+           backgroundPlaybackSessionActive = isBackgroundPlaybackSessionActive,
+           isUserFinishing = isUserFinishing,
+           isFinishing = isFinishing,
+@@ -1867,7 +1877,7 @@ class PlayerActivity :
+       ) {
+         if (startBackgroundPlayback(allowUserPrompt = false) == BackgroundPlaybackStartResult.Started) {
+           isBackgroundPlaybackSessionActive = true
+-          disableVideoForBackground()
++          if (externalDisplayManager?.isActive != true) disableVideoForBackground()
+         } else {
+           rememberResumeAfterUnlockBeforeForcedPause()
+           viewModel.pause()
+@@ -1881,7 +1891,7 @@ class PlayerActivity :
+       } else if (!isBackgroundPlaybackSessionActive && (isUserFinishing || isFinishing)) {
+         viewModel.pause()
+       } else if (isBackgroundPlaybackSessionActive && !isInBackgroundPlayback) {
+-        disableVideoForBackground()
++        if (externalDisplayManager?.isActive != true) disableVideoForBackground()
+       }
+     }.onFailure { e ->
+       Log.e(TAG, "Error during onStop", e)
+@@ -2015,6 +2025,36 @@ class PlayerActivity :
+     window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
+   }
+ 
++  private fun onExternalDisplayStateChanged(active: Boolean) {
++    binding.externalDisplayOverlay.visibility = if (active) View.VISIBLE else View.GONE
++    if (active) {
++      window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
++      if (!MediaPlaybackService.activityForeground && isReady && !isBackgroundPlaybackSessionActive) {
++        if (startBackgroundPlayback(allowUserPrompt = false) == BackgroundPlaybackStartResult.Started) {
++          isBackgroundPlaybackSessionActive = true
++        }
++      }
++    } else {
++      if (!isFinishing && !isDestroyed) {
++        player.rebindCurrentSurface()
++        if (!isDeviceScreenOffOrLocked()) setupWindowFlags()
++      }
++      if (!MediaPlaybackService.activityForeground &&
++        isBackgroundPlaybackSessionActive &&
++        !isBackgroundPlaybackEnabled()
++      ) {
++        isBackgroundPlaybackSessionActive = false
++        viewModel.pause()
++        MediaPlaybackService.stopExternalDisplayBackground()
++      }
++    }
++    MediaPlaybackService.setExternalDisplayActive(active)
++  }
++
++  fun setExternalDisplayProjectionEnabled(enabled: Boolean) {
++    externalDisplayManager?.enabled = enabled
++  }
++
+   private fun setLayoutInDisplayCutoutModeIfSupported(shortEdges: Boolean) {
+     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return
+     val mode =
+@@ -6672,6 +6712,10 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
+         putExtra("media_uri", currentDurableMediaUri())
+         putExtra("media_identifier", currentNotificationMediaIdentifier())
+         putExtra("audio_background_playback", isCurrentPlaybackAudio())
++        putExtra(
++          MediaPlaybackService.EXTRA_EXTERNAL_DISPLAY_ACTIVE,
++          externalDisplayManager?.isActive == true,
++        )
+       }
+ 
+     try {
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/PlayerPreferencesScreen.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/PlayerPreferencesScreen.kt
+index a5b95330..a4d69b74 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/PlayerPreferencesScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/PlayerPreferencesScreen.kt
+@@ -59,6 +59,7 @@ import com.quantummpv.app.ui.player.PlayerOrientation
+ import com.quantummpv.app.ui.player.ResumePlaybackMode
+ import com.quantummpv.app.ui.player.screenshot.ScreenshotFormat
+ import com.quantummpv.app.ui.preferences.components.SwitchPreference
++import com.quantummpv.app.ui.player.PlayerActivity
+ import com.quantummpv.app.ui.utils.LocalBackStack
+ import com.quantummpv.app.ui.utils.LocalShowSettingsBackArrow
+ import com.quantummpv.app.ui.utils.currentMpvConfigOverrideOptions
+@@ -215,6 +216,25 @@ val savePositionOnQuit by preferences.savePositionOnQuit.collectAsState()
+ 
+               PreferenceDivider()
+ 
++              val externalDisplayProjection by preferences.externalDisplayProjection.collectAsState()
++              SwitchPreference(
++                modifier = Modifier.settingsSearchTarget(R.string.pref_player_external_display_projection_title),
++                value = externalDisplayProjection,
++                onValueChange = { enabled ->
++                  preferences.externalDisplayProjection.set(enabled)
++                  (context as? PlayerActivity)?.setExternalDisplayProjectionEnabled(enabled)
++                },
++                title = { Text(stringResource(R.string.pref_player_external_display_projection_title)) },
++                summary = {
++                  Text(
++                    stringResource(R.string.pref_player_external_display_projection_summary),
++                    color = MaterialTheme.colorScheme.outline,
++                  )
++                },
++              )
++
++              PreferenceDivider()
++
+               val notificationStyle by advancedPreferences.notificationStyle.collectAsState()
+               val supportedNotificationStyles =
+                 remember {
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/SearchablePreference.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/SearchablePreference.kt
+index 9c172d4d..fc786169 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/SearchablePreference.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/SearchablePreference.kt
+@@ -327,6 +327,15 @@ object SearchablePreferences {
+           screen = PlayerPreferencesScreen,
+         ),
+       )
++      add(
++        SearchablePreference(
++          titleRes = R.string.pref_player_external_display_projection_title,
++          summaryRes = R.string.pref_player_external_display_projection_summary,
++          keywords = listOf("external display", "hdmi", "usb-c", "wireless display", "projection", "screen"),
++          category = "Player",
++          screen = PlayerPreferencesScreen,
++        ),
++      )
+       add(
+         SearchablePreference(
+           titleRes = R.string.pref_player_keep_screen_on_when_paused_title,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/SettingsSearchNavigation.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/SettingsSearchNavigation.kt
+index f88519da..5e7cd666 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/SettingsSearchNavigation.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/SettingsSearchNavigation.kt
+@@ -94,6 +94,7 @@ private val settingsSearchListAnchors: Map<Screen, List<SettingsSearchListAnchor
+         SettingsSearchListAnchor(titleRes = R.string.pref_autoplay_next_video_title, itemIndex = 1),
+         SettingsSearchListAnchor(titleRes = R.string.pref_auto_pip_title, itemIndex = 1),
+         SettingsSearchListAnchor(titleRes = R.string.pref_auto_pip_home_only_title, itemIndex = 1),
++        SettingsSearchListAnchor(titleRes = R.string.pref_player_external_display_projection_title, itemIndex = 1),
+         SettingsSearchListAnchor(titleRes = R.string.pref_player_keep_screen_on_when_paused_title, itemIndex = 1),
+         SettingsSearchListAnchor(titleRes = R.string.pref_player_autoplay_after_screen_unlock_title, itemIndex = 1),
+         SettingsSearchListAnchor(titleRes = R.string.pref_video_background_playback_title, itemIndex = 1),
+diff --git a/app/src/main/res/layout/player_layout.xml b/app/src/main/res/layout/player_layout.xml
+index d28f48c6..7a9f3786 100644
+--- a/app/src/main/res/layout/player_layout.xml
++++ b/app/src/main/res/layout/player_layout.xml
+@@ -24,6 +24,17 @@
+         app:layout_constraintStart_toStartOf="parent"
+         app:layout_constraintTop_toTopOf="parent" />
+ 
++    <View
++        android:id="@+id/external_display_overlay"
++        android:layout_width="0dp"
++        android:layout_height="0dp"
++        android:background="@android:color/black"
++        android:visibility="gone"
++        app:layout_constraintBottom_toBottomOf="parent"
++        app:layout_constraintEnd_toEndOf="parent"
++        app:layout_constraintStart_toStartOf="parent"
++        app:layout_constraintTop_toTopOf="parent" />
++
+     <androidx.compose.ui.platform.ComposeView
+         android:id="@+id/controls"
+         android:layout_width="match_parent"
+diff --git a/app/src/main/res/values-ar/strings.xml b/app/src/main/res/values-ar/strings.xml
+index 0b4a846e..2273fc03 100644
+--- a/app/src/main/res/values-ar/strings.xml
++++ b/app/src/main/res/values-ar/strings.xml
+@@ -126,6 +126,8 @@
+   <string name="pref_video_mini_player_dependency_message">يحتاج مشغل الفيديو المصغر إلى تشغيل الفيديو في الخلفية للحفاظ على تشغيل الفيديو بعد مغادرة المشغّل الكامل.</string>
+   <string name="pref_video_mini_player_dependency_confirm">تفعيل والمتابعة</string>
+   <string name="pref_player_keep_screen_on_when_paused_title">إبقاء الشاشة قيد التشغيل عند الإيقاف المؤقت</string>
++  <string name="pref_player_external_display_projection_title">العرض على شاشة خارجية</string>
++  <string name="pref_player_external_display_projection_summary">عند توصيل شاشة HDMI أو USB-C أو شاشة لاسلكية، شغّل الفيديو عليها واسمح بإيقاف تشغيل شاشة الهاتف</string>
+   <string name="pref_player_keep_screen_on_when_paused_summary">تبقى الشاشة مستيقظة أثناء إيقاف الفيديو مؤقتًا</string>
+   <string name="pref_player_keep_screen_on_when_paused_summary_disabled">يمكن إطفاء الشاشة أثناء إيقاف الفيديو مؤقتًا</string>
+   <string name="pref_player_autoplay_after_screen_unlock_title">التشغيل التلقائي بعد فتح قفل الشاشة</string>
+diff --git a/app/src/main/res/values-de/strings.xml b/app/src/main/res/values-de/strings.xml
+index b86fb082..c598bd29 100644
+--- a/app/src/main/res/values-de/strings.xml
++++ b/app/src/main/res/values-de/strings.xml
+@@ -126,6 +126,8 @@
+   <string name="pref_video_mini_player_dependency_message">Der Video-Mini-Player benötigt die Hintergrundwiedergabe des Video-Players, um die Videowiedergabe fortzusetzen, nachdem Sie den Vollbild-Player verlassen haben.</string>
+   <string name="pref_video_mini_player_dependency_confirm">Aktivieren und fortfahren</string>
+   <string name="pref_player_keep_screen_on_when_paused_title">Bildschirm bei Pause eingeschaltet lassen</string>
++  <string name="pref_player_external_display_projection_title">Auf externes Display projizieren</string>
++  <string name="pref_player_external_display_projection_summary">Wenn ein HDMI-, USB-C- oder drahtloses Display verbunden ist, das Video dort wiedergeben und den Telefonbildschirm ausschalten lassen</string>
+   <string name="pref_player_keep_screen_on_when_paused_summary">Der Bildschirm bleibt eingeschaltet, während das Video pausiert ist</string>
+   <string name="pref_player_keep_screen_on_when_paused_summary_disabled">Der Bildschirm kann sich ausschalten, während das Video pausiert ist</string>
+   <string name="pref_player_autoplay_after_screen_unlock_title">Automatische Wiedergabe nach Entsperren</string>
+diff --git a/app/src/main/res/values-es/strings.xml b/app/src/main/res/values-es/strings.xml
+index a0cf62f1..020991c1 100644
+--- a/app/src/main/res/values-es/strings.xml
++++ b/app/src/main/res/values-es/strings.xml
+@@ -126,6 +126,8 @@
+   <string name="pref_video_mini_player_dependency_message">El minireproductor de vídeo necesita la reproducción de fondo del reproductor de vídeo para seguir reproduciendo después de salir del reproductor completo.</string>
+   <string name="pref_video_mini_player_dependency_confirm">Activar y continuar</string>
+   <string name="pref_player_keep_screen_on_when_paused_title">Mantener la pantalla encendida al pausar</string>
++  <string name="pref_player_external_display_projection_title">Proyección en pantalla externa</string>
++  <string name="pref_player_external_display_projection_summary">Cuando haya una pantalla HDMI, USB-C o inalámbrica conectada, reproducir el vídeo en ella y permitir que la pantalla del teléfono se apague</string>
+   <string name="pref_player_keep_screen_on_when_paused_summary">La pantalla permanece encendida mientras el vídeo está en pausa</string>
+   <string name="pref_player_keep_screen_on_when_paused_summary_disabled">La pantalla puede apagarse mientras el vídeo está en pausa</string>
+   <string name="pref_player_autoplay_after_screen_unlock_title">Reproducir automáticamente al desbloquear la pantalla</string>
+diff --git a/app/src/main/res/values-fr/strings.xml b/app/src/main/res/values-fr/strings.xml
+index d8976949..af89b5a8 100644
+--- a/app/src/main/res/values-fr/strings.xml
++++ b/app/src/main/res/values-fr/strings.xml
+@@ -126,6 +126,8 @@
+   <string name="pref_video_mini_player_dependency_message">Le mini-lecteur vidéo a besoin de la lecture en arrière-plan du lecteur vidéo pour continuer à lire la vidéo après avoir quitté le lecteur complet.</string>
+   <string name="pref_video_mini_player_dependency_confirm">Activer et continuer</string>
+   <string name="pref_player_keep_screen_on_when_paused_title">Garder l’écran allumé en pause</string>
++  <string name="pref_player_external_display_projection_title">Projection sur écran externe</string>
++  <string name="pref_player_external_display_projection_summary">Lorsqu’un écran HDMI, USB-C ou sans fil est connecté, lire la vidéo dessus et permettre l’extinction de l’écran du téléphone</string>
+   <string name="pref_player_keep_screen_on_when_paused_summary">L’écran reste allumé lorsque la vidéo est en pause</string>
+   <string name="pref_player_keep_screen_on_when_paused_summary_disabled">L’écran peut s’éteindre lorsque la vidéo est en pause</string>
+   <string name="pref_player_autoplay_after_screen_unlock_title">Lecture automatique après déverrouillage</string>
+diff --git a/app/src/main/res/values-hi/strings.xml b/app/src/main/res/values-hi/strings.xml
+index aabf7255..907b60a8 100644
+--- a/app/src/main/res/values-hi/strings.xml
++++ b/app/src/main/res/values-hi/strings.xml
+@@ -123,6 +123,8 @@
+   <string name="pref_video_mini_player_dependency_message">वीडियो मिनी प्लेयर को पूर्ण प्लेयर छोड़ने के बाद भी वीडियो चलाते रहने के लिए वीडियो प्लेयर बैकग्राउंड प्लेबैक की आवश्यकता है।</string>
+   <string name="pref_video_mini_player_dependency_confirm">सक्षम करें और जारी रखें</string>
+   <string name="pref_player_keep_screen_on_when_paused_title">पॉज होने पर स्क्रीन ऑन रखें</string>
++  <string name="pref_player_external_display_projection_title">बाहरी डिस्प्ले प्रोजेक्शन</string>
++  <string name="pref_player_external_display_projection_summary">HDMI, USB-C या वायरलेस डिस्प्ले कनेक्ट होने पर वीडियो उस पर चलाएं और फोन की स्क्रीन बंद होने दें</string>
+   <string name="pref_player_keep_screen_on_when_paused_summary">वीडियो पॉज होने पर स्क्रीन जागती रहती है</string>
+   <string name="pref_player_keep_screen_on_when_paused_summary_disabled">वीडियो पॉज होने पर स्क्रीन बंद हो सकती है</string>
+   <string name="pref_player_autoplay_after_screen_unlock_title">स्क्रीन अनलॉक होने पर ऑटोप्ले करें</string>
+diff --git a/app/src/main/res/values-ja/strings.xml b/app/src/main/res/values-ja/strings.xml
+index fbc10cd9..17811d4f 100644
+--- a/app/src/main/res/values-ja/strings.xml
++++ b/app/src/main/res/values-ja/strings.xml
+@@ -126,6 +126,8 @@
+   <string name="pref_video_mini_player_dependency_message">動画ミニプレーヤーは、フルプレーヤーを離れた後も動画を再生し続けるために、動画プレーヤーのバックグラウンド再生が必要です。</string>
+   <string name="pref_video_mini_player_dependency_confirm">有効にして続行</string>
+   <string name="pref_player_keep_screen_on_when_paused_title">一時停止中も画面をオンにする</string>
++  <string name="pref_player_external_display_projection_title">外部ディスプレイへの投影</string>
++  <string name="pref_player_external_display_projection_summary">HDMI、USB-C、またはワイヤレスディスプレイ接続時に動画をそちらで再生し、スマートフォンの画面を消灯できるようにする</string>
+   <string name="pref_player_keep_screen_on_when_paused_summary">動画の一時停止中も画面を点灯したままにします</string>
+   <string name="pref_player_keep_screen_on_when_paused_summary_disabled">動画の一時停止中に画面をオフにできます</string>
+   <string name="pref_player_autoplay_after_screen_unlock_title">画面ロック解除後に自動再生</string>
+diff --git a/app/src/main/res/values-pt-rBR/strings.xml b/app/src/main/res/values-pt-rBR/strings.xml
+index 03ebf911..fa49a0ed 100644
+--- a/app/src/main/res/values-pt-rBR/strings.xml
++++ b/app/src/main/res/values-pt-rBR/strings.xml
+@@ -126,6 +126,8 @@
+   <string name="pref_video_mini_player_dependency_message">O Miniplayer de vídeo precisa da Reprodução em Segundo Plano do Player de Vídeo para manter o vídeo reproduzindo após sair do player completo.</string>
+   <string name="pref_video_mini_player_dependency_confirm">Ativar e continuar</string>
+   <string name="pref_player_keep_screen_on_when_paused_title">Manter a tela ligada quando pausado</string>
++  <string name="pref_player_external_display_projection_title">Projeção em tela externa</string>
++  <string name="pref_player_external_display_projection_summary">Quando uma tela HDMI, USB-C ou sem fio estiver conectada, reproduzir o vídeo nela e permitir que a tela do celular se apague</string>
+   <string name="pref_player_keep_screen_on_when_paused_summary">A tela permanece ligada enquanto o vídeo está pausado</string>
+   <string name="pref_player_keep_screen_on_when_paused_summary_disabled">A tela pode apagar enquanto o vídeo está pausado</string>
+   <string name="pref_player_autoplay_after_screen_unlock_title">Reprodução automática após desbloquear a tela</string>
+diff --git a/app/src/main/res/values-ru/strings.xml b/app/src/main/res/values-ru/strings.xml
+index cc5936fb..125616d7 100644
+--- a/app/src/main/res/values-ru/strings.xml
++++ b/app/src/main/res/values-ru/strings.xml
+@@ -126,6 +126,8 @@
+   <string name="pref_video_mini_player_dependency_message">Видео мини-плееру необходима функция фонового воспроизведения видео, чтобы видео продолжало воспроизводиться после выхода из полноценного проигрывателя.</string>
+   <string name="pref_video_mini_player_dependency_confirm">Включить и продолжить</string>
+   <string name="pref_player_keep_screen_on_when_paused_title">Не выключать экран во время паузы</string>
++  <string name="pref_player_external_display_projection_title">Проекция на внешний дисплей</string>
++  <string name="pref_player_external_display_projection_summary">При подключении HDMI-, USB-C- или беспроводного дисплея воспроизводить видео на нём и разрешить выключение экрана телефона</string>
+   <string name="pref_player_keep_screen_on_when_paused_summary">Экран остаётся включённым, пока видео приостановлено</string>
+   <string name="pref_player_keep_screen_on_when_paused_summary_disabled">Экран может выключаться, пока видео приостановлено</string>
+   <string name="pref_player_autoplay_after_screen_unlock_title">Автовоспроизведение после разблокировки</string>
+diff --git a/app/src/main/res/values-zh-rCN/strings.xml b/app/src/main/res/values-zh-rCN/strings.xml
+index 0e2e018b..fbc7d41c 100644
+--- a/app/src/main/res/values-zh-rCN/strings.xml
++++ b/app/src/main/res/values-zh-rCN/strings.xml
+@@ -126,6 +126,8 @@
+   <string name="pref_video_mini_player_dependency_message">视频迷你播放器需要视频播放器后台播放功能，以便在离开完整播放器后继续播放视频。</string>
+   <string name="pref_video_mini_player_dependency_confirm">启用并继续</string>
+   <string name="pref_player_keep_screen_on_when_paused_title">暂停时保持屏幕常亮</string>
++  <string name="pref_player_external_display_projection_title">外接显示投影</string>
++  <string name="pref_player_external_display_projection_summary">连接 HDMI、USB-C 或无线显示器后在其上播放视频，并允许手机屏幕熄灭</string>
+   <string name="pref_player_keep_screen_on_when_paused_summary">视频暂停时屏幕保持唤醒</string>
+   <string name="pref_player_keep_screen_on_when_paused_summary_disabled">视频暂停时允许屏幕关闭</string>
+   <string name="pref_player_autoplay_after_screen_unlock_title">解锁屏幕后自动播放</string>
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index a352d761..ceff559a 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -142,6 +142,8 @@
+   <string name="pref_video_mini_player_dependency_message">Video Mini Player needs Video Player Background Playback to keep the video playing after you leave the full player.</string>
+   <string name="pref_video_mini_player_dependency_confirm">Enable and continue</string>
+   <string name="pref_player_keep_screen_on_when_paused_title">Keep screen on when paused</string>
++  <string name="pref_player_external_display_projection_title">External display projection</string>
++  <string name="pref_player_external_display_projection_summary">When an HDMI, USB-C, or wireless display is connected, play video on it and let the phone screen turn off</string>
+   <string name="pref_player_keep_screen_on_when_paused_summary">Screen stays awake while video is paused</string>
+   <string name="pref_player_keep_screen_on_when_paused_summary_disabled">Screen can turn off while video is paused</string>
+   <string name="pref_player_autoplay_after_screen_unlock_title">Autoplay after screen unlock</string>
+-- 
+2.25.1
+

@@ -1,0 +1,41 @@
+From 4041357eb8b6f9ecdb49aef9b069d4efe9333632 Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <87899750+Riteshp2001@users.noreply.github.com>
+Date: Sun, 6 Sep 2026 09:32:06 +0000
+Subject: [PATCH 027/140] fixup! fix(network): keep connection actions above
+ add FAB
+
+Refs #606
+---
+ .../com/quantummpv/app/ui/browser/cards/NetworkConnectionCard.kt | 2 +-
+ .../mpvrx/ui/browser/networkstreaming/NetworkStreamingScreen.kt | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/cards/NetworkConnectionCard.kt b/app/src/main/java/com/quantummpv/app/ui/browser/cards/NetworkConnectionCard.kt
+index b6d8ec29..583a21c0 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/cards/NetworkConnectionCard.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/cards/NetworkConnectionCard.kt
+@@ -195,7 +195,7 @@ fun NetworkConnectionCard(
+           Modifier
+             .fillMaxWidth()
+             .padding(top = 12.dp),
+-        horizontalArrangement = Arrangement.End,
++        horizontalArrangement = Arrangement.Start,
+       ) {
+         when {
+           isConnecting -> {
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/networkstreaming/NetworkStreamingScreen.kt b/app/src/main/java/com/quantummpv/app/ui/browser/networkstreaming/NetworkStreamingScreen.kt
+index f7c2ed60..fad919f6 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/networkstreaming/NetworkStreamingScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/networkstreaming/NetworkStreamingScreen.kt
+@@ -766,7 +766,7 @@ private fun LocalNetworkContent(
+   val navBarHeight = com.quantummpv.app.ui.browser.LocalNavigationBarHeight.current.takeIf { it > 0.dp } ?: 88.dp
+   LazyColumn(
+     modifier = Modifier.fillMaxSize(),
+-    contentPadding = PaddingValues(start = 16.dp, top = 12.dp, end = 16.dp, bottom = navBarHeight + 88.dp),
++    contentPadding = PaddingValues(start = 16.dp, top = 12.dp, end = 16.dp, bottom = navBarHeight + 16.dp),
+     verticalArrangement = Arrangement.spacedBy(16.dp),
+   ) {
+     // 1. Stream Link Section (URL input & recent streams with Save to Media action)
+-- 
+2.25.1
+

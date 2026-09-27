@@ -1,0 +1,2507 @@
+From ae708dc7c0ea9f8228c20cf8625e16469b6465df Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <riteshp2001@gmail.com>
+Date: Fri, 18 Sep 2026 10:51:37 +0530
+Subject: [PATCH 134/140] fix(player): unify sheet spacing and preserve control
+ placement
+
+Shared player-sheet presentation
+- Add reusable drag handles, title/section headers, and labeled tooltip
+  actions with 48 dp targets. Keep title rows at a consistent minimum height.
+- Use a common 640 dp maximum sheet width, bottom navigation insets, and
+  bottom content spacing. Bound scrolling content below fixed headers while
+  preserving swipe dismissal and reduced-motion behavior.
+- Reuse the shared header, handle, and width in the native equalizer and
+  audio-properties modals without changing their modal hosting.
+
+Track selection and familiar tool placement
+- Organize audio tracks, channel choices, and effects into clearer groups.
+  Let channel choices wrap and use full-size switches for effects.
+- Give track rows consistent gutters, minimum heights, semibold selection
+  text, and room for metadata instead of bold italic labels.
+- Preserve the previous action arrangement requested in review: equalizer
+  and delay stay beside Add external audio; subtitle search, generation,
+  styling, and delay tools stay beside Add external subtitles.
+- Keep external subtitle translate/remove icons directly accessible instead
+  of moving them into a menu. Retain the improved row and section spacing.
+- Keep subtitle tools/progress/tracks in one scrolling list and bind the
+  translation and live-caption bars to their corresponding progress values.
+- Give online subtitle search a full-width input, a separate tool row, and
+  season controls below the field. Scroll controls with results and reuse
+  existing localized action labels.
+
+Other player controls
+- Align headings and spacing across visualizer, decoder, quality, chapters,
+  bookmark editor, speed, aspect, audiobook, zoom, ambience, post-processing,
+  scopes, and playlist sheets.
+- Put chapter timestamps below names and correct current-chapter scrolling
+  after moving its heading out of the list.
+- Replace cramped speed-preset buttons with a stable icon slot, enlarge
+  zoom controls, and remove scaled-down switches.
+- Wrap aspect/post-processing choices, make scopes scroll, and remove the
+  half-height caps from ambience and post-processing settings.
+- Restore More's tools beside its title, with icon-only actions in portrait
+  and labels in landscape, while keeping the improved section spacing.
+- Expand portrait playlist space and use the shared list-mode width.
+- Keep draggable panels at their previous 380 dp width cap. Retain safe-area
+  padding, more portrait height, a larger drag target, bounded scrolling,
+  and clamped horizontal positioning.
+
+Drawer title and chapter availability
+- Label the player control drawer Controls drawer using the existing string
+  already translated in every supported locale.
+- Always render configured BOOKMARKS_CHAPTERS and CURRENT_CHAPTER icons.
+  When the combined chapter/bookmark list is empty, use the standard
+  disabled tint and block both click and long-press actions instead of
+  hiding the controls. Preserve populated-list behavior and the separate
+  audio-player bookmark control.
+
+Validation
+- Focused editor diagnostics, source/resource/call-site inspection, and
+  git diff --check passed; the static source graph was refreshed.
+- No Android build, tests, formatter, emulator, or device UI checks were
+  run under the standing static-only constraint. Compilation and device
+  checks for orientation, IME, RTL/font scaling, TV focus, and gestures
+  remain required. No generated schemas or changelog files were edited.
+---
+ .../presentation/components/PlayerSheet.kt    | 111 +++++++-
+ .../ui/player/controls/PlayerControlDrawer.kt |   2 +-
+ .../player/controls/PlayerControlsShared.kt   |   2 +
+ .../components/panels/DraggablePanel.kt       |  32 +--
+ .../components/sheets/AmbientSheet.kt         |  32 +--
+ .../components/sheets/AspectRatioSheet.kt     |  60 ++---
+ .../components/sheets/AudioPropertiesSheet.kt |  43 ++--
+ .../components/sheets/AudioTracksSheet.kt     | 170 ++++++-------
+ .../components/sheets/AudiobookSheet.kt       |  13 +-
+ .../components/sheets/ChaptersSheet.kt        |  68 +++--
+ .../components/sheets/DecodersSheet.kt        |   6 +-
+ .../components/sheets/EqualizerSheet.kt       |  50 ++--
+ .../controls/components/sheets/MoreSheet.kt   |  14 +-
+ .../sheets/OnlineSubtitleSearchSheet.kt       |  85 +++----
+ .../components/sheets/PlaybackSpeedSheet.kt   |  60 ++---
+ .../components/sheets/PlaylistSheet.kt        |  19 +-
+ .../components/sheets/PostProcessingSheet.kt  |  39 +--
+ .../controls/components/sheets/ScopesSheet.kt |  42 ++--
+ .../components/sheets/SubtitleTracksSheet.kt  | 238 +++++++++---------
+ .../components/sheets/TrackSheetRows.kt       |   8 +-
+ .../components/sheets/VideoQualitySheet.kt    |  49 +---
+ .../components/sheets/VideoZoomSheet.kt       |  16 +-
+ .../components/sheets/VisualizerStyleSheet.kt |  47 ++--
+ 23 files changed, 530 insertions(+), 676 deletions(-)
+
+diff --git a/app/src/main/java/com/quantummpv/app/presentation/components/PlayerSheet.kt b/app/src/main/java/com/quantummpv/app/presentation/components/PlayerSheet.kt
+index e4e204b2..d6c8666f 100644
+--- a/app/src/main/java/com/quantummpv/app/presentation/components/PlayerSheet.kt
++++ b/app/src/main/java/com/quantummpv/app/presentation/components/PlayerSheet.kt
+@@ -12,7 +12,6 @@
+ package com.quantummpv.app.presentation.components
+ 
+ import android.annotation.SuppressLint
+-import android.content.res.Configuration.ORIENTATION_LANDSCAPE
+ import android.content.res.Configuration.ORIENTATION_PORTRAIT
+ import androidx.activity.compose.BackHandler
+ import androidx.compose.animation.core.animateFloatAsState
+@@ -31,19 +30,36 @@ import androidx.compose.foundation.gestures.anchoredDraggable
+ import androidx.compose.foundation.gestures.animateTo
+ import androidx.compose.foundation.interaction.MutableInteractionSource
+ import androidx.compose.foundation.layout.Box
++import androidx.compose.foundation.layout.Column
++import androidx.compose.foundation.layout.Row
++import androidx.compose.foundation.layout.RowScope
+ import androidx.compose.foundation.layout.WindowInsets
+ import androidx.compose.foundation.layout.WindowInsetsSides
+ import androidx.compose.foundation.layout.fillMaxSize
++import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.heightIn
+ import androidx.compose.foundation.layout.ime
+ import androidx.compose.foundation.layout.imePadding
++import androidx.compose.foundation.layout.navigationBarsPadding
+ import androidx.compose.foundation.layout.offset
+ import androidx.compose.foundation.layout.only
++import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.layout.size
+ import androidx.compose.foundation.layout.sizeIn
+ import androidx.compose.foundation.layout.systemBars
+ import androidx.compose.foundation.layout.windowInsetsPadding
++import androidx.compose.foundation.shape.RoundedCornerShape
+ import androidx.compose.foundation.shape.ZeroCornerSize
++import androidx.compose.material3.ExperimentalMaterial3Api
++import androidx.compose.material3.IconButton
+ import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.PlainTooltip
+ import androidx.compose.material3.Surface
++import androidx.compose.material3.Text
++import androidx.compose.material3.TooltipAnchorPosition
++import androidx.compose.material3.TooltipBox
++import androidx.compose.material3.TooltipDefaults
++import androidx.compose.material3.rememberTooltipState
+ import androidx.compose.runtime.Composable
+ import androidx.compose.runtime.CompositionLocalProvider
+ import androidx.compose.runtime.LaunchedEffect
+@@ -65,10 +81,15 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
+ import androidx.compose.ui.layout.onSizeChanged
+ import androidx.compose.ui.platform.LocalConfiguration
+ import androidx.compose.ui.platform.LocalDensity
++import androidx.compose.ui.semantics.heading
++import androidx.compose.ui.semantics.semantics
++import androidx.compose.ui.text.font.FontWeight
+ import androidx.compose.ui.unit.Dp
+ import androidx.compose.ui.unit.IntOffset
+ import androidx.compose.ui.unit.Velocity
+ import androidx.compose.ui.unit.dp
++import com.quantummpv.app.ui.icons.AppIcon
++import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.player.controls.components.tvFocusGroup
+ import com.quantummpv.app.ui.theme.AppMotion
+ import com.quantummpv.app.ui.theme.LocalMotionPolicy
+@@ -89,6 +110,8 @@ fun PlayerSheet(
+   surfaceColor: Color? = null,
+   isSwipeActive: Boolean = false,
+   swipeOffset: Float = 0f,
++  title: String? = null,
++  actions: @Composable RowScope.() -> Unit = {},
+   content: @Composable () -> Unit,
+ ) {
+   val scope = rememberCoroutineScope()
+@@ -105,13 +128,7 @@ fun PlayerSheet(
+   }
+   val density = LocalDensity.current
+   val latestOnDismissRequest by rememberUpdatedState(onDismissRequest)
+-  val maxWidth =
+-    customMaxWidth
+-      ?: if (LocalConfiguration.current.orientation == ORIENTATION_LANDSCAPE) {
+-        640.dp
+-      } else {
+-        420.dp
+-      }
++  val maxWidth = customMaxWidth ?: 640.dp
+   val isImeVisible = WindowInsets.ime.getBottom(density) > 0
+   val maxHeight =
+     customMaxHeight ?: when {
+@@ -194,6 +211,7 @@ fun PlayerSheet(
+       modifier =
+         Modifier
+           .sizeIn(maxWidth = maxWidth, maxHeight = maxHeight)
++          .fillMaxWidth()
+           .clickable(
+             interactionSource = remember { MutableInteractionSource() },
+             indication = null,
+@@ -228,7 +246,18 @@ fun PlayerSheet(
+           onBack = internalOnDismissRequest,
+         )
+         CompositionLocalProvider(LocalMotionPolicy provides MotionPolicy(reduceMotion = reducedMotion)) {
+-          content()
++          Column(
++            modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(bottom = 12.dp),
++            horizontalAlignment = Alignment.CenterHorizontally,
++          ) {
++            PlayerSheetDragHandle()
++            if (title != null) {
++              PlayerSheetHeader(title = title, actions = actions)
++            }
++            Box(Modifier.fillMaxWidth().weight(1f, fill = false)) {
++              content()
++            }
++          }
+         }
+       },
+     )
+@@ -291,6 +320,70 @@ fun PlayerSheet(
+   }
+ }
+ 
++@Composable
++fun PlayerSheetDragHandle() {
++  Box(Modifier.fillMaxWidth().padding(vertical = 12.dp), contentAlignment = Alignment.Center) {
++    Box(
++      Modifier.size(width = 32.dp, height = 4.dp)
++        .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f), RoundedCornerShape(2.dp)),
++    )
++  }
++}
++
++@Composable
++fun PlayerSheetHeader(
++  title: String,
++  modifier: Modifier = Modifier,
++  actions: @Composable RowScope.() -> Unit = {},
++) {
++  Row(
++    modifier = modifier.fillMaxWidth().heightIn(min = 60.dp).padding(start = 20.dp, end = 12.dp, bottom = 12.dp),
++    verticalAlignment = Alignment.CenterVertically,
++  ) {
++    Text(
++      text = title,
++      modifier = Modifier.weight(1f).padding(end = 8.dp).semantics { heading() },
++      style = MaterialTheme.typography.titleLarge,
++      fontWeight = FontWeight.SemiBold,
++      color = MaterialTheme.colorScheme.onSurface,
++    )
++    actions()
++  }
++}
++
++@Composable
++fun PlayerSheetSectionHeader(
++  title: String,
++  modifier: Modifier = Modifier,
++) {
++  Text(
++    text = title,
++    modifier = modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp).semantics { heading() },
++    style = MaterialTheme.typography.labelLarge,
++    fontWeight = FontWeight.SemiBold,
++    color = MaterialTheme.colorScheme.onSurfaceVariant,
++  )
++}
++
++@OptIn(ExperimentalMaterial3Api::class)
++@Composable
++fun PlayerSheetAction(
++  icon: AppIcon,
++  label: String,
++  onClick: () -> Unit,
++  enabled: Boolean = true,
++) {
++  TooltipBox(
++    positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
++    tooltip = { PlainTooltip { Text(label) } },
++    state = rememberTooltipState(),
++  ) {
++    IconButton(onClick = onClick, enabled = enabled, modifier = Modifier.size(48.dp)) {
++      Icon(icon, contentDescription = label, modifier = Modifier.size(24.dp))
++    }
++  }
++}
++
+ private fun <T> AnchoredDraggableState<T>.preUpPostDownNestedScrollConnection() =
+   object : NestedScrollConnection {
+     override fun onPreScroll(
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControlDrawer.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControlDrawer.kt
+index 5e2180bb..fea59235 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControlDrawer.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControlDrawer.kt
+@@ -271,7 +271,7 @@ private fun PlayerControlPanelHeader(onDismissRequest: () -> Unit) {
+     verticalAlignment = Alignment.CenterVertically,
+   ) {
+     Text(
+-      text = stringResource(R.string.player_sheets_more_title),
++      text = stringResource(R.string.pref_player_controls_drawer_title),
+       style = MaterialTheme.typography.titleLarge,
+       fontWeight = FontWeight.SemiBold,
+       modifier = Modifier.weight(1f),
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControlsShared.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControlsShared.kt
+index e0b64fe3..982aae32 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControlsShared.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControlsShared.kt
+@@ -210,6 +210,7 @@ fun RenderPlayerButton(
+     PlayerButton.BOOKMARKS_CHAPTERS -> {
+       ControlsButton(
+         Icons.RoundedFilled.Bookmarks,
++        enabled = chapters.isNotEmpty(),
+         onClick = { onOpenSheet(Sheets.Chapters) },
+         onLongClick = addPlaybackBookmark,
+         onLongClickLabel = stringResource(R.string.audiobook_add_bookmark),
+@@ -786,6 +787,7 @@ fun RenderPlayerButton(
+       if (isPortrait || compact || chapter == null) {
+         ControlsButton(
+           icon = Icons.RoundedFilled.Bookmarks,
++          enabled = chapters.isNotEmpty(),
+           onClick = { onOpenSheet(Sheets.Chapters) },
+           onLongClick = addPlaybackBookmark,
+           onLongClickLabel = stringResource(R.string.audiobook_add_bookmark),
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/panels/DraggablePanel.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/panels/DraggablePanel.kt
+index b108d477..e340c8c3 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/panels/DraggablePanel.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/panels/DraggablePanel.kt
+@@ -13,18 +13,20 @@ package com.quantummpv.app.ui.player.controls.components.panels
+ 
+ import android.content.res.Configuration
+ import androidx.compose.foundation.BorderStroke
+-import androidx.compose.foundation.background
+ import androidx.compose.foundation.gestures.detectDragGestures
+ import androidx.compose.foundation.layout.Box
+ import androidx.compose.foundation.layout.BoxWithConstraints
+ import androidx.compose.foundation.layout.Column
++import androidx.compose.foundation.layout.WindowInsets
+ import androidx.compose.foundation.layout.fillMaxSize
+ import androidx.compose.foundation.layout.fillMaxWidth
+ import androidx.compose.foundation.layout.height
+ import androidx.compose.foundation.layout.heightIn
+ import androidx.compose.foundation.layout.offset
+-import androidx.compose.foundation.layout.width
++import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.layout.safeDrawing
+ import androidx.compose.foundation.layout.widthIn
++import androidx.compose.foundation.layout.windowInsetsPadding
+ import androidx.compose.foundation.rememberScrollState
+ import androidx.compose.foundation.verticalScroll
+ import androidx.compose.material3.MaterialTheme
+@@ -46,8 +48,8 @@ import androidx.compose.ui.platform.LocalDensity
+ import androidx.compose.ui.unit.Dp
+ import androidx.compose.ui.unit.IntOffset
+ import androidx.compose.ui.unit.dp
++import com.quantummpv.app.presentation.components.PlayerSheetDragHandle
+ import com.quantummpv.app.ui.player.controls.panelCardsColors
+-import com.quantummpv.app.ui.theme.AppShapeScale
+ import kotlin.math.roundToInt
+ 
+ /**
+@@ -75,7 +77,7 @@ fun DraggablePanel(
+   val isPortrait = configuration.orientation == Configuration.ORIENTATION_PORTRAIT
+ 
+   BoxWithConstraints(
+-    modifier = modifier.fillMaxSize(),
++    modifier = modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(12.dp),
+     contentAlignment = if (isPortrait) Alignment.Center else Alignment.CenterEnd,
+   ) {
+     val density = LocalDensity.current
+@@ -87,14 +89,13 @@ fun DraggablePanel(
+     val maxOffset = 0f
+     val minOffset = -freeSpace
+ 
+-    // In portrait, cap panel height to 50% of available height
+-    val panelMaxHeight = if (isPortrait) maxHeight * 0.5f else maxHeight
++    val panelMaxHeight = if (isPortrait) maxHeight * 0.85f else maxHeight
+ 
+     val colors = panelCardsColors()
+     Surface(
+       modifier =
+         Modifier
+-          .offset { IntOffset(offsetX.roundToInt(), 0) }
++          .offset { IntOffset(offsetX.coerceIn(minOffset, maxOffset).roundToInt(), 0) }
+           .onSizeChanged { panelWidth = it.width }
+           .widthIn(max = 380.dp)
+           .heightIn(max = panelMaxHeight),
+@@ -105,13 +106,13 @@ fun DraggablePanel(
+       shadowElevation = shadowElevation,
+       border = border,
+     ) {
+-      Column {
++      Column(Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+         // Drag Handle & Indicator
+         Box(
+           modifier =
+             Modifier
+               .fillMaxWidth()
+-              .height(18.dp) // Good touch target size
++              .height(48.dp)
+               .pointerInput(maxOffset, minOffset) {
+                 detectDragGestures { change, dragAmount ->
+                   change.consume()
+@@ -121,16 +122,7 @@ fun DraggablePanel(
+               },
+           contentAlignment = Alignment.Center,
+         ) {
+-          Box(
+-            modifier =
+-              Modifier
+-                .width(32.dp)
+-                .height(4.dp)
+-                .background(
+-                  color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+-                  shape = AppShapeScale.extraSmall,
+-                ),
+-          )
++          PlayerSheetDragHandle()
+         }
+ 
+         // Fixed header (if provided) - stays constant
+@@ -140,7 +132,7 @@ fun DraggablePanel(
+ 
+         // Scrollable content
+         Column(
+-          modifier = Modifier.verticalScroll(rememberScrollState()),
++          modifier = Modifier.fillMaxWidth().weight(1f, fill = false).verticalScroll(rememberScrollState()),
+         ) {
+           content()
+         }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/AmbientSheet.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/AmbientSheet.kt
+index 2e0930a3..08aafc7d 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/AmbientSheet.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/AmbientSheet.kt
+@@ -9,7 +9,6 @@
+ 
+ package com.quantummpv.app.ui.player.controls.components.sheets
+ 
+-import android.content.res.Configuration
+ import androidx.compose.animation.AnimatedVisibility
+ import androidx.compose.animation.core.spring
+ import androidx.compose.animation.expandVertically
+@@ -44,10 +43,8 @@ import androidx.compose.runtime.setValue
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.graphics.graphicsLayer
+-import androidx.compose.ui.platform.LocalConfiguration
+ import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.text.font.FontWeight
+-import androidx.compose.ui.text.style.TextAlign
+ import androidx.compose.ui.unit.dp
+ import com.quantummpv.app.R
+ import com.quantummpv.app.presentation.components.PlayerSheet
+@@ -96,41 +93,18 @@ fun AmbientSheet(
+     ) {
+       matchesGlowPreset(AmbientShaderPresets.glowHighQuality, blurSamples, maxRadius, glowIntensity, satBoost, vignetteStrength, warmth, fadeCurve, opacity)
+     }
+-  val configuration = LocalConfiguration.current
+-  val customMaxHeight =
+-    if (configuration.orientation == Configuration.ORIENTATION_PORTRAIT) {
+-      (configuration.screenHeightDp * 0.5f).dp
+-    } else {
+-      null
+-    }
+-
+   PlayerSheet(
+     onDismissRequest = onDismissRequest,
+-    customMaxHeight = customMaxHeight,
++    title = androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.ui_ambience_mode),
+   ) {
+     Column(
+       modifier =
+         Modifier
+           .fillMaxWidth()
+           .verticalScroll(rememberScrollState())
+-          .padding(vertical = MaterialTheme.spacing.medium),
+-      verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.small),
++          .padding(vertical = 8.dp),
++      verticalArrangement = Arrangement.spacedBy(16.dp),
+     ) {
+-      // ── Title ────────────────────────────────────────────────────────
+-      Text(
+-        text =
+-          androidx.compose.ui.res
+-            .stringResource(com.quantummpv.app.R.string.ui_ambience_mode),
+-        style = MaterialTheme.typography.titleLarge,
+-        fontWeight = FontWeight.Bold,
+-        color = MaterialTheme.colorScheme.onSurface,
+-        textAlign = TextAlign.Center,
+-        modifier =
+-          Modifier
+-            .fillMaxWidth()
+-            .padding(bottom = 4.dp),
+-      )
+-
+       SingleChoiceSegmentedButtonRow(
+         modifier =
+           Modifier
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/AspectRatioSheet.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/AspectRatioSheet.kt
+index af89bc1a..4cce4150 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/AspectRatioSheet.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/AspectRatioSheet.kt
+@@ -15,8 +15,6 @@ import androidx.compose.foundation.layout.Column
+ import androidx.compose.foundation.layout.Row
+ import androidx.compose.foundation.layout.fillMaxWidth
+ import androidx.compose.foundation.layout.padding
+-import androidx.compose.foundation.lazy.LazyRow
+-import androidx.compose.foundation.lazy.items
+ import androidx.compose.foundation.rememberScrollState
+ import androidx.compose.foundation.text.KeyboardActions
+ import androidx.compose.foundation.text.KeyboardOptions
+@@ -44,6 +42,7 @@ import androidx.compose.ui.text.input.KeyboardType
+ import androidx.compose.ui.text.style.TextAlign
+ import androidx.compose.ui.unit.dp
+ import com.quantummpv.app.presentation.components.PlayerSheet
++import com.quantummpv.app.presentation.components.PlayerSheetSectionHeader
+ import com.quantummpv.app.ui.player.AutoCropState
+ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
+@@ -55,6 +54,7 @@ data class AspectRatio(
+   val isCustom: Boolean = false,
+ )
+ 
++@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+ @Composable
+ fun AspectRatioSheet(
+   currentRatio: Double?,
+@@ -82,24 +82,14 @@ fun AspectRatioSheet(
+       AspectRatio("2.39:1", 2.39),
+     )
+ 
+-  PlayerSheet(onDismissRequest) {
++  PlayerSheet(onDismissRequest, title = androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.ui_aspect_ratio)) {
+     Column(
+       modifier =
+         modifier
++          .fillMaxWidth()
+           .verticalScroll(rememberScrollState())
+-          .padding(vertical = MaterialTheme.spacing.medium),
++          .padding(bottom = 8.dp),
+     ) {
+-      Text(
+-        text =
+-          androidx.compose.ui.res
+-            .stringResource(com.quantummpv.app.R.string.ui_aspect_ratio),
+-        style = MaterialTheme.typography.headlineSmall,
+-        modifier =
+-          Modifier
+-            .padding(horizontal = MaterialTheme.spacing.medium)
+-            .padding(bottom = MaterialTheme.spacing.small),
+-      )
+-
+       val autoCropSummary =
+         when {
+           !autoCropControlEnabled -> com.quantummpv.app.R.string.ui_auto_crop_black_bars_managed
+@@ -131,27 +121,17 @@ fun AspectRatioSheet(
+       )
+ 
+       // Preset ratios
+-      Text(
+-        text =
+-          androidx.compose.ui.res
+-            .stringResource(com.quantummpv.app.R.string.ui_presets),
+-        style = MaterialTheme.typography.titleSmall,
+-        modifier =
+-          Modifier
+-            .padding(horizontal = MaterialTheme.spacing.medium)
+-            .padding(top = MaterialTheme.spacing.small),
+-      )
++      PlayerSheetSectionHeader(androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.ui_presets))
+ 
+-      LazyRow(
+-        modifier = Modifier.padding(horizontal = MaterialTheme.spacing.medium),
+-        horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.extraSmall),
++      androidx.compose.foundation.layout.FlowRow(
++        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
++        horizontalArrangement = Arrangement.spacedBy(8.dp),
+       ) {
+-        items(presetRatios, key = { it.label }) { ratio ->
++        presetRatios.forEach { ratio ->
+           InputChip(
+             selected = currentRatio?.let { abs(it - ratio.ratio) < 0.01 } ?: (ratio.ratio == -1.0),
+             onClick = { onSelectRatio(ratio.ratio) },
+             label = { Text(ratio.label) },
+-            modifier = Modifier.animateItem(),
+             leadingIcon = null,
+           )
+         }
+@@ -159,22 +139,13 @@ fun AspectRatioSheet(
+ 
+       // Custom ratios
+       if (customRatios.isNotEmpty()) {
+-        Text(
+-          text =
+-            androidx.compose.ui.res
+-              .stringResource(com.quantummpv.app.R.string.pref_gesture_double_tap_custom),
+-          style = MaterialTheme.typography.titleSmall,
+-          modifier =
+-            Modifier
+-              .padding(horizontal = MaterialTheme.spacing.medium)
+-              .padding(top = MaterialTheme.spacing.medium),
+-        )
++        PlayerSheetSectionHeader(androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.pref_gesture_double_tap_custom))
+ 
+-        LazyRow(
+-          modifier = Modifier.padding(horizontal = MaterialTheme.spacing.medium),
+-          horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.extraSmall),
++        androidx.compose.foundation.layout.FlowRow(
++          modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
++          horizontalArrangement = Arrangement.spacedBy(8.dp),
+         ) {
+-          items(customRatios, key = { it.label }) { ratio ->
++          customRatios.forEach { ratio ->
+             InputChip(
+               selected = currentRatio?.let { abs(it - ratio.ratio) < 0.01 } ?: false,
+               onClick = { onSelectRatio(ratio.ratio) },
+@@ -187,7 +158,6 @@ fun AspectRatioSheet(
+                   modifier = Modifier.clickable { onDeleteCustomRatio(ratio) },
+                 )
+               },
+-              modifier = Modifier.animateItem(),
+             )
+           }
+         }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/AudioPropertiesSheet.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/AudioPropertiesSheet.kt
+index af3ca973..4327f263 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/AudioPropertiesSheet.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/AudioPropertiesSheet.kt
+@@ -9,28 +9,29 @@
+ 
+ package com.quantummpv.app.ui.player.controls.components.sheets
+ 
+-import androidx.compose.foundation.background
+ import androidx.compose.foundation.layout.Column
+ import androidx.compose.foundation.layout.Spacer
+ import androidx.compose.foundation.layout.fillMaxWidth
+ import androidx.compose.foundation.layout.height
+ import androidx.compose.foundation.layout.padding
+ import androidx.compose.foundation.rememberScrollState
+-import androidx.compose.foundation.shape.RoundedCornerShape
+ import androidx.compose.foundation.verticalScroll
+ import androidx.compose.material3.ExperimentalMaterial3Api
+ import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.HorizontalDivider
+ import androidx.compose.material3.ModalBottomSheet
+ import androidx.compose.material3.SheetValue
+ import androidx.compose.material3.Text
+ import androidx.compose.material3.rememberBottomSheetState
+ import androidx.compose.runtime.Composable
+ import androidx.compose.ui.Modifier
+-import androidx.compose.ui.draw.clip
++import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.text.font.FontWeight
+ import androidx.compose.ui.text.style.TextOverflow
+ import androidx.compose.ui.unit.dp
+-import androidx.compose.ui.unit.sp
++import com.quantummpv.app.R
++import com.quantummpv.app.presentation.components.PlayerSheetDragHandle
++import com.quantummpv.app.presentation.components.PlayerSheetHeader
+ 
+ data class AudioPropertyItem(
+   val label: String,
+@@ -53,42 +54,32 @@ fun AudioPropertiesSheet(
+   ModalBottomSheet(
+     onDismissRequest = onDismissRequest,
+     sheetState = sheetState,
+-    containerColor = MaterialTheme.colorScheme.surfaceContainer,
+-    dragHandle = null,
++    containerColor = MaterialTheme.colorScheme.surface,
++    sheetMaxWidth = 640.dp,
++    dragHandle = { PlayerSheetDragHandle() },
+     modifier = modifier,
+   ) {
++    PlayerSheetHeader(stringResource(R.string.ui_media_info))
+     Column(
+       modifier =
+         Modifier
+           .fillMaxWidth()
++          .weight(1f, fill = false)
+           .verticalScroll(rememberScrollState())
+-          .padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 48.dp),
++          .padding(start = 20.dp, end = 20.dp, bottom = 16.dp),
+     ) {
+-      Text(
+-        text = "AUDIO PROPERTIES",
+-        style = MaterialTheme.typography.labelMedium,
+-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+-        letterSpacing = 2.sp,
+-        fontWeight = FontWeight.SemiBold,
+-      )
+-
+-      Spacer(modifier = Modifier.height(16.dp))
+-
+       properties.forEachIndexed { index, prop ->
+         Column(
+           modifier =
+             Modifier
+               .fillMaxWidth()
+-              .clip(RoundedCornerShape(12.dp))
+-              .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.5f))
+-              .padding(horizontal = 16.dp, vertical = 12.dp),
++              .padding(vertical = 12.dp),
+         ) {
+           Text(
+-            text = prop.label.uppercase(),
+-            style = MaterialTheme.typography.labelSmall,
+-            color = MaterialTheme.colorScheme.primary,
+-            fontWeight = FontWeight.Bold,
+-            letterSpacing = 1.sp,
++            text = prop.label,
++            style = MaterialTheme.typography.labelMedium,
++            color = MaterialTheme.colorScheme.onSurfaceVariant,
++            fontWeight = FontWeight.SemiBold,
+           )
+           Spacer(modifier = Modifier.height(4.dp))
+           Text(
+@@ -100,7 +91,7 @@ fun AudioPropertiesSheet(
+           )
+         }
+         if (index < properties.lastIndex) {
+-          Spacer(modifier = Modifier.height(8.dp))
++          HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+         }
+       }
+     }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/AudioTracksSheet.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/AudioTracksSheet.kt
+index 261fe495..991de0b4 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/AudioTracksSheet.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/AudioTracksSheet.kt
+@@ -14,23 +14,23 @@ import com.quantummpv.app.ui.player.PlaybackSession
+ import androidx.compose.animation.animateColorAsState
+ import androidx.compose.animation.core.snap
+ import androidx.compose.foundation.background
+-import androidx.compose.foundation.clickable
+ import androidx.compose.foundation.layout.Arrangement
+ import androidx.compose.foundation.layout.Column
++import androidx.compose.foundation.layout.ExperimentalLayoutApi
++import androidx.compose.foundation.layout.FlowRow
++import androidx.compose.foundation.layout.PaddingValues
+ import androidx.compose.foundation.layout.Row
+-import androidx.compose.foundation.layout.Spacer
+ import androidx.compose.foundation.layout.fillMaxWidth
+-import androidx.compose.foundation.layout.height
++import androidx.compose.foundation.layout.heightIn
+ import androidx.compose.foundation.layout.padding
+ import androidx.compose.foundation.lazy.LazyColumn
+-import androidx.compose.foundation.lazy.LazyRow
+ import androidx.compose.foundation.lazy.items
+ import androidx.compose.foundation.selection.selectable
++import androidx.compose.foundation.selection.toggleable
+ import androidx.compose.material3.FilterChip
+-import androidx.compose.material3.Icon
+-import androidx.compose.material3.IconButton
+ import androidx.compose.material3.MaterialTheme
+ import androidx.compose.material3.RadioButton
++import androidx.compose.material3.Switch
+ import androidx.compose.material3.Text
+ import androidx.compose.runtime.Composable
+ import androidx.compose.runtime.getValue
+@@ -39,25 +39,26 @@ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.semantics.Role
+-import androidx.compose.ui.text.font.FontStyle
+ import androidx.compose.ui.text.font.FontWeight
++import androidx.compose.ui.unit.dp
+ import com.quantummpv.app.R
+ import com.quantummpv.app.preferences.AudioChannels
+ import com.quantummpv.app.preferences.AudioPreferences
+ import com.quantummpv.app.preferences.preference.collectAsState
+ import com.quantummpv.app.presentation.components.PlayerSheet
+-import com.quantummpv.app.ui.icons.Icon
++import com.quantummpv.app.presentation.components.PlayerSheetAction
++import com.quantummpv.app.presentation.components.PlayerSheetSectionHeader
+ import com.quantummpv.app.ui.icons.Icons
+ import com.quantummpv.app.ui.player.TrackNode
+ import com.quantummpv.app.ui.player.controls.components.rememberTvInitialFocusRequester
+ import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
+ import com.quantummpv.app.ui.player.controls.components.tvInitialFocus
+ import com.quantummpv.app.ui.theme.AppMotion
+-import com.quantummpv.app.ui.theme.spacing
+ import com.quantummpv.app.ui.utils.rememberAppHaptics
+ import kotlinx.collections.immutable.ImmutableList
+ import org.koin.compose.koinInject
+ 
++@OptIn(ExperimentalLayoutApi::class)
+ @Composable
+ fun AudioTracksSheet(
+   tracks: ImmutableList<TrackNode>,
+@@ -82,27 +83,39 @@ fun AudioTracksSheet(
+       tracks.partition { track -> track.external != true }
+     }
+ 
+-  PlayerSheet(onDismissRequest) {
+-    Column(modifier) {
+-      AddTrackRow(
+-        stringResource(R.string.player_sheets_add_ext_audio),
+-        onAddAudioTrack,
+-        actions = {
+-          if (onOpenEqualizerSheet != null) {
+-            IconButton(onClick = onOpenEqualizerSheet, enabled = equalizerControlEnabled) {
+-              Icon(Icons.RoundedFilled.Equalizer, stringResource(R.string.btn_label_equalizer))
+-            }
+-          }
+-          IconButton(onClick = onOpenDelayPanel, enabled = delayControlEnabled) {
+-            Icon(Icons.RoundedFilled.AvTimer, null)
+-          }
+-        },
+-      )
+-
+-      LazyColumn {
++  PlayerSheet(
++    onDismissRequest = onDismissRequest,
++    title = stringResource(R.string.ui_audio_tab),
++  ) {
++      LazyColumn(
++        modifier = modifier.fillMaxWidth(),
++        contentPadding = PaddingValues(bottom = 8.dp),
++      ) {
++        item(key = "add_audio_track") {
++          AddTrackRow(
++            title = stringResource(R.string.player_sheets_add_ext_audio),
++            onClick = onAddAudioTrack,
++            actions = {
++              if (onOpenEqualizerSheet != null) {
++                PlayerSheetAction(
++                  icon = Icons.RoundedFilled.Equalizer,
++                  label = stringResource(R.string.btn_label_equalizer),
++                  onClick = onOpenEqualizerSheet,
++                  enabled = equalizerControlEnabled,
++                )
++              }
++              PlayerSheetAction(
++                icon = Icons.RoundedFilled.AvTimer,
++                label = stringResource(R.string.player_sheets_audio_delay_card_title),
++                onClick = onOpenDelayPanel,
++                enabled = delayControlEnabled,
++              )
++            },
++          )
++        }
+         if (embeddedTracks.isNotEmpty()) {
+           item(key = "embedded_audio_tracks_header") {
+-            AudioTrackSectionHeader(stringResource(R.string.player_sheets_embedded_audio_tracks))
++            PlayerSheetSectionHeader(stringResource(R.string.player_sheets_embedded_audio_tracks))
+           }
+         }
+         items(embeddedTracks, key = { it.id }) {
+@@ -116,7 +129,7 @@ fun AudioTracksSheet(
+         }
+         if (externalTracks.isNotEmpty()) {
+           item(key = "external_audio_tracks_header") {
+-            AudioTrackSectionHeader(stringResource(R.string.player_sheets_external_audio_tracks))
++            PlayerSheetSectionHeader(stringResource(R.string.player_sheets_external_audio_tracks))
+           }
+         }
+         items(externalTracks, key = { it.id }) {
+@@ -129,23 +142,13 @@ fun AudioTracksSheet(
+           )
+         }
+         item {
+-          Column(
+-            modifier =
+-              Modifier
+-                .fillMaxWidth()
+-                .padding(MaterialTheme.spacing.medium),
+-          ) {
+-            Spacer(modifier = Modifier.height(MaterialTheme.spacing.medium))
+-            Text(
+-              text = stringResource(id = R.string.pref_audio_channels),
+-              style = MaterialTheme.typography.titleMedium,
+-              color = MaterialTheme.colorScheme.primary,
+-            )
+-            Spacer(modifier = Modifier.height(MaterialTheme.spacing.smaller))
+-            LazyRow(
+-              horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.smaller),
++          Column(modifier = Modifier.fillMaxWidth()) {
++            PlayerSheetSectionHeader(stringResource(R.string.pref_audio_channels))
++            FlowRow(
++              modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
++              horizontalArrangement = Arrangement.spacedBy(8.dp),
+             ) {
+-              items(AudioChannels.entries, key = { it.name }) {
++              AudioChannels.entries.forEach {
+                 FilterChip(
+                   selected = audioChannels == it,
+                   enabled = if (it == AudioChannels.ReverseStereo) reverseStereoEnabled else audioChannelsEnabled,
+@@ -166,56 +169,37 @@ fun AudioTracksSheet(
+             val volumeNormalization by audioPreferences.volumeNormalization.collectAsState()
+             val drcEnabled by audioPreferences.drcEnabled.collectAsState()
+ 
+-            Spacer(modifier = Modifier.height(MaterialTheme.spacing.medium))
+-            Text(
+-              text = stringResource(id = R.string.pref_audio_effects),
+-              style = MaterialTheme.typography.titleMedium,
+-              color = MaterialTheme.colorScheme.primary,
+-            )
+-            Spacer(modifier = Modifier.height(MaterialTheme.spacing.smaller))
+-            LazyRow(
+-              horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.smaller),
++            PlayerSheetSectionHeader(stringResource(R.string.pref_audio_effects))
++            Row(
++              modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)
++                .toggleable(value = volumeNormalization, enabled = audioEffectsEnabled, role = Role.Switch,
++                  onValueChange = audioPreferences.volumeNormalization::set)
++                .padding(horizontal = 20.dp, vertical = 8.dp),
++              horizontalArrangement = Arrangement.spacedBy(16.dp),
++              verticalAlignment = Alignment.CenterVertically,
+             ) {
+-              item {
+-                FilterChip(
+-                  selected = volumeNormalization,
+-                  enabled = audioEffectsEnabled,
+-                  onClick = { audioPreferences.volumeNormalization.set(!volumeNormalization) },
+-                  label = { Text(text = stringResource(id = R.string.pref_audio_volume_normalization_title)) },
+-                  leadingIcon = null,
+-                )
+-              }
+-              item {
+-                FilterChip(
+-                  selected = drcEnabled,
+-                  enabled = audioEffectsEnabled,
+-                  onClick = { audioPreferences.drcEnabled.set(!drcEnabled) },
+-                  label = { Text(text = stringResource(id = R.string.pref_audio_drc_title)) },
+-                  leadingIcon = null,
+-                )
+-              }
++              Text(stringResource(R.string.pref_audio_volume_normalization_title), modifier = Modifier.weight(1f),
++                style = MaterialTheme.typography.bodyLarge)
++              Switch(checked = volumeNormalization, onCheckedChange = null, enabled = audioEffectsEnabled)
++            }
++            Row(
++              modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)
++                .toggleable(value = drcEnabled, enabled = audioEffectsEnabled, role = Role.Switch,
++                  onValueChange = audioPreferences.drcEnabled::set)
++                .padding(horizontal = 20.dp, vertical = 8.dp),
++              horizontalArrangement = Arrangement.spacedBy(16.dp),
++              verticalAlignment = Alignment.CenterVertically,
++            ) {
++              Text(stringResource(R.string.pref_audio_drc_title), modifier = Modifier.weight(1f),
++                style = MaterialTheme.typography.bodyLarge)
++              Switch(checked = drcEnabled, onCheckedChange = null, enabled = audioEffectsEnabled)
+             }
+           }
+         }
+       }
+-    }
+   }
+ }
+ 
+-@Composable
+-private fun AudioTrackSectionHeader(title: String) {
+-  Text(
+-    text = title,
+-    modifier =
+-      Modifier
+-        .fillMaxWidth()
+-        .padding(horizontal = MaterialTheme.spacing.medium, vertical = MaterialTheme.spacing.extraSmall),
+-    style = MaterialTheme.typography.labelLarge,
+-    color = MaterialTheme.colorScheme.primary,
+-    fontWeight = FontWeight.Bold,
+-  )
+-}
+-
+ @Composable
+ fun AudioTrackRow(
+   title: String,
+@@ -236,26 +220,28 @@ fun AudioTrackRow(
+     modifier =
+       modifier
+         .fillMaxWidth()
++        .heightIn(min = 56.dp)
++        .padding(horizontal = 8.dp, vertical = 2.dp)
+         .background(containerColor, MaterialTheme.shapes.medium)
+         .tvFocusHighlight(enabled = enabled)
+         .selectable(selected = isSelected, enabled = enabled, role = Role.RadioButton) {
+           onClick()
+           if (!isSelected) haptics.selection(true)
+         }
+-        .padding(horizontal = MaterialTheme.spacing.medium, vertical = MaterialTheme.spacing.extraSmall),
++        .padding(horizontal = 12.dp, vertical = 10.dp),
+     verticalAlignment = Alignment.CenterVertically,
+-    horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.smaller),
++    horizontalArrangement = Arrangement.spacedBy(12.dp),
+   ) {
+     RadioButton(
+       selected = isSelected,
+       onClick = null,
+       enabled = enabled,
+     )
+-    Column(modifier = Modifier.weight(1f)) {
++    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+       Text(
+         title,
+-        fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Normal,
+-        fontStyle = if (isSelected) FontStyle.Italic else FontStyle.Normal,
++        style = MaterialTheme.typography.bodyLarge,
++        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+       )
+       details?.let { value ->
+         Text(
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/AudiobookSheet.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/AudiobookSheet.kt
+index 671a58b0..061ffe2a 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/AudiobookSheet.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/AudiobookSheet.kt
+@@ -34,14 +34,11 @@ internal fun AudiobookSheet(sheet: Sheets, onChapterEnd: () -> Unit, onDismiss:
+   val timer by AudiobookPlayback.timer.collectAsStateWithLifecycle()
+   val ready = state.phase in setOf(PlaybackPhase.READY, PlaybackPhase.BACKGROUND)
+   val haptics = rememberAppHaptics()
+-  PlayerSheet(onDismissRequest = onDismiss) {
+-      LazyColumn(contentPadding = PaddingValues(bottom = 20.dp)) {
+-        item {
+-          Text(stringResource(when (sheet) {
+-            Sheets.AudiobookRewind -> R.string.audiobook_smart_rewind
+-            else -> R.string.audiobook_sleep_timer
+-          }), modifier = Modifier.padding(20.dp), style = MaterialTheme.typography.titleMedium)
+-        }
++  PlayerSheet(onDismissRequest = onDismiss, title = stringResource(when (sheet) {
++    Sheets.AudiobookRewind -> R.string.audiobook_smart_rewind
++    else -> R.string.audiobook_sleep_timer
++  })) {
++      LazyColumn(contentPadding = PaddingValues(bottom = 8.dp)) {
+         when (sheet) {
+           Sheets.AudiobookRewind -> items(listOf(0, 5, 10, 15, 30)) { seconds ->
+             BookSettingOption(
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/ChaptersSheet.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/ChaptersSheet.kt
+index 445c1474..6f65aac2 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/ChaptersSheet.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/ChaptersSheet.kt
+@@ -9,11 +9,14 @@
+ 
+ package com.quantummpv.app.ui.player.controls.components.sheets
+ 
++import androidx.compose.foundation.background
+ import androidx.compose.foundation.clickable
+ import androidx.compose.foundation.layout.Arrangement
+ import androidx.compose.foundation.layout.Column
++import androidx.compose.foundation.layout.PaddingValues
+ import androidx.compose.foundation.layout.Row
+ import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.heightIn
+ import androidx.compose.foundation.layout.padding
+ import androidx.compose.foundation.lazy.LazyColumn
+ import androidx.compose.foundation.lazy.itemsIndexed
+@@ -35,7 +38,6 @@ import androidx.compose.runtime.setValue
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.res.stringResource
+-import androidx.compose.ui.text.font.FontStyle
+ import androidx.compose.ui.text.font.FontWeight
+ import androidx.compose.ui.text.style.TextOverflow
+ import androidx.compose.ui.unit.dp
+@@ -65,25 +67,16 @@ fun ChaptersSheet(
+   LaunchedEffect(currentChapter, chapters) {
+     val index = if (currentChapter != null) chapters.indexOf(currentChapter) else -1
+     if (index >= 0) {
+-      listState.scrollToItem(index + 1)
++      listState.scrollToItem(index)
+     }
+   }
+ 
+-  PlayerSheet(onDismissRequest) {
+-    Column(
+-      modifier =
+-        modifier
+-          .padding(vertical = MaterialTheme.spacing.medium),
+-    ) {
+-      LazyColumn(state = listState) {
+-        item {
+-          val isAudiobook = com.quantummpv.app.ui.player.PlaybackSession.state.collectAsStateWithLifecycle().value.currentItem?.audiobook != null
+-          Text(
+-            text = stringResource(if (isAudiobook) R.string.audiobook_chapters else R.string.btn_label_bookmarks),
+-            modifier = Modifier.padding(horizontal = MaterialTheme.spacing.medium, vertical = MaterialTheme.spacing.small),
+-            style = MaterialTheme.typography.titleMedium,
+-          )
+-        }
++  val isAudiobook = com.quantummpv.app.ui.player.PlaybackSession.state.collectAsStateWithLifecycle().value.currentItem?.audiobook != null
++  PlayerSheet(
++    onDismissRequest,
++    title = stringResource(if (isAudiobook) R.string.audiobook_chapters else R.string.btn_label_bookmarks),
++  ) {
++      LazyColumn(modifier = modifier.fillMaxWidth(), state = listState, contentPadding = PaddingValues(bottom = 8.dp)) {
+         if (chapters.isEmpty()) item {
+           Text(stringResource(R.string.playback_bookmarks_empty), Modifier.padding(MaterialTheme.spacing.medium),
+             style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+@@ -98,7 +91,6 @@ fun ChaptersSheet(
+           )
+         }
+       }
+-    }
+   }
+ }
+ 
+@@ -115,27 +107,26 @@ fun ChapterTrack(
+     modifier =
+       modifier
+         .fillMaxWidth()
++        .heightIn(min = 56.dp)
++        .padding(horizontal = 8.dp, vertical = 2.dp)
++        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (selected) 0.35f else 0f), MaterialTheme.shapes.medium)
+         .clickable(onClick = onClick)
+-        .padding(vertical = MaterialTheme.spacing.smaller, horizontal = MaterialTheme.spacing.medium),
+-    horizontalArrangement = Arrangement.SpaceBetween,
++        .padding(vertical = 10.dp, horizontal = 12.dp),
++    horizontalArrangement = Arrangement.spacedBy(12.dp),
+     verticalAlignment = Alignment.CenterVertically,
+   ) {
+-    Text(
+-      stringResource(R.string.player_sheets_track_title_wo_lang, index + 1, chapter.name),
+-      fontStyle = if (selected) FontStyle.Italic else FontStyle.Normal,
+-      fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.Normal,
+-      color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+-      maxLines = 1,
+-      modifier = Modifier.weight(1f),
+-      overflow = TextOverflow.Ellipsis,
+-    )
+-    Text(
+-      Utils.prettyTime(chapter.start.toInt()),
+-      fontStyle = if (selected) FontStyle.Italic else FontStyle.Normal,
+-      fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.Normal,
+-      color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+-      modifier = Modifier.padding(start = MaterialTheme.spacing.small),
+-    )
++    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
++      Text(
++        stringResource(R.string.player_sheets_track_title_wo_lang, index + 1, chapter.name),
++        style = MaterialTheme.typography.bodyLarge,
++        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
++        color = MaterialTheme.colorScheme.onSurface,
++        maxLines = 2,
++        overflow = TextOverflow.Ellipsis,
++      )
++      Text(Utils.prettyTime(chapter.start.toInt()), style = MaterialTheme.typography.labelMedium,
++        color = MaterialTheme.colorScheme.onSurfaceVariant)
++    }
+     trailingContent()
+   }
+ }
+@@ -154,9 +145,8 @@ internal fun PlaybackBookmarkEditor(viewModel: PlayerViewModel, onSaved: () -> U
+   var failed by remember(bookmark) { mutableStateOf(false) }
+   val scope = rememberCoroutineScope()
+   val haptics = rememberAppHaptics()
+-  PlayerSheet(onDismissRequest = { if (!saving) onDismiss() }) {
+-    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+-      Text(stringResource(R.string.audiobook_bookmark_name), style = MaterialTheme.typography.titleMedium)
++  PlayerSheet(onDismissRequest = { if (!saving) onDismiss() }, title = stringResource(R.string.audiobook_bookmark_name)) {
++    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+       Text(Utils.prettyTime((viewModel.bookmarkPositionMs(bookmark) / 1000).toInt()),
+         style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+       OutlinedTextField(name, { name = it }, modifier = Modifier.fillMaxWidth(), enabled = !saving, maxLines = 3,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/DecodersSheet.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/DecodersSheet.kt
+index 2cd41aab..afc2fd66 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/DecodersSheet.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/DecodersSheet.kt
+@@ -10,11 +10,13 @@
+ package com.quantummpv.app.ui.player.controls.components.sheets
+ 
+ import androidx.compose.foundation.lazy.LazyColumn
++import androidx.compose.foundation.layout.PaddingValues
+ import androidx.compose.foundation.lazy.items
+ import androidx.compose.runtime.Composable
+ import androidx.compose.runtime.collectAsState
+ import androidx.compose.runtime.getValue
+ import androidx.compose.ui.res.stringResource
++import androidx.compose.ui.unit.dp
+ import com.quantummpv.app.BuildConfig
+ import com.quantummpv.app.R
+ import com.quantummpv.app.presentation.components.PlayerSheet
+@@ -36,8 +38,8 @@ fun DecodersSheet(
+       buildSupportsMediaCodecVulkan = BuildConfig.MPV_SUPPORTS_MEDIACODEC_VULKAN,
+     )
+ 
+-  PlayerSheet(onDismissRequest) {
+-    LazyColumn {
++  PlayerSheet(onDismissRequest, title = stringResource(R.string.btn_label_decoder)) {
++    LazyColumn(contentPadding = PaddingValues(bottom = 8.dp)) {
+       items(Decoder.entries.minusElement(Decoder.Auto), key = { it.name }) { decoder ->
+         AudioTrackRow(
+           title = stringResource(R.string.player_sheets_decoder_formatted, decoder.title, decoder.value),
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/EqualizerSheet.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/EqualizerSheet.kt
+index 8872dbcf..bccc6b40 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/EqualizerSheet.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/EqualizerSheet.kt
+@@ -44,9 +44,9 @@ import androidx.compose.runtime.remember
+ import androidx.compose.runtime.setValue
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
++import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.draw.alpha
+ import androidx.compose.ui.draw.clip
+-import androidx.compose.ui.draw.scale
+ import androidx.compose.ui.graphics.Color
+ import androidx.compose.ui.graphics.TransformOrigin
+ import androidx.compose.ui.graphics.graphicsLayer
+@@ -56,6 +56,9 @@ import androidx.compose.ui.text.style.TextAlign
+ import androidx.compose.ui.unit.Constraints
+ import androidx.compose.ui.unit.dp
+ import androidx.compose.ui.unit.sp
++import com.quantummpv.app.R
++import com.quantummpv.app.presentation.components.PlayerSheetDragHandle
++import com.quantummpv.app.presentation.components.PlayerSheetHeader
+ import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
+ import com.quantummpv.app.ui.player.controls.components.rememberTvInitialFocusRequester
+ import com.quantummpv.app.ui.player.controls.components.tvFocusGroup
+@@ -129,42 +132,27 @@ fun EqualizerSheet(
+   ModalBottomSheet(
+     onDismissRequest = onDismissRequest,
+     sheetState = sheetState,
+-    containerColor = MaterialTheme.colorScheme.surfaceContainer,
+-    dragHandle = null,
++    containerColor = MaterialTheme.colorScheme.surface,
++    sheetMaxWidth = 640.dp,
++    dragHandle = { PlayerSheetDragHandle() },
+     modifier = modifier.tvFocusGroup(),
+   ) {
++    PlayerSheetHeader(stringResource(R.string.btn_label_equalizer)) {
++      IconSwitch(
++        checked = state.isEnabled,
++        onCheckedChange = onEnabledChanged,
++        modifier = Modifier.tvInitialFocus(initialFocusRequester)
++          .tvFocusHighlight(RoundedCornerShape(12.dp), focusedScale = 1.04f),
++      )
++    }
+     Column(
+       modifier =
+         Modifier
+           .fillMaxWidth()
++          .weight(1f, fill = false)
+           .verticalScroll(rememberScrollState())
+-          .padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 48.dp),
++          .padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 16.dp),
+     ) {
+-      Row(
+-        modifier = Modifier.fillMaxWidth(),
+-        horizontalArrangement = Arrangement.SpaceBetween,
+-        verticalAlignment = Alignment.CenterVertically,
+-      ) {
+-        Text(
+-          text = "EQUALIZER",
+-          style = MaterialTheme.typography.labelMedium,
+-          color = MaterialTheme.colorScheme.onSurfaceVariant,
+-          letterSpacing = 2.sp,
+-          fontWeight = FontWeight.SemiBold,
+-        )
+-        IconSwitch(
+-          checked = state.isEnabled,
+-          onCheckedChange = onEnabledChanged,
+-          modifier =
+-            Modifier
+-              .tvInitialFocus(initialFocusRequester)
+-              .tvFocusHighlight(RoundedCornerShape(12.dp), focusedScale = 1.04f)
+-              .scale(0.8f),
+-        )
+-      }
+-
+-      Spacer(modifier = Modifier.height(16.dp))
+-
+       val presetsToShow =
+         if (state.currentPreset == EqualizerPreset.CUSTOM) {
+           listOf(EqualizerPreset.CUSTOM) + EqualizerPreset.MUSIC
+@@ -192,7 +180,7 @@ fun EqualizerSheet(
+         }
+       }
+ 
+-      Spacer(modifier = Modifier.height(32.dp))
++      Spacer(modifier = Modifier.height(20.dp))
+ 
+       Row(
+         modifier =
+@@ -231,7 +219,7 @@ fun EqualizerSheet(
+             } else {
+               MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+             },
+-          letterSpacing = 2.sp,
++          letterSpacing = 0.sp,
+           fontWeight = FontWeight.SemiBold,
+         )
+         Text(
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/MoreSheet.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/MoreSheet.kt
+index aeb890b0..1119a05a 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/MoreSheet.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/MoreSheet.kt
+@@ -96,9 +96,9 @@ fun MoreSheet(
+       modifier =
+         Modifier
+           .fillMaxWidth()
+-          .padding(MaterialTheme.spacing.medium)
+-          .verticalScroll(rememberScrollState()),
+-      verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.smaller),
++          .verticalScroll(rememberScrollState())
++          .padding(horizontal = 20.dp, vertical = 8.dp),
++      verticalArrangement = Arrangement.spacedBy(16.dp),
+     ) {
+       Row(
+         modifier = Modifier.fillMaxWidth(),
+@@ -106,12 +106,10 @@ fun MoreSheet(
+         verticalAlignment = Alignment.CenterVertically,
+       ) {
+         Text(
+-          text = stringResource(id = R.string.player_sheets_more_title),
+-          style = MaterialTheme.typography.headlineMedium,
++          text = stringResource(R.string.player_sheets_more_title),
++          style = MaterialTheme.typography.titleLarge,
+         )
+-        Row(
+-          verticalAlignment = Alignment.CenterVertically,
+-        ) {
++        Row(verticalAlignment = Alignment.CenterVertically) {
+           var isSleepTimerDialogShown by remember { mutableStateOf(false) }
+           TextButton(onClick = { isSleepTimerDialogShown = true }) {
+             Row(
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/OnlineSubtitleSearchSheet.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/OnlineSubtitleSearchSheet.kt
+index f9de5d40..af760ead 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/OnlineSubtitleSearchSheet.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/OnlineSubtitleSearchSheet.kt
+@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.sp
+ import com.quantummpv.app.R
+ import com.quantummpv.app.preferences.AiPreferences
+ import com.quantummpv.app.presentation.components.PlayerSheet
++import com.quantummpv.app.presentation.components.PlayerSheetAction
+ import com.quantummpv.app.presentation.components.RemoteImage
+ import com.quantummpv.app.repository.ai.AiService
+ import com.quantummpv.app.repository.subtitle.OnlineSubtitle
+@@ -118,8 +119,7 @@ fun OnlineSubtitleSearchSheet(
+       list.toImmutableList()
+     }
+ 
+-  PlayerSheet(onDismissRequest) {
+-    Column(modifier) {
++  PlayerSheet(onDismissRequest, title = stringResource(R.string.pref_subtitles_search_online)) {
+       val keyboardController = LocalSoftwareKeyboardController.current
+       val context = LocalContext.current
+       val mediaInfo = remember(mediaTitle) { MediaInfoParser.parse(mediaTitle) }
+@@ -191,16 +191,21 @@ fun OnlineSubtitleSearchSheet(
+         }
+       }
+ 
+-      Column(
+-        modifier = Modifier.padding(top = MaterialTheme.spacing.medium),
++      LazyColumn(
++        modifier = modifier.fillMaxWidth(),
++        contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 8.dp),
+       ) {
++        item(key = "subtitle_search_controls") {
++        Column(
++          modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
++          verticalArrangement = Arrangement.spacedBy(8.dp),
++        ) {
+         // Detected info chip
+         if (detectedInfo.isNotBlank() && mediaInfo.title.isNotBlank()) {
+           Row(
+             modifier =
+               Modifier
+                 .fillMaxWidth()
+-                .padding(horizontal = MaterialTheme.spacing.medium)
+                 .padding(bottom = 4.dp),
+             verticalAlignment = Alignment.CenterVertically,
+           ) {
+@@ -215,63 +220,32 @@ fun OnlineSubtitleSearchSheet(
+               text = detectedInfo,
+               style = MaterialTheme.typography.labelSmall,
+               color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+-              maxLines = 1,
+-              modifier = Modifier.basicMarquee(),
++              maxLines = 2,
++              overflow = TextOverflow.Ellipsis,
++              modifier = Modifier.weight(1f),
+             )
+           }
+         }
+ 
+-        Row(
+-          modifier =
+-            Modifier
+-              .fillMaxWidth()
+-              .padding(horizontal = MaterialTheme.spacing.medium, vertical = MaterialTheme.spacing.extraSmall),
+-          verticalAlignment = Alignment.CenterVertically,
+-          horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.small),
+-        ) {
+           OutlinedTextField(
+             value = searchQuery,
+             onValueChange = {
+               searchQuery = it
+             },
+-            modifier = Modifier.weight(1f),
++            modifier = Modifier.fillMaxWidth(),
+             placeholder = { Text(stringResource(R.string.pref_subtitles_search_online)) },
+             leadingIcon = {
+-              IconButton(onClick = {
+-                searchQuery = mediaInfo.title
+-                onSearchMedia(mediaInfo.title)
+-              }) {
+-                Icon(Icons.RoundedFilled.AutoFixHigh, null, tint = MaterialTheme.colorScheme.primary)
+-              }
++              Icon(Icons.RoundedFilled.Search, contentDescription = null)
+             },
+             trailingIcon = {
+-              Row(verticalAlignment = Alignment.CenterVertically) {
+                 if (searchQuery.isNotEmpty()) {
+                   IconButton(onClick = {
+                     searchQuery = ""
+                     onClearMediaSelection()
+                   }) {
+-                    Icon(Icons.RoundedFilled.Close, null)
+-                  }
+-                }
+-                if (aiPreferences.enabled.get() && aiPreferences.subtitleFormatWithAi.get()) {
+-                  if (isAiFormatting) {
+-                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+-                    Spacer(Modifier.width(4.dp))
+-                  } else {
+-                    IconButton(onClick = { formatWithAi() }) {
+-                      Icon(Icons.RoundedFilled.AutoAwesome, "Format with AI", tint = MaterialTheme.colorScheme.tertiary)
+-                    }
++                    Icon(Icons.RoundedFilled.Close, stringResource(R.string.ui_remove))
+                   }
+                 }
+-                if (isSearching || isDownloading || isSearchingMedia) {
+-                  CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+-                  Spacer(Modifier.width(8.dp))
+-                }
+-                IconButton(onClick = { runSearch() }) {
+-                  Icon(Icons.RoundedFilled.Search, null, tint = MaterialTheme.colorScheme.primary)
+-                }
+-              }
+             },
+             singleLine = true,
+             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+@@ -286,6 +260,29 @@ fun OnlineSubtitleSearchSheet(
+               ),
+           )
+ 
++          Row(
++            modifier = Modifier.fillMaxWidth(),
++            horizontalArrangement = Arrangement.End,
++            verticalAlignment = Alignment.CenterVertically,
++          ) {
++            PlayerSheetAction(Icons.RoundedFilled.AutoFixHigh, stringResource(R.string.generic_reset), {
++              searchQuery = mediaInfo.title
++              onSearchMedia(mediaInfo.title)
++            })
++            if (aiPreferences.enabled.get() && aiPreferences.subtitleFormatWithAi.get()) {
++              if (isAiFormatting) {
++                CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
++              } else {
++                PlayerSheetAction(Icons.RoundedFilled.AutoAwesome, stringResource(R.string.pref_ai_search_title), { formatWithAi() })
++              }
++            }
++            if (isSearching || isDownloading || isSearchingMedia) {
++              CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
++              Spacer(Modifier.width(12.dp))
++            }
++            PlayerSheetAction(Icons.RoundedFilled.Search, stringResource(R.string.settings_search_title), { runSearch() })
++          }
++
+           if (showWyzieSelection && selectedTvShow != null) {
+             SeriesSelectionControls(
+               tvShow = selectedTvShow,
+@@ -301,13 +298,14 @@ fun OnlineSubtitleSearchSheet(
+         }
+       }
+       if (isSearching) {
++        item(key = "subtitle_search_progress") {
+         LinearProgressIndicator(
+           modifier = Modifier.fillMaxWidth().padding(horizontal = MaterialTheme.spacing.medium).height(2.dp),
+           color = MaterialTheme.colorScheme.primary,
+         )
++        }
+       }
+ 
+-      LazyColumn {
+         // Autocomplete Results - Horizontal Scrollable
+         if (showWyzieSelection && mediaSearchResults.isNotEmpty()) {
+           item(key = "tmdb_results") {
+@@ -408,7 +406,6 @@ fun OnlineSubtitleSearchSheet(
+             }
+           }
+         }
+-      }
+     }
+   }
+ }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/PlaybackSpeedSheet.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/PlaybackSpeedSheet.kt
+index 675975d9..7ab7c720 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/PlaybackSpeedSheet.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/PlaybackSpeedSheet.kt
+@@ -16,16 +16,13 @@ import androidx.compose.foundation.layout.Column
+ import androidx.compose.foundation.layout.PaddingValues
+ import androidx.compose.foundation.layout.Row
+ import androidx.compose.foundation.layout.fillMaxWidth
+-import androidx.compose.foundation.layout.height
+ import androidx.compose.foundation.layout.padding
+ import androidx.compose.foundation.layout.size
+-import androidx.compose.foundation.layout.width
+ import androidx.compose.foundation.lazy.LazyRow
+ import androidx.compose.foundation.lazy.items
+ import androidx.compose.foundation.rememberScrollState
+ import androidx.compose.foundation.verticalScroll
+ import androidx.compose.material3.Button
+-import androidx.compose.material3.ButtonDefaults
+ import androidx.compose.material3.FilterChip
+ import androidx.compose.material3.Icon
+ import androidx.compose.material3.MaterialTheme
+@@ -37,7 +34,6 @@ import androidx.compose.runtime.remember
+ import androidx.compose.runtime.setValue
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+-import androidx.compose.ui.draw.scale
+ import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.text.font.FontWeight
+ import androidx.compose.ui.unit.dp
+@@ -45,6 +41,7 @@ import com.quantummpv.app.R
+ import com.quantummpv.app.preferences.AudioPreferences
+ import com.quantummpv.app.preferences.preference.collectAsState
+ import com.quantummpv.app.presentation.components.PlayerSheet
++import com.quantummpv.app.presentation.components.PlayerSheetAction
+ import com.quantummpv.app.presentation.components.RepeatingIconButton
+ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
+@@ -79,12 +76,12 @@ fun PlaybackSpeedSheet(
+       speedHaptics.move(speed, target)
+     }
+   }
+-  PlayerSheet(onDismissRequest = onDismissRequest) {
++  PlayerSheet(onDismissRequest = onDismissRequest, title = stringResource(R.string.btn_label_speed)) {
+     Column(
+       modifier
+         .verticalScroll(rememberScrollState())
+         .padding(vertical = 8.dp),
+-      verticalArrangement = Arrangement.spacedBy(6.dp),
++      verticalArrangement = Arrangement.spacedBy(16.dp),
+     ) {
+       // Slider and +/- Buttons
+ 
+@@ -93,10 +90,6 @@ fun PlaybackSpeedSheet(
+         modifier = Modifier.fillMaxWidth().padding(horizontal = MaterialTheme.spacing.medium),
+         horizontalAlignment = Alignment.CenterHorizontally,
+       ) {
+-        Text(
+-          text = stringResource(R.string.player_sheets_speed_slider_label),
+-          style = MaterialTheme.typography.bodyMedium,
+-        )
+         Text(
+           text = "${speed.toFixed(2)}x",
+           style = MaterialTheme.typography.headlineMedium,
+@@ -116,7 +109,7 @@ fun PlaybackSpeedSheet(
+         RepeatingIconButton(
+           onClick = { adjustSpeed((speed - 0.05f).coerceAtLeast(0.05f)) },
+           enabled = speedControlEnabled,
+-          modifier = Modifier.size(40.dp),
++          modifier = Modifier.size(48.dp),
+         ) {
+           Icon(Icons.RoundedFilled.Remove, null, modifier = Modifier.size(24.dp))
+         }
+@@ -139,7 +132,7 @@ fun PlaybackSpeedSheet(
+         RepeatingIconButton(
+           onClick = { adjustSpeed((speed + 0.05f).coerceAtMost(4.0f)) },
+           enabled = speedControlEnabled,
+-          modifier = Modifier.size(40.dp),
++          modifier = Modifier.size(48.dp),
+         ) {
+           Icon(Icons.RoundedFilled.Add, null, modifier = Modifier.size(24.dp))
+         }
+@@ -190,41 +183,23 @@ fun PlaybackSpeedSheet(
+         }
+ 
+         // Add / Remove Preset Buttons
+-        val buttonModifier =
+-          Modifier
+-            .height(32.dp)
+-            .width(110.dp)
+-
+         val isCurrentSpeedSaved = speedPresets.any { kotlin.math.abs(it - speed) < 0.001f }
+         val isDefaultPreset = defaultPresets.any { kotlin.math.abs(it - speed) < 0.001f }
+ 
+-        if (isCurrentSpeedSaved) {
+-          if (!isDefaultPreset) {
+-            Button(
++        androidx.compose.foundation.layout.Box(Modifier.size(48.dp)) {
++          if (isCurrentSpeedSaved && !isDefaultPreset) {
++            PlayerSheetAction(
++              icon = Icons.RoundedFilled.Remove,
++              label = stringResource(R.string.ui_remove),
+               onClick = { onRemoveSpeedPreset(speed) },
+               enabled = speedControlEnabled,
+-              colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+-              contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+-              modifier = buttonModifier,
+-            ) {
+-              Icon(Icons.RoundedFilled.Remove, null, modifier = Modifier.size(16.dp).padding(end = 4.dp))
+-              Text(
+-                androidx.compose.ui.res
+-                  .stringResource(com.quantummpv.app.R.string.ui_remove),
+-              )
+-            }
+-          }
+-        } else {
+-          Button(
+-            onClick = { onAddSpeedPreset(speed) },
+-            enabled = speedControlEnabled,
+-            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+-            modifier = buttonModifier,
+-          ) {
+-            Icon(Icons.RoundedFilled.Add, null, modifier = Modifier.size(16.dp).padding(end = 4.dp))
+-            Text(
+-              androidx.compose.ui.res
+-                .stringResource(com.quantummpv.app.R.string.ui_add),
++            )
++          } else if (!isCurrentSpeedSaved) {
++            PlayerSheetAction(
++              icon = Icons.RoundedFilled.Add,
++              label = stringResource(R.string.ui_add),
++              onClick = { onAddSpeedPreset(speed) },
++              enabled = speedControlEnabled,
+             )
+           }
+         }
+@@ -257,7 +232,6 @@ fun PlaybackSpeedSheet(
+               color = MaterialTheme.colorScheme.onSurfaceVariant,
+             )
+           },
+-          switchModifier = Modifier.scale(0.8f),
+         )
+       }
+ 
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/PlaylistSheet.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/PlaylistSheet.kt
+index 4cfa7cf7..2cd7a3f4 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/PlaylistSheet.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/PlaylistSheet.kt
+@@ -325,11 +325,7 @@ fun PlaylistSheet(
+   val screenWidth = LocalConfiguration.current.screenWidthDp.dp
+   val sheetWidth =
+     if (isListMode) {
+-      if (LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE) {
+-        640.dp
+-      } else {
+-        420.dp
+-      }
++      640.dp
+     } else {
+       screenWidth * 0.85f
+     }
+@@ -340,9 +336,10 @@ fun PlaylistSheet(
+     onDismissRequest = onDismissRequest,
+     modifier = Modifier.fillMaxWidth(),
+     customMaxWidth = sheetWidth,
+-    customMaxHeight = if (isPortrait) LocalConfiguration.current.screenHeightDp.dp * 0.5f else null,
++    customMaxHeight = if (isPortrait) LocalConfiguration.current.screenHeightDp.dp * 0.75f else null,
+     isSwipeActive = isSwipeActive,
+     swipeOffset = swipeOffset,
++    title = stringResource(R.string.ui_playlist),
+   ) {
+     Surface(
+       modifier = Modifier.fillMaxWidth(),
+@@ -376,9 +373,8 @@ fun PlaylistSheet(
+           verticalAlignment = Alignment.CenterVertically,
+           horizontalArrangement = Arrangement.SpaceBetween,
+         ) {
+-          Row(
+-            verticalAlignment = Alignment.CenterVertically,
+-            horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.smaller),
++          Column(
++            verticalArrangement = Arrangement.spacedBy(4.dp),
+             modifier = Modifier.weight(1f),
+           ) {
+             if (currentItem != null) {
+@@ -392,11 +388,6 @@ fun PlaylistSheet(
+                     color = accentColor,
+                   ),
+               )
+-              Text(
+-                text = "•",
+-                style = MaterialTheme.typography.bodyMedium,
+-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+-              )
+             }
+             Text(
+               text = "$totalCount items",
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/PostProcessingSheet.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/PostProcessingSheet.kt
+index f15fa86e..0d987c82 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/PostProcessingSheet.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/PostProcessingSheet.kt
+@@ -9,14 +9,12 @@
+ 
+ package com.quantummpv.app.ui.player.controls.components.sheets
+ 
+-import android.content.res.Configuration
+ import androidx.compose.animation.AnimatedVisibility
+ import androidx.compose.animation.core.spring
+ import androidx.compose.animation.expandVertically
+ import androidx.compose.animation.fadeIn
+ import androidx.compose.animation.fadeOut
+ import androidx.compose.animation.shrinkVertically
+-import androidx.compose.foundation.horizontalScroll
+ import androidx.compose.foundation.layout.Arrangement
+ import androidx.compose.foundation.layout.Column
+ import androidx.compose.foundation.layout.Row
+@@ -41,10 +39,8 @@ import androidx.compose.runtime.remember
+ import androidx.compose.runtime.setValue
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+-import androidx.compose.ui.platform.LocalConfiguration
+ import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.text.font.FontWeight
+-import androidx.compose.ui.text.style.TextAlign
+ import androidx.compose.ui.unit.dp
+ import com.quantummpv.app.R
+ import com.quantummpv.app.presentation.components.PlayerSheet
+@@ -59,6 +55,7 @@ import java.util.Locale
+ 
+ private fun formatVal(v: Float): String = String.format(Locale.US, "%.2f", v)
+ 
++@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+ @Composable
+ fun PostProcessingSheet(
+   viewModel: PlayerViewModel,
+@@ -67,48 +64,26 @@ fun PostProcessingSheet(
+   val preset by viewModel.postProcessingPreset.collectAsState()
+   val params by viewModel.postProcessingParams.collectAsState()
+ 
+-  val configuration = LocalConfiguration.current
+-  val customMaxHeight =
+-    if (configuration.orientation == Configuration.ORIENTATION_PORTRAIT) {
+-      (configuration.screenHeightDp * 0.55f).dp
+-    } else {
+-      null
+-    }
+-
+   PlayerSheet(
+     onDismissRequest = onDismissRequest,
+-    customMaxHeight = customMaxHeight,
++    title = stringResource(R.string.ui_post_processing),
+   ) {
+     Column(
+       modifier =
+         Modifier
+           .fillMaxWidth()
+           .verticalScroll(rememberScrollState())
+-          .padding(vertical = MaterialTheme.spacing.medium),
+-      verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.small),
++          .padding(vertical = 8.dp),
++      verticalArrangement = Arrangement.spacedBy(16.dp),
+     ) {
+-      // ── Title ────────────────────────────────────────────────────────
+-      Text(
+-        text = stringResource(R.string.ui_post_processing),
+-        style = MaterialTheme.typography.titleLarge,
+-        fontWeight = FontWeight.Bold,
+-        color = MaterialTheme.colorScheme.onSurface,
+-        textAlign = TextAlign.Center,
+-        modifier =
+-          Modifier
+-            .fillMaxWidth()
+-            .padding(bottom = 4.dp),
+-      )
+-
+       // ── Preset Chips ─────────────────────────────────────────────────
+-      Row(
++      androidx.compose.foundation.layout.FlowRow(
+         modifier =
+           Modifier
+             .fillMaxWidth()
+-            .horizontalScroll(rememberScrollState())
+-            .padding(horizontal = MaterialTheme.spacing.medium),
++            .padding(horizontal = 20.dp),
+         horizontalArrangement = Arrangement.spacedBy(8.dp),
+-        verticalAlignment = Alignment.CenterVertically,
++          verticalArrangement = Arrangement.spacedBy(4.dp),
+       ) {
+         PostProcessingPreset.entries.forEach { entry ->
+           FilterChip(
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/ScopesSheet.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/ScopesSheet.kt
+index 5c7236b0..2749b99c 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/ScopesSheet.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/ScopesSheet.kt
+@@ -21,9 +21,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
+ import androidx.compose.foundation.layout.padding
+ import androidx.compose.foundation.layout.width
+ import androidx.compose.foundation.rememberScrollState
++import androidx.compose.foundation.verticalScroll
+ import androidx.compose.material3.FilterChip
+ import androidx.compose.material3.Icon
+-import androidx.compose.material3.IconButton
+ import androidx.compose.material3.MaterialTheme
+ import androidx.compose.material3.SegmentedButton
+ import androidx.compose.material3.SegmentedButtonDefaults
+@@ -38,11 +38,11 @@ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.platform.LocalContext
+ import androidx.compose.ui.res.stringResource
+-import androidx.compose.ui.text.font.FontWeight
+ import androidx.compose.ui.text.style.TextDecoration
+ import androidx.compose.ui.unit.dp
+ import com.quantummpv.app.R
+ import com.quantummpv.app.presentation.components.PlayerSheet
++import com.quantummpv.app.presentation.components.PlayerSheetAction
+ import com.quantummpv.app.ui.components.themedSegmentedButtonColors
+ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
+@@ -65,34 +65,22 @@ fun ScopesSheet(
+   val state by viewModel.mediaScopesUiState.collectAsState()
+   val tabs = MediaScopeTab.entries
+ 
+-  PlayerSheet(onDismissRequest) {
++  PlayerSheet(
++    onDismissRequest,
++    title = stringResource(R.string.scopes_title),
++    actions = {
++      PlayerSheetAction(Icons.RoundedFilled.ZoomOutMap, stringResource(R.string.scopes_expand), {
++        viewModel.toggleMediaScopesExpanded()
++        onDismissRequest()
++      })
++      PlayerSheetAction(Icons.RoundedFilled.Close, stringResource(R.string.ui_close), onDismissRequest)
++    },
++  ) {
+     Column(
+-      modifier = modifier.fillMaxWidth().padding(MaterialTheme.spacing.medium),
++      modifier = modifier.fillMaxWidth().verticalScroll(rememberScrollState())
++        .padding(horizontal = MaterialTheme.spacing.medium, vertical = MaterialTheme.spacing.small),
+       verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.medium),
+     ) {
+-      Row(
+-        modifier = Modifier.fillMaxWidth(),
+-        verticalAlignment = Alignment.CenterVertically,
+-      ) {
+-        Text(
+-          text = stringResource(R.string.scopes_title),
+-          style = MaterialTheme.typography.titleLarge,
+-          fontWeight = FontWeight.Bold,
+-          modifier = Modifier.weight(1f),
+-        )
+-        IconButton(
+-          onClick = {
+-            viewModel.toggleMediaScopesExpanded()
+-            onDismissRequest()
+-          },
+-        ) {
+-          Icon(Icons.RoundedFilled.ZoomOutMap, stringResource(R.string.scopes_expand))
+-        }
+-        IconButton(onClick = onDismissRequest) {
+-          Icon(Icons.RoundedFilled.Close, stringResource(R.string.ui_close))
+-        }
+-      }
+-
+       SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+         tabs.forEachIndexed { index, tab ->
+           SegmentedButton(
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/SubtitleTracksSheet.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/SubtitleTracksSheet.kt
+index e34501ac..89ef9ab1 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/SubtitleTracksSheet.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/SubtitleTracksSheet.kt
+@@ -15,10 +15,11 @@ import androidx.compose.foundation.background
+ import androidx.compose.foundation.clickable
+ import androidx.compose.foundation.layout.Arrangement
+ import androidx.compose.foundation.layout.Column
++import androidx.compose.foundation.layout.PaddingValues
+ import androidx.compose.foundation.layout.Row
+-import androidx.compose.foundation.layout.Spacer
+ import androidx.compose.foundation.layout.fillMaxWidth
+ import androidx.compose.foundation.layout.height
++import androidx.compose.foundation.layout.heightIn
+ import androidx.compose.foundation.layout.padding
+ import androidx.compose.foundation.layout.size
+ import androidx.compose.foundation.lazy.LazyColumn
+@@ -27,11 +28,8 @@ import androidx.compose.foundation.selection.selectable
+ import androidx.compose.foundation.selection.toggleable
+ import androidx.compose.foundation.shape.CircleShape
+ import androidx.compose.material3.Checkbox
+-import androidx.compose.material3.FilledTonalIconButton
+ import androidx.compose.material3.HorizontalDivider
+ import androidx.compose.material3.Icon
+-import androidx.compose.material3.IconButton
+-import androidx.compose.material3.IconButtonDefaults
+ import androidx.compose.material3.LinearProgressIndicator
+ import androidx.compose.material3.MaterialTheme
+ import androidx.compose.material3.OutlinedTextField
+@@ -53,6 +51,8 @@ import androidx.compose.ui.text.style.TextOverflow
+ import androidx.compose.ui.unit.dp
+ import com.quantummpv.app.R
+ import com.quantummpv.app.presentation.components.PlayerSheet
++import com.quantummpv.app.presentation.components.PlayerSheetAction
++import com.quantummpv.app.presentation.components.PlayerSheetSectionHeader
+ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
+ import com.quantummpv.app.ui.player.TrackNode
+@@ -343,56 +343,63 @@ fun SubtitlesSheet(
+     )
+   }
+ 
+-  PlayerSheet(onDismissRequest) {
+-    Column(modifier) {
+-      AddTrackRow(
+-        stringResource(R.string.player_sheets_add_ext_sub),
+-        onAddSubtitle,
+-        actions = {
+-          IconButton(onClick = onOpenOnlineSearch) {
+-            Icon(Icons.RoundedFilled.Search, null)
+-          }
+-          if (aiEnabled && realtimeSubsEnabled) {
+-            IconButton(
+-              onClick = {
+-                if (isRealtimeSubsActive) {
+-                  onStopRealtimeSubtitle()
+-                } else if (configuredLanguages.isEmpty()) {
+-                  onStartRealtimeSubtitle("")
+-                } else if (configuredLanguages.size == 1) {
+-                  onStartRealtimeSubtitle(codeToName[configuredLanguages.first()] ?: configuredLanguages.first())
+-                } else {
+-                  showRealtimeLanguagePicker = true
+-                }
+-              },
+-            ) {
+-              Icon(
+-                if (isRealtimeSubsActive) Icons.RoundedFilled.Close else Icons.RoundedFilled.Translate,
+-                stringResource(R.string.pref_stt_title),
++  PlayerSheet(
++    onDismissRequest = onDismissRequest,
++    title = stringResource(R.string.btn_label_subtitles),
++  ) {
++    LazyColumn(
++      modifier = modifier.fillMaxWidth(),
++      contentPadding = PaddingValues(bottom = 8.dp),
++    ) {
++      item(key = "subtitle_actions") {
++        AddTrackRow(
++          stringResource(R.string.player_sheets_add_ext_sub),
++          onAddSubtitle,
++          actions = {
++            PlayerSheetAction(Icons.RoundedFilled.Search, stringResource(R.string.settings_search_title), onOpenOnlineSearch)
++            if (aiEnabled && realtimeSubsEnabled) {
++              PlayerSheetAction(
++                icon = if (isRealtimeSubsActive) Icons.RoundedFilled.Close else Icons.RoundedFilled.Translate,
++                label = stringResource(R.string.pref_stt_title),
++                onClick = {
++                  if (isRealtimeSubsActive) {
++                    onStopRealtimeSubtitle()
++                  } else if (configuredLanguages.isEmpty()) {
++                    onStartRealtimeSubtitle("")
++                  } else if (configuredLanguages.size == 1) {
++                    onStartRealtimeSubtitle(codeToName[configuredLanguages.first()] ?: configuredLanguages.first())
++                  } else {
++                    showRealtimeLanguagePicker = true
++                  }
++                },
++              )
++              PlayerSheetAction(
++                icon = Icons.RoundedFilled.Subtitles,
++                label = stringResource(R.string.ui_include_auto_generated_subtitles),
++                onClick = onGenerateSubtitle,
++                enabled = !isGeneratingSubtitles,
+               )
+             }
+-            IconButton(onClick = onGenerateSubtitle) {
+-              Icon(Icons.RoundedFilled.Subtitles, stringResource(R.string.ui_include_auto_generated_subtitles))
+-            }
+-          }
+-          IconButton(onClick = onOpenSubtitleSettings) {
+-            Icon(Icons.RoundedFilled.Palette, null)
+-          }
+-          IconButton(onClick = onOpenSubtitleDelay, enabled = delayControlEnabled) {
+-            Icon(Icons.RoundedFilled.AvTimer, null)
+-          }
+-        },
+-      )
++            PlayerSheetAction(
++              icon = Icons.RoundedFilled.Palette,
++              label = stringResource(R.string.player_sheets_subtitles_settings_title),
++              onClick = onOpenSubtitleSettings,
++            )
++            PlayerSheetAction(
++              icon = Icons.RoundedFilled.AvTimer,
++              label = stringResource(R.string.player_sheets_sub_delay_card_title),
++              onClick = onOpenSubtitleDelay,
++              enabled = delayControlEnabled,
++            )
++          },
++        )
++      }
+ 
+       if (aiEnabled && isTranslating) {
++        item(key = "translation_progress") {
+         Column(
+-          modifier =
+-            Modifier.padding(
+-              start = MaterialTheme.spacing.medium,
+-              end = MaterialTheme.spacing.medium,
+-              top = MaterialTheme.spacing.small,
+-            ),
+-          verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.extraSmall),
++          modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
++          verticalArrangement = Arrangement.spacedBy(8.dp),
+         ) {
+           Row(
+             verticalAlignment = Alignment.CenterVertically,
+@@ -405,39 +412,28 @@ fun SubtitlesSheet(
+               style = MaterialTheme.typography.bodySmall,
+               color = MaterialTheme.colorScheme.primary,
+               modifier = Modifier.weight(1f),
+-              maxLines = 1,
++              maxLines = 2,
+               overflow = TextOverflow.Ellipsis,
+             )
+-            FilledTonalIconButton(
++            PlayerSheetAction(
++              icon = Icons.RoundedFilled.Close,
++              label = stringResource(R.string.ui_cancel_translation),
+               onClick = onCancelTranslation,
+-              modifier = Modifier.size(36.dp),
+-              colors =
+-                IconButtonDefaults.filledTonalIconButtonColors(
+-                  containerColor = MaterialTheme.colorScheme.errorContainer,
+-                  contentColor = MaterialTheme.colorScheme.onErrorContainer,
+-                ),
+-            ) {
+-              Icon(
+-                imageVector = Icons.RoundedFilled.Close,
+-                contentDescription =
+-                  androidx.compose.ui.res.stringResource(
+-                    com.quantummpv.app.R.string.ui_cancel_translation,
+-                  ),
+-                modifier = Modifier.size(20.dp),
+-              )
+-            }
++            )
+           }
+           LinearProgressIndicator(
+-            progress = { realtimeSubsProgress },
++            progress = { translationProgress.coerceIn(0f, 1f) },
+             modifier = Modifier.fillMaxWidth(),
+           )
+         }
++        }
+       }
+ 
+       if (aiEnabled && isGeneratingSubtitles) {
++        item(key = "subtitle_generation_progress") {
+         androidx.compose.foundation.layout.Column(
+-          modifier = Modifier.padding(MaterialTheme.spacing.medium),
+-          verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.extraSmall),
++          modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
++          verticalArrangement = Arrangement.spacedBy(8.dp),
+         ) {
+           Text(
+             "${subtitleGenerationStatus.ifBlank {
+@@ -447,32 +443,34 @@ fun SubtitlesSheet(
+             color = MaterialTheme.colorScheme.primary,
+           )
+           LinearProgressIndicator(
+-            progress = { subtitleGenerationProgress },
++            progress = { subtitleGenerationProgress.coerceIn(0f, 1f) },
+             modifier = Modifier.fillMaxWidth(),
+           )
+         }
++        }
+       }
+ 
+       if (aiEnabled && isRealtimeSubsActive) {
++        item(key = "realtime_subtitle_progress") {
+         Column(
+-          modifier = Modifier.padding(MaterialTheme.spacing.medium),
+-          verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.extraSmall),
++          modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
++          verticalArrangement = Arrangement.spacedBy(8.dp),
+         ) {
+           Text(
+             realtimeSubsStatus.ifBlank { stringResource(R.string.pref_stt_title) },
+             style = MaterialTheme.typography.bodySmall,
+             color = MaterialTheme.colorScheme.primary,
+-            maxLines = 1,
++            maxLines = 2,
+             overflow = TextOverflow.Ellipsis,
+           )
+           LinearProgressIndicator(
+-            progress = { translationProgress },
++            progress = { realtimeSubsProgress.coerceIn(0f, 1f) },
+             modifier = Modifier.fillMaxWidth(),
+           )
+         }
++        }
+       }
+ 
+-      LazyColumn {
+         items(
+           items,
+           key = { item ->
+@@ -510,21 +508,7 @@ fun SubtitlesSheet(
+               )
+             }
+             is SubtitleItem.Header -> {
+-              Row(
+-                modifier =
+-                  Modifier
+-                    .fillMaxWidth()
+-                    .padding(horizontal = MaterialTheme.spacing.medium, vertical = MaterialTheme.spacing.extraSmall),
+-                verticalAlignment = Alignment.CenterVertically,
+-                horizontalArrangement = Arrangement.SpaceBetween,
+-              ) {
+-                Text(
+-                  text = item.title,
+-                  style = MaterialTheme.typography.labelLarge,
+-                  color = MaterialTheme.colorScheme.primary,
+-                  fontWeight = FontWeight.Bold,
+-                )
+-              }
++              PlayerSheetSectionHeader(item.title)
+             }
+             is SubtitleItem.Off -> {
+               val haptics = rememberAppHaptics()
+@@ -532,15 +516,21 @@ fun SubtitlesSheet(
+                 modifier =
+                   Modifier
+                     .fillMaxWidth()
++                    .heightIn(min = 56.dp)
++                    .padding(horizontal = 8.dp, vertical = 2.dp)
++                    .background(
++                      MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (subtitlesOff) 0.35f else 0f),
++                      MaterialTheme.shapes.medium,
++                    )
+                     .tvInitialFocus(initialFocusRequester)
+                     .tvFocusHighlight()
+                     .selectable(selected = subtitlesOff, role = Role.RadioButton) {
+                       onDisableSubtitles()
+                       if (!subtitlesOff) haptics.selection(false)
+                     }
+-                    .padding(horizontal = MaterialTheme.spacing.medium, vertical = MaterialTheme.spacing.extraSmall),
++                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                 verticalAlignment = Alignment.CenterVertically,
+-                horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.smaller),
++                horizontalArrangement = Arrangement.spacedBy(12.dp),
+               ) {
+                 if (isTelevision) {
+                   RadioButton(selected = subtitlesOff, onClick = null)
+@@ -549,7 +539,8 @@ fun SubtitlesSheet(
+                 }
+                 Text(
+                   stringResource(R.string.player_sheets_off),
+-                  fontWeight = if (subtitlesOff) FontWeight.Bold else FontWeight.Normal,
++                  style = MaterialTheme.typography.bodyLarge,
++                  fontWeight = if (subtitlesOff) FontWeight.SemiBold else FontWeight.Normal,
+                   modifier = Modifier.weight(1f),
+                 )
+               }
+@@ -566,10 +557,6 @@ fun SubtitlesSheet(
+             }
+           }
+         }
+-        item {
+-          Spacer(modifier = Modifier.height(MaterialTheme.spacing.medium))
+-        }
+-      }
+     }
+   }
+ }
+@@ -598,35 +585,42 @@ fun SubtitleTrackRow(
+     modifier =
+       modifier
+         .fillMaxWidth()
++        .heightIn(min = 56.dp)
++        .padding(horizontal = 8.dp, vertical = 2.dp)
+         .background(containerColor, MaterialTheme.shapes.medium)
+         .tvFocusHighlight()
+         .toggleable(value = isSelected, role = Role.Checkbox) { selected ->
+           onToggle()
+           haptics.selection(selected)
+         }
+-        .padding(horizontal = MaterialTheme.spacing.medium, vertical = MaterialTheme.spacing.extraSmall),
++        .padding(horizontal = 12.dp, vertical = 10.dp),
+     verticalAlignment = Alignment.CenterVertically,
+-    horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.smaller),
++    horizontalArrangement = Arrangement.spacedBy(12.dp),
+   ) {
+     if (isTelevision) {
+       RadioButton(selected = isSelected, onClick = null)
+     } else {
+       Checkbox(checked = isSelected, onCheckedChange = null)
+     }
+-    Text(title, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal, modifier = Modifier.weight(1f))
+-
+-    if (selectionIndicator != null) {
+-      Surface(
+-        shape = CircleShape,
+-        color = MaterialTheme.colorScheme.primaryContainer,
+-        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+-      ) {
+-        Text(
+-          text = selectionIndicator,
+-          style = MaterialTheme.typography.labelMedium,
+-          fontWeight = FontWeight.Bold,
+-          modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+-        )
++    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
++      Text(
++        text = title,
++        style = MaterialTheme.typography.bodyLarge,
++        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
++      )
++      if (selectionIndicator != null) {
++        Surface(
++          shape = CircleShape,
++          color = MaterialTheme.colorScheme.primaryContainer,
++          contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
++        ) {
++          Text(
++            text = selectionIndicator,
++            style = MaterialTheme.typography.labelMedium,
++            fontWeight = FontWeight.Bold,
++            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
++          )
++        }
+       }
+     }
+ 
+@@ -639,16 +633,14 @@ fun SubtitleTrackRow(
+ 
+     if (isExternal) {
+       if (translationEnabled) {
+-        IconButton(onClick = onTranslate) {
+-          Icon(
+-            Icons.RoundedFilled.Translate,
+-            contentDescription =
+-              androidx.compose.ui.res
+-                .stringResource(com.quantummpv.app.R.string.ui_translate),
+-          )
+-        }
++        PlayerSheetAction(
++          icon = Icons.RoundedFilled.Translate,
++          label = stringResource(R.string.ui_translate),
++          onClick = onTranslate,
++          enabled = !isCurrentlyTranslating,
++        )
+       }
+-      IconButton(onClick = onRemove) { Icon(Icons.RoundedFilled.Delete, contentDescription = null) }
++      PlayerSheetAction(Icons.RoundedFilled.Delete, stringResource(R.string.ui_remove), onRemove)
+     }
+   }
+ }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/TrackSheetRows.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/TrackSheetRows.kt
+index e5a22ff0..02ad48a1 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/TrackSheetRows.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/TrackSheetRows.kt
+@@ -15,7 +15,7 @@ import androidx.compose.foundation.layout.Arrangement
+ import androidx.compose.foundation.layout.Row
+ import androidx.compose.foundation.layout.RowScope
+ import androidx.compose.foundation.layout.fillMaxWidth
+-import androidx.compose.foundation.layout.height
++import androidx.compose.foundation.layout.heightIn
+ import androidx.compose.foundation.layout.padding
+ import androidx.compose.foundation.layout.size
+ import androidx.compose.material3.MaterialTheme
+@@ -43,10 +43,10 @@ fun AddTrackRow(
+       modifier
+         .fillMaxWidth()
+         .clickable(onClick = onClick)
+-        .height(56.dp)
+-        .padding(horizontal = MaterialTheme.spacing.medium),
++        .heightIn(min = 56.dp)
++        .padding(horizontal = 20.dp, vertical = 8.dp),
+     verticalAlignment = Alignment.CenterVertically,
+-    horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.smaller),
++    horizontalArrangement = Arrangement.spacedBy(12.dp),
+   ) {
+     Icon(
+       Icons.RoundedFilled.Add,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/VideoQualitySheet.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/VideoQualitySheet.kt
+index b43b51ec..9d1e49b4 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/VideoQualitySheet.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/VideoQualitySheet.kt
+@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.*
+ import androidx.compose.foundation.lazy.LazyColumn
+ import androidx.compose.foundation.lazy.items
+ import androidx.compose.foundation.selection.selectable
+-import androidx.compose.material3.IconButton
+ import androidx.compose.material3.MaterialTheme
+ import androidx.compose.material3.RadioButton
+ import androidx.compose.material3.Text
+@@ -30,7 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
+ import androidx.compose.ui.unit.dp
+ import com.quantummpv.app.R
+ import com.quantummpv.app.presentation.components.PlayerSheet
+-import com.quantummpv.app.ui.icons.Icon
++import com.quantummpv.app.presentation.components.PlayerSheetAction
+ import com.quantummpv.app.ui.icons.Icons
+ import com.quantummpv.app.ui.player.TrackNode
+ import com.quantummpv.app.ui.theme.AppMotion
+@@ -43,35 +42,10 @@ fun VideoQualitySheet(
+   onDownload: ((TrackNode) -> Unit)? = null,
+   onDismissRequest: () -> Unit,
+ ) {
+-  PlayerSheet(onDismissRequest) {
++  PlayerSheet(onDismissRequest, title = stringResource(R.string.player_video_quality)) {
+     val haptics = rememberAppHaptics()
+     Column(modifier = Modifier.fillMaxWidth()) {
+-      Row(
+-        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
+-        verticalAlignment = Alignment.CenterVertically,
+-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+-      ) {
+-        Icon(
+-          imageVector = Icons.RoundedFilled.Hd,
+-          contentDescription = stringResource(R.string.player_video_quality_button),
+-          modifier = Modifier.size(24.dp),
+-          tint = MaterialTheme.colorScheme.primary,
+-        )
+-        Column {
+-          Text(
+-            text = stringResource(R.string.player_video_quality),
+-            style = MaterialTheme.typography.titleLarge,
+-            fontWeight = FontWeight.Bold,
+-          )
+-          Text(
+-            text = stringResource(R.string.player_video_quality_summary),
+-            style = MaterialTheme.typography.bodySmall,
+-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+-          )
+-        }
+-      }
+-
+-      LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
++      LazyColumn(contentPadding = PaddingValues(bottom = 8.dp)) {
+         items(tracks, key = TrackNode::id) { track ->
+           val containerColor by animateColorAsState(
+             targetValue = MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (track.isSelected) 0.35f else 0f),
+@@ -82,7 +56,8 @@ fun VideoQualitySheet(
+             modifier =
+               Modifier
+                 .fillMaxWidth()
+-                .padding(horizontal = 16.dp, vertical = 4.dp),
++                .heightIn(min = 56.dp)
++                .padding(horizontal = 8.dp, vertical = 2.dp),
+             verticalAlignment = Alignment.CenterVertically,
+           ) {
+             Row(
+@@ -94,7 +69,7 @@ fun VideoQualitySheet(
+                     onSelect(track)
+                     if (!track.isSelected) haptics.selection(true)
+                     onDismissRequest()
+-                  }.padding(vertical = 6.dp),
++                  }.padding(horizontal = 12.dp, vertical = 10.dp),
+               verticalAlignment = Alignment.CenterVertically,
+             ) {
+               RadioButton(
+@@ -102,11 +77,11 @@ fun VideoQualitySheet(
+                 onClick = null,
+               )
+               Spacer(Modifier.width(12.dp))
+-              Column(modifier = Modifier.weight(1f)) {
++              Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                 Text(
+                   text = qualityLabel(track),
+                   style = MaterialTheme.typography.bodyLarge,
+-                  fontWeight = if (track.isSelected) FontWeight.Bold else FontWeight.Medium,
++                  fontWeight = if (track.isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                 )
+                 qualityDetails(track)?.let { details ->
+                   Text(
+@@ -118,13 +93,7 @@ fun VideoQualitySheet(
+               }
+             }
+             if (onDownload != null) {
+-              IconButton(onClick = { onDownload(track) }) {
+-                Icon(
+-                  imageVector = Icons.RoundedFilled.Download,
+-                  contentDescription = stringResource(R.string.downloads_download),
+-                  tint = MaterialTheme.colorScheme.primary,
+-                )
+-              }
++              PlayerSheetAction(Icons.RoundedFilled.Download, stringResource(R.string.downloads_download), { onDownload(track) })
+             }
+           }
+         }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/VideoZoomSheet.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/VideoZoomSheet.kt
+index 30ed3d4e..9ac2e1f7 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/VideoZoomSheet.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/VideoZoomSheet.kt
+@@ -38,7 +38,6 @@ import androidx.compose.runtime.rememberUpdatedState
+ import androidx.compose.runtime.setValue
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+-import androidx.compose.ui.draw.scale
+ import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.unit.dp
+ import com.quantummpv.app.R
+@@ -72,7 +71,7 @@ fun VideoZoomSheet(
+     if (zoomControlEnabled) currentOnSetVideoZoom(zoom)
+   }
+ 
+-  PlayerSheet(onDismissRequest = onDismissRequest) {
++  PlayerSheet(onDismissRequest = onDismissRequest, title = stringResource(R.string.btn_label_zoom)) {
+     ZoomVideoSheet(
+       zoom = zoom,
+       defaultZoom = defaultZoom,
+@@ -122,8 +121,8 @@ private fun ZoomVideoSheet(
+       modifier
+         .fillMaxWidth()
+         .verticalScroll(rememberScrollState())
+-        .padding(vertical = MaterialTheme.spacing.medium),
+-    verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.small),
++        .padding(vertical = 8.dp),
++      verticalArrangement = Arrangement.spacedBy(16.dp),
+   ) {
+     // Zoom slider with +/- buttons
+     Row(
+@@ -140,14 +139,14 @@ private fun ZoomVideoSheet(
+           onZoomChange(newZoom)
+         },
+         enabled = zoomControlEnabled,
+-        modifier = Modifier.size(36.dp),
++        modifier = Modifier.size(48.dp),
+       ) {
+         Icon(
+           Icons.RoundedFilled.Remove,
+           contentDescription =
+             androidx.compose.ui.res
+               .stringResource(com.quantummpv.app.R.string.ui_decrease_zoom),
+-          modifier = Modifier.size(18.dp),
++          modifier = Modifier.size(24.dp),
+         )
+       }
+ 
+@@ -168,14 +167,14 @@ private fun ZoomVideoSheet(
+           onZoomChange(newZoom)
+         },
+         enabled = zoomControlEnabled,
+-        modifier = Modifier.size(36.dp),
++        modifier = Modifier.size(48.dp),
+       ) {
+         Icon(
+           Icons.RoundedFilled.Add,
+           contentDescription =
+             androidx.compose.ui.res
+               .stringResource(com.quantummpv.app.R.string.ui_increase_zoom),
+-          modifier = Modifier.size(18.dp),
++          modifier = Modifier.size(24.dp),
+         )
+       }
+     }
+@@ -200,7 +199,6 @@ private fun ZoomVideoSheet(
+         IconSwitch(
+           checked = panAndZoomEnabled,
+           onCheckedChange = onPanAndZoomToggle,
+-          modifier = Modifier.scale(0.8f),
+           enabled = panControlEnabled,
+         )
+         Spacer(modifier = Modifier.width(8.dp))
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/VisualizerStyleSheet.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/VisualizerStyleSheet.kt
+index 0f6c0d4f..40eec9fd 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/VisualizerStyleSheet.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/VisualizerStyleSheet.kt
+@@ -9,20 +9,17 @@
+ 
+ package com.quantummpv.app.ui.player.controls.components.sheets
+ 
+-import androidx.compose.foundation.layout.Column
+-import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.layout.PaddingValues
++import androidx.compose.foundation.layout.fillMaxWidth
+ import androidx.compose.foundation.lazy.LazyColumn
+ import androidx.compose.foundation.lazy.items
+-import androidx.compose.material3.MaterialTheme
+-import androidx.compose.material3.Text
+ import androidx.compose.runtime.Composable
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.res.stringResource
+-import androidx.compose.ui.text.font.FontWeight
++import androidx.compose.ui.unit.dp
+ import com.quantummpv.app.R
+ import com.quantummpv.app.preferences.AudioVisualizerStyle
+ import com.quantummpv.app.presentation.components.PlayerSheet
+-import com.quantummpv.app.ui.theme.spacing
+ 
+ @Composable
+ fun VisualizerStyleSheet(
+@@ -31,30 +28,20 @@ fun VisualizerStyleSheet(
+   onDismissRequest: () -> Unit,
+   modifier: Modifier = Modifier,
+ ) {
+-  PlayerSheet(onDismissRequest) {
+-    Column(modifier = modifier) {
+-      Text(
+-        text = stringResource(R.string.pref_audio_visualizer_style_title),
+-        style = MaterialTheme.typography.titleMedium,
+-        fontWeight = FontWeight.Bold,
+-        color = MaterialTheme.colorScheme.onSurface,
+-        modifier =
+-          Modifier.padding(
+-            horizontal = MaterialTheme.spacing.medium,
+-            vertical = MaterialTheme.spacing.small,
+-          ),
+-      )
+-      LazyColumn {
+-        items(AudioVisualizerStyle.entries, key = { it.name }) { style ->
+-          AudioTrackRow(
+-            title = stringResource(style.title),
+-            isSelected = selectedStyle == style,
+-            onClick = {
+-              onSelectStyle(style)
+-              onDismissRequest()
+-            },
+-          )
+-        }
++  PlayerSheet(onDismissRequest, title = stringResource(R.string.pref_audio_visualizer_style_title)) {
++    LazyColumn(
++      modifier = modifier.fillMaxWidth(),
++      contentPadding = PaddingValues(bottom = 8.dp),
++    ) {
++      items(AudioVisualizerStyle.entries, key = { it.name }) { style ->
++        AudioTrackRow(
++          title = stringResource(style.title),
++          isSelected = selectedStyle == style,
++          onClick = {
++            onSelectStyle(style)
++            onDismissRequest()
++          },
++        )
+       }
+     }
+   }
+-- 
+2.25.1
+

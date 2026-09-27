@@ -25,8 +25,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
@@ -48,7 +46,7 @@ fun TintedSliderItem(
   enabled: Boolean = true,
   icon: @Composable () -> Unit = {},
 ) {
-  val haptic = LocalHapticFeedback.current
+  val haptics = rememberAdjustmentHaptics(min.toFloat(), max.toFloat(), (max - min - 1).coerceAtLeast(0))
 
   Row(
     modifier =

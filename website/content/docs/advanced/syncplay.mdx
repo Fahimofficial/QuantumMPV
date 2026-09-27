@@ -1,0 +1,46 @@
+---
+title: Syncplay rooms
+description: Connect to a Syncplay server and synchronize pause, seek, position, and readiness with a room.
+---
+
+Syncplay coordinates playback state between people who already have access to equivalent media. It does not send the video file to other participants.
+
+## Connection fields
+
+| Field | Requirement |
+| --- | --- |
+| Host | Non-empty Syncplay server hostname or IP address |
+| Port | `1` through `65535`; the public default is `8999` |
+| Username | Non-empty room display name |
+| Room | Non-empty room identifier shared by participants |
+| Password | Optional room password |
+
+The built-in defaults point to `syncplay.pl:8999`, username `MpvRxUser`, and room `TestRoom`. Replace the room and username before real use.
+
+## Join a room
+
+1. Open the Syncplay connection screen.
+2. Enter the same server, room, and password as the other participants.
+3. Choose a distinct username.
+4. Connect and wait for login to complete.
+5. Open the matching media and mark readiness when the room workflow requires it.
+
+Connection details are saved for reconnect. The password is part of those saved credentials, so do not reuse a sensitive account password as a room password.
+
+## What synchronizes
+
+mpvRx exchanges file identity, playback position, pause state, readiness, controller state, and timing information. Latency estimates are used to compensate for network delay and avoid reacting to the client's own echoed updates.
+
+Remote pause and seek events control the active playback session. Local state changes are sent back to the room after login.
+
+## Media matching
+
+Every participant should load the same cut and duration. Similar filenames do not guarantee identical timing. Different intros, frame rates, edits, or chapter layouts can stay offset even when the room position is synchronized.
+
+## Troubleshooting
+
+- **Cannot connect:** verify host, port, DNS, firewall, and server availability.
+- **Login fails:** confirm room password and remove accidental spaces.
+- **Position drifts:** compare file duration and edition across participants.
+- **Repeated reconnect:** test without VPN or mobile network switching.
+- **Wrong media:** leave the room, load the intended file, and reconnect.

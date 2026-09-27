@@ -1,0 +1,28 @@
+From 8a8f4c38b03f3352a84d52401702337d4a07ff91 Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <87899750+Riteshp2001@users.noreply.github.com>
+Date: Sun, 6 Sep 2026 16:32:54 +0000
+Subject: [PATCH 037/140] fix(player): save torrent links to recents
+
+---
+ .../main/java/com/quantummpv/app/ui/player/PlayerActivity.kt  | 5 -----
+ 1 file changed, 5 deletions(-)
+
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt b/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt
+index 04cc1b2c..635f0764 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt
+@@ -4960,11 +4960,6 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
+         return@runCatching
+       }
+ 
+-      if (isTorrentSource(uri.toString(), intent.type)) {
+-        // Torrent files have their own durable, per-file catalog in the Network tab.
+-        return@runCatching
+-      }
+-
+       val filePath =
+         when (uri.scheme) {
+           "file" -> {
+-- 
+2.25.1
+

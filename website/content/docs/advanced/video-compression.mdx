@@ -1,0 +1,48 @@
+---
+title: Video compression
+description: Compress one or several videos with quality presets, codec and resolution controls, target size, metadata, and destination options.
+---
+
+The video compressor uses the device's media encoding stack to create MP4 output. Codec support, speed, and quality depend on Android and the hardware encoder.
+
+## Start a compression job
+
+Select one or several local videos and open the compressor. mpvRx reads source size, dimensions, bitrate, audio bitrate, frame rate, duration, date, and display name before presenting configuration.
+
+## Presets
+
+| Preset | Use it for |
+| --- | --- |
+| High | Preserve more detail while reducing size. Always available. |
+| Medium | Balanced output; enabled for sources at least 1080p. |
+| Low | Smaller output; enabled for sources at least 720p. |
+| Target size | Calculate a bitrate around a requested output size. |
+
+Preset settings can be edited. A target that falls below the codec/resolution safety estimate is raised or warned about rather than silently promising an impossible result.
+
+## Video controls
+
+- **Codec:** available hardware encoders can include H.264, H.265, or AV1.
+- **Resolution:** keep source height or choose a lower target.
+- **Frame rate:** keep source FPS or cap it.
+- **Target size/bitrate:** balance duration, video bitrate, and audio budget.
+
+Newer codecs can produce smaller files at similar quality but may encode more slowly and play on fewer devices.
+
+## Audio and metadata
+
+Choose an audio bitrate, adjust output volume, or remove audio. Metadata preservation can retain source information where the output pipeline supports it.
+
+## Destination
+
+Save to the current folder or choose another destination. On Android 10 and newer, completed output can be saved to the media gallery; older versions may use Android's create-document picker.
+
+Batch jobs show the current file, queue position, item progress, total completed count, current output size, and total storage saved. Canceling stops the active operation and closes or resets the session.
+
+## Errors
+
+When compression fails, preserve the error text and log before resetting the overlay. Common causes include an unsupported hardware encoder, revoked source/destination permission, insufficient free space, an invalid target combination, or a damaged input stream.
+
+:::tip
+Test a short representative clip before starting a long batch. Hardware encoders can behave differently across resolutions, HDR sources, and vendor ROMs.
+:::

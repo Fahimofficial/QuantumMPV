@@ -1,0 +1,524 @@
+From 5ffc8b2b192826df47f2f52b89e54bfc69ae3d03 Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <riteshp2001@gmail.com>
+Date: Fri, 18 Sep 2026 14:31:28 +0530
+Subject: [PATCH 139/140] feat(gestures): make swipe action zones configurable
+
+Release disabled swipe zones before consuming horizontal movement so None no longer blocks tab navigation. Claim only the enabled inward action for each physical edge, respect already-consumed gestures, and keep captured drags within their selected direction.
+
+Add independent left and right swipe-zone width preferences with a 25% default and a 1-50% range. Apply the saved widths through the shared video, folder, and music-row swipe surface, with disjoint boundaries and live updates.
+
+Add percentage sliders and proportional zone previews to the existing swipe settings page. Show 0% for None while preserving the configured width for re-enabling. Retain physical edge placement in RTL layouts, existing haptic behavior, and accessible slider labels.
+
+Translate both new labels across all ten resource sets and expand settings-search keywords for zone width and percentage. The new preferences participate in the existing settings backup flow.
+
+Validation: focused static source and API inspection, editor diagnostics, XML parsing and placeholder checks across all locales, and git diff --check. No builds, tests, formatters, or device validation were run under the static-only constraint.
+---
+ .../mpvrx/preferences/BrowserPreferences.kt   |   4 +
+ .../ui/browser/cards/VideoSwipeSurface.kt     |  33 +++--
+ .../ui/preferences/SearchablePreference.kt    |   4 +-
+ .../VideoSwipePreferencesScreen.kt            | 137 +++++++++++++-----
+ app/src/main/res/values-ar/strings.xml        |   2 +
+ app/src/main/res/values-de/strings.xml        |   2 +
+ app/src/main/res/values-es/strings.xml        |   2 +
+ app/src/main/res/values-fr/strings.xml        |   2 +
+ app/src/main/res/values-hi/strings.xml        |   2 +
+ app/src/main/res/values-ja/strings.xml        |   2 +
+ app/src/main/res/values-pt-rBR/strings.xml    |   2 +
+ app/src/main/res/values-ru/strings.xml        |   2 +
+ app/src/main/res/values-zh-rCN/strings.xml    |   2 +
+ app/src/main/res/values/strings.xml           |   2 +
+ 14 files changed, 154 insertions(+), 44 deletions(-)
+
+diff --git a/app/src/main/java/com/quantummpv/app/preferences/BrowserPreferences.kt b/app/src/main/java/com/quantummpv/app/preferences/BrowserPreferences.kt
+index 92166079..40b6fcef 100644
+--- a/app/src/main/java/com/quantummpv/app/preferences/BrowserPreferences.kt
++++ b/app/src/main/java/com/quantummpv/app/preferences/BrowserPreferences.kt
+@@ -44,6 +44,8 @@ class BrowserPreferences(
+ ) {
+   companion object {
+     internal const val ONBOARDING_COMPLETED_KEY = "onboarding_completed"
++    internal const val DEFAULT_VIDEO_SWIPE_ZONE_PERCENT = 25
++    internal val VIDEO_SWIPE_ZONE_RANGE = 1..50
+   }
+ 
+   // Folder sorting preferences
+@@ -55,6 +57,8 @@ class BrowserPreferences(
+   val videoSortOrder = preferenceStore.getEnum("video_sort_order", SortOrder.Ascending)
+   val videoSwipeRight = preferenceStore.getEnum("video_swipe_right", VideoSwipeAction.ToggleWatched)
+   val videoSwipeLeft = preferenceStore.getEnum("video_swipe_left", VideoSwipeAction.AddToPlaylist)
++  val videoSwipeRightZonePercent = preferenceStore.getInt("video_swipe_right_zone_percent", DEFAULT_VIDEO_SWIPE_ZONE_PERCENT)
++  val videoSwipeLeftZonePercent = preferenceStore.getInt("video_swipe_left_zone_percent", DEFAULT_VIDEO_SWIPE_ZONE_PERCENT)
+ 
+   // Music view mode and sorting preferences
+   val musicViewMode = preferenceStore.getEnum("music_view_mode", MusicViewMode.GRID)
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/cards/VideoSwipeSurface.kt b/app/src/main/java/com/quantummpv/app/ui/browser/cards/VideoSwipeSurface.kt
+index 6f424250..eed80b9a 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/cards/VideoSwipeSurface.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/cards/VideoSwipeSurface.kt
+@@ -49,7 +49,9 @@ import androidx.compose.ui.text.style.TextAlign
+ import androidx.compose.ui.text.style.TextOverflow
+ import androidx.compose.ui.unit.dp
+ import com.quantummpv.app.R
++import com.quantummpv.app.preferences.BrowserPreferences
+ import com.quantummpv.app.preferences.VideoSwipeAction
++import com.quantummpv.app.preferences.preference.collectAsState
+ import com.quantummpv.app.ui.icons.AppIcon
+ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
+@@ -57,6 +59,7 @@ import com.quantummpv.app.ui.theme.AppMotion
+ import com.quantummpv.app.ui.utils.rememberAppHaptics
+ import com.quantummpv.app.utils.device.DeviceFormFactor
+ import kotlinx.coroutines.flow.collect
++import org.koin.compose.koinInject
+ import kotlin.math.abs
+ 
+ @StringRes
+@@ -129,6 +132,11 @@ internal fun VideoSwipeSurface(
+     Card(modifier = modifier, shape = shape, colors = colors, content = content)
+     return
+   }
++  val preferences = koinInject<BrowserPreferences>()
++  val rightZonePercent by preferences.videoSwipeRightZonePercent.collectAsState()
++  val leftZonePercent by preferences.videoSwipeLeftZonePercent.collectAsState()
++  val rightSwipeZoneFraction = rightZonePercent.coerceIn(BrowserPreferences.VIDEO_SWIPE_ZONE_RANGE) / 100f
++  val leftSwipeZoneFraction = leftZonePercent.coerceIn(BrowserPreferences.VIDEO_SWIPE_ZONE_RANGE) / 100f
+   val haptics = rememberAppHaptics()
+   val reducedMotion = AppMotion.shouldReduceMotion()
+   val isTelevision = DeviceFormFactor.isTelevision(LocalContext.current)
+@@ -152,7 +160,7 @@ internal fun VideoSwipeSurface(
+     label = "videoSwipeOffset",
+   )
+ 
+-  LaunchedEffect(canSwipe, leftAction, rightAction, identity, rowWidth) {
++  LaunchedEffect(canSwipe, leftAction, rightAction, identity, rowWidth, leftSwipeZoneFraction, rightSwipeZoneFraction) {
+     dragOffset = 0f
+     dragging = false
+     thresholdReached = false
+@@ -185,18 +193,21 @@ internal fun VideoSwipeSurface(
+     modifier = modifier
+       .onSizeChanged { rowWidth = it.width }
+       .semantics { customActions = accessibilityActions }
+-      .pointerInput(identity, canSwipe, isTelevision, rowWidth, leftAction, rightAction, travel, threshold) {
++      .pointerInput(
++        identity, canSwipe, isTelevision, rowWidth, leftAction, rightAction,
++        travel, threshold, leftSwipeZoneFraction, rightSwipeZoneFraction,
++      ) {
+         if (!canSwipe || isTelevision || rowWidth <= 0) return@pointerInput
+-        val leftEdge = rowWidth * 0.25f
+-        val rightEdge = rowWidth * 0.75f
++        val leftEdge = rowWidth * rightSwipeZoneFraction
++        val rightEdge = rowWidth * (1f - leftSwipeZoneFraction)
+         val touchSlop = viewConfiguration.touchSlop
+ 
+         awaitEachGesture {
+           val down = awaitFirstDown(requireUnconsumed = false)
+           val startX = down.position.x
+-          val isEdgeZone = startX <= leftEdge || startX >= rightEdge
+-          if (!isEdgeZone) {
+-            // Started in the middle zone: leave horizontal drag unconsumed for tab pager sliding
++          val canStartRightSwipe = rightAction != VideoSwipeAction.None && startX < leftEdge
++          val canStartLeftSwipe = leftAction != VideoSwipeAction.None && startX >= rightEdge
++          if (!canStartRightSwipe && !canStartLeftSwipe) {
+             return@awaitEachGesture
+           }
+ 
+@@ -221,7 +232,11 @@ internal fun VideoSwipeSurface(
+             totalDeltaY += deltaY
+ 
+             if (!dragStarted) {
++              if (change.isConsumed) break
+               if (abs(totalDeltaX) > touchSlop && abs(totalDeltaX) > abs(totalDeltaY)) {
++                if ((totalDeltaX > 0f && !canStartRightSwipe) || (totalDeltaX < 0f && !canStartLeftSwipe)) {
++                  break
++                }
+                 dragStarted = true
+                 dragging = true
+                 thresholdReached = false
+@@ -234,8 +249,8 @@ internal fun VideoSwipeSurface(
+               }
+             } else {
+               change.consume()
+-              val minimum = if (leftAction == VideoSwipeAction.None) 0f else -travel
+-              val maximum = if (rightAction == VideoSwipeAction.None) 0f else travel
++              val minimum = if (canStartLeftSwipe) -travel else 0f
++              val maximum = if (canStartRightSwipe) travel else 0f
+               dragOffset = (dragOffset + deltaX).coerceIn(minimum, maximum)
+ 
+               if (!thresholdReached && threshold > 0f && abs(dragOffset) >= threshold) {
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/SearchablePreference.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/SearchablePreference.kt
+index 5f00d014..d43fd071 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/SearchablePreference.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/SearchablePreference.kt
+@@ -493,7 +493,7 @@ object SearchablePreferences {
+       add(
+         SearchablePreference(
+           titleRes = R.string.pref_video_swipe_right,
+-          keywords = listOf("swipe", "video", "folder", "action"),
++          keywords = listOf("swipe", "video", "folder", "action", "zone", "width", "edge", "percentage"),
+           category = "Gestures",
+           screen = VideoSwipePreferencesScreen,
+         ),
+@@ -501,7 +501,7 @@ object SearchablePreferences {
+       add(
+         SearchablePreference(
+           titleRes = R.string.pref_video_swipe_left,
+-          keywords = listOf("swipe", "video", "folder", "action"),
++          keywords = listOf("swipe", "video", "folder", "action", "zone", "width", "edge", "percentage"),
+           category = "Gestures",
+           screen = VideoSwipePreferencesScreen,
+         ),
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/VideoSwipePreferencesScreen.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/VideoSwipePreferencesScreen.kt
+index 9a3520fe..5ac13dc3 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/VideoSwipePreferencesScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/VideoSwipePreferencesScreen.kt
+@@ -30,6 +30,7 @@ import androidx.compose.material3.IconButton
+ import androidx.compose.material3.MaterialTheme
+ import androidx.compose.material3.RadioButton
+ import androidx.compose.material3.Scaffold
++import androidx.compose.material3.Slider
+ import androidx.compose.material3.Text
+ import androidx.compose.material3.TextButton
+ import androidx.compose.material3.TopAppBar
+@@ -42,11 +43,18 @@ import androidx.compose.ui.AbsoluteAlignment
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.draw.clip
++import androidx.compose.ui.draw.drawBehind
++import androidx.compose.ui.geometry.Offset
++import androidx.compose.ui.geometry.Size
+ import androidx.compose.ui.graphics.graphicsLayer
+ import androidx.compose.ui.platform.LocalDensity
+ import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.semantics.Role
+ import androidx.compose.ui.semantics.clearAndSetSemantics
++import androidx.compose.ui.semantics.contentDescription
++import androidx.compose.ui.semantics.semantics
++import androidx.compose.ui.semantics.stateDescription
++import androidx.compose.ui.text.style.TextAlign
+ import androidx.compose.ui.text.style.TextOverflow
+ import androidx.compose.ui.unit.dp
+ import com.quantummpv.app.R
+@@ -63,9 +71,11 @@ import com.quantummpv.app.ui.icons.Icons
+ import com.quantummpv.app.ui.theme.AppMotion
+ import com.quantummpv.app.ui.utils.LocalBackStack
+ import com.quantummpv.app.ui.utils.popSafely
++import com.quantummpv.app.ui.utils.rememberAdjustmentHaptics
+ import com.quantummpv.app.ui.utils.rememberAppHaptics
+ import kotlinx.serialization.Serializable
+ import org.koin.compose.koinInject
++import kotlin.math.roundToInt
+ 
+ @Serializable
+ object VideoSwipePreferencesScreen : Screen {
+@@ -75,6 +85,8 @@ object VideoSwipePreferencesScreen : Screen {
+     val preferences = koinInject<BrowserPreferences>()
+     val right by preferences.videoSwipeRight.collectAsState()
+     val left by preferences.videoSwipeLeft.collectAsState()
++    val rightZonePercent by preferences.videoSwipeRightZonePercent.collectAsState()
++    val leftZonePercent by preferences.videoSwipeLeftZonePercent.collectAsState()
+     val backStack = LocalBackStack.current
+     val haptics = rememberAppHaptics()
+     var editingRight by rememberSaveable { mutableStateOf<Boolean?>(null) }
+@@ -103,6 +115,8 @@ object VideoSwipePreferencesScreen : Screen {
+           SwipeDirectionPreference(
+             right = true,
+             action = right,
++            zonePercent = rightZonePercent,
++            onZonePercentChange = { preferences.videoSwipeRightZonePercent.set(it) },
+             modifier = Modifier.settingsSearchTarget(R.string.pref_video_swipe_right),
+             onChange = { editingRight = true },
+           )
+@@ -112,6 +126,8 @@ object VideoSwipePreferencesScreen : Screen {
+           SwipeDirectionPreference(
+             right = false,
+             action = left,
++            zonePercent = leftZonePercent,
++            onZonePercentChange = { preferences.videoSwipeLeftZonePercent.set(it) },
+             modifier = Modifier.settingsSearchTarget(R.string.pref_video_swipe_left),
+             onChange = { editingRight = false },
+           )
+@@ -162,9 +178,24 @@ object VideoSwipePreferencesScreen : Screen {
+ private fun SwipeDirectionPreference(
+   right: Boolean,
+   action: VideoSwipeAction,
++  zonePercent: Int,
++  onZonePercentChange: (Int) -> Unit,
+   modifier: Modifier = Modifier,
+   onChange: () -> Unit,
+ ) {
++  val zoneRange = BrowserPreferences.VIDEO_SWIPE_ZONE_RANGE
++  val configuredZonePercent = zonePercent.coerceIn(zoneRange)
++  val zoneEnabled = action != VideoSwipeAction.None
++  val effectiveZonePercent = if (zoneEnabled) configuredZonePercent else 0
++  val zoneLabel = stringResource(R.string.pref_video_swipe_zone_width)
++  val zoneValue = stringResource(R.string.update_progress_percent, effectiveZonePercent)
++  val zoneSteps = zoneRange.last - zoneRange.first - 1
++  val haptics = rememberAdjustmentHaptics(
++    zoneRange.first.toFloat(),
++    zoneRange.last.toFloat(),
++    zoneSteps,
++    listOf(BrowserPreferences.DEFAULT_VIDEO_SWIPE_ZONE_PERCENT.toFloat()),
++  )
+   Column(modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 20.dp)) {
+     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+       Column(Modifier.weight(1f)) {
+@@ -185,12 +216,34 @@ private fun SwipeDirectionPreference(
+       }
+     }
+     Spacer(Modifier.height(16.dp))
+-    SwipeActionPreview(right, action)
++    SwipeActionPreview(right, action, effectiveZonePercent)
++    Spacer(Modifier.height(16.dp))
++    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
++      Text(zoneLabel, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
++      Text(zoneValue, style = MaterialTheme.typography.bodyMedium, maxLines = 1)
++    }
++    Slider(
++      value = configuredZonePercent.toFloat(),
++      onValueChange = { value ->
++        val updatedPercent = value.roundToInt().coerceIn(zoneRange)
++        if (updatedPercent != configuredZonePercent) {
++          onZonePercentChange(updatedPercent)
++          haptics.move(configuredZonePercent.toFloat(), updatedPercent.toFloat())
++        }
++      },
++      modifier = Modifier.fillMaxWidth().semantics {
++        contentDescription = zoneLabel
++        stateDescription = zoneValue
++      },
++      valueRange = zoneRange.first.toFloat()..zoneRange.last.toFloat(),
++      steps = zoneSteps,
++      enabled = zoneEnabled,
++    )
+   }
+ }
+ 
+ @Composable
+-private fun SwipeActionPreview(right: Boolean, action: VideoSwipeAction) {
++private fun SwipeActionPreview(right: Boolean, action: VideoSwipeAction, zonePercent: Int) {
+   val density = LocalDensity.current
+   val offset by animateFloatAsState(
+     targetValue = if (action == VideoSwipeAction.None) 0f else with(density) { 76.dp.toPx() } * if (right) 1f else -1f,
+@@ -202,40 +255,58 @@ private fun SwipeActionPreview(right: Boolean, action: VideoSwipeAction) {
+     animationSpec = AppMotion.spatial(AppMotion.Effect.Color, snap()),
+     label = "swipePreviewColor",
+   )
+-  Box(
+-    Modifier.fillMaxWidth().height(88.dp).clip(RoundedCornerShape(8.dp))
+-      .background(background).clearAndSetSemantics { },
+-  ) {
+-    Crossfade(
+-      targetState = action,
+-      animationSpec = AppMotion.spatial(AppMotion.Effect.Alpha, snap()),
+-      modifier = Modifier
+-        .align(if (right) AbsoluteAlignment.CenterLeft else AbsoluteAlignment.CenterRight)
+-        .width(76.dp),
+-      label = "swipePreviewAction",
+-    ) { previewAction ->
+-      Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+-        Icon(previewAction.icon(), null, tint = previewAction.contentColor(), modifier = Modifier.size(28.dp))
+-      }
+-    }
+-    Row(
+-      modifier = Modifier.fillMaxSize().graphicsLayer { translationX = offset }
+-        .background(MaterialTheme.colorScheme.surfaceContainerLow).padding(16.dp),
+-      verticalAlignment = Alignment.CenterVertically,
+-      horizontalArrangement = Arrangement.spacedBy(16.dp),
++  val zoneColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.20f)
++  Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))) {
++    Text(
++      text = stringResource(R.string.pref_video_swipe_zone_percent, zonePercent),
++      modifier = Modifier.fillMaxWidth()
++        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
++        .drawBehind {
++          val zoneWidth = size.width * zonePercent / 100f
++          drawRect(
++            color = zoneColor,
++            topLeft = Offset(if (right) 0f else size.width - zoneWidth, 0f),
++            size = Size(zoneWidth, size.height),
++          )
++        }.padding(horizontal = 12.dp, vertical = 8.dp),
++      style = MaterialTheme.typography.labelLarge,
++      color = MaterialTheme.colorScheme.onSurface,
++      textAlign = if (right) TextAlign.Left else TextAlign.Right,
++    )
++    Box(
++      Modifier.fillMaxWidth().height(88.dp).background(background).clearAndSetSemantics { },
+     ) {
+-      Box(
+-        Modifier.size(48.dp).background(MaterialTheme.colorScheme.surfaceContainerHighest, RoundedCornerShape(6.dp)),
+-        contentAlignment = Alignment.Center,
+-      ) {
+-        Icon(Icons.RoundedFilled.PlayArrow, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
++      Crossfade(
++        targetState = action,
++        animationSpec = AppMotion.spatial(AppMotion.Effect.Alpha, snap()),
++        modifier = Modifier
++          .align(if (right) AbsoluteAlignment.CenterLeft else AbsoluteAlignment.CenterRight)
++          .width(76.dp),
++        label = "swipePreviewAction",
++      ) { previewAction ->
++        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
++          Icon(previewAction.icon(), null, tint = previewAction.contentColor(), modifier = Modifier.size(28.dp))
++        }
+       }
+-      Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+-        Box(Modifier.fillMaxWidth(0.85f).height(8.dp).background(MaterialTheme.colorScheme.outlineVariant))
++      Row(
++        modifier = Modifier.fillMaxSize().graphicsLayer { translationX = offset }
++          .background(MaterialTheme.colorScheme.surfaceContainerLow).padding(16.dp),
++        verticalAlignment = Alignment.CenterVertically,
++        horizontalArrangement = Arrangement.spacedBy(16.dp),
++      ) {
+         Box(
+-          Modifier.fillMaxWidth(0.55f).height(6.dp)
+-            .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+-        )
++          Modifier.size(48.dp).background(MaterialTheme.colorScheme.surfaceContainerHighest, RoundedCornerShape(6.dp)),
++          contentAlignment = Alignment.Center,
++        ) {
++          Icon(Icons.RoundedFilled.PlayArrow, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
++        }
++        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
++          Box(Modifier.fillMaxWidth(0.85f).height(8.dp).background(MaterialTheme.colorScheme.outlineVariant))
++          Box(
++            Modifier.fillMaxWidth(0.55f).height(6.dp)
++              .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
++          )
++        }
+       }
+     }
+   }
+diff --git a/app/src/main/res/values-ar/strings.xml b/app/src/main/res/values-ar/strings.xml
+index a02d65a1..ce09114b 100644
+--- a/app/src/main/res/values-ar/strings.xml
++++ b/app/src/main/res/values-ar/strings.xml
+@@ -2304,6 +2304,8 @@
+   <string name="pref_video_swipe_choose_left">إجراء السحب إلى اليسار</string>
+   <string name="pref_video_swipe_toggle_watched">تحديد كمُشاهد / غير مُشاهد</string>
+   <string name="pref_video_swipe_change">تغيير</string>
++  <string name="pref_video_swipe_zone_width">عرض منطقة السحب</string>
++  <string name="pref_video_swipe_zone_percent">منطقة السحب: %1$d%%</string>
+   <string name="video_swipe_delete_title">حذف الفيديوهات؟</string>
+   <string name="video_swipe_delete_message">هل تريد حذف \"%1$s\" نهائيًا؟ لا يمكن التراجع عن هذا الإجراء.</string>
+   <string name="video_swipe_delete_folder_message">هل تريد حذف الفيديوهات في \"%2$s\" ومجلداته الفرعية نهائيًا؟ العدد: %1$d. ستبقى الملفات والمجلدات الأخرى. لا يمكن التراجع عن هذا الإجراء.</string>
+diff --git a/app/src/main/res/values-de/strings.xml b/app/src/main/res/values-de/strings.xml
+index fe3cb611..06afa9db 100644
+--- a/app/src/main/res/values-de/strings.xml
++++ b/app/src/main/res/values-de/strings.xml
+@@ -2290,6 +2290,8 @@ Bitte starten Sie die App neu, damit alle Änderungen wirksam werden.</string>
+   <string name="pref_video_swipe_choose_left">Aktion beim Wischen nach links</string>
+   <string name="pref_video_swipe_toggle_watched">Als gesehen / ungesehen markieren</string>
+   <string name="pref_video_swipe_change">Ändern</string>
++  <string name="pref_video_swipe_zone_width">Breite des Wischbereichs</string>
++  <string name="pref_video_swipe_zone_percent">Wischbereich: %1$d%%</string>
+   <string name="video_swipe_delete_title">Videos löschen?</string>
+   <string name="video_swipe_delete_message">\"%1$s\" endgültig löschen? Dies kann nicht rückgängig gemacht werden.</string>
+   <string name="video_swipe_delete_folder_message">Videos in \"%2$s\" und seinen Unterordnern endgültig löschen? Anzahl: %1$d. Andere Dateien und Ordner bleiben erhalten. Dies kann nicht rückgängig gemacht werden.</string>
+diff --git a/app/src/main/res/values-es/strings.xml b/app/src/main/res/values-es/strings.xml
+index d32fe8c0..736c14aa 100644
+--- a/app/src/main/res/values-es/strings.xml
++++ b/app/src/main/res/values-es/strings.xml
+@@ -2290,6 +2290,8 @@ Reinicia la aplicación para que se apliquen todos los cambios.</string>
+   <string name="pref_video_swipe_choose_left">Acción al deslizar a la izquierda</string>
+   <string name="pref_video_swipe_toggle_watched">Marcar como visto / no visto</string>
+   <string name="pref_video_swipe_change">Cambiar</string>
++  <string name="pref_video_swipe_zone_width">Ancho de la zona de deslizamiento</string>
++  <string name="pref_video_swipe_zone_percent">Zona de deslizamiento: %1$d%%</string>
+   <string name="video_swipe_delete_title">¿Eliminar vídeos?</string>
+   <string name="video_swipe_delete_message">¿Eliminar \"%1$s\" de forma permanente? Esta acción no se puede deshacer.</string>
+   <string name="video_swipe_delete_folder_message">¿Eliminar de forma permanente los vídeos de \"%2$s\" y sus subcarpetas? Total: %1$d. Los demás archivos y carpetas se conservarán. Esta acción no se puede deshacer.</string>
+diff --git a/app/src/main/res/values-fr/strings.xml b/app/src/main/res/values-fr/strings.xml
+index e851dd9d..53b9dada 100644
+--- a/app/src/main/res/values-fr/strings.xml
++++ b/app/src/main/res/values-fr/strings.xml
+@@ -2290,6 +2290,8 @@ Veuillez redémarrer l’application pour appliquer toutes les modifications.</s
+   <string name="pref_video_swipe_choose_left">Action du balayage vers la gauche</string>
+   <string name="pref_video_swipe_toggle_watched">Marquer comme vu / non vu</string>
+   <string name="pref_video_swipe_change">Modifier</string>
++  <string name="pref_video_swipe_zone_width">Largeur de la zone de balayage</string>
++  <string name="pref_video_swipe_zone_percent">Zone de balayage : %1$d%%</string>
+   <string name="video_swipe_delete_title">Supprimer les vidéos ?</string>
+   <string name="video_swipe_delete_message">Supprimer définitivement \"%1$s\" ? Cette action est irréversible.</string>
+   <string name="video_swipe_delete_folder_message">Supprimer définitivement les vidéos de \"%2$s\" et de ses sous-dossiers ? Nombre : %1$d. Les autres fichiers et dossiers seront conservés. Cette action est irréversible.</string>
+diff --git a/app/src/main/res/values-hi/strings.xml b/app/src/main/res/values-hi/strings.xml
+index edcaa640..fa3e6294 100644
+--- a/app/src/main/res/values-hi/strings.xml
++++ b/app/src/main/res/values-hi/strings.xml
+@@ -2194,6 +2194,8 @@
+   <string name="pref_video_swipe_choose_left">बाईं ओर स्वाइप करने पर कार्रवाई</string>
+   <string name="pref_video_swipe_toggle_watched">देखा गया / नहीं देखा गया चिह्नित करें</string>
+   <string name="pref_video_swipe_change">बदलें</string>
++  <string name="pref_video_swipe_zone_width">स्वाइप क्षेत्र की चौड़ाई</string>
++  <string name="pref_video_swipe_zone_percent">स्वाइप क्षेत्र: %1$d%%</string>
+   <string name="video_swipe_delete_title">वीडियो हटाएँ?</string>
+   <string name="video_swipe_delete_message">\"%1$s\" को स्थायी रूप से हटाएँ? इस कार्रवाई को वापस नहीं लिया जा सकता।</string>
+   <string name="video_swipe_delete_folder_message">\"%2$s\" और उसके सबफ़ोल्डर के वीडियो स्थायी रूप से हटाएँ? कुल: %1$d। अन्य फ़ाइलें और फ़ोल्डर बने रहेंगे। इस कार्रवाई को वापस नहीं लिया जा सकता।</string>
+diff --git a/app/src/main/res/values-ja/strings.xml b/app/src/main/res/values-ja/strings.xml
+index c1c72f72..be108bcd 100644
+--- a/app/src/main/res/values-ja/strings.xml
++++ b/app/src/main/res/values-ja/strings.xml
+@@ -2286,6 +2286,8 @@
+   <string name="pref_video_swipe_choose_left">左スワイプの操作</string>
+   <string name="pref_video_swipe_toggle_watched">視聴済み / 未視聴にする</string>
+   <string name="pref_video_swipe_change">変更</string>
++  <string name="pref_video_swipe_zone_width">スワイプ範囲の幅</string>
++  <string name="pref_video_swipe_zone_percent">スワイプ範囲: %1$d%%</string>
+   <string name="video_swipe_delete_title">動画を削除しますか？</string>
+   <string name="video_swipe_delete_message">「%1$s」を完全に削除しますか？この操作は元に戻せません。</string>
+   <string name="video_swipe_delete_folder_message">「%2$s」とそのサブフォルダー内の動画 %1$d 件を完全に削除しますか？他のファイルやフォルダーは残ります。この操作は元に戻せません。</string>
+diff --git a/app/src/main/res/values-pt-rBR/strings.xml b/app/src/main/res/values-pt-rBR/strings.xml
+index c8aad9f9..a59dd2b4 100644
+--- a/app/src/main/res/values-pt-rBR/strings.xml
++++ b/app/src/main/res/values-pt-rBR/strings.xml
+@@ -2290,6 +2290,8 @@ Reinicie o aplicativo para que todas as alterações entrem em vigor.</string>
+   <string name="pref_video_swipe_choose_left">Ação ao deslizar para a esquerda</string>
+   <string name="pref_video_swipe_toggle_watched">Marcar como assistido / não assistido</string>
+   <string name="pref_video_swipe_change">Alterar</string>
++  <string name="pref_video_swipe_zone_width">Largura da área de deslize</string>
++  <string name="pref_video_swipe_zone_percent">Área de deslize: %1$d%%</string>
+   <string name="video_swipe_delete_title">Excluir vídeos?</string>
+   <string name="video_swipe_delete_message">Excluir \"%1$s\" permanentemente? Esta ação não pode ser desfeita.</string>
+   <string name="video_swipe_delete_folder_message">Excluir permanentemente os vídeos de \"%2$s\" e suas subpastas? Total: %1$d. Os outros arquivos e pastas serão mantidos. Esta ação não pode ser desfeita.</string>
+diff --git a/app/src/main/res/values-ru/strings.xml b/app/src/main/res/values-ru/strings.xml
+index 97ef4312..346031e8 100644
+--- a/app/src/main/res/values-ru/strings.xml
++++ b/app/src/main/res/values-ru/strings.xml
+@@ -2298,6 +2298,8 @@
+   <string name="pref_video_swipe_choose_left">Действие при смахивании влево</string>
+   <string name="pref_video_swipe_toggle_watched">Отметить просмотренным / непросмотренным</string>
+   <string name="pref_video_swipe_change">Изменить</string>
++  <string name="pref_video_swipe_zone_width">Ширина области смахивания</string>
++  <string name="pref_video_swipe_zone_percent">Область смахивания: %1$d%%</string>
+   <string name="video_swipe_delete_title">Удалить видео?</string>
+   <string name="video_swipe_delete_message">Удалить \"%1$s\" безвозвратно? Это действие нельзя отменить.</string>
+   <string name="video_swipe_delete_folder_message">Безвозвратно удалить видео из \"%2$s\" и её подпапок? Количество: %1$d. Остальные файлы и папки сохранятся. Это действие нельзя отменить.</string>
+diff --git a/app/src/main/res/values-zh-rCN/strings.xml b/app/src/main/res/values-zh-rCN/strings.xml
+index 0d43969a..13ea5cac 100644
+--- a/app/src/main/res/values-zh-rCN/strings.xml
++++ b/app/src/main/res/values-zh-rCN/strings.xml
+@@ -2286,6 +2286,8 @@
+   <string name="pref_video_swipe_choose_left">向左滑动时执行</string>
+   <string name="pref_video_swipe_toggle_watched">标记为已观看 / 未观看</string>
+   <string name="pref_video_swipe_change">更改</string>
++  <string name="pref_video_swipe_zone_width">滑动区域宽度</string>
++  <string name="pref_video_swipe_zone_percent">滑动区域：%1$d%%</string>
+   <string name="video_swipe_delete_title">删除视频？</string>
+   <string name="video_swipe_delete_message">永久删除“%1$s”？此操作无法撤销。</string>
+   <string name="video_swipe_delete_folder_message">永久删除“%2$s”及其子文件夹中的 %1$d 个视频？其他文件和文件夹将保留。此操作无法撤销。</string>
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index 9573bb38..0d887f3d 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -2327,6 +2327,8 @@
+   <string name="pref_video_swipe_choose_left">Use left swipe for</string>
+   <string name="pref_video_swipe_toggle_watched">Mark watched / unwatched</string>
+   <string name="pref_video_swipe_change">Change</string>
++  <string name="pref_video_swipe_zone_width">Swipe zone width</string>
++  <string name="pref_video_swipe_zone_percent">Swipe zone: %1$d%%</string>
+   <string name="video_swipe_delete_title">Delete videos?</string>
+   <string name="video_swipe_delete_message">Permanently delete \"%1$s\"? This cannot be undone.</string>
+   <string name="video_swipe_delete_folder_message">Permanently delete %1$d videos in \"%2$s\" and its subfolders? Other files and folders will be kept. This cannot be undone.</string>
+-- 
+2.25.1
+

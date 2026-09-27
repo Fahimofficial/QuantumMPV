@@ -1,0 +1,47 @@
+---
+title: Precision playback tools
+description: Review exact frames, capture snapshots, loop ranges, navigate chapters, skip segments, and set a sleep timer.
+---
+
+mpvRx includes focused tools for reviewing or repeating small parts of a video without turning the normal player into an editing interface.
+
+## Frame Review
+
+Opening Frame Review pauses playback and shows the current frame number, total frame estimate, and millisecond-accurate timestamp.
+
+- Step one or several frames backward or forward.
+- Drag the frame timeline for throttled previews, then release for an exact seek.
+- Jump to an integer frame when the source duration and frame count are known.
+- Capture the current frame with or without rendered subtitles.
+- Close the sheet to restore playback only when the video was playing before it opened.
+
+The compact frame controls collapse after ten seconds without interaction. Reopen or expand them when you need another precise adjustment.
+
+:::note
+Variable-frame-rate media and imperfect container metadata can make calculated frame totals approximate. The displayed timestamp remains the safer reference when exact frame numbering is unavailable.
+:::
+
+## A-B repeat
+
+Use A-B repeat to loop a selected range:
+
+1. Seek to the beginning and set point A.
+2. Seek to the end and set point B.
+3. Confirm the highlighted range on the seekbar.
+4. Clear the loop when normal playback should resume.
+
+This is useful for language practice, animation review, music rehearsal, or checking a short encode transition.
+
+## Chapters and skip segments
+
+Chapter navigation uses chapter names and positions embedded in the media. mpvRx can also classify chapter titles as intro, outro, recap, credits, or preview markers when chapter-based detection is enabled.
+
+External skip data can come from configured services such as IntroDB, TIDB, AniSkip, or Anime Skip. Availability depends on title matching and provider data. Always verify a generated marker before relying on automatic skipping.
+
+## Sleep timer
+
+The More sheet provides 15, 30, 45, and 60 minute presets. The active timer displays its remaining time in the player. Starting another preset replaces the current timer.
+
+## Screenshots
+
+Frame Review and the player screenshot action use the configured image format, quality, filename template, and subtitle inclusion preference. See [Screenshots and media information](/docs/advanced/screenshots-and-media-info) for every filename placeholder.

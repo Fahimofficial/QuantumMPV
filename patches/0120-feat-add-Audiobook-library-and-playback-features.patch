@@ -1,0 +1,2966 @@
+From 02a9b8f2fb5a992367cbd2df61bf6a36cb6e630c Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <riteshp2001@gmail.com>
+Date: Thu, 17 Sep 2026 17:20:34 +0530
+Subject: [PATCH 120/140] feat: add Audiobook library and playback features
+
+- Implement AudiobookLibraryViewModel for managing audiobook imports, removals, and updates.
+- Create AudiobookPlayback for handling playback logic, including progress saving, seeking, and playback controls.
+- Introduce AudiobookPlayerControls for user interface interactions, including playback controls, bookmarks, and chapters.
+- Add support for sleep timer and playback speed adjustments.
+- Integrate error handling and user feedback for audiobook operations.
+---
+ README.md                                     |   3 +
+ .../gyrolet/mpvrx/database/MpvRxDatabase.kt   |  13 +-
+ .../mpvrx/database/dao/AudiobookDao.kt        | 129 ++++++
+ .../database/entities/AudiobookEntity.kt      | 103 +++++
+ .../com/quantummpv/app/di/DatabaseModule.kt    |  38 ++
+ .../domain/audiobook/AudiobookImporter.kt     | 236 +++++++++++
+ .../audiobooks/AudiobookLibraryScreen.kt      | 359 ++++++++++++++++
+ .../audiobooks/AudiobookLibraryViewModel.kt   |  84 ++++
+ .../ui/browser/music/MusicLibraryContent.kt   |   5 +
+ .../java/com/quantummpv/app/ui/icons/Icons.kt  |   2 +
+ .../mpvrx/ui/player/AudiobookPlayback.kt      | 312 ++++++++++++++
+ .../mpvrx/ui/player/MediaPlaybackService.kt   |   8 +-
+ .../gyrolet/mpvrx/ui/player/PlaybackModels.kt |   3 +
+ .../mpvrx/ui/player/PlaybackSession.kt        |  65 ++-
+ .../gyrolet/mpvrx/ui/player/PlayerActivity.kt |  50 ++-
+ .../mpvrx/ui/player/PlayerViewModel.kt        |   1 +
+ .../controls/AudiobookPlayerControls.kt       | 384 ++++++++++++++++++
+ .../ui/player/controls/PlayerControls.kt      |   4 +
+ .../mpvrx/utils/storage/VideoScanUtils.kt     |   1 +
+ app/src/main/res/values-ar/strings.xml        |  61 +++
+ app/src/main/res/values-de/strings.xml        |  61 +++
+ app/src/main/res/values-es/strings.xml        |  61 +++
+ app/src/main/res/values-fr/strings.xml        |  61 +++
+ app/src/main/res/values-hi/strings.xml        |  61 +++
+ app/src/main/res/values-ja/strings.xml        |  61 +++
+ app/src/main/res/values-pt-rBR/strings.xml    |  61 +++
+ app/src/main/res/values-ru/strings.xml        |  61 +++
+ app/src/main/res/values-zh-rCN/strings.xml    |  61 +++
+ app/src/main/res/values/strings.xml           |  63 +++
+ 29 files changed, 2400 insertions(+), 12 deletions(-)
+ create mode 100644 app/src/main/java/com/quantummpv/app/database/dao/AudiobookDao.kt
+ create mode 100644 app/src/main/java/com/quantummpv/app/database/entities/AudiobookEntity.kt
+ create mode 100644 app/src/main/java/com/quantummpv/app/domain/audiobook/AudiobookImporter.kt
+ create mode 100644 app/src/main/java/com/quantummpv/app/ui/browser/audiobooks/AudiobookLibraryScreen.kt
+ create mode 100644 app/src/main/java/com/quantummpv/app/ui/browser/audiobooks/AudiobookLibraryViewModel.kt
+ create mode 100644 app/src/main/java/com/quantummpv/app/ui/player/AudiobookPlayback.kt
+ create mode 100644 app/src/main/java/com/quantummpv/app/ui/player/controls/AudiobookPlayerControls.kt
+
+diff --git a/README.md b/README.md
+index d30de5bd..2797dd2a 100644
+--- a/README.md
++++ b/README.md
+@@ -230,6 +230,9 @@ mpvRx pushes the mpv-android experience further with deep customization, thermal
+ | **Lyrics** | View local or embedded lyrics, fetch online lyrics from LRCLIB, and switch between available sources |
+ | **Four Audio Visualizers** | Choose Blob, Galaxy, Cuboid, or Particle visualizations, with an optional audio-reactive wavy seekbar |
+ | **Audio Playlists & Favorites** | Create local audio playlists, keep favorite tracks together, and start normal or shuffled playback |
++| **Audiobook Library** | Open the book icon in Music to import a file, selected files, or one book folder including disc subfolders; M4B is recognized |
++| **Book Metadata** | Covers, author, narrator, series and edition details from embedded tags or optional metadata.json/OPF sidecars, with editable book details |
++| **Audiobook Listening** | Separate book progress/resume, ordered files, chapter navigation, named bookmarks, per-book speed, pause rewind and duration/chapter-end sleep timers |
+ 
+ </details>
+ 
+diff --git a/app/src/main/java/com/quantummpv/app/database/MpvRxDatabase.kt b/app/src/main/java/com/quantummpv/app/database/MpvRxDatabase.kt
+index 51a6846c..4f8a3db1 100644
+--- a/app/src/main/java/com/quantummpv/app/database/MpvRxDatabase.kt
++++ b/app/src/main/java/com/quantummpv/app/database/MpvRxDatabase.kt
+@@ -14,6 +14,7 @@ import androidx.room.RoomDatabase
+ import androidx.room.TypeConverters
+ import com.quantummpv.app.database.converters.NetworkProtocolConverter
+ import com.quantummpv.app.database.converters.NetworkStreamEntryTypeConverter
++import com.quantummpv.app.database.dao.AudiobookDao
+ import com.quantummpv.app.database.dao.DirectoryScanDao
+ import com.quantummpv.app.database.dao.DownloadItemDao
+ import com.quantummpv.app.database.dao.NetworkConnectionDao
+@@ -26,6 +27,10 @@ import com.quantummpv.app.database.dao.VideoMetadataDao
+ import com.quantummpv.app.database.dao.JellyfinServerDao
+ import com.quantummpv.app.database.dao.NavidromeServerDao
+ import com.quantummpv.app.database.entities.DirectoryScanEntity
++import com.quantummpv.app.database.entities.AudiobookEntity
++import com.quantummpv.app.database.entities.AudiobookTrackEntity
++import com.quantummpv.app.database.entities.AudiobookChapterEntity
++import com.quantummpv.app.database.entities.AudiobookBookmarkEntity
+ import com.quantummpv.app.database.entities.DownloadItemEntity
+ import com.quantummpv.app.database.entities.JellyfinServerEntity
+ import com.quantummpv.app.database.entities.NavidromeServerEntity
+@@ -52,8 +57,12 @@ import com.quantummpv.app.domain.network.NetworkConnection
+     JellyfinServerEntity::class,
+     DownloadItemEntity::class,
+     NavidromeServerEntity::class,
++    AudiobookEntity::class,
++    AudiobookTrackEntity::class,
++    AudiobookChapterEntity::class,
++    AudiobookBookmarkEntity::class,
+   ],
+-  version = 22,
++  version = 23,
+   exportSchema = true,
+ )
+ @TypeConverters(NetworkProtocolConverter::class, NetworkStreamEntryTypeConverter::class)
+@@ -79,4 +88,6 @@ abstract class MpvRxDatabase : RoomDatabase() {
+   abstract fun downloadItemDao(): DownloadItemDao
+ 
+   abstract fun navidromeServerDao(): NavidromeServerDao
++
++  abstract fun audiobookDao(): AudiobookDao
+ }
+diff --git a/app/src/main/java/com/quantummpv/app/database/dao/AudiobookDao.kt b/app/src/main/java/com/quantummpv/app/database/dao/AudiobookDao.kt
+new file mode 100644
+index 00000000..d8e32cf2
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/database/dao/AudiobookDao.kt
+@@ -0,0 +1,129 @@
++package com.quantummpv.app.database.dao
++
++import androidx.room.Dao
++import androidx.room.Insert
++import androidx.room.OnConflictStrategy
++import androidx.room.Query
++import androidx.room.Transaction
++import com.quantummpv.app.database.entities.Audiobook
++import com.quantummpv.app.database.entities.AudiobookBookmarkEntity
++import com.quantummpv.app.database.entities.AudiobookChapterEntity
++import com.quantummpv.app.database.entities.AudiobookEntity
++import com.quantummpv.app.database.entities.AudiobookTrackEntity
++import kotlinx.coroutines.flow.Flow
++
++@Dao
++abstract class AudiobookDao {
++  @Transaction
++  @Query("SELECT * FROM audiobooks ORDER BY lastPlayedAt DESC, title COLLATE NOCASE")
++  abstract fun observeLibrary(): Flow<List<Audiobook>>
++
++  @Transaction
++  @Query("SELECT * FROM audiobooks WHERE id = :id")
++  abstract suspend fun getBook(id: Long): Audiobook?
++
++  @Transaction
++  @Query("SELECT * FROM audiobooks WHERE id = :id")
++  abstract fun observeBook(id: Long): Flow<Audiobook?>
++
++  @Query("SELECT id FROM audiobooks WHERE sourceKey = :sourceKey")
++  abstract suspend fun findBySource(sourceKey: String): Long?
++
++  @Insert(onConflict = OnConflictStrategy.IGNORE)
++  abstract suspend fun insertBook(book: AudiobookEntity): Long
++
++  @Insert
++  abstract suspend fun insertTracks(tracks: List<AudiobookTrackEntity>): List<Long>
++
++  @Transaction
++  open suspend fun importBook(book: AudiobookEntity, tracks: List<AudiobookTrackEntity>): Long {
++    require(tracks.isNotEmpty())
++    findBySource(book.sourceKey)?.let { return it }
++    val id = insertBook(book)
++    if (id == -1L) return requireNotNull(findBySource(book.sourceKey))
++    val trackIds = insertTracks(tracks.mapIndexed { index, track -> track.copy(id = 0, bookId = id, position = index) })
++    setInitialTrack(id, trackIds.first())
++    return id
++  }
++
++  @Query("UPDATE audiobooks SET currentTrackId = :trackId WHERE id = :id")
++  protected abstract suspend fun setInitialTrack(id: Long, trackId: Long)
++
++  @Query("""UPDATE audiobooks SET currentTrackId = :trackId,
++    positionMs = CASE WHEN :reachedEnd THEN (SELECT durationMs FROM audiobook_tracks WHERE id = :trackId) ELSE :positionMs END,
++    progressMs = (CASE WHEN :reachedEnd THEN (SELECT durationMs FROM audiobook_tracks WHERE id = :trackId) ELSE :positionMs END)
++      + (SELECT COALESCE(SUM(durationMs), 0) FROM audiobook_tracks
++      WHERE bookId = :bookId AND position < (SELECT position FROM audiobook_tracks WHERE id = :trackId)),
++    lastPlayedAt = :playedAt, finished = CASE WHEN :reachedEnd AND NOT EXISTS
++      (SELECT 1 FROM audiobook_tracks WHERE bookId = :bookId AND position >
++        (SELECT position FROM audiobook_tracks WHERE id = :trackId)) THEN 1 ELSE 0 END
++    WHERE id = :bookId AND EXISTS (SELECT 1 FROM audiobook_tracks WHERE id = :trackId AND bookId = :bookId)""")
++  abstract suspend fun saveProgress(bookId: Long, trackId: Long, positionMs: Long, playedAt: Long, reachedEnd: Boolean)
++
++  @Query("UPDATE audiobooks SET playbackSpeed = :speed WHERE id = :id")
++  abstract suspend fun setSpeed(id: Long, speed: Float)
++
++  @Query("UPDATE audiobooks SET rewindSeconds = :seconds WHERE id = :id")
++  abstract suspend fun setRewind(id: Long, seconds: Int)
++
++  @Query("UPDATE audiobooks SET finished = :finished WHERE id = :id")
++  abstract suspend fun setFinished(id: Long, finished: Boolean)
++
++  @Query("""UPDATE audiobooks SET title = :title, author = :author, narrator = :narrator,
++    series = :series, seriesPart = :seriesPart WHERE id = :id""")
++  abstract suspend fun updateDetails(id: Long, title: String, author: String, narrator: String, series: String, seriesPart: String)
++
++  @Query("""UPDATE audiobooks SET
++    author = CASE WHEN author = '' THEN :author ELSE author END,
++    narrator = CASE WHEN narrator = '' THEN :narrator ELSE narrator END,
++    series = CASE WHEN series = '' THEN :series ELSE series END,
++    seriesPart = CASE WHEN seriesPart = '' THEN :seriesPart ELSE seriesPart END,
++    description = CASE WHEN description = '' THEN :description ELSE description END,
++    language = CASE WHEN language = '' THEN :language ELSE language END,
++    publisher = CASE WHEN publisher = '' THEN :publisher ELSE publisher END,
++    publishedYear = CASE WHEN publishedYear = '' THEN :publishedYear ELSE publishedYear END,
++    genre = CASE WHEN genre = '' THEN :genre ELSE genre END,
++    isbn = CASE WHEN isbn = '' THEN :isbn ELSE isbn END,
++    asin = CASE WHEN asin = '' THEN :asin ELSE asin END WHERE id = :id""")
++  abstract suspend fun fillMetadata(id: Long, author: String, narrator: String, series: String, seriesPart: String,
++    description: String, language: String, publisher: String, publishedYear: String, genre: String, isbn: String, asin: String)
++
++  @Query("UPDATE audiobook_tracks SET durationMs = :durationMs WHERE id = :trackId AND :durationMs > 0")
++  abstract suspend fun updateDuration(trackId: Long, durationMs: Long)
++
++  @Query("SELECT * FROM audiobook_chapters WHERE trackId = :trackId ORDER BY startMs")
++  abstract suspend fun getChapters(trackId: Long): List<AudiobookChapterEntity>
++
++  @Query("DELETE FROM audiobooks WHERE id = :id")
++  abstract suspend fun deleteBook(id: Long)
++
++  @Query("SELECT * FROM audiobook_chapters WHERE trackId IN (SELECT id FROM audiobook_tracks WHERE bookId = :bookId) ORDER BY startMs")
++  abstract fun observeChapters(bookId: Long): Flow<List<AudiobookChapterEntity>>
++
++  @Insert(onConflict = OnConflictStrategy.REPLACE)
++  protected abstract suspend fun insertChapters(chapters: List<AudiobookChapterEntity>)
++
++  @Query("DELETE FROM audiobook_chapters WHERE trackId = :trackId")
++  protected abstract suspend fun deleteChapters(trackId: Long)
++
++  @Transaction
++  open suspend fun replaceChapters(trackId: Long, chapters: List<AudiobookChapterEntity>) {
++    require(chapters.all { it.trackId == trackId && it.startMs >= 0 && it.endMs > it.startMs })
++    deleteChapters(trackId)
++    if (chapters.isNotEmpty()) insertChapters(chapters.distinctBy { it.startMs })
++  }
++
++  @Query("""SELECT bookmark.* FROM audiobook_bookmarks AS bookmark
++    INNER JOIN audiobook_tracks AS track ON track.id = bookmark.trackId
++    WHERE bookmark.bookId = :bookId ORDER BY track.position, bookmark.positionMs, bookmark.createdAt""")
++  abstract fun observeBookmarks(bookId: Long): Flow<List<AudiobookBookmarkEntity>>
++
++  @Insert
++  abstract suspend fun addBookmark(bookmark: AudiobookBookmarkEntity): Long
++
++  @Query("UPDATE audiobook_bookmarks SET title = :title WHERE id = :id")
++  abstract suspend fun renameBookmark(id: Long, title: String)
++
++  @Query("DELETE FROM audiobook_bookmarks WHERE id = :id")
++  abstract suspend fun deleteBookmark(id: Long)
++}
+\ No newline at end of file
+diff --git a/app/src/main/java/com/quantummpv/app/database/entities/AudiobookEntity.kt b/app/src/main/java/com/quantummpv/app/database/entities/AudiobookEntity.kt
+new file mode 100644
+index 00000000..42e5a80a
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/database/entities/AudiobookEntity.kt
+@@ -0,0 +1,103 @@
++package com.quantummpv.app.database.entities
++
++import androidx.room.Embedded
++import androidx.room.Entity
++import androidx.room.ForeignKey
++import androidx.room.Index
++import androidx.room.Ignore
++import androidx.room.PrimaryKey
++import androidx.room.Relation
++
++@Entity(tableName = "audiobooks", indices = [Index(value = ["sourceKey"], unique = true)])
++data class AudiobookEntity(
++  @PrimaryKey(autoGenerate = true) val id: Long = 0,
++  val sourceKey: String,
++  val title: String,
++  val subtitle: String = "",
++  val author: String = "",
++  val narrator: String = "",
++  val series: String = "",
++  val seriesPart: String = "",
++  val description: String = "",
++  val genre: String = "",
++  val language: String = "",
++  val publisher: String = "",
++  val publishedYear: String = "",
++  val isbn: String = "",
++  val asin: String = "",
++  val abridged: Boolean? = null,
++  val coverUri: String? = null,
++  val addedAt: Long = System.currentTimeMillis(),
++  val lastPlayedAt: Long = 0,
++  val currentTrackId: Long? = null,
++  val positionMs: Long = 0,
++  val progressMs: Long = 0,
++  val finished: Boolean = false,
++  val playbackSpeed: Float = 1f,
++  val rewindSeconds: Int = 10,
++)
++
++@Entity(
++  tableName = "audiobook_tracks",
++  foreignKeys = [ForeignKey(entity = AudiobookEntity::class, parentColumns = ["id"], childColumns = ["bookId"], onDelete = ForeignKey.CASCADE)],
++  indices = [Index(value = ["bookId"]), Index(value = ["bookId", "uri"], unique = true)],
++)
++data class AudiobookTrackEntity(
++  @PrimaryKey(autoGenerate = true) val id: Long = 0,
++  val bookId: Long,
++  val uri: String,
++  val fileName: String,
++  val title: String,
++  val position: Int,
++  val durationMs: Long,
++  val size: Long = 0,
++)
++
++@Entity(
++  tableName = "audiobook_chapters",
++  primaryKeys = ["trackId", "startMs"],
++  foreignKeys = [ForeignKey(entity = AudiobookTrackEntity::class, parentColumns = ["id"], childColumns = ["trackId"], onDelete = ForeignKey.CASCADE)],
++)
++data class AudiobookChapterEntity(
++  val trackId: Long,
++  val startMs: Long,
++  val endMs: Long,
++  val title: String,
++)
++
++@Entity(
++  tableName = "audiobook_bookmarks",
++  foreignKeys = [
++    ForeignKey(entity = AudiobookEntity::class, parentColumns = ["id"], childColumns = ["bookId"], onDelete = ForeignKey.CASCADE),
++    ForeignKey(entity = AudiobookTrackEntity::class, parentColumns = ["id"], childColumns = ["trackId"], onDelete = ForeignKey.CASCADE),
++  ],
++  indices = [Index(value = ["bookId"]), Index(value = ["trackId"])],
++)
++data class AudiobookBookmarkEntity(
++  @PrimaryKey(autoGenerate = true) val id: Long = 0,
++  val bookId: Long,
++  val trackId: Long,
++  val positionMs: Long,
++  val title: String,
++  val createdAt: Long = System.currentTimeMillis(),
++)
++
++data class Audiobook(
++  @Embedded val book: AudiobookEntity,
++  @Relation(parentColumn = "id", entityColumn = "bookId") val tracks: List<AudiobookTrackEntity>,
++) {
++  @get:Ignore
++  val orderedTracks: List<AudiobookTrackEntity> get() = tracks.sortedBy { it.position }
++  @get:Ignore
++  val durationMs: Long get() = tracks.sumOf { it.durationMs.coerceAtLeast(0) }
++  @get:Ignore
++  val progress: Float get() = if (book.finished) 1f else {
++    if (durationMs == 0L) 0f else (book.progressMs.toDouble() / durationMs).toFloat().coerceIn(0f, 1f)
++  }
++
++  fun positionInBook(trackId: Long, positionMs: Long): Long {
++    val track = tracks.firstOrNull { it.id == trackId } ?: return 0L
++    return orderedTracks.takeWhile { it.id != trackId }.sumOf { it.durationMs.coerceAtLeast(0) } +
++      positionMs.coerceIn(0, track.durationMs.coerceAtLeast(0))
++  }
++}
+\ No newline at end of file
+diff --git a/app/src/main/java/com/quantummpv/app/di/DatabaseModule.kt b/app/src/main/java/com/quantummpv/app/di/DatabaseModule.kt
+index 85510171..66de2499 100644
+--- a/app/src/main/java/com/quantummpv/app/di/DatabaseModule.kt
++++ b/app/src/main/java/com/quantummpv/app/di/DatabaseModule.kt
+@@ -833,6 +833,41 @@ val MIGRATION_21_22 =
+     }
+   }
+ 
++val MIGRATION_22_23 =
++  object : Migration(22, 23) {
++    override fun migrate(db: SupportSQLiteDatabase) {
++      db.execSQL("""CREATE TABLE IF NOT EXISTS `audiobooks` (
++        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `sourceKey` TEXT NOT NULL,
++        `title` TEXT NOT NULL, `subtitle` TEXT NOT NULL, `author` TEXT NOT NULL,
++        `narrator` TEXT NOT NULL, `series` TEXT NOT NULL, `seriesPart` TEXT NOT NULL,
++        `description` TEXT NOT NULL, `genre` TEXT NOT NULL, `language` TEXT NOT NULL,
++        `publisher` TEXT NOT NULL, `publishedYear` TEXT NOT NULL, `isbn` TEXT NOT NULL,
++        `asin` TEXT NOT NULL, `abridged` INTEGER, `coverUri` TEXT, `addedAt` INTEGER NOT NULL,
++        `lastPlayedAt` INTEGER NOT NULL, `currentTrackId` INTEGER, `positionMs` INTEGER NOT NULL,
++        `progressMs` INTEGER NOT NULL, `finished` INTEGER NOT NULL, `playbackSpeed` REAL NOT NULL,
++        `rewindSeconds` INTEGER NOT NULL)""")
++      db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_audiobooks_sourceKey` ON `audiobooks` (`sourceKey`)")
++      db.execSQL("""CREATE TABLE IF NOT EXISTS `audiobook_tracks` (
++        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `bookId` INTEGER NOT NULL,
++        `uri` TEXT NOT NULL, `fileName` TEXT NOT NULL, `title` TEXT NOT NULL,
++        `position` INTEGER NOT NULL, `durationMs` INTEGER NOT NULL, `size` INTEGER NOT NULL,
++        FOREIGN KEY(`bookId`) REFERENCES `audiobooks`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE)""")
++      db.execSQL("CREATE INDEX IF NOT EXISTS `index_audiobook_tracks_bookId` ON `audiobook_tracks` (`bookId`)")
++      db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_audiobook_tracks_bookId_uri` ON `audiobook_tracks` (`bookId`, `uri`)")
++      db.execSQL("""CREATE TABLE IF NOT EXISTS `audiobook_chapters` (
++        `trackId` INTEGER NOT NULL, `startMs` INTEGER NOT NULL, `endMs` INTEGER NOT NULL, `title` TEXT NOT NULL,
++        PRIMARY KEY(`trackId`, `startMs`),
++        FOREIGN KEY(`trackId`) REFERENCES `audiobook_tracks`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE)""")
++      db.execSQL("""CREATE TABLE IF NOT EXISTS `audiobook_bookmarks` (
++        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `bookId` INTEGER NOT NULL,
++        `trackId` INTEGER NOT NULL, `positionMs` INTEGER NOT NULL, `title` TEXT NOT NULL, `createdAt` INTEGER NOT NULL,
++        FOREIGN KEY(`bookId`) REFERENCES `audiobooks`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE,
++        FOREIGN KEY(`trackId`) REFERENCES `audiobook_tracks`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE)""")
++      db.execSQL("CREATE INDEX IF NOT EXISTS `index_audiobook_bookmarks_bookId` ON `audiobook_bookmarks` (`bookId`)")
++      db.execSQL("CREATE INDEX IF NOT EXISTS `index_audiobook_bookmarks_trackId` ON `audiobook_bookmarks` (`trackId`)")
++    }
++  }
++
+ val DatabaseModule =
+   module {
+     single<Json> {
+@@ -870,6 +905,7 @@ val DatabaseModule =
+           MIGRATION_20_21,
+           MIGRATION_19_21,
+           MIGRATION_21_22,
++          MIGRATION_22_23,
+         ).build()
+     }
+ 
+@@ -881,6 +917,8 @@ val DatabaseModule =
+ 
+     single { ThumbnailRepository(androidContext()) }
+ 
++    single { get<MpvRxDatabase>().audiobookDao() }
++
+     single {
+       com.quantummpv.app.database.repository.VideoMetadataCacheRepository(
+         context = androidContext(),
+diff --git a/app/src/main/java/com/quantummpv/app/domain/audiobook/AudiobookImporter.kt b/app/src/main/java/com/quantummpv/app/domain/audiobook/AudiobookImporter.kt
+new file mode 100644
+index 00000000..5488c5be
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/domain/audiobook/AudiobookImporter.kt
+@@ -0,0 +1,236 @@
++package com.quantummpv.app.domain.audiobook
++
++import android.content.Context
++import android.graphics.Bitmap
++import android.graphics.BitmapFactory
++import android.media.MediaMetadataRetriever
++import android.net.Uri
++import androidx.documentfile.provider.DocumentFile
++import com.quantummpv.app.R
++import com.quantummpv.app.database.dao.AudiobookDao
++import com.quantummpv.app.database.entities.AudiobookChapterEntity
++import com.quantummpv.app.database.entities.AudiobookEntity
++import com.quantummpv.app.database.entities.AudiobookTrackEntity
++import com.quantummpv.app.utils.media.openPersistedTreeDocument
++import com.quantummpv.app.utils.sort.SortUtils
++import com.quantummpv.app.utils.storage.FileTypeUtils
++import java.io.File
++import java.io.IOException
++import java.security.MessageDigest
++import javax.xml.parsers.DocumentBuilderFactory
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.currentCoroutineContext
++import kotlinx.coroutines.ensureActive
++import kotlinx.coroutines.withContext
++import org.json.JSONObject
++import org.w3c.dom.Element
++
++internal class AudiobookImporter(private val context: Context, private val dao: AudiobookDao) {
++  private data class Source(val document: DocumentFile, val path: String)
++  private data class Scanned(val source: Source, val track: AudiobookTrackEntity, val tags: Map<String, String>, val disc: Int, val number: Int)
++
++  suspend fun importBook(uris: List<Uri>, folder: Uri? = null, onProgress: (Int, Int) -> Unit): Long = withContext(Dispatchers.IO) {
++    val root = folder?.let { openPersistedTreeDocument(context, it.toString()) ?: throw IOException(it.toString()) }
++    val sources = if (root != null) collectFiles(root) else uris.distinct().map { uri ->
++      val file = DocumentFile.fromSingleUri(context, uri) ?: throw IOException(uri.toString())
++      Source(file, file.name.orEmpty())
++    }
++    val audio = sources.filter { it.document.name?.substringAfterLast('.')?.lowercase() in FileTypeUtils.AUDIO_EXTENSIONS }
++    if (audio.isEmpty()) throw IOException(context.getString(R.string.audiobook_no_audio))
++    val sourceKey = folder?.toString() ?: digest(audio.map { it.document.uri.toString() }.sorted().joinToString("\n"))
++    dao.findBySource(sourceKey)?.let { return@withContext it }
++    val metadata = readMetadata(sources)
++    var coverUri = sources.firstOrNull {
++      it.document.name?.lowercase() in setOf("cover.jpg", "cover.png", "folder.jpg", "folder.png")
++    }?.document?.uri?.toString()
++    val scanned = audio.mapIndexed { index, source ->
++      currentCoroutineContext().ensureActive()
++      onProgress(index + 1, audio.size)
++      val retriever = MediaMetadataRetriever()
++      try {
++        retriever.setDataSource(context, source.document.uri)
++        fun tag(key: Int): String = retriever.extractMetadata(key)?.trim().orEmpty()
++        val duration = tag(MediaMetadataRetriever.METADATA_KEY_DURATION).toLongOrNull() ?: 0
++        if (duration <= 0) throw IOException(context.getString(R.string.audiobook_unreadable, source.path))
++        if (coverUri == null) coverUri = saveCover(retriever.embeddedPicture, sourceKey)
++        Scanned(
++          source,
++          AudiobookTrackEntity(
++            bookId = 0, uri = source.document.uri.toString(), fileName = source.document.name.orEmpty(),
++            title = tag(MediaMetadataRetriever.METADATA_KEY_TITLE).ifBlank { source.document.name.orEmpty().substringBeforeLast('.') },
++            position = index, durationMs = duration, size = source.document.length(),
++          ),
++          mapOf(
++            "title" to tag(MediaMetadataRetriever.METADATA_KEY_ALBUM),
++            "author" to tag(MediaMetadataRetriever.METADATA_KEY_ARTIST).ifBlank { tag(MediaMetadataRetriever.METADATA_KEY_AUTHOR) },
++            "narrator" to tag(MediaMetadataRetriever.METADATA_KEY_COMPOSER),
++            "genre" to tag(MediaMetadataRetriever.METADATA_KEY_GENRE),
++            "publishedYear" to tag(MediaMetadataRetriever.METADATA_KEY_YEAR),
++          ),
++          tag(MediaMetadataRetriever.METADATA_KEY_DISC_NUMBER).substringBefore('/').toIntOrNull() ?: 0,
++          tag(MediaMetadataRetriever.METADATA_KEY_CD_TRACK_NUMBER).substringBefore('/').toIntOrNull() ?: 0,
++        )
++      } catch (failure: Exception) {
++        throw IOException(context.getString(R.string.audiobook_unreadable, source.path), failure)
++      } finally {
++        runCatching { retriever.release() }
++      }
++    }
++    val numbered = scanned.all { it.number > 0 }
++    val ordered = scanned.sortedWith { first, second ->
++      val disc = if (numbered) first.disc.compareTo(second.disc) else 0
++      val track = if (numbered && disc == 0) first.number.compareTo(second.number) else 0
++      when {
++        disc != 0 -> disc
++        track != 0 -> track
++        else -> SortUtils.NaturalOrderComparator.DEFAULT.compare(first.source.path, second.source.path)
++      }
++    }
++    fun field(key: String): String = metadata.text(key).ifBlank { ordered.firstNotNullOfOrNull { it.tags[key]?.takeIf(String::isNotBlank) }.orEmpty() }
++    val seriesValue = metadata.optJSONArray("series")?.opt(0)
++    val series = seriesValue as? JSONObject
++    val book = AudiobookEntity(
++      sourceKey = sourceKey,
++      title = field("title").ifBlank { root?.name ?: ordered.first().track.title },
++      subtitle = metadata.text("subtitle"),
++      author = metadata.names("authors").ifBlank { field("author") },
++      narrator = metadata.names("narrators").ifBlank { field("narrator") },
++      series = series?.text("name") ?: (seriesValue as? String) ?: metadata.text("series"),
++      seriesPart = series?.text("sequence") ?: metadata.text("seriesPart"),
++      description = metadata.text("description"), genre = metadata.names("genres").ifBlank { field("genre") },
++      language = metadata.text("language"), publisher = metadata.text("publisher"),
++      publishedYear = field("publishedYear"), isbn = metadata.text("isbn"), asin = metadata.text("asin"),
++      abridged = if (metadata.has("abridged") && !metadata.isNull("abridged")) metadata.optBoolean("abridged") else null,
++      coverUri = coverUri,
++    )
++    val id = dao.importBook(book, ordered.map { it.track })
++    metadata.optJSONArray("chapters")?.let { chapterData ->
++      var offset = 0L
++      dao.getBook(id)?.orderedTracks?.forEach { track ->
++        val chapters = (0 until chapterData.length()).mapNotNull { chapterIndex ->
++          val chapter = chapterData.optJSONObject(chapterIndex) ?: return@mapNotNull null
++          val start = (chapter.optDouble("start", Double.NaN) * 1000).takeIf(Double::isFinite)?.toLong() ?: return@mapNotNull null
++          val end = (chapter.optDouble("end", Double.NaN) * 1000).takeIf(Double::isFinite)?.toLong() ?: return@mapNotNull null
++          val localStart = (start - offset).coerceAtLeast(0)
++          val localEnd = (end - offset).coerceAtMost(track.durationMs)
++          if (localEnd <= localStart) null else AudiobookChapterEntity(track.id, localStart, localEnd,
++            chapter.text("title").ifBlank { context.getString(R.string.audiobook_chapter_number, chapterIndex + 1) })
++        }
++        if (chapters.isNotEmpty()) dao.replaceChapters(track.id, chapters)
++        offset += track.durationMs
++      }
++    }
++    id
++  }
++
++  private suspend fun collectFiles(root: DocumentFile): List<Source> {
++    val result = mutableListOf<Source>()
++    val pending = ArrayDeque<Source>().apply { add(Source(root, "")) }
++    val visited = mutableSetOf<String>()
++    while (pending.isNotEmpty()) {
++      currentCoroutineContext().ensureActive()
++      val parent = pending.removeFirst()
++      if (!visited.add(parent.document.uri.toString())) continue
++      if (!parent.document.canRead()) throw IOException(parent.path)
++      parent.document.listFiles().forEach { child ->
++        val entry = Source(child, "${parent.path}/${child.name.orEmpty()}")
++        if (child.isDirectory) pending.add(entry) else if (child.isFile) result.add(entry)
++      }
++    }
++    return result
++  }
++
++  private fun readMetadata(files: List<Source>): JSONObject {
++    val source = files.firstOrNull { it.document.name.equals("metadata.json", true) }
++      ?: files.firstOrNull { it.document.name?.endsWith(".opf", true) == true }
++      ?: return JSONObject()
++    return runCatching {
++      val text = context.contentResolver.openInputStream(source.document.uri)?.bufferedReader()?.use { reader ->
++        val buffer = CharArray(4096)
++        buildString {
++          while (true) {
++            val count = reader.read(buffer)
++            if (count < 0) break
++            if (length + count > 1024 * 1024) throw IOException("Metadata is too large")
++            append(buffer, 0, count)
++          }
++        }
++      } ?: return JSONObject()
++      if (source.document.name?.endsWith(".json", true) == true) {
++        val json = JSONObject(text)
++        json.optJSONObject("metadata") ?: json
++      } else {
++        readOpf(text)
++      }
++    }.getOrDefault(JSONObject())
++  }
++
++  private fun readOpf(text: String): JSONObject {
++    val factory = DocumentBuilderFactory.newInstance().apply {
++      isNamespaceAware = true
++      setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
++      setFeature("http://xml.org/sax/features/external-general-entities", false)
++      setFeature("http://xml.org/sax/features/external-parameter-entities", false)
++    }
++    val document = factory.newDocumentBuilder().parse(text.byteInputStream())
++    fun elements(name: String): List<Element> {
++      val nodes = document.getElementsByTagNameNS("*", name)
++      return (0 until nodes.length).mapNotNull { nodes.item(it) as? Element }
++    }
++    return JSONObject().apply {
++      mapOf("title" to "title", "description" to "description", "language" to "language", "publisher" to "publisher",
++        "date" to "publishedYear", "subject" to "genre").forEach { (source, target) ->
++        put(target, elements(source).joinToString(", ") { it.textContent.trim() })
++      }
++      val creators = elements("creator")
++      fun role(element: Element) = element.getAttributeNS("http://www.idpf.org/2007/opf", "role").ifBlank { element.getAttribute("role") }
++      put("author", creators.filter { role(it) in setOf("", "aut") }.joinToString(", ") { it.textContent.trim() })
++      put("narrator", creators.filter { role(it) == "nrt" }.joinToString(", ") { it.textContent.trim() })
++      elements("meta").forEach {
++        when (it.getAttribute("name")) {
++          "calibre:series" -> put("series", it.getAttribute("content"))
++          "calibre:series_index" -> put("seriesPart", it.getAttribute("content"))
++        }
++      }
++      elements("identifier").forEach {
++        val scheme = it.getAttributeNS("http://www.idpf.org/2007/opf", "scheme").ifBlank { it.getAttribute("scheme") }
++        if (scheme.equals("isbn", true)) put("isbn", it.textContent.trim())
++        if (scheme.equals("asin", true)) put("asin", it.textContent.trim())
++      }
++    }
++  }
++
++  private fun saveCover(bytes: ByteArray?, sourceKey: String): String? {
++    if (bytes == null || bytes.size > 16 * 1024 * 1024) return null
++    return runCatching {
++      val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
++      BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
++      val options = BitmapFactory.Options().apply {
++        inSampleSize = 1
++        while (maxOf(bounds.outWidth, bounds.outHeight) / inSampleSize > 800) inSampleSize *= 2
++      }
++      val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options) ?: return null
++      try {
++        val file = File(context.filesDir, "audiobook_covers/${digest(sourceKey)}.jpg")
++        file.parentFile?.mkdirs()
++        file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.JPEG, 88, it) }
++        Uri.fromFile(file).toString()
++      } finally {
++        bitmap.recycle()
++      }
++    }.getOrNull()
++  }
++
++  private fun JSONObject.text(key: String): String = if (isNull(key)) "" else optString(key, "").trim()
++  private fun JSONObject.names(key: String): String = optJSONArray(key)?.let { values ->
++    (0 until values.length()).mapNotNull { index ->
++      when (val value = values.opt(index)) {
++        is String -> value
++        is JSONObject -> value.text("name")
++        else -> null
++      }?.takeIf(String::isNotBlank)
++    }.joinToString(", ")
++  } ?: text(key)
++  private fun digest(value: String): String = MessageDigest.getInstance("SHA-256")
++    .digest(value.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
++}
+\ No newline at end of file
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/audiobooks/AudiobookLibraryScreen.kt b/app/src/main/java/com/quantummpv/app/ui/browser/audiobooks/AudiobookLibraryScreen.kt
+new file mode 100644
+index 00000000..b3cfb247
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/audiobooks/AudiobookLibraryScreen.kt
+@@ -0,0 +1,359 @@
++package com.quantummpv.app.ui.browser.audiobooks
++
++import android.graphics.BitmapFactory
++import android.net.Uri
++import android.text.format.DateUtils
++import androidx.activity.compose.BackHandler
++import androidx.activity.compose.rememberLauncherForActivityResult
++import androidx.activity.result.contract.ActivityResultContracts
++import androidx.compose.foundation.Image
++import androidx.compose.foundation.background
++import androidx.compose.foundation.clickable
++import androidx.compose.foundation.horizontalScroll
++import androidx.compose.foundation.layout.Arrangement
++import androidx.compose.foundation.layout.Box
++import androidx.compose.foundation.layout.Column
++import androidx.compose.foundation.layout.PaddingValues
++import androidx.compose.foundation.layout.Row
++import androidx.compose.foundation.layout.Spacer
++import androidx.compose.foundation.layout.aspectRatio
++import androidx.compose.foundation.layout.fillMaxSize
++import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.height
++import androidx.compose.foundation.layout.heightIn
++import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.layout.size
++import androidx.compose.foundation.layout.widthIn
++import androidx.compose.foundation.lazy.LazyColumn
++import androidx.compose.foundation.lazy.items
++import androidx.compose.foundation.rememberScrollState
++import androidx.compose.foundation.shape.RoundedCornerShape
++import androidx.compose.foundation.verticalScroll
++import androidx.compose.material3.AlertDialog
++import androidx.compose.material3.Button
++import androidx.compose.material3.CircularProgressIndicator
++import androidx.compose.material3.DropdownMenu
++import androidx.compose.material3.DropdownMenuItem
++import androidx.compose.material3.ExperimentalMaterial3Api
++import androidx.compose.material3.FilterChip
++import androidx.compose.material3.HorizontalDivider
++import androidx.compose.material3.IconButton
++import androidx.compose.material3.LinearProgressIndicator
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.ModalBottomSheet
++import androidx.compose.material3.OutlinedTextField
++import androidx.compose.material3.PlainTooltip
++import androidx.compose.material3.Scaffold
++import androidx.compose.material3.Surface
++import androidx.compose.material3.Text
++import androidx.compose.material3.TextButton
++import androidx.compose.material3.TooltipBox
++import androidx.compose.material3.TooltipAnchorPosition
++import androidx.compose.material3.TooltipDefaults
++import androidx.compose.material3.TopAppBar
++import androidx.compose.material3.rememberTooltipState
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.LaunchedEffect
++import androidx.compose.runtime.getValue
++import androidx.compose.runtime.mutableStateOf
++import androidx.compose.runtime.remember
++import androidx.compose.runtime.rememberCoroutineScope
++import androidx.compose.runtime.saveable.rememberSaveable
++import androidx.compose.runtime.setValue
++import androidx.compose.ui.Alignment
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.draw.clip
++import androidx.compose.ui.graphics.ImageBitmap
++import androidx.compose.ui.graphics.asImageBitmap
++import androidx.compose.ui.layout.ContentScale
++import androidx.compose.ui.platform.LocalContext
++import androidx.compose.ui.res.stringResource
++import androidx.compose.ui.text.style.TextOverflow
++import androidx.compose.ui.unit.dp
++import androidx.lifecycle.compose.collectAsStateWithLifecycle
++import androidx.lifecycle.viewmodel.compose.viewModel
++import com.quantummpv.app.R
++import com.quantummpv.app.database.entities.Audiobook
++import com.quantummpv.app.database.entities.AudiobookEntity
++import com.quantummpv.app.presentation.Screen
++import com.quantummpv.app.ui.icons.AppIcon
++import com.quantummpv.app.ui.icons.Icon
++import com.quantummpv.app.ui.icons.Icons
++import com.quantummpv.app.ui.player.AudiobookPlayback
++import com.quantummpv.app.ui.player.PlaybackSession
++import com.quantummpv.app.ui.utils.LocalBackStack
++import com.quantummpv.app.ui.utils.popSafely
++import com.quantummpv.app.ui.utils.rememberAppHaptics
++import kotlinx.coroutines.CancellationException
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.launch
++import kotlinx.coroutines.withContext
++import kotlinx.serialization.Serializable
++
++@Serializable
++object AudiobookLibraryScreen : Screen {
++  @OptIn(ExperimentalMaterial3Api::class)
++  @Composable
++  override fun Content() {
++    val model: AudiobookLibraryViewModel = viewModel()
++    val books by model.library.collectAsStateWithLifecycle()
++    val importing by model.progress.collectAsStateWithLifecycle()
++    val error by model.error.collectAsStateWithLifecycle()
++    val backStack = LocalBackStack.current
++    val context = LocalContext.current
++    val scope = rememberCoroutineScope()
++    val haptics = rememberAppHaptics()
++    var query by rememberSaveable { mutableStateOf("") }
++    var filter by rememberSaveable { mutableStateOf(0) }
++    var search by rememberSaveable { mutableStateOf(false) }
++    var importMenu by remember { mutableStateOf(false) }
++    var detailsId by rememberSaveable { mutableStateOf<Long?>(null) }
++    var removeId by rememberSaveable { mutableStateOf<Long?>(null) }
++    var editing by remember { mutableStateOf<AudiobookEntity?>(null) }
++    var opening by remember { mutableStateOf(false) }
++    var playbackError by remember { mutableStateOf<String?>(null) }
++    val files = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { model.importFiles(it) }
++    val folder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
++      if (uri != null) model.importFiles(emptyList(), uri)
++    }
++    val visible = remember(books, query, filter) {
++      books.orEmpty().filter { book ->
++        val matches = when (filter) {
++          1 -> book.book.progressMs > 0 && !book.book.finished
++          2 -> book.book.finished
++          3 -> book.book.progressMs == 0L && !book.book.finished
++          else -> true
++        }
++        matches && listOf(book.book.title, book.book.author, book.book.narrator, book.book.series)
++          .any { it.contains(query, ignoreCase = true) }
++      }
++    }
++    fun play(book: Audiobook, restart: Boolean = false) {
++      if (opening) return
++      opening = true
++      scope.launch {
++        try {
++          AudiobookPlayback.launch(context, book.book.id, fromBeginning = restart)
++          detailsId = null
++        } catch (cancelled: CancellationException) {
++          throw cancelled
++        } catch (failure: Exception) {
++          playbackError = context.getString(R.string.audiobook_play_failed)
++        } finally {
++          opening = false
++        }
++      }
++    }
++    BackHandler(search) { search = false; query = "" }
++    Scaffold(
++      containerColor = com.quantummpv.app.ui.theme.wallpaperAwareBackgroundColor(),
++      topBar = {
++        TopAppBar(
++          title = { Text(stringResource(R.string.audiobooks_title), maxLines = 1, overflow = TextOverflow.Ellipsis) },
++          navigationIcon = {
++            IconButton(onClick = { backStack.popSafely() }) { Icon(Icons.RoundedFilled.ArrowBack, stringResource(R.string.generic_cancel)) }
++          },
++          actions = {
++            AudiobookIconButton(Icons.RoundedFilled.Search, stringResource(R.string.audiobook_search)) { search = !search }
++            Box {
++              AudiobookIconButton(Icons.RoundedFilled.Add, stringResource(R.string.audiobook_import_files), importing == null) { importMenu = true }
++              DropdownMenu(importMenu, onDismissRequest = { importMenu = false }) {
++                DropdownMenuItem(text = { Text(stringResource(R.string.audiobook_import_files)) },
++                  leadingIcon = { Icon(Icons.RoundedFilled.Add, null) }, onClick = { importMenu = false; files.launch(arrayOf("*/*")) })
++                DropdownMenuItem(text = { Text(stringResource(R.string.audiobook_import_folder)) },
++                  leadingIcon = { Icon(Icons.RoundedFilled.FolderOpen, null) }, onClick = { importMenu = false; folder.launch(null) })
++              }
++            }
++          },
++        )
++      },
++    ) { padding ->
++      Column(Modifier.fillMaxSize().padding(padding), horizontalAlignment = Alignment.CenterHorizontally) {
++        if (search) OutlinedTextField(query, onValueChange = { query = it }, singleLine = true,
++          placeholder = { Text(stringResource(R.string.audiobook_search)) },
++          modifier = Modifier.widthIn(max = 1000.dp).fillMaxWidth().padding(horizontal = 16.dp))
++        Row(Modifier.widthIn(max = 1000.dp).fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
++          horizontalArrangement = Arrangement.spacedBy(8.dp)) {
++          listOf(R.string.audiobook_all, R.string.audiobook_in_progress, R.string.audiobook_finished, R.string.audiobook_not_started)
++            .forEachIndexed { index, label ->
++              FilterChip(selected = filter == index, onClick = {
++                if (filter != index) { filter = index; haptics.selection(true) }
++              }, label = { Text(stringResource(label)) })
++            }
++        }
++        importing?.let { progress ->
++          Column(Modifier.widthIn(max = 1000.dp).fillMaxWidth().padding(horizontal = 16.dp)) {
++            if (progress.second > 0) LinearProgressIndicator(progress = { progress.first.toFloat() / progress.second }, modifier = Modifier.fillMaxWidth())
++            else LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
++            Row(verticalAlignment = Alignment.CenterVertically) {
++              if (progress.second > 0) Text(stringResource(R.string.audiobook_importing, progress.first, progress.second), Modifier.weight(1f),
++                style = MaterialTheme.typography.bodySmall) else Spacer(Modifier.weight(1f))
++              TextButton(onClick = model::cancelImport) { Text(stringResource(R.string.generic_cancel)) }
++            }
++          }
++        }
++        when {
++          books == null -> Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
++          visible.isEmpty() -> Column(Modifier.weight(1f).padding(24.dp), verticalArrangement = Arrangement.Center,
++            horizontalAlignment = Alignment.CenterHorizontally) {
++            Icon(Icons.RoundedFilled.MenuBook, null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.secondary)
++            Text(stringResource(R.string.audiobook_empty), modifier = Modifier.padding(16.dp), style = MaterialTheme.typography.titleMedium)
++            if (books.orEmpty().isEmpty()) {
++              Button(onClick = { files.launch(arrayOf("*/*")) }, enabled = importing == null) {
++                Text(stringResource(R.string.audiobook_import_files))
++              }
++              TextButton(onClick = { folder.launch(null) }, enabled = importing == null) { Text(stringResource(R.string.audiobook_import_folder)) }
++            }
++          }
++          else -> LazyColumn(Modifier.widthIn(max = 1000.dp).fillMaxWidth().weight(1f),
++            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp),
++            verticalArrangement = Arrangement.spacedBy(8.dp)) {
++            items(visible, key = { it.book.id }) { book ->
++              Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.surfaceContainer,
++                modifier = Modifier.fillMaxWidth().clickable { detailsId = book.book.id }) {
++                Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
++                  AudiobookArtwork(book.book.coverUri, Modifier.size(76.dp).clip(RoundedCornerShape(4.dp)))
++                  Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
++                    Text(book.book.title, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
++                    if (book.book.author.isNotBlank()) Text(book.book.author, style = MaterialTheme.typography.bodyMedium,
++                      maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant)
++                    Text(if (book.book.finished) stringResource(R.string.audiobook_finished) else {
++                      stringResource(R.string.audiobook_remaining, bookTime(((book.durationMs - book.book.progressMs).coerceAtLeast(0) / book.book.playbackSpeed).toLong()))
++                    }, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.secondary)
++                    LinearProgressIndicator(progress = { book.progress }, modifier = Modifier.fillMaxWidth().height(3.dp))
++                  }
++                  AudiobookIconButton(Icons.RoundedFilled.PlayArrow, stringResource(R.string.audiobook_continue), !opening) { play(book) }
++                }
++              }
++            }
++          }
++        }
++      }
++    }
++    books?.firstOrNull { it.book.id == detailsId }?.let { book ->
++      ModalBottomSheet(onDismissRequest = { detailsId = null }) {
++        Column(Modifier.fillMaxWidth().heightIn(max = 620.dp).verticalScroll(rememberScrollState()).padding(20.dp),
++          verticalArrangement = Arrangement.spacedBy(12.dp)) {
++          Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
++            AudiobookArtwork(book.book.coverUri, Modifier.size(92.dp).clip(RoundedCornerShape(4.dp)))
++            Column(Modifier.weight(1f)) {
++              Text(book.book.title, style = MaterialTheme.typography.titleLarge)
++              Text(book.book.author, style = MaterialTheme.typography.bodyLarge)
++              Text(bookTime(book.durationMs), style = MaterialTheme.typography.labelMedium)
++            }
++          }
++          Button(onClick = { play(book) }, enabled = !opening, modifier = Modifier.fillMaxWidth()) {
++            Text(stringResource(if (book.book.finished) R.string.audiobook_start_over else R.string.audiobook_continue))
++          }
++          if (book.book.progressMs > 0 && !book.book.finished) TextButton(onClick = { play(book, true) }, enabled = !opening) {
++            Text(stringResource(R.string.audiobook_start_over))
++          }
++          AudiobookDetails(book.book)
++          HorizontalDivider()
++          Text(stringResource(R.string.audiobook_files), style = MaterialTheme.typography.titleSmall)
++          LazyColumn(Modifier.fillMaxWidth().heightIn(max = 180.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
++            items(book.orderedTracks, key = { it.id }) { track ->
++              Text("${track.position + 1}. ${track.fileName}", style = MaterialTheme.typography.bodySmall)
++            }
++          }
++          HorizontalDivider()
++          TextButton(onClick = { editing = book.book; detailsId = null }) { Text(stringResource(R.string.audiobook_edit)) }
++          TextButton(onClick = { model.setFinished(book.book.id, !book.book.finished); detailsId = null },
++            enabled = PlaybackSession.state.value.currentItem?.audiobook?.bookId != book.book.id) {
++            Text(stringResource(if (book.book.finished) R.string.audiobook_mark_unfinished else R.string.audiobook_mark_finished))
++          }
++          TextButton(onClick = { removeId = book.book.id; detailsId = null }) {
++            Text(stringResource(R.string.audiobook_remove), color = MaterialTheme.colorScheme.error)
++          }
++        }
++      }
++    }
++    books?.firstOrNull { it.book.id == removeId }?.let { book ->
++      AlertDialog(onDismissRequest = { removeId = null }, title = { Text(stringResource(R.string.audiobook_remove)) },
++        text = { Text(stringResource(R.string.audiobook_remove_confirmation, book.book.title)) },
++        confirmButton = { TextButton(onClick = { model.remove(book.book.id); removeId = null }) { Text(stringResource(R.string.audiobook_remove)) } },
++        dismissButton = { TextButton(onClick = { removeId = null }) { Text(stringResource(R.string.generic_cancel)) } })
++    }
++    editing?.let { book -> AudiobookEditDialog(book, onDismiss = { editing = null }) { model.edit(it); editing = null } }
++    (error ?: playbackError)?.let { message ->
++      AlertDialog(onDismissRequest = { model.dismissError(); playbackError = null }, text = { Text(message) },
++        confirmButton = { TextButton(onClick = { model.dismissError(); playbackError = null }) { Text(stringResource(R.string.generic_ok)) } })
++    }
++  }
++}
++
++@Composable
++internal fun AudiobookDetails(book: AudiobookEntity) {
++  listOf(
++    R.string.audiobook_subtitle to book.subtitle, R.string.audiobook_author to book.author,
++    R.string.audiobook_narrator to book.narrator, R.string.audiobook_series to book.series,
++    R.string.audiobook_series_part to book.seriesPart, R.string.audiobook_description to book.description,
++    R.string.audiobook_genre to book.genre, R.string.audiobook_language to book.language,
++    R.string.audiobook_publisher to book.publisher, R.string.audiobook_published to book.publishedYear,
++    R.string.audiobook_isbn to book.isbn, R.string.audiobook_asin to book.asin,
++  ).filter { it.second.isNotBlank() }.forEach { (label, value) ->
++    Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
++      Text(stringResource(label), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.secondary)
++      Text(value, style = MaterialTheme.typography.bodyMedium)
++    }
++  }
++  book.abridged?.let { Text(stringResource(if (it) R.string.audiobook_abridged else R.string.audiobook_unabridged)) }
++}
++
++@Composable
++private fun AudiobookEditDialog(book: AudiobookEntity, onDismiss: () -> Unit, onSave: (AudiobookEntity) -> Unit) {
++  var title by rememberSaveable(book.id) { mutableStateOf(book.title) }
++  var author by rememberSaveable(book.id) { mutableStateOf(book.author) }
++  var narrator by rememberSaveable(book.id) { mutableStateOf(book.narrator) }
++  var series by rememberSaveable(book.id) { mutableStateOf(book.series) }
++  var part by rememberSaveable(book.id) { mutableStateOf(book.seriesPart) }
++  AlertDialog(onDismissRequest = onDismiss, title = { Text(stringResource(R.string.audiobook_edit)) }, text = {
++    Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
++      OutlinedTextField(title, { title = it }, label = { Text(stringResource(R.string.audiobook_title)) }, singleLine = true)
++      OutlinedTextField(author, { author = it }, label = { Text(stringResource(R.string.audiobook_author)) }, singleLine = true)
++      OutlinedTextField(narrator, { narrator = it }, label = { Text(stringResource(R.string.audiobook_narrator)) }, singleLine = true)
++      OutlinedTextField(series, { series = it }, label = { Text(stringResource(R.string.audiobook_series)) }, singleLine = true)
++      OutlinedTextField(part, { part = it }, label = { Text(stringResource(R.string.audiobook_series_part)) }, singleLine = true)
++    }
++  }, confirmButton = {
++    TextButton(onClick = { onSave(book.copy(title = title, author = author, narrator = narrator, series = series, seriesPart = part)) },
++      enabled = title.isNotBlank()) { Text(stringResource(R.string.audiobook_save)) }
++  }, dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.generic_cancel)) } })
++}
++
++@Composable
++internal fun AudiobookArtwork(uri: String?, modifier: Modifier = Modifier) {
++  val context = LocalContext.current
++  var image by remember(uri) { mutableStateOf<ImageBitmap?>(null) }
++  LaunchedEffect(uri) {
++    image = withContext(Dispatchers.IO) {
++      if (uri == null) return@withContext null
++      runCatching {
++        fun stream() = context.contentResolver.openInputStream(Uri.parse(uri))
++        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
++        stream()?.use { BitmapFactory.decodeStream(it, null, bounds) }
++        val options = BitmapFactory.Options().apply {
++          inSampleSize = 1
++          while (maxOf(bounds.outWidth, bounds.outHeight) / inSampleSize > 800) inSampleSize *= 2
++        }
++        stream()?.use { BitmapFactory.decodeStream(it, null, options)?.asImageBitmap() }
++      }.getOrNull()
++    }
++  }
++  Box(modifier.background(MaterialTheme.colorScheme.secondaryContainer), contentAlignment = Alignment.Center) {
++    val loaded = image
++    if (loaded != null) Image(loaded, null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
++    else Icon(Icons.RoundedFilled.MenuBook, null, modifier = Modifier.size(40.dp), tint = MaterialTheme.colorScheme.onSecondaryContainer)
++  }
++}
++
++internal fun bookTime(milliseconds: Long): String = DateUtils.formatElapsedTime(milliseconds.coerceAtLeast(0) / 1000)
++
++@OptIn(ExperimentalMaterial3Api::class)
++@Composable
++internal fun AudiobookIconButton(icon: AppIcon, label: String, enabled: Boolean = true, onClick: () -> Unit) {
++  TooltipBox(positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
++    tooltip = { PlainTooltip { Text(label) } }, state = rememberTooltipState()) {
++    IconButton(onClick = onClick, enabled = enabled, modifier = Modifier.size(48.dp)) { Icon(icon, label) }
++  }
++}
+\ No newline at end of file
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/audiobooks/AudiobookLibraryViewModel.kt b/app/src/main/java/com/quantummpv/app/ui/browser/audiobooks/AudiobookLibraryViewModel.kt
+new file mode 100644
+index 00000000..73cc74ca
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/audiobooks/AudiobookLibraryViewModel.kt
+@@ -0,0 +1,84 @@
++package com.quantummpv.app.ui.browser.audiobooks
++
++import android.app.Application
++import android.content.Intent
++import android.net.Uri
++import androidx.lifecycle.AndroidViewModel
++import androidx.lifecycle.viewModelScope
++import com.quantummpv.app.R
++import com.quantummpv.app.database.dao.AudiobookDao
++import com.quantummpv.app.database.entities.AudiobookEntity
++import com.quantummpv.app.domain.audiobook.AudiobookImporter
++import com.quantummpv.app.ui.player.AudiobookPlayback
++import com.quantummpv.app.ui.player.PlaybackSession
++import kotlinx.coroutines.CancellationException
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.Job
++import kotlinx.coroutines.flow.MutableStateFlow
++import kotlinx.coroutines.flow.SharingStarted
++import kotlinx.coroutines.flow.asStateFlow
++import kotlinx.coroutines.flow.stateIn
++import kotlinx.coroutines.launch
++import org.koin.core.context.GlobalContext
++
++class AudiobookLibraryViewModel(application: Application) : AndroidViewModel(application) {
++  private val dao = GlobalContext.get().get<AudiobookDao>()
++  val library = dao.observeLibrary().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
++  private val _progress = MutableStateFlow<Pair<Int, Int>?>(null)
++  val progress = _progress.asStateFlow()
++  private val _error = MutableStateFlow<String?>(null)
++  val error = _error.asStateFlow()
++  private var importJob: Job? = null
++
++  fun importFiles(uris: List<Uri>, folder: Uri? = null) {
++    if (importJob?.isActive == true || uris.isEmpty() && folder == null) return
++    _error.value = null
++    _progress.value = 0 to 0
++    importJob = viewModelScope.launch(Dispatchers.IO) {
++      val context = getApplication<Application>()
++      try {
++        (listOfNotNull(folder) + uris).forEach { uri ->
++          context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
++        }
++        AudiobookImporter(context, dao).importBook(uris, folder) { current, total -> _progress.value = current to total }
++      } catch (cancelled: CancellationException) {
++        throw cancelled
++      } catch (failure: Exception) {
++        _error.value = context.getString(R.string.audiobook_import_failed, failure.localizedMessage.orEmpty())
++      } finally {
++        _progress.value = null
++      }
++    }
++  }
++
++  fun cancelImport() { importJob?.cancel() }
++  fun dismissError() { _error.value = null }
++
++  fun remove(id: Long) = operation {
++    if (PlaybackSession.state.value.currentItem?.audiobook?.bookId == id) {
++      throw IllegalStateException(getApplication<Application>().getString(R.string.audiobook_stop_before_remove))
++    }
++    dao.deleteBook(id)
++  }
++
++  fun setFinished(id: Long, finished: Boolean) = operation {
++    if (PlaybackSession.state.value.currentItem?.audiobook?.bookId == id) return@operation
++    AudiobookPlayback.capture()
++    AudiobookPlayback.flush()
++    dao.setFinished(id, finished)
++  }
++
++  fun edit(book: AudiobookEntity) = operation {
++    dao.updateDetails(book.id, book.title.trim(), book.author.trim(), book.narrator.trim(), book.series.trim(), book.seriesPart.trim())
++  }
++
++  private fun operation(action: suspend () -> Unit) = viewModelScope.launch {
++    try {
++      action()
++    } catch (cancelled: CancellationException) {
++      throw cancelled
++    } catch (failure: Exception) {
++      _error.value = failure.localizedMessage.orEmpty()
++    }
++  }
++}
+\ No newline at end of file
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryContent.kt b/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryContent.kt
+index 4c738df5..1b7bd9c9 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryContent.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryContent.kt
+@@ -572,6 +572,11 @@ fun MusicLibraryContent(
+               isSingleSelection = activeSelectionManager.isSingleSelection,
+               onInfoClick = null,
+               preSearchActions = {
++                if (!activeSelectionManager.isInSelectionMode) {
++                  com.quantummpv.app.ui.browser.audiobooks.AudiobookIconButton(
++                    Icons.RoundedFilled.MenuBook, stringResource(R.string.audiobooks_title),
++                  ) { backStack.navigateTo(com.quantummpv.app.ui.browser.audiobooks.AudiobookLibraryScreen) }
++                }
+                 if (!activeSelectionManager.isInSelectionMode && (hasJellyfinMusicLibrary || hasNavidromeServer)) {
+                   var isSourceDropdownOpen by remember { mutableStateOf(false) }
+                   Box {
+diff --git a/app/src/main/java/com/quantummpv/app/ui/icons/Icons.kt b/app/src/main/java/com/quantummpv/app/ui/icons/Icons.kt
+index 28e726ba..7325c617 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/icons/Icons.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/icons/Icons.kt
+@@ -166,6 +166,7 @@ object Icons {
+     val MonetizationOn by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Monetization_on) }
+     val MoreTime by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.More_time) }
+     val MoreVert by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.More_vert) }
++    val MenuBook by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Menu_book) }
+     val Movie by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Movie) }
+     val Mystery by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Mystery) }
+     val Notifications by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Notifications) }
+@@ -390,6 +391,7 @@ object Icons {
+     val MonetizationOn get() = Shared.MonetizationOn
+     val MoreTime get() = Shared.MoreTime
+     val MoreVert get() = Shared.MoreVert
++    val MenuBook get() = Shared.MenuBook
+     val Movie get() = Shared.Movie
+     val Mystery get() = Shared.Mystery
+     val Notifications get() = Shared.Notifications
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/AudiobookPlayback.kt b/app/src/main/java/com/quantummpv/app/ui/player/AudiobookPlayback.kt
+new file mode 100644
+index 00000000..3ef8c612
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/ui/player/AudiobookPlayback.kt
+@@ -0,0 +1,312 @@
++package com.quantummpv.app.ui.player
++
++import android.content.Context
++import android.content.Intent
++import android.net.Uri
++import android.os.SystemClock
++import android.util.Log
++import com.quantummpv.app.database.dao.AudiobookDao
++import com.quantummpv.app.database.entities.Audiobook
++import com.quantummpv.app.database.entities.AudiobookChapterEntity
++import java.util.concurrent.atomic.AtomicBoolean
++import kotlinx.coroutines.CancellationException
++import kotlinx.coroutines.CompletableDeferred
++import kotlinx.coroutines.CoroutineExceptionHandler
++import kotlinx.coroutines.CoroutineScope
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.SupervisorJob
++import kotlinx.coroutines.channels.Channel
++import kotlinx.coroutines.delay
++import kotlinx.coroutines.flow.MutableStateFlow
++import kotlinx.coroutines.flow.asStateFlow
++import kotlinx.coroutines.flow.collectLatest
++import kotlinx.coroutines.flow.distinctUntilChanged
++import kotlinx.coroutines.flow.first
++import kotlinx.coroutines.flow.map
++import kotlinx.coroutines.isActive
++import kotlinx.coroutines.launch
++import kotlinx.coroutines.withContext
++import kotlinx.serialization.json.Json
++import org.koin.core.context.GlobalContext
++
++internal data class AudiobookProgress(
++  val item: AudiobookPlaybackInfo,
++  val positionMs: Long,
++  val reachedEnd: Boolean,
++  val capturedAtNanos: Long,
++  val playedAt: Long = System.currentTimeMillis(),
++)
++
++internal object AudiobookPlayback {
++  const val EXTRA_BOOK_ID = "com.quantummpv.app.AUDIOBOOK_ID"
++  const val EXTRA_TRACK_ID = "com.quantummpv.app.AUDIOBOOK_TRACK_ID"
++  const val EXTRA_POSITION_MS = "com.quantummpv.app.AUDIOBOOK_POSITION_MS"
++
++  private val dao by lazy { GlobalContext.get().get<AudiobookDao>() }
++  private val json by lazy { GlobalContext.get().get<Json>() }
++  private val started = AtomicBoolean(false)
++  private val handler = CoroutineExceptionHandler { _, error ->
++    Log.e("AudiobookPlayback", "Audiobook operation failed", error)
++    _saveFailed.value = true
++  }
++  private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate + handler)
++  private data class SaveWork(val progress: AudiobookProgress? = null, val completion: CompletableDeferred<Unit>? = null)
++  private val saves = Channel<SaveWork>(Channel.UNLIMITED)
++  private val _book = MutableStateFlow<Audiobook?>(null)
++  val book = _book.asStateFlow()
++  private val _saveFailed = MutableStateFlow(false)
++  val saveFailed = _saveFailed.asStateFlow()
++  private val _timer = MutableStateFlow<SleepTimer?>(null)
++  val timer = _timer.asStateFlow()
++  @Volatile private var pausedAt = 0L
++  @Volatile private var pausedTrack: Long? = null
++  @Volatile private var sleepStoppedTrack: Long? = null
++
++  data class SleepTimer(val bookId: Long, val deadline: Long? = null, val trackId: Long? = null, val chapterEndMs: Long? = null,
++    val remainingSeconds: Int = 0)
++
++  fun ensureStarted() {
++    if (!started.compareAndSet(false, true)) return
++    scope.launch(Dispatchers.IO) {
++      val savedAt = mutableMapOf<Long, Long>()
++      for (work in saves) {
++        try {
++          work.progress?.let { progress ->
++            if (progress.capturedAtNanos > (savedAt[progress.item.bookId] ?: 0L)) {
++              dao.saveProgress(progress.item.bookId, progress.item.trackId, progress.positionMs, progress.playedAt, progress.reachedEnd)
++              savedAt[progress.item.bookId] = progress.capturedAtNanos
++              _saveFailed.value = false
++            }
++          }
++        } catch (cancelled: CancellationException) {
++          throw cancelled
++        } catch (error: Exception) {
++          Log.e("AudiobookPlayback", "Could not save progress", error)
++          _saveFailed.value = true
++        } finally {
++          work.completion?.complete(Unit)
++        }
++      }
++    }
++    scope.launch {
++      PlaybackSession.state.map { it.currentItem?.audiobook?.bookId }.distinctUntilChanged().collectLatest { id ->
++        if (_timer.value?.bookId != id) _timer.value = null
++        _book.value = null
++        if (id != null) dao.observeBook(id).collect { _book.value = it }
++      }
++    }
++    scope.launch {
++      var lastSaved: Triple<AudiobookPlaybackInfo, Long, Boolean>? = null
++      var ticks = 0
++      while (isActive) {
++        val progress = PlaybackSession.audiobookProgress()
++        if (progress != null && ++ticks % 4 == 0) {
++          val key = Triple(progress.item, progress.positionMs / 1000, progress.reachedEnd)
++          if (key != lastSaved) {
++            saves.trySend(SaveWork(progress))
++            lastSaved = key
++          }
++        }
++        val timer = _timer.value
++        if (timer != null) {
++          val currentBook = PlaybackSession.state.value.currentItem?.audiobook?.bookId
++          if (currentBook != timer.bookId || PlaybackSession.state.value.phase in setOf(PlaybackPhase.STOPPING, PlaybackPhase.ERROR)) {
++            _timer.value = null
++          } else if (timer.deadline != null) {
++            val remaining = ((timer.deadline - SystemClock.elapsedRealtime() + 999) / 1000).coerceAtLeast(0).toInt()
++            if (remaining == 0) {
++              sleepStoppedTrack = progress?.item?.trackId
++              _timer.value = null
++              PlaybackSession.setPropertyBoolean("pause", true)
++            } else if (remaining != timer.remainingSeconds) {
++              _timer.value = timer.copy(remainingSeconds = remaining)
++            }
++          } else if (progress != null && progress.item.trackId == timer.trackId && progress.positionMs >= (timer.chapterEndMs ?: Long.MAX_VALUE)) {
++            sleepStoppedTrack = progress.item.trackId
++            _timer.value = null
++            PlaybackSession.setPropertyBoolean("pause", true)
++          }
++        }
++        delay(250)
++      }
++    }
++  }
++
++  fun capture(reachedEnd: Boolean = false) {
++    if (!started.get()) return
++    PlaybackSession.audiobookProgress(reachedEnd)?.let { saves.trySend(SaveWork(it)) }
++  }
++
++  suspend fun flush() {
++    if (!started.get()) return
++    val completion = CompletableDeferred<Unit>()
++    saves.send(SaveWork(completion = completion))
++    completion.await()
++  }
++
++  fun onPauseRequested(paused: Boolean) {
++    if (!started.get()) return
++    val progress = PlaybackSession.audiobookProgress() ?: return
++    if (paused) {
++      if (PlaybackSession.state.value.paused.not()) {
++        pausedAt = SystemClock.elapsedRealtime()
++        pausedTrack = progress.item.trackId
++      }
++      capture()
++    } else if (PlaybackSession.state.value.paused) {
++      sleepStoppedTrack = null
++      val seconds = _book.value?.book?.takeIf { it.id == progress.item.bookId }?.rewindSeconds ?: 0
++      if (pausedAt > 0 && pausedTrack == progress.item.trackId && SystemClock.elapsedRealtime() - pausedAt >= 5000 && seconds > 0) {
++        seek((progress.positionMs - seconds * 1000L).coerceAtLeast(0))
++      }
++      pausedAt = 0
++    }
++  }
++
++  fun seek(positionMs: Long) {
++    pausedAt = 0
++    PlaybackSession.command("seek", (positionMs.coerceAtLeast(0) / 1000.0).toString(), "absolute+exact")
++  }
++
++  fun seekBy(seconds: Int) {
++    val progress = PlaybackSession.audiobookProgress() ?: return
++    val duration = _book.value?.tracks?.firstOrNull { it.id == progress.item.trackId }?.durationMs ?: Long.MAX_VALUE
++    seek((progress.positionMs + seconds * 1000L).coerceIn(0, duration.coerceAtLeast(0)))
++  }
++
++  fun onFileLoaded(item: PlaybackItem, generation: Long) {
++    val info = item.audiobook ?: return
++    ensureStarted()
++    pausedAt = 0
++    sleepStoppedTrack = null
++    scope.launch {
++      val book = dao.getBook(info.bookId) ?: return@launch
++      PlaybackSession.state.first {
++        it.generation != generation || it.phase in setOf(PlaybackPhase.READY, PlaybackPhase.BACKGROUND, PlaybackPhase.ERROR, PlaybackPhase.IDLE)
++      }
++      if (!PlaybackSession.isCurrentGeneration(generation)) return@launch
++      val track = book.tracks.firstOrNull { it.id == info.trackId } ?: return@launch
++      val tags = runCatching { PlaybackSession.getPropertyNode("metadata")?.toObject<Map<String, String>>(json) }
++        .getOrNull().orEmpty().mapKeys { it.key.lowercase(java.util.Locale.ROOT) }
++      fun tag(vararg keys: String) = keys.firstNotNullOfOrNull { tags[it]?.trim()?.takeIf(String::isNotBlank) }.orEmpty()
++      val duration = PlaybackSession.getPropertyDouble("duration")?.takeIf { it.isFinite() && it > 0 }?.times(1000)?.toLong() ?: track.durationMs
++      val nodes = runCatching { PlaybackSession.getPropertyNode("chapter-list")?.toObject<List<ChapterNode>>(json) }.getOrNull().orEmpty()
++        .filter { it.time.isFinite() && it.time >= 0 && it.time * 1000 < duration }
++        .distinctBy { it.time }.sortedBy { it.time }
++      if (!PlaybackSession.isCurrentGeneration(generation)) return@launch
++      dao.updateDuration(track.id, duration)
++      dao.fillMetadata(info.bookId, tag("artist", "album_artist", "author"), tag("narrator", "composer"),
++        tag("series", "grouping"), tag("series-part", "series_part"), tag("description", "comment"),
++        tag("language"), tag("publisher"), tag("date", "year"), tag("genre"), tag("isbn"), tag("asin"))
++      if (nodes.isNotEmpty() && dao.getChapters(track.id).isEmpty()) {
++        val completeNodes = if (nodes.first().time > 0) listOf(ChapterNode(0f, track.title)) + nodes else nodes
++        val chapters = completeNodes.mapIndexedNotNull { index, node ->
++          val start = (node.time * 1000).toLong()
++          val end = completeNodes.getOrNull(index + 1)?.time?.times(1000)?.toLong() ?: duration
++          if (end > start) AudiobookChapterEntity(track.id, start, end, node.title.ifBlank { track.title }) else null
++        }
++        dao.replaceChapters(track.id, chapters)
++      }
++    }
++  }
++
++  fun handleEndOfFile(): Boolean {
++    val info = PlaybackSession.state.value.currentItem?.audiobook ?: return false
++    capture(reachedEnd = true)
++    val lastTrack = PlaybackSession.queue.value.items.lastOrNull()?.audiobook?.trackId == info.trackId
++    val timer = _timer.value
++    if (lastTrack || timer?.trackId == info.trackId || sleepStoppedTrack == info.trackId) {
++      _timer.value = null
++      PlaybackSession.setPropertyBoolean("pause", true)
++      return true
++    }
++    return false
++  }
++
++  fun setTimer(minutes: Int?, chapterEndMs: Long? = null) {
++    val progress = PlaybackSession.audiobookProgress() ?: return
++    sleepStoppedTrack = null
++    _timer.value = when {
++      chapterEndMs != null && chapterEndMs > progress.positionMs -> SleepTimer(progress.item.bookId, trackId = progress.item.trackId,
++        chapterEndMs = chapterEndMs)
++      minutes != null && minutes > 0 -> SleepTimer(progress.item.bookId,
++        deadline = SystemClock.elapsedRealtime() + minutes * 60_000L, remainingSeconds = minutes * 60)
++      else -> null
++    }
++  }
++
++  fun clearTimer() {
++    _timer.value = null
++    sleepStoppedTrack = null
++  }
++
++  fun setSpeed(speed: Float) {
++    val id = PlaybackSession.state.value.currentItem?.audiobook?.bookId ?: return
++    val safeSpeed = speed.coerceIn(0.5f, 3f)
++    scope.launch {
++      dao.setSpeed(id, safeSpeed)
++      if (PlaybackSession.state.value.currentItem?.audiobook?.bookId == id) PlaybackSession.setPropertyFloat("speed", safeSpeed)
++    }
++  }
++
++  fun setRewind(seconds: Int) {
++    val id = PlaybackSession.state.value.currentItem?.audiobook?.bookId ?: return
++    scope.launch { dao.setRewind(id, seconds.coerceIn(0, 30)) }
++  }
++
++  suspend fun prepareQueue(bookId: Long, trackId: Long? = null): PreparedPlaybackLaunch {
++    ensureStarted()
++    val book = dao.getBook(bookId) ?: error("Audiobook not found")
++    val ordered = book.orderedTracks
++    require(ordered.isNotEmpty())
++    val selected = trackId ?: book.book.currentTrackId?.takeUnless { book.book.finished }
++    val index = ordered.indexOfFirst { it.id == selected }.coerceAtLeast(0)
++    val items = ordered.map { track ->
++      PlaybackItem.fromUri(track.uri, title = book.book.title, artist = book.book.author,
++        mimeType = "audio/*", artworkUri = book.book.coverUri, durationSeconds = (track.durationMs / 1000).toInt())
++        .copy(audiobook = AudiobookPlaybackInfo(bookId, track.id))
++    }
++    return PreparedPlaybackLaunch(token = 0, items = items, currentIndex = index, isExplicitQueue = true, isM3u = false)
++  }
++
++  suspend fun launch(context: Context, bookId: Long, trackId: Long? = null, positionMs: Long? = null, fromBeginning: Boolean = false) {
++    ensureStarted()
++    capture()
++    flush()
++    val firstTrack = if (fromBeginning) dao.getBook(bookId)?.orderedTracks?.firstOrNull()?.id else null
++    val launch = prepareQueue(bookId, firstTrack ?: trackId)
++    val current = launch.items[launch.currentIndex]
++    withContext(Dispatchers.Main) {
++      val token = PreparedPlaybackLaunchStore.stage(launch.items, launch.currentIndex)
++      context.startActivity(Intent(context, PlayerActivity::class.java).setAction(Intent.ACTION_VIEW).setData(Uri.parse(current.originalUri))
++        .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_GRANT_READ_URI_PERMISSION)
++        .putExtra("internal_launch", true).putExtra("is_audio", true).putExtra("media_library_audio", true)
++        .putExtra("title", launch.items[launch.currentIndex].title)
++        .putExtra(PlayerActivity.EXTRA_PREPARED_PLAYBACK_QUEUE, true).putExtra(PlayerActivity.EXTRA_PREPARED_PLAYBACK_TOKEN, token)
++        .putExtra("playlist_index", launch.currentIndex).putExtra(EXTRA_BOOK_ID, bookId)
++        .putExtra(EXTRA_TRACK_ID, current.audiobook?.trackId ?: -1L)
++        .putExtra(EXTRA_POSITION_MS, if (fromBeginning) 0L else positionMs ?: -1L))
++    }
++  }
++
++  suspend fun positionForLoad(item: PlaybackItem, intent: Intent): PlaybackPositionRestoreOverride? {
++    val info = item.audiobook ?: return null
++    val stored = dao.getBook(info.bookId) ?: return PlaybackPositionRestoreOverride(0.0, false)
++    val book = stored.book
++    val explicit = intent.getLongExtra(EXTRA_POSITION_MS, -1L).takeIf {
++      it >= 0 && intent.getLongExtra(EXTRA_BOOK_ID, -1L) == info.bookId && intent.getLongExtra(EXTRA_TRACK_ID, -1L) == info.trackId
++    }
++    val saved = if (book.currentTrackId == info.trackId && !book.finished) book.positionMs else 0L
++    val rewind = if (explicit == null && System.currentTimeMillis() - book.lastPlayedAt >= 5000) book.rewindSeconds * 1000L else 0L
++    val maximum = stored.tracks.firstOrNull { it.id == info.trackId }?.durationMs?.minus(1)?.coerceAtLeast(0) ?: Long.MAX_VALUE
++    return PlaybackPositionRestoreOverride(((explicit ?: saved) - rewind).coerceIn(0, maximum) / 1000.0, false)
++  }
++
++  suspend fun applyBookSettings(item: PlaybackItem, generation: Long) {
++    val info = item.audiobook ?: return
++    val book = dao.getBook(info.bookId)?.book ?: return
++    if (PlaybackSession.isCurrentGeneration(generation)) {
++      PlaybackSession.applyAudiobookSpeed(generation, book.playbackSpeed)
++    }
++  }
++}
+\ No newline at end of file
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/MediaPlaybackService.kt b/app/src/main/java/com/quantummpv/app/ui/player/MediaPlaybackService.kt
+index 6f18be39..53423b4d 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/MediaPlaybackService.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/MediaPlaybackService.kt
+@@ -1030,8 +1030,10 @@ class MediaPlaybackService :
+ 
+   private fun handleDetachedEndOfFile() {
+     if (activityForeground || PlaybackSession.state.value.surfaceAttached || !foregroundReady) return
++    if (AudiobookPlayback.handleEndOfFile()) return
+     val queueState = PlaybackSession.queue.value
+-    val autoplay = if (notificationIsAudio) playerPreferences.autoplayNextAudio.get() else playerPreferences.autoplayNextVideo.get()
++    val autoplay = queueState.currentItem?.audiobook != null ||
++      if (notificationIsAudio) playerPreferences.autoplayNextAudio.get() else playerPreferences.autoplayNextVideo.get()
+     when {
+       queueState.repeatMode == RepeatMode.ONE -> {
+         PlaybackSession.command("seek", "0", "absolute")
+@@ -1313,6 +1315,10 @@ class MediaPlaybackService :
+         putExtra("internal_launch", true)
+         putExtra("is_audio", isAudio)
+         putExtra("media_library_audio", isAudio)
++        currentItem?.audiobook?.let { book ->
++          putExtra(AudiobookPlayback.EXTRA_BOOK_ID, book.bookId)
++          putExtra(AudiobookPlayback.EXTRA_TRACK_ID, book.trackId)
++        }
+         flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+       }
+ 
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/PlaybackModels.kt b/app/src/main/java/com/quantummpv/app/ui/player/PlaybackModels.kt
+index ee39890f..519d0a00 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/PlaybackModels.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/PlaybackModels.kt
+@@ -56,6 +56,7 @@ data class PlaybackItem(
+   val durationSeconds: Int? = null,
+   /** File index inside a multi-file torrent; lets a series episode restart its stream. */
+   val torrentFileIndex: Int? = null,
++  val audiobook: AudiobookPlaybackInfo? = null,
+ ) {
+   /** True while this torrent episode still points at its magnet/torrent source instead of a live stream URL. */
+   fun requiresTorrentResolution(): Boolean = torrentFileIndex != null && playableUri == originalUri
+@@ -120,6 +121,8 @@ internal fun PlaybackItem.declaredMediaKind(): DeclaredPlaybackMediaKind {
+   return DeclaredPlaybackMediaKind.UNKNOWN
+ }
+ 
++data class AudiobookPlaybackInfo(val bookId: Long, val trackId: Long)
++
+ internal fun PlaybackItem.isDefinitelyAudioOnly(): Boolean =
+   declaredMediaKind() == DeclaredPlaybackMediaKind.AUDIO
+ 
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/PlaybackSession.kt b/app/src/main/java/com/quantummpv/app/ui/player/PlaybackSession.kt
+index 41b1da6f..5bfe38db 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/PlaybackSession.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/PlaybackSession.kt
+@@ -186,6 +186,10 @@ object PlaybackSession : MPVLib.EventObserver {
+   private var supersededStopGeneration = 0L
+   private var desiredPaused = true
+   private var loadedGeneration = 0L
++  private var loadedAudiobook: AudiobookPlaybackInfo? = null
++  private var loadedAudiobookDurationMs = 0L
++  private var loadedAudiobookEnded = false
++  private var speedBeforeAudiobook: Float? = null
+   private var defaultUserAgent: String? = null
+   private var pendingPositionRestoreGeneration = 0L
+   private var pendingPositionRestoreOverride: Pair<Long, PlaybackPositionRestoreOverride>? = null
+@@ -416,6 +420,9 @@ object PlaybackSession : MPVLib.EventObserver {
+   /** Stop playback while keeping the app-scoped core ready for a later screen attachment. */
+   fun stop(clearQueue: Boolean = true) {
+     withCore(Unit) {
++      AudiobookPlayback.capture()
++      loadedAudiobook = null
++      AudiobookPlayback.clearTimer()
+       val previousPhase = _state.value.phase
+       if (previousPhase == PlaybackPhase.STOPPING) {
+         pendingStopClearQueue = pendingStopClearQueue || clearQueue
+@@ -567,6 +574,10 @@ object PlaybackSession : MPVLib.EventObserver {
+   }
+ 
+   private fun destroyLocked() {
++    AudiobookPlayback.capture()
++    loadedAudiobook = null
++    speedBeforeAudiobook = null
++    AudiobookPlayback.clearTimer()
+     updateState { it.copy(phase = PlaybackPhase.STOPPING) }
+     desiredPaused = true
+     loadedGeneration = 0L
+@@ -615,6 +626,9 @@ object PlaybackSession : MPVLib.EventObserver {
+         pendingStopClearQueue = false
+       }
+       _queue.value = PlaybackQueueReducer.replace(_queue.value, items, currentIndex, isExplicitQueue, isM3u)
++      if (_queue.value.currentItem?.audiobook != null) {
++        _queue.value = PlaybackQueueReducer.setRepeatMode(PlaybackQueueReducer.setShuffleEnabled(_queue.value, false), RepeatMode.OFF)
++      }
+       updateState { it.copy(currentItem = _queue.value.currentItem) }
+     }
+   }
+@@ -628,6 +642,7 @@ object PlaybackSession : MPVLib.EventObserver {
+     to: Int,
+   ): Boolean =
+     nativeLock.withLock {
++      if (_queue.value.items.any { it.audiobook != null }) return@withLock false
+       val next = PlaybackQueueReducer.move(_queue.value, from, to) ?: return@withLock false
+       _queue.value = next
+       updateState { it.copy(currentItem = next.currentItem) }
+@@ -636,6 +651,7 @@ object PlaybackSession : MPVLib.EventObserver {
+ 
+   fun insertQueueItemsNext(items: List<PlaybackItem>): Boolean =
+     nativeLock.withLock {
++      if (_queue.value.items.any { it.audiobook != null } || items.any { it.audiobook != null }) return@withLock false
+       val next = PlaybackQueueReducer.insertNext(_queue.value, items) ?: return@withLock false
+       _queue.value = next
+       updateState { it.copy(currentItem = next.currentItem) }
+@@ -644,6 +660,7 @@ object PlaybackSession : MPVLib.EventObserver {
+ 
+   fun appendQueueItems(items: List<PlaybackItem>): Boolean =
+     nativeLock.withLock {
++      if (_queue.value.items.any { it.audiobook != null } || items.any { it.audiobook != null }) return@withLock false
+       val next = PlaybackQueueReducer.append(_queue.value, items) ?: return@withLock false
+       _queue.value = next
+       updateState { it.copy(currentItem = next.currentItem) }
+@@ -659,11 +676,15 @@ object PlaybackSession : MPVLib.EventObserver {
+     }
+ 
+   fun setRepeatMode(repeatMode: RepeatMode) {
+-    nativeLock.withLock { _queue.value = PlaybackQueueReducer.setRepeatMode(_queue.value, repeatMode) }
++    nativeLock.withLock {
++      _queue.value = PlaybackQueueReducer.setRepeatMode(_queue.value, if (_queue.value.currentItem?.audiobook != null) RepeatMode.OFF else repeatMode)
++    }
+   }
+ 
+   fun setShuffleEnabled(enabled: Boolean) {
+-    nativeLock.withLock { _queue.value = PlaybackQueueReducer.setShuffleEnabled(_queue.value, enabled) }
++    nativeLock.withLock {
++      _queue.value = PlaybackQueueReducer.setShuffleEnabled(_queue.value, enabled && _queue.value.currentItem?.audiobook == null)
++    }
+   }
+ 
+   fun hasNext(): Boolean = nativeLock.withLock { PlaybackQueueReducer.hasNext(_queue.value) }
+@@ -782,7 +803,14 @@ object PlaybackSession : MPVLib.EventObserver {
+   ): Long =
+     withCore(default = -1L) {
+       if (_state.value.phase == PlaybackPhase.STOPPING) return@withCore -1L
++      AudiobookPlayback.capture()
++      loadedAudiobook = null
+       val resolvedItem = item ?: PlaybackItem.fromUri(playableUri)
++      if (resolvedItem.audiobook != null) AudiobookPlayback.ensureStarted()
++      if (resolvedItem.audiobook == null && speedBeforeAudiobook != null) {
++        if (!MpvConfigOverridePolicy.isOwnedByMpvConf("speed")) MPVLib.setPropertyDouble("speed", speedBeforeAudiobook!!.toDouble())
++        speedBeforeAudiobook = null
++      }
+       val videoSelection = resolvedItem.videoSelection(_state.value.surfaceAttached)
+       // A preceding surface detach may have left the outgoing file at vid=no. Select video in the
+       // load command only when Android has already attached a valid render Surface; otherwise
+@@ -923,7 +951,10 @@ object PlaybackSession : MPVLib.EventObserver {
+   fun command(vararg command: String) {
+     if (MpvConfigOverridePolicy.shouldSuppress(command)) return
+     withCore(Unit) {
+-      if (command.firstOrNull() == "seek") beginSeekAudioGuardLocked()
++      if (command.firstOrNull() == "seek") {
++        loadedAudiobookEnded = false
++        beginSeekAudioGuardLocked()
++      }
+       if (handleAmbientShaderCommandLocked(command)) return@withCore
+       MPVLib.command(*command)
+     }
+@@ -1021,6 +1052,28 @@ object PlaybackSession : MPVLib.EventObserver {
+ 
+   fun getPropertyBoolean(property: String): Boolean? = withReadyCore(null) { MPVLib.getPropertyBoolean(property) }
+ 
++  internal fun audiobookProgress(reachedEnd: Boolean = false): AudiobookProgress? = withCore(null) {
++    val book = loadedAudiobook ?: return@withCore null
++    val current = _state.value
++    if (loadedGeneration != current.generation || current.phase == PlaybackPhase.STOPPING) return@withCore null
++    if (!reachedEnd && current.phase !in setOf(PlaybackPhase.READY, PlaybackPhase.BACKGROUND)) return@withCore null
++    if (reachedEnd) loadedAudiobookEnded = true
++    val position = if (reachedEnd) loadedAudiobookDurationMs else {
++      val seconds = MPVLib.getPropertyDouble("time-pos")?.takeIf { it.isFinite() } ?: return@withCore null
++      (seconds * 1000).toLong().coerceAtLeast(0)
++    }
++    AudiobookProgress(book, position, loadedAudiobookEnded || MPVLib.getPropertyBoolean("eof-reached") == true,
++      android.os.SystemClock.elapsedRealtimeNanos())
++  }
++
++  internal fun applyAudiobookSpeed(generation: Long, speed: Float) = withCore(Unit) {
++    if (_state.value.generation != generation || _state.value.currentItem?.audiobook == null || MpvConfigOverridePolicy.isOwnedByMpvConf("speed")) {
++      return@withCore
++    }
++    if (speedBeforeAudiobook == null) speedBeforeAudiobook = MPVLib.getPropertyDouble("speed")?.toFloat() ?: 1f
++    MPVLib.setPropertyDouble("speed", speed.coerceIn(0.5f, 3f).toDouble())
++  }
++
+   fun setPropertyBoolean(
+     property: String,
+     value: Boolean,
+@@ -1028,6 +1081,7 @@ object PlaybackSession : MPVLib.EventObserver {
+     if (MpvConfigOverridePolicy.isOwnedByMpvConf(property)) return
+     withCore(Unit) {
+       if (property == "pause") {
++        AudiobookPlayback.onPauseRequested(value)
+         desiredPaused = value
+         // Loading may include an asynchronous saved-position restore. Record user/service intent
+         // now, then apply it once the load owner publishes READY.
+@@ -1256,6 +1310,10 @@ object PlaybackSession : MPVLib.EventObserver {
+             }
+             supersededStopGeneration = 0L
+             loadedGeneration = current.generation
++            loadedAudiobook = current.currentItem?.audiobook
++            loadedAudiobookEnded = false
++            loadedAudiobookDurationMs = ((MPVLib.getPropertyDouble("duration") ?: 0.0) * 1000).toLong().coerceAtLeast(0)
++            current.currentItem?.let { AudiobookPlayback.onFileLoaded(it, current.generation) }
+             val restoringPosition = pendingPositionRestoreGeneration == current.generation
+             val appliedPaused = restoringPosition || desiredPaused
+             // Track/decoder replacement is now complete. Apply the latest user/service intent
+@@ -1325,6 +1383,7 @@ object PlaybackSession : MPVLib.EventObserver {
+               return@withLock true
+             }
+             if (current.activeGeneration == current.generation) {
++              if (reason == EndFileReason.EOF) AudiobookPlayback.capture(reachedEnd = true)
+               if (reason == EndFileReason.REDIRECT && loadedGeneration != current.generation) {
+                 // Redirects emit END_FILE before mpv starts the resolved target. Preserve LOADING;
+                 // the following START_FILE belongs to the same app-level generation.
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt b/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt
+index 36d73fb1..0528c8c0 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt
+@@ -729,6 +729,7 @@ class PlayerActivity :
+     // Only auto-generate playlist from folder if playlist mode is enabled and no playlist_id
+     if (playlist.isEmpty() &&
+       playlistId == null &&
++      !intent.hasExtra(AudiobookPlayback.EXTRA_BOOK_ID) &&
+       playerPreferences.playlistMode.get() &&
+       !hasReusableSavedPlaybackSession
+     ) {
+@@ -2416,6 +2417,9 @@ class PlayerActivity :
+       }
+       PreparedPlaybackLaunchResult.Missing -> true
+       PreparedPlaybackLaunchResult.Stale -> {
++        if (sourceIntent.getBooleanExtra("internal_launch", false) && sourceIntent.getLongExtra(AudiobookPlayback.EXTRA_BOOK_ID, -1L) > 0) {
++          return true
++        }
+         Log.w(TAG, "Ignoring stale prepared playback launch")
+         false
+       }
+@@ -3275,7 +3279,8 @@ class PlayerActivity :
+   }
+ 
+   private fun isBackgroundPlaybackEnabled(): Boolean =
+-    if (isCurrentPlaybackAudio()) audioPreferences.audioBackgroundPlayback.get()
++    if (PlaybackSession.state.value.currentItem?.audiobook != null) true
++    else if (isCurrentPlaybackAudio()) audioPreferences.audioBackgroundPlayback.get()
+     else audioPreferences.backgroundPlayback.get()
+ 
+   private fun isCurrentPlaybackAudio(): Boolean =
+@@ -4008,14 +4013,16 @@ class PlayerActivity :
+     if (durationSecs > 0 && positionSecs < durationSecs - 2) return
+     if (fileName.isNotBlank()) saveVideoPlaybackState(fileName, immediate = true)
+ 
+-    val repeatMode = viewModel.repeatMode.value
++    val isAudiobook = PlaybackSession.state.value.currentItem?.audiobook != null
++    if (AudiobookPlayback.handleEndOfFile()) return
++    val repeatMode = if (isAudiobook) RepeatMode.OFF else viewModel.repeatMode.value
+     if (repeatMode == RepeatMode.ONE) {
+       restartCurrentAtEof()
+       return
+     }
+ 
+     val isAudio = viewModel.isAudioOnly.value || isKnownAudioLaunch(intent) || isCurrentMediaKnownAudio()
+-    val autoplay = if (isAudio) playerPreferences.autoplayNextAudio.get() else playerPreferences.autoplayNextVideo.get()
++    val autoplay = isAudiobook || if (isAudio) playerPreferences.autoplayNextAudio.get() else playerPreferences.autoplayNextVideo.get()
+     val repeatAll = repeatMode == RepeatMode.ALL
+ 
+     if (playlist.isNotEmpty()) {
+@@ -4908,6 +4915,11 @@ class PlayerActivity :
+       return false
+     }
+ 
++    PlaybackSession.state.value.currentItem?.takeIf { it.audiobook != null }?.let { item ->
++      AudiobookPlayback.applyBookSettings(item, loadGeneration)
++      return true
++    }
++
+     return runCatching {
+       val state = resolvePlaybackState(identifier, legacyIdentifier)
+ 
+@@ -5489,6 +5501,27 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
+     mediaLoadJob =
+       lifecycleScope.launch(mediaLoadDispatcher) {
+         try {
++          val bookId = sourceIntent.getLongExtra(AudiobookPlayback.EXTRA_BOOK_ID, -1L)
++          if (sourceIntent.getBooleanExtra("internal_launch", false) && bookId > 0 && requestedQueueItem?.audiobook?.bookId != bookId) {
++            val recovered = AudiobookPlayback.prepareQueue(bookId,
++              sourceIntent.getLongExtra(AudiobookPlayback.EXTRA_TRACK_ID, -1L).takeIf { it > 0 })
++            val bookItem = recovered.items[recovered.currentIndex]
++            withContext(Dispatchers.Main) {
++              ensureCurrentMediaRequest(requestGeneration)
++              intent.setDataAndType(Uri.parse(bookItem.originalUri), "audio/*")
++              intent.putExtra("internal_launch", true)
++                .putExtra(EXTRA_PREPARED_PLAYBACK_QUEUE, true)
++                .putExtra("playlist_index", recovered.currentIndex)
++              acceptedPreparedPlaybackLaunch = recovered
++              check(restorePreparedPlaybackQueue(intent))
++              currentPlayableUri = bookItem.playableUri
++              fileName = bookItem.title.orEmpty()
++              mediaIdentifier = bookItem.stableId
++              viewModel.refreshPlaylistItems()
++            }
++            issuePlaybackLoad(bookItem, attempt = 0, requestGeneration = requestGeneration)
++            return@launch
++          }
+           if (!isTorrentRequest) torrentStreamingEngine.stopStream()
+           if (isTorrentRequest && !advancedPreferences.enableP2pStreaming.get()) {
+             torrentStreamingEngine.stopStream()
+@@ -5699,12 +5732,13 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
+     positionRestoreOverride: PlaybackPositionRestoreOverride? = null,
+   ) {
+     ensureCurrentMediaRequest(requestGeneration)
++    val effectivePositionOverride = positionRestoreOverride ?: AudiobookPlayback.positionForLoad(item, intent)
+     val restoreSavedPosition = playerPreferences.savePositionOnQuit.get()
+     val resumeMode = playerPreferences.resumePlaybackMode.get()
+     // Only Always Resume may use the fast load-local start option. Never starts at zero.
+     val initialPositionSeconds =
+-      if (positionRestoreOverride != null) {
+-        positionRestoreOverride.positionSeconds?.takeIf { it.isFinite() && it > 0.0 }
++      if (effectivePositionOverride != null) {
++        effectivePositionOverride.positionSeconds?.takeIf { it.isFinite() && it > 0.0 }
+       } else if (
+         restoreSavedPosition &&
+         resumeMode == ResumePlaybackMode.Always &&
+@@ -5733,7 +5767,7 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
+       PlaybackSession.load(
+         item = item,
+         restoreSavedPosition = restoreSavedPosition,
+-        positionRestoreOverride = positionRestoreOverride,
++        positionRestoreOverride = effectivePositionOverride,
+         initialPositionSeconds = initialPositionSeconds,
+         flattenEditions = requiresYtdlp && !MpvConfigOverridePolicy.isOwnedByMpvConf("flatten-editions"),
+         commit = { nativeLoad ->
+@@ -5751,6 +5785,7 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
+       ensureCurrentMediaRequest(requestGeneration)
+       throw IllegalStateException("libmpv core is unavailable")
+     }
++    if (item.audiobook != null) intent.removeExtra(AudiobookPlayback.EXTRA_POSITION_MS)
+ 
+     val request =
+       PendingMediaLoadRecovery(
+@@ -5760,7 +5795,7 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
+         requestGeneration = requestGeneration,
+         legacyMediaIdentifier = legacyMediaIdentifier,
+         ytdlFormat = ytdlFormat,
+-        positionRestoreOverride = positionRestoreOverride,
++        positionRestoreOverride = effectivePositionOverride,
+       )
+     withContext(Dispatchers.Main) { armPlaybackLoadRecovery(request) }
+   }
+@@ -7985,6 +8020,7 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
+   }
+ 
+   private fun generatePlaylistFromFolder(currentPath: String) {
++    if (intent.hasExtra(AudiobookPlayback.EXTRA_BOOK_ID)) return
+     val expectedGeneration = mediaRequestGeneration
+     lifecycleScope.launch(Dispatchers.IO) {
+       generatePlaylistFromFolderInternal(currentPath, expectedGeneration)
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt b/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
+index e16570ad..785f12bb 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
+@@ -1093,6 +1093,7 @@ class PlayerViewModel : ViewModel(),
+   }
+ 
+   fun loadLyricsForCurrentTrack(forceRefresh: Boolean = false) {
++    if (PlaybackSession.state.value.currentItem?.audiobook != null) return
+     val path = PlaybackSession.getPropertyString("path") ?: PlaybackSession.getPropertyString("stream-open-filename") ?: return
+     if (path.isBlank()) return
+     val generation = PlaybackSession.state.value.generation
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/AudiobookPlayerControls.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/AudiobookPlayerControls.kt
+new file mode 100644
+index 00000000..834b71df
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/AudiobookPlayerControls.kt
+@@ -0,0 +1,384 @@
++package com.quantummpv.app.ui.player.controls
++
++import androidx.compose.foundation.horizontalScroll
++import androidx.compose.foundation.interaction.DragInteraction
++import androidx.compose.foundation.interaction.MutableInteractionSource
++import androidx.compose.foundation.interaction.PressInteraction
++import androidx.compose.foundation.layout.Arrangement
++import androidx.compose.foundation.layout.Box
++import androidx.compose.foundation.layout.BoxWithConstraints
++import androidx.compose.foundation.layout.Column
++import androidx.compose.foundation.layout.Row
++import androidx.compose.foundation.layout.Spacer
++import androidx.compose.foundation.layout.aspectRatio
++import androidx.compose.foundation.layout.fillMaxHeight
++import androidx.compose.foundation.layout.fillMaxSize
++import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.height
++import androidx.compose.foundation.layout.heightIn
++import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.layout.size
++import androidx.compose.foundation.layout.widthIn
++import androidx.compose.foundation.lazy.LazyColumn
++import androidx.compose.foundation.lazy.items
++import androidx.compose.foundation.rememberScrollState
++import androidx.compose.foundation.selection.selectable
++import androidx.compose.foundation.shape.RoundedCornerShape
++import androidx.compose.foundation.verticalScroll
++import androidx.compose.material3.AlertDialog
++import androidx.compose.material3.CircularProgressIndicator
++import androidx.compose.material3.ExperimentalMaterial3Api
++import androidx.compose.material3.FilledIconButton
++import androidx.compose.material3.IconButton
++import androidx.compose.material3.LinearProgressIndicator
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.ModalBottomSheet
++import androidx.compose.material3.OutlinedTextField
++import androidx.compose.material3.RadioButton
++import androidx.compose.material3.Scaffold
++import androidx.compose.material3.Slider
++import androidx.compose.material3.Surface
++import androidx.compose.material3.Text
++import androidx.compose.material3.TextButton
++import androidx.compose.material3.TopAppBar
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.LaunchedEffect
++import androidx.compose.runtime.getValue
++import androidx.compose.runtime.mutableStateOf
++import androidx.compose.runtime.remember
++import androidx.compose.runtime.rememberCoroutineScope
++import androidx.compose.runtime.saveable.rememberSaveable
++import androidx.compose.runtime.setValue
++import androidx.compose.ui.Alignment
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.draw.clip
++import androidx.compose.ui.platform.LocalContext
++import androidx.compose.ui.res.stringResource
++import androidx.compose.ui.semantics.Role
++import androidx.compose.ui.text.style.TextOverflow
++import androidx.compose.ui.unit.dp
++import androidx.lifecycle.compose.collectAsStateWithLifecycle
++import com.quantummpv.app.R
++import com.quantummpv.app.database.dao.AudiobookDao
++import com.quantummpv.app.database.entities.AudiobookBookmarkEntity
++import com.quantummpv.app.database.entities.AudiobookChapterEntity
++import com.quantummpv.app.ui.browser.audiobooks.AudiobookArtwork
++import com.quantummpv.app.ui.browser.audiobooks.AudiobookDetails
++import com.quantummpv.app.ui.browser.audiobooks.AudiobookIconButton
++import com.quantummpv.app.ui.browser.audiobooks.bookTime
++import com.quantummpv.app.ui.icons.Icon
++import com.quantummpv.app.ui.icons.Icons
++import com.quantummpv.app.ui.player.AudiobookPlayback
++import com.quantummpv.app.ui.player.PlaybackPhase
++import com.quantummpv.app.ui.player.PlaybackSession
++import com.quantummpv.app.ui.player.PlayerViewModel
++import com.quantummpv.app.ui.utils.rememberAppHaptics
++import com.quantummpv.app.ui.utils.isMpvOptionOwnedByConfig
++import kotlinx.coroutines.CancellationException
++import kotlinx.coroutines.launch
++import org.koin.compose.koinInject
++
++@OptIn(ExperimentalMaterial3Api::class)
++@Composable
++internal fun AudiobookPlayerControls(viewModel: PlayerViewModel, onBack: () -> Unit, modifier: Modifier = Modifier) {
++  val state by PlaybackSession.state.collectAsStateWithLifecycle()
++  val info = state.currentItem?.audiobook ?: return
++  val book by AudiobookPlayback.book.collectAsStateWithLifecycle()
++  val timer by AudiobookPlayback.timer.collectAsStateWithLifecycle()
++  val saveFailed by AudiobookPlayback.saveFailed.collectAsStateWithLifecycle()
++  val position by viewModel.precisePosition.collectAsStateWithLifecycle()
++  val rawPosition by PlaybackSession.propDouble["time-pos"].collectAsStateWithLifecycle()
++  val paused by PlaybackSession.propBoolean["pause"].collectAsStateWithLifecycle()
++  val eof by PlaybackSession.propBoolean["eof-reached"].collectAsStateWithLifecycle()
++  val actualSpeed by PlaybackSession.propFloat["speed"].collectAsStateWithLifecycle()
++  val dao = koinInject<AudiobookDao>()
++  val chaptersFlow = remember(info.bookId) { dao.observeChapters(info.bookId) }
++  val bookmarksFlow = remember(info.bookId) { dao.observeBookmarks(info.bookId) }
++  val storedChapters by chaptersFlow.collectAsStateWithLifecycle(initialValue = emptyList())
++  val bookmarks by bookmarksFlow.collectAsStateWithLifecycle(initialValue = emptyList())
++  val context = LocalContext.current
++  val scope = rememberCoroutineScope()
++  val haptics = rememberAppHaptics()
++  var sheet by rememberSaveable(info.bookId) { mutableStateOf<String?>(null) }
++  var bookmarkEdit by remember(info.bookId) { mutableStateOf<AudiobookBookmarkEntity?>(null) }
++  var error by remember(info.bookId) { mutableStateOf<String?>(null) }
++  var opening by remember(info.bookId) { mutableStateOf(false) }
++  var savingBookmark by remember(info.bookId) { mutableStateOf(false) }
++  val currentBook = book?.takeIf { it.book.id == info.bookId }
++  val tracks = currentBook?.orderedTracks.orEmpty()
++  val track = tracks.firstOrNull { it.id == info.trackId }
++  val positionMs = ((if (position > 0) position.toDouble() else rawPosition ?: 0.0) * 1000).toLong().coerceAtLeast(0)
++  val chapters = remember(tracks, storedChapters) {
++    tracks.flatMap { item ->
++      storedChapters.filter { it.trackId == item.id }.sortedBy { it.startMs }.ifEmpty {
++        listOf(AudiobookChapterEntity(item.id, 0, item.durationMs, item.title))
++      }
++    }
++  }
++  val currentChapterIndex = chapters.indexOfLast { it.trackId == info.trackId && it.startMs <= positionMs }
++  val currentChapter = chapters.getOrNull(currentChapterIndex)
++  val bookPosition = currentBook?.positionInBook(info.trackId, positionMs) ?: 0L
++  val bookDuration = currentBook?.durationMs ?: 0L
++  val speed = actualSpeed?.takeIf { it > 0 } ?: currentBook?.book?.playbackSpeed ?: 1f
++  val ready = state.phase in setOf(PlaybackPhase.READY, PlaybackPhase.BACKGROUND) && currentBook != null
++  val playing = paused == false && eof != true
++  val title = currentBook?.book?.title ?: state.currentItem?.title.orEmpty()
++  fun operation(action: suspend () -> Unit) {
++    scope.launch {
++      try { action() } catch (cancelled: CancellationException) { throw cancelled } catch (failure: Exception) {
++        error = failure.localizedMessage ?: context.getString(R.string.audiobook_play_failed)
++      }
++    }
++  }
++  fun jump(trackId: Long, targetMs: Long) {
++    if (opening) return
++    sheet = null
++    if (trackId == info.trackId) {
++      AudiobookPlayback.seek(targetMs)
++      haptics.confirm()
++    } else {
++      opening = true
++      operation {
++        try { AudiobookPlayback.launch(context, info.bookId, trackId, targetMs) } finally { opening = false }
++      }
++    }
++  }
++  fun addBookmark() {
++    val progress = PlaybackSession.audiobookProgress() ?: return
++    bookmarkEdit = AudiobookBookmarkEntity(bookId = info.bookId, trackId = info.trackId, positionMs = progress.positionMs,
++      title = "${currentChapter?.title ?: track?.title.orEmpty()} ${bookTime(progress.positionMs)}".trim())
++  }
++  Scaffold(modifier = modifier.fillMaxSize(), topBar = {
++    TopAppBar(title = { Text(stringResource(R.string.audiobooks_title), maxLines = 1, overflow = TextOverflow.Ellipsis) },
++      navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.RoundedFilled.ArrowBack, stringResource(R.string.generic_cancel)) } },
++      actions = {
++        AudiobookIconButton(Icons.RoundedFilled.Info, stringResource(R.string.audiobook_details), currentBook != null) { sheet = "details" }
++        AudiobookIconButton(Icons.RoundedFilled.Close, stringResource(R.string.audiobook_stop)) {
++          PlaybackSession.stop(clearQueue = true)
++          onBack()
++        }
++      })
++  }) { padding ->
++    BoxWithConstraints(Modifier.fillMaxSize().padding(padding)) {
++      val artwork: @Composable (Modifier) -> Unit = { layout ->
++        Box(layout.padding(20.dp), contentAlignment = Alignment.Center) {
++          AudiobookArtwork(currentBook?.book?.coverUri,
++            Modifier.widthIn(max = 380.dp).fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(8.dp)))
++          if (!ready && state.error == null) CircularProgressIndicator()
++        }
++      }
++      val controls: @Composable (Modifier) -> Unit = { layout ->
++        Column(layout.padding(horizontal = 20.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
++          Text(title, style = MaterialTheme.typography.titleLarge, maxLines = 3, overflow = TextOverflow.Ellipsis)
++          currentBook?.book?.author?.takeIf(String::isNotBlank)?.let {
++            Text(it, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant,
++              maxLines = 2, overflow = TextOverflow.Ellipsis)
++          }
++          currentBook?.book?.narrator?.takeIf(String::isNotBlank)?.let {
++            Text("${stringResource(R.string.audiobook_narrator)}: $it", style = MaterialTheme.typography.bodySmall,
++              maxLines = 2, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.secondary)
++          }
++          (state.error ?: error)?.let { message ->
++            Text(message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
++            TextButton(onClick = { operation { AudiobookPlayback.launch(context, info.bookId) } }, enabled = !opening) {
++              Text(stringResource(R.string.audiobook_retry))
++            }
++          }
++          if (saveFailed) Text(stringResource(R.string.audiobook_save_failed), color = MaterialTheme.colorScheme.error)
++          TextButton(onClick = { sheet = "chapters" }, enabled = chapters.isNotEmpty(), modifier = Modifier.fillMaxWidth()) {
++            Text(currentChapter?.title ?: track?.title.orEmpty(), maxLines = 2, overflow = TextOverflow.Ellipsis)
++          }
++          AudiobookSeekbar(info.trackId, positionMs, track?.durationMs ?: 0L, ready) { AudiobookPlayback.seek(it) }
++          Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.SpaceEvenly,
++            verticalAlignment = Alignment.CenterVertically) {
++            AudiobookIconButton(Icons.RoundedFilled.SkipPrevious, stringResource(R.string.audiobook_previous_chapter), ready && currentChapterIndex >= 0) {
++              val target = if (positionMs - (currentChapter?.startMs ?: 0) > 3000) currentChapter else chapters.getOrNull(currentChapterIndex - 1) ?: currentChapter
++              target?.let { jump(it.trackId, it.startMs) }
++            }
++            AudiobookIconButton(Icons.RoundedFilled.FastRewind, stringResource(R.string.audiobook_rewind), ready) {
++              AudiobookPlayback.seekBy(-15)
++              haptics.confirm()
++            }
++            FilledIconButton(onClick = {
++              if (eof == true) {
++                operation { AudiobookPlayback.launch(context, info.bookId, fromBeginning = true) }
++              } else PlaybackSession.setPropertyBoolean("pause", playing)
++              haptics.selection(!playing)
++            }, enabled = ready && !opening, modifier = Modifier.size(64.dp)) {
++              Icon(if (playing) Icons.RoundedFilled.Pause else Icons.RoundedFilled.PlayArrow,
++                stringResource(if (playing) R.string.audiobook_pause else R.string.audiobook_continue), modifier = Modifier.size(36.dp))
++            }
++            AudiobookIconButton(Icons.RoundedFilled.FastForward, stringResource(R.string.audiobook_forward), ready) {
++              AudiobookPlayback.seekBy(30)
++              haptics.confirm()
++            }
++            AudiobookIconButton(Icons.RoundedFilled.SkipNext, stringResource(R.string.audiobook_next_chapter),
++              ready && currentChapterIndex >= 0 && currentChapterIndex < chapters.lastIndex) {
++              chapters.getOrNull(currentChapterIndex + 1)?.let { jump(it.trackId, it.startMs) }
++            }
++          }
++          Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
++            Text("${stringResource(R.string.audiobook_book_time)} ${bookTime(bookPosition)}", modifier = Modifier.weight(1f),
++              style = MaterialTheme.typography.labelMedium)
++            Text(bookTime(bookDuration), modifier = Modifier.padding(start = 8.dp), style = MaterialTheme.typography.labelMedium)
++          }
++          LinearProgressIndicator(progress = { if (bookDuration > 0) (bookPosition.toDouble() / bookDuration).toFloat().coerceIn(0f, 1f) else 0f },
++            modifier = Modifier.fillMaxWidth())
++          Text(stringResource(R.string.audiobook_remaining, bookTime(((bookDuration - bookPosition).coerceAtLeast(0) / speed).toLong())),
++            style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.secondary)
++          Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.SpaceEvenly) {
++            AudiobookIconButton(Icons.RoundedFilled.MenuBook, stringResource(R.string.audiobook_chapters), chapters.isNotEmpty()) { sheet = "chapters" }
++            AudiobookIconButton(Icons.RoundedFilled.Bookmarks, stringResource(R.string.audiobook_bookmarks), currentBook != null) { sheet = "bookmarks" }
++            AudiobookIconButton(Icons.RoundedFilled.Add, stringResource(R.string.audiobook_add_bookmark), ready, ::addBookmark)
++            AudiobookIconButton(Icons.RoundedFilled.Speed, "${stringResource(R.string.ui_playback_speed)} ${speed}x",
++              ready && !isMpvOptionOwnedByConfig("speed")) { sheet = "speed" }
++            AudiobookIconButton(Icons.RoundedFilled.Timer, stringResource(R.string.audiobook_sleep_timer), ready) { sheet = "timer" }
++            AudiobookIconButton(Icons.RoundedFilled.Settings, stringResource(R.string.audiobook_smart_rewind), currentBook != null) { sheet = "rewind" }
++          }
++          timer?.let {
++            TextButton(onClick = { sheet = "timer" }, modifier = Modifier.fillMaxWidth()) {
++              Text(if (it.deadline == null) stringResource(R.string.audiobook_end_chapter)
++                else "${stringResource(R.string.audiobook_sleep_timer)} ${bookTime(it.remainingSeconds * 1000L)}")
++            }
++          }
++        }
++      }
++      if (maxWidth > maxHeight && maxHeight < 540.dp) {
++        Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
++          artwork(Modifier.weight(1f).fillMaxHeight())
++          controls(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()))
++        }
++      } else {
++        val controlsHeight = maxHeight * 0.7f
++        Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
++          artwork(Modifier.weight(1f).fillMaxWidth())
++          controls(Modifier.widthIn(max = 720.dp).fillMaxWidth().heightIn(max = controlsHeight).verticalScroll(rememberScrollState()))
++        }
++      }
++    }
++  }
++  if (sheet != null) ModalBottomSheet(onDismissRequest = { sheet = null }) {
++    LazyColumn(Modifier.fillMaxWidth().heightIn(max = 600.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 32.dp)) {
++      item {
++        val label = when (sheet) {
++          "chapters" -> R.string.audiobook_chapters
++          "bookmarks" -> R.string.audiobook_bookmarks
++          "speed" -> R.string.ui_playback_speed
++          "timer" -> R.string.audiobook_sleep_timer
++          "rewind" -> R.string.audiobook_smart_rewind
++          else -> R.string.audiobook_details
++        }
++        Text(stringResource(label), modifier = Modifier.padding(20.dp), style = MaterialTheme.typography.titleLarge)
++      }
++      when (sheet) {
++        "chapters" -> items(chapters, key = { "${it.trackId}:${it.startMs}" }) { chapter ->
++          Surface(color = if (chapter == currentChapter) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface) {
++            Row(Modifier.fillMaxWidth().selectable(chapter == currentChapter, enabled = !opening) { jump(chapter.trackId, chapter.startMs) }
++              .padding(horizontal = 20.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
++              Column(Modifier.weight(1f)) {
++                Text(chapter.title, maxLines = 2, overflow = TextOverflow.Ellipsis)
++                val file = tracks.firstOrNull { it.id == chapter.trackId }
++                Text(file?.fileName.orEmpty(), style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
++              }
++              Text(bookTime(chapter.endMs - chapter.startMs), modifier = Modifier.padding(start = 8.dp), style = MaterialTheme.typography.labelMedium)
++            }
++          }
++        }
++        "bookmarks" -> {
++          item { TextButton(onClick = ::addBookmark, enabled = ready, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.audiobook_add_bookmark)) } }
++          if (bookmarks.isEmpty()) item { Text(stringResource(R.string.audiobook_no_bookmarks), modifier = Modifier.padding(20.dp)) }
++          items(bookmarks, key = { it.id }) { bookmark ->
++            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
++              TextButton(onClick = { jump(bookmark.trackId, bookmark.positionMs) }, modifier = Modifier.weight(1f), enabled = !opening) {
++                Column(Modifier.fillMaxWidth()) {
++                  Text(bookmark.title, maxLines = 2, overflow = TextOverflow.Ellipsis)
++                  Text(bookTime(bookmark.positionMs), style = MaterialTheme.typography.labelSmall)
++                }
++              }
++              AudiobookIconButton(Icons.RoundedFilled.Edit, stringResource(R.string.audiobook_bookmark_name)) { bookmarkEdit = bookmark }
++              AudiobookIconButton(Icons.RoundedFilled.Delete, stringResource(R.string.audiobook_delete_bookmark)) { operation { dao.deleteBookmark(bookmark.id) } }
++            }
++          }
++        }
++        "speed" -> items(listOf(0.5f, 0.75f, 1f, 1.1f, 1.25f, 1.5f, 1.75f, 2f, 2.5f, 3f)) { option ->
++          AudiobookOption("${option}x", speed == option) {
++            if (speed != option) { AudiobookPlayback.setSpeed(option); haptics.selection(true) }
++            sheet = null
++          }
++        }
++        "timer" -> {
++          item { AudiobookOption(stringResource(R.string.audiobook_timer_off), timer == null) { AudiobookPlayback.clearTimer(); sheet = null } }
++          items(listOf(5, 10, 15, 30, 45, 60, 90)) { minutes ->
++            AudiobookOption(stringResource(R.string.audiobook_minutes, minutes), false) { AudiobookPlayback.setTimer(minutes); sheet = null }
++          }
++          item { AudiobookOption(stringResource(R.string.audiobook_end_chapter), timer?.chapterEndMs != null,
++            enabled = currentChapter != null && ready) { AudiobookPlayback.setTimer(null, currentChapter?.endMs); sheet = null } }
++        }
++        "rewind" -> items(listOf(0, 5, 10, 15, 30)) { seconds ->
++          AudiobookOption(if (seconds == 0) stringResource(R.string.audiobook_timer_off) else stringResource(R.string.audiobook_seconds, seconds),
++            currentBook?.book?.rewindSeconds == seconds) {
++            if (currentBook?.book?.rewindSeconds != seconds) { AudiobookPlayback.setRewind(seconds); haptics.selection(true) }
++            sheet = null
++          }
++        }
++        "details" -> item { currentBook?.let { Column(Modifier.padding(horizontal = 20.dp)) { AudiobookDetails(it.book) } } }
++      }
++    }
++  }
++  bookmarkEdit?.let { bookmark ->
++    var name by rememberSaveable(bookmark.id, bookmark.positionMs) { mutableStateOf(bookmark.title) }
++    AlertDialog(onDismissRequest = { bookmarkEdit = null }, title = { Text(stringResource(R.string.audiobook_bookmark_name)) }, text = {
++      OutlinedTextField(name, { name = it }, modifier = Modifier.fillMaxWidth(), maxLines = 3,
++        label = { Text(stringResource(R.string.audiobook_bookmark_name)) })
++    }, confirmButton = { TextButton(onClick = {
++      if (savingBookmark) return@TextButton
++      savingBookmark = true
++      operation {
++        try {
++          if (bookmark.id == 0L) dao.addBookmark(bookmark.copy(title = name.trim())) else dao.renameBookmark(bookmark.id, name.trim())
++          bookmarkEdit = null
++          haptics.confirm()
++        } finally {
++          savingBookmark = false
++        }
++      }
++    }, enabled = name.isNotBlank() && !savingBookmark) { Text(stringResource(R.string.audiobook_save)) } },
++      dismissButton = { TextButton(onClick = { bookmarkEdit = null }) { Text(stringResource(R.string.generic_cancel)) } })
++  }
++}
++
++@Composable
++private fun AudiobookOption(label: String, selected: Boolean, enabled: Boolean = true, onClick: () -> Unit) {
++  Row(Modifier.fillMaxWidth().selectable(selected, enabled = enabled, role = Role.RadioButton, onClick = onClick)
++    .padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
++    RadioButton(selected, enabled = enabled, onClick = null)
++    Text(label, modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (enabled) 1f else 0.38f))
++  }
++}
++
++@Composable
++private fun AudiobookSeekbar(trackId: Long, position: Long, duration: Long, enabled: Boolean, onSeek: (Long) -> Unit) {
++  var seeking by remember(trackId) { mutableStateOf(false) }
++  var target by remember(trackId) { mutableStateOf(0f) }
++  val interaction = remember(trackId) { MutableInteractionSource() }
++  val haptics = rememberAppHaptics()
++  LaunchedEffect(interaction) {
++    interaction.interactions.collect {
++      if (it is DragInteraction.Cancel || it is PressInteraction.Cancel) seeking = false
++    }
++  }
++  val maximum = duration.coerceAtLeast(1).toFloat()
++  val value = (if (seeking) target else position.toFloat()).coerceIn(0f, maximum)
++  Slider(value, onValueChange = { target = it; seeking = true }, enabled = enabled && duration > 0,
++    valueRange = 0f..maximum, interactionSource = interaction, onValueChangeFinished = {
++      if (seeking) {
++        onSeek(target.toLong())
++        seeking = false
++        haptics.confirm()
++      }
++    })
++  Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
++    Text(bookTime(value.toLong()), style = MaterialTheme.typography.labelMedium)
++    Text(bookTime(duration), style = MaterialTheme.typography.labelMedium)
++  }
++}
+\ No newline at end of file
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControls.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControls.kt
+index affd3a82..eff003d2 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControls.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControls.kt
+@@ -362,6 +362,10 @@ fun PlayerControls(
+       else -> isAudioOnly || activity?.isCurrentMediaKnownAudio() == true
+     }
+   if (useAudioPlayer) {
++    if (currentPlaybackItem?.audiobook != null) {
++      AudiobookPlayerControls(viewModel, onBackPress, modifier)
++      return
++    }
+     val rawMediaTitle by PlaybackSession.propString["media-title"].collectAsState()
+     val queuedTitle =
+       playbackQueue.currentItem?.title?.takeIf { playbackQueue.isExplicitQueue && it.isNotBlank() }
+diff --git a/app/src/main/java/com/quantummpv/app/utils/storage/VideoScanUtils.kt b/app/src/main/java/com/quantummpv/app/utils/storage/VideoScanUtils.kt
+index a8fd194d..0fb8043e 100644
+--- a/app/src/main/java/com/quantummpv/app/utils/storage/VideoScanUtils.kt
++++ b/app/src/main/java/com/quantummpv/app/utils/storage/VideoScanUtils.kt
+@@ -485,6 +485,7 @@ object FileTypeUtils {
+     setOf(
+       "mp3",
+       "m4a",
++      "m4b",
+       "aac",
+       "flac",
+       "ogg",
+diff --git a/app/src/main/res/values-ar/strings.xml b/app/src/main/res/values-ar/strings.xml
+index d4e20e03..e670648f 100644
+--- a/app/src/main/res/values-ar/strings.xml
++++ b/app/src/main/res/values-ar/strings.xml
+@@ -2314,4 +2314,65 @@
+   <string name="video_swipe_finished">مُشاهد بالكامل</string>
+   <string name="video_swipe_clear_history">مسح العلامات وسجل المشاهدة</string>
+   <string name="video_swipe_recent_disabled">سجل آخر تشغيل معطّل في الإعدادات</string>
++  <string name="audiobooks_title">الكتب الصوتية</string>
++  <string name="audiobook_import_files">استيراد ملفات كتاب</string>
++  <string name="audiobook_import_folder">استيراد مجلد كتاب</string>
++  <string name="audiobook_importing">جارٍ استيراد %1$d من %2$d</string>
++  <string name="audiobook_import_failed">تعذر استيراد الكتاب: %1$s</string>
++  <string name="audiobook_no_audio">لم يتم العثور على ملفات صوتية مدعومة.</string>
++  <string name="audiobook_unreadable">تعذر قراءة الصوت: %1$s</string>
++  <string name="audiobook_empty">لا توجد كتب صوتية</string>
++  <string name="audiobook_title">عنوان الكتاب</string>
++  <string name="audiobook_subtitle">العنوان الفرعي</string>
++  <string name="audiobook_stop_before_remove">أوقف الاستماع إلى هذا الكتاب قبل إزالته.</string>
++  <string name="audiobook_author">المؤلف</string>
++  <string name="audiobook_narrator">الراوي</string>
++  <string name="audiobook_series">السلسلة</string>
++  <string name="audiobook_series_part">رقم الكتاب</string>
++  <string name="audiobook_description">الوصف</string>
++  <string name="audiobook_genre">النوع</string>
++  <string name="audiobook_language">اللغة</string>
++  <string name="audiobook_publisher">الناشر</string>
++  <string name="audiobook_published">تاريخ النشر</string>
++  <string name="audiobook_abridged">مختصر</string>
++  <string name="audiobook_unabridged">غير مختصر</string>
++  <string name="audiobook_details">تفاصيل الكتاب</string>
++  <string name="audiobook_edit">تعديل الكتاب</string>
++  <string name="audiobook_save">حفظ</string>
++  <string name="audiobook_remove">إزالة من المكتبة</string>
++  <string name="audiobook_remove_confirmation">هل تريد إزالة «%1$s» وتقدم الاستماع والإشارات المرجعية؟ لن يتم حذف الملفات الصوتية.</string>
++  <string name="audiobook_continue">متابعة الاستماع</string>
++  <string name="audiobook_start_over">البدء من البداية</string>
++  <string name="audiobook_mark_finished">وضع علامة مكتمل</string>
++  <string name="audiobook_mark_unfinished">وضع علامة غير مكتمل</string>
++  <string name="audiobook_all">كل الكتب</string>
++  <string name="audiobook_not_started">لم يبدأ</string>
++  <string name="audiobook_in_progress">قيد الاستماع</string>
++  <string name="audiobook_finished">مكتمل</string>
++  <string name="audiobook_remaining">المتبقي %1$s</string>
++  <string name="audiobook_book_time">الكتاب</string>
++  <string name="audiobook_chapters">الفصول</string>
++  <string name="audiobook_previous_chapter">الفصل السابق</string>
++  <string name="audiobook_next_chapter">الفصل التالي</string>
++  <string name="audiobook_chapter_number">الفصل %1$d</string>
++  <string name="audiobook_files">الملفات</string>
++  <string name="audiobook_bookmarks">الإشارات المرجعية</string>
++  <string name="audiobook_add_bookmark">إضافة إشارة مرجعية</string>
++  <string name="audiobook_bookmark_name">اسم الإشارة المرجعية</string>
++  <string name="audiobook_no_bookmarks">لا توجد إشارات مرجعية</string>
++  <string name="audiobook_delete_bookmark">حذف الإشارة المرجعية</string>
++  <string name="audiobook_sleep_timer">مؤقت النوم</string>
++  <string name="audiobook_timer_off">إيقاف</string>
++  <string name="audiobook_end_chapter">نهاية الفصل</string>
++  <string name="audiobook_minutes">%1$d دقيقة</string>
++  <string name="audiobook_smart_rewind">الرجوع بعد الإيقاف المؤقت</string>
++  <string name="audiobook_seconds">%1$d ثانية</string>
++  <string name="audiobook_rewind">الرجوع 15 ثانية</string>
++  <string name="audiobook_forward">التقدم 30 ثانية</string>
++  <string name="audiobook_pause">إيقاف مؤقت</string>
++  <string name="audiobook_stop">إيقاف الاستماع</string>
++  <string name="audiobook_search">البحث عن كتب ومؤلفين ورواة</string>
++  <string name="audiobook_save_failed">تعذر حفظ تقدم الاستماع.</string>
++  <string name="audiobook_play_failed">تعذر فتح هذا الكتاب. تحقق من إمكانية الوصول إلى ملفاته.</string>
++  <string name="audiobook_retry">إعادة المحاولة</string>
+ </resources>
+diff --git a/app/src/main/res/values-de/strings.xml b/app/src/main/res/values-de/strings.xml
+index a84dbc78..8b46b950 100644
+--- a/app/src/main/res/values-de/strings.xml
++++ b/app/src/main/res/values-de/strings.xml
+@@ -2300,4 +2300,65 @@ Bitte starten Sie die App neu, damit alle Änderungen wirksam werden.</string>
+   <string name="video_swipe_finished">Vollständig angesehen</string>
+   <string name="video_swipe_clear_history">Markierungen und Verlauf löschen</string>
+   <string name="video_swipe_recent_disabled">Zuletzt abgespielt ist in den Einstellungen deaktiviert</string>
++  <string name="audiobooks_title">Hörbücher</string>
++  <string name="audiobook_import_files">Hörbuchdateien importieren</string>
++  <string name="audiobook_import_folder">Hörbuchordner importieren</string>
++  <string name="audiobook_importing">Importiere %1$d von %2$d</string>
++  <string name="audiobook_import_failed">Hörbuch konnte nicht importiert werden: %1$s</string>
++  <string name="audiobook_no_audio">Keine unterstützten Audiodateien gefunden.</string>
++  <string name="audiobook_unreadable">Audiodatei nicht lesbar: %1$s</string>
++  <string name="audiobook_empty">Keine Hörbücher</string>
++  <string name="audiobook_title">Buchtitel</string>
++  <string name="audiobook_subtitle">Untertitel</string>
++  <string name="audiobook_stop_before_remove">Beende die Wiedergabe dieses Hörbuchs, bevor du es entfernst.</string>
++  <string name="audiobook_author">Autor</string>
++  <string name="audiobook_narrator">Sprecher</string>
++  <string name="audiobook_series">Reihe</string>
++  <string name="audiobook_series_part">Bandnummer</string>
++  <string name="audiobook_description">Beschreibung</string>
++  <string name="audiobook_genre">Genre</string>
++  <string name="audiobook_language">Sprache</string>
++  <string name="audiobook_publisher">Verlag</string>
++  <string name="audiobook_published">Veröffentlicht</string>
++  <string name="audiobook_abridged">Gekürzt</string>
++  <string name="audiobook_unabridged">Ungekürzt</string>
++  <string name="audiobook_details">Buchdetails</string>
++  <string name="audiobook_edit">Buch bearbeiten</string>
++  <string name="audiobook_save">Speichern</string>
++  <string name="audiobook_remove">Aus Bibliothek entfernen</string>
++  <string name="audiobook_remove_confirmation">„%1$s“ mit Hörfortschritt und Lesezeichen entfernen? Audiodateien werden nicht gelöscht.</string>
++  <string name="audiobook_continue">Weiterhören</string>
++  <string name="audiobook_start_over">Von vorne beginnen</string>
++  <string name="audiobook_mark_finished">Als beendet markieren</string>
++  <string name="audiobook_mark_unfinished">Als nicht beendet markieren</string>
++  <string name="audiobook_all">Alle Bücher</string>
++  <string name="audiobook_not_started">Nicht begonnen</string>
++  <string name="audiobook_in_progress">In Bearbeitung</string>
++  <string name="audiobook_finished">Beendet</string>
++  <string name="audiobook_remaining">%1$s verbleibend</string>
++  <string name="audiobook_book_time">Buch</string>
++  <string name="audiobook_chapters">Kapitel</string>
++  <string name="audiobook_previous_chapter">Vorheriges Kapitel</string>
++  <string name="audiobook_next_chapter">Nächstes Kapitel</string>
++  <string name="audiobook_chapter_number">Kapitel %1$d</string>
++  <string name="audiobook_files">Dateien</string>
++  <string name="audiobook_bookmarks">Lesezeichen</string>
++  <string name="audiobook_add_bookmark">Lesezeichen hinzufügen</string>
++  <string name="audiobook_bookmark_name">Name des Lesezeichens</string>
++  <string name="audiobook_no_bookmarks">Keine Lesezeichen</string>
++  <string name="audiobook_delete_bookmark">Lesezeichen löschen</string>
++  <string name="audiobook_sleep_timer">Einschlaftimer</string>
++  <string name="audiobook_timer_off">Aus</string>
++  <string name="audiobook_end_chapter">Kapitelende</string>
++  <string name="audiobook_minutes">%1$d Minuten</string>
++  <string name="audiobook_smart_rewind">Nach einer Pause zurückspulen</string>
++  <string name="audiobook_seconds">%1$d Sekunden</string>
++  <string name="audiobook_rewind">15 Sekunden zurückspulen</string>
++  <string name="audiobook_forward">30 Sekunden vorspulen</string>
++  <string name="audiobook_pause">Pause</string>
++  <string name="audiobook_stop">Wiedergabe beenden</string>
++  <string name="audiobook_search">Bücher, Autoren, Sprecher suchen</string>
++  <string name="audiobook_save_failed">Hörfortschritt konnte nicht gespeichert werden.</string>
++  <string name="audiobook_play_failed">Hörbuch konnte nicht geöffnet werden. Prüfe, ob seine Dateien noch zugänglich sind.</string>
++  <string name="audiobook_retry">Erneut versuchen</string>
+ </resources>
+diff --git a/app/src/main/res/values-es/strings.xml b/app/src/main/res/values-es/strings.xml
+index 2be00a2e..b40395f9 100644
+--- a/app/src/main/res/values-es/strings.xml
++++ b/app/src/main/res/values-es/strings.xml
+@@ -2300,4 +2300,65 @@ Reinicia la aplicación para que se apliquen todos los cambios.</string>
+   <string name="video_swipe_finished">Visto por completo</string>
+   <string name="video_swipe_clear_history">Borrar marcas e historial</string>
+   <string name="video_swipe_recent_disabled">Las reproducciones recientes están desactivadas en los ajustes</string>
++  <string name="audiobooks_title">Audiolibros</string>
++  <string name="audiobook_import_files">Importar archivos del libro</string>
++  <string name="audiobook_import_folder">Importar carpeta del libro</string>
++  <string name="audiobook_importing">Importando %1$d de %2$d</string>
++  <string name="audiobook_import_failed">No se pudo importar el libro: %1$s</string>
++  <string name="audiobook_no_audio">No se encontraron archivos de audio compatibles.</string>
++  <string name="audiobook_unreadable">No se puede leer el audio: %1$s</string>
++  <string name="audiobook_empty">No hay audiolibros</string>
++  <string name="audiobook_title">Título del libro</string>
++  <string name="audiobook_subtitle">Subtítulo</string>
++  <string name="audiobook_stop_before_remove">Detén la reproducción de este libro antes de quitarlo.</string>
++  <string name="audiobook_author">Autor</string>
++  <string name="audiobook_narrator">Narrador</string>
++  <string name="audiobook_series">Serie</string>
++  <string name="audiobook_series_part">Número del libro</string>
++  <string name="audiobook_description">Descripción</string>
++  <string name="audiobook_genre">Género</string>
++  <string name="audiobook_language">Idioma</string>
++  <string name="audiobook_publisher">Editorial</string>
++  <string name="audiobook_published">Publicación</string>
++  <string name="audiobook_abridged">Abreviado</string>
++  <string name="audiobook_unabridged">Sin abreviar</string>
++  <string name="audiobook_details">Detalles del libro</string>
++  <string name="audiobook_edit">Editar libro</string>
++  <string name="audiobook_save">Guardar</string>
++  <string name="audiobook_remove">Quitar de la biblioteca</string>
++  <string name="audiobook_remove_confirmation">¿Quitar «%1$s», su progreso y sus marcadores? No se eliminarán los archivos de audio.</string>
++  <string name="audiobook_continue">Seguir escuchando</string>
++  <string name="audiobook_start_over">Empezar desde el principio</string>
++  <string name="audiobook_mark_finished">Marcar como terminado</string>
++  <string name="audiobook_mark_unfinished">Marcar como no terminado</string>
++  <string name="audiobook_all">Todos los libros</string>
++  <string name="audiobook_not_started">Sin empezar</string>
++  <string name="audiobook_in_progress">En curso</string>
++  <string name="audiobook_finished">Terminado</string>
++  <string name="audiobook_remaining">Quedan %1$s</string>
++  <string name="audiobook_book_time">Libro</string>
++  <string name="audiobook_chapters">Capítulos</string>
++  <string name="audiobook_previous_chapter">Capítulo anterior</string>
++  <string name="audiobook_next_chapter">Capítulo siguiente</string>
++  <string name="audiobook_chapter_number">Capítulo %1$d</string>
++  <string name="audiobook_files">Archivos</string>
++  <string name="audiobook_bookmarks">Marcadores</string>
++  <string name="audiobook_add_bookmark">Añadir marcador</string>
++  <string name="audiobook_bookmark_name">Nombre del marcador</string>
++  <string name="audiobook_no_bookmarks">No hay marcadores</string>
++  <string name="audiobook_delete_bookmark">Eliminar marcador</string>
++  <string name="audiobook_sleep_timer">Temporizador de apagado</string>
++  <string name="audiobook_timer_off">Desactivado</string>
++  <string name="audiobook_end_chapter">Final del capítulo</string>
++  <string name="audiobook_minutes">%1$d minutos</string>
++  <string name="audiobook_smart_rewind">Retroceder después de una pausa</string>
++  <string name="audiobook_seconds">%1$d segundos</string>
++  <string name="audiobook_rewind">Retroceder 15 segundos</string>
++  <string name="audiobook_forward">Avanzar 30 segundos</string>
++  <string name="audiobook_pause">Pausar</string>
++  <string name="audiobook_stop">Dejar de escuchar</string>
++  <string name="audiobook_search">Buscar libros, autores y narradores</string>
++  <string name="audiobook_save_failed">No se pudo guardar el progreso.</string>
++  <string name="audiobook_play_failed">No se pudo abrir este libro. Comprueba que sus archivos sigan siendo accesibles.</string>
++  <string name="audiobook_retry">Reintentar</string>
+ </resources>
+diff --git a/app/src/main/res/values-fr/strings.xml b/app/src/main/res/values-fr/strings.xml
+index de069ea9..3f94f05f 100644
+--- a/app/src/main/res/values-fr/strings.xml
++++ b/app/src/main/res/values-fr/strings.xml
+@@ -2300,4 +2300,65 @@ Veuillez redémarrer l’application pour appliquer toutes les modifications.</s
+   <string name="video_swipe_finished">Vu entièrement</string>
+   <string name="video_swipe_clear_history">Effacer les marques et l\'historique</string>
+   <string name="video_swipe_recent_disabled">Les lectures récentes sont désactivées dans les paramètres</string>
++  <string name="audiobooks_title">Livres audio</string>
++  <string name="audiobook_import_files">Importer les fichiers du livre</string>
++  <string name="audiobook_import_folder">Importer un dossier de livre</string>
++  <string name="audiobook_importing">Importation de %1$d sur %2$d</string>
++  <string name="audiobook_import_failed">Impossible d\'importer le livre : %1$s</string>
++  <string name="audiobook_no_audio">Aucun fichier audio compatible trouvé.</string>
++  <string name="audiobook_unreadable">Impossible de lire le fichier audio : %1$s</string>
++  <string name="audiobook_empty">Aucun livre audio</string>
++  <string name="audiobook_title">Titre du livre</string>
++  <string name="audiobook_subtitle">Sous-titre</string>
++  <string name="audiobook_stop_before_remove">Arrêtez la lecture de ce livre avant de le retirer.</string>
++  <string name="audiobook_author">Auteur</string>
++  <string name="audiobook_narrator">Narrateur</string>
++  <string name="audiobook_series">Série</string>
++  <string name="audiobook_series_part">Numéro du tome</string>
++  <string name="audiobook_description">Description</string>
++  <string name="audiobook_genre">Genre</string>
++  <string name="audiobook_language">Langue</string>
++  <string name="audiobook_publisher">Éditeur</string>
++  <string name="audiobook_published">Publication</string>
++  <string name="audiobook_abridged">Version abrégée</string>
++  <string name="audiobook_unabridged">Version intégrale</string>
++  <string name="audiobook_details">Détails du livre</string>
++  <string name="audiobook_edit">Modifier le livre</string>
++  <string name="audiobook_save">Enregistrer</string>
++  <string name="audiobook_remove">Retirer de la bibliothèque</string>
++  <string name="audiobook_remove_confirmation">Retirer « %1$s », sa progression et ses signets ? Les fichiers audio ne seront pas supprimés.</string>
++  <string name="audiobook_continue">Continuer l\'écoute</string>
++  <string name="audiobook_start_over">Reprendre depuis le début</string>
++  <string name="audiobook_mark_finished">Marquer comme terminé</string>
++  <string name="audiobook_mark_unfinished">Marquer comme non terminé</string>
++  <string name="audiobook_all">Tous les livres</string>
++  <string name="audiobook_not_started">Non commencé</string>
++  <string name="audiobook_in_progress">En cours</string>
++  <string name="audiobook_finished">Terminé</string>
++  <string name="audiobook_remaining">%1$s restantes</string>
++  <string name="audiobook_book_time">Livre</string>
++  <string name="audiobook_chapters">Chapitres</string>
++  <string name="audiobook_previous_chapter">Chapitre précédent</string>
++  <string name="audiobook_next_chapter">Chapitre suivant</string>
++  <string name="audiobook_chapter_number">Chapitre %1$d</string>
++  <string name="audiobook_files">Fichiers</string>
++  <string name="audiobook_bookmarks">Signets</string>
++  <string name="audiobook_add_bookmark">Ajouter un signet</string>
++  <string name="audiobook_bookmark_name">Nom du signet</string>
++  <string name="audiobook_no_bookmarks">Aucun signet</string>
++  <string name="audiobook_delete_bookmark">Supprimer le signet</string>
++  <string name="audiobook_sleep_timer">Minuterie de sommeil</string>
++  <string name="audiobook_timer_off">Désactivée</string>
++  <string name="audiobook_end_chapter">Fin du chapitre</string>
++  <string name="audiobook_minutes">%1$d minutes</string>
++  <string name="audiobook_smart_rewind">Recul après une pause</string>
++  <string name="audiobook_seconds">%1$d secondes</string>
++  <string name="audiobook_rewind">Reculer de 15 secondes</string>
++  <string name="audiobook_forward">Avancer de 30 secondes</string>
++  <string name="audiobook_pause">Pause</string>
++  <string name="audiobook_stop">Arrêter l\'écoute</string>
++  <string name="audiobook_search">Rechercher des livres, auteurs et narrateurs</string>
++  <string name="audiobook_save_failed">Impossible d\'enregistrer la progression.</string>
++  <string name="audiobook_play_failed">Impossible d\'ouvrir ce livre. Vérifiez que ses fichiers sont toujours accessibles.</string>
++  <string name="audiobook_retry">Réessayer</string>
+ </resources>
+diff --git a/app/src/main/res/values-hi/strings.xml b/app/src/main/res/values-hi/strings.xml
+index 2d4c048a..5e7c33dc 100644
+--- a/app/src/main/res/values-hi/strings.xml
++++ b/app/src/main/res/values-hi/strings.xml
+@@ -2204,4 +2204,65 @@
+   <string name="video_swipe_finished">पूरा देखा गया</string>
+   <string name="video_swipe_clear_history">चिह्न और देखने का इतिहास हटाएँ</string>
+   <string name="video_swipe_recent_disabled">सेटिंग में हाल ही में चलाए गए आइटम का इतिहास बंद है</string>
++  <string name="audiobooks_title">ऑडियोबुक</string>
++  <string name="audiobook_import_files">किताब की फ़ाइलें आयात करें</string>
++  <string name="audiobook_import_folder">किताब का फ़ोल्डर आयात करें</string>
++  <string name="audiobook_importing">%2$d में से %1$d आयात हो रहा है</string>
++  <string name="audiobook_import_failed">किताब आयात नहीं हो सकी: %1$s</string>
++  <string name="audiobook_no_audio">कोई समर्थित ऑडियो फ़ाइल नहीं मिली।</string>
++  <string name="audiobook_unreadable">ऑडियो पढ़ा नहीं जा सका: %1$s</string>
++  <string name="audiobook_empty">कोई ऑडियोबुक नहीं है</string>
++  <string name="audiobook_title">किताब का शीर्षक</string>
++  <string name="audiobook_subtitle">उपशीर्षक</string>
++  <string name="audiobook_stop_before_remove">हटाने से पहले इस किताब का प्लेबैक रोकें।</string>
++  <string name="audiobook_author">लेखक</string>
++  <string name="audiobook_narrator">वाचक</string>
++  <string name="audiobook_series">श्रृंखला</string>
++  <string name="audiobook_series_part">किताब का क्रमांक</string>
++  <string name="audiobook_description">विवरण</string>
++  <string name="audiobook_genre">शैली</string>
++  <string name="audiobook_language">भाषा</string>
++  <string name="audiobook_publisher">प्रकाशक</string>
++  <string name="audiobook_published">प्रकाशन</string>
++  <string name="audiobook_abridged">संक्षिप्त संस्करण</string>
++  <string name="audiobook_unabridged">पूर्ण संस्करण</string>
++  <string name="audiobook_details">किताब का विवरण</string>
++  <string name="audiobook_edit">किताब संपादित करें</string>
++  <string name="audiobook_save">सहेजें</string>
++  <string name="audiobook_remove">लाइब्रेरी से हटाएँ</string>
++  <string name="audiobook_remove_confirmation">“%1$s” और इसकी सुनने की प्रगति और बुकमार्क हटाएँ? ऑडियो फ़ाइलें नहीं हटाई जाएँगी।</string>
++  <string name="audiobook_continue">सुनना जारी रखें</string>
++  <string name="audiobook_start_over">शुरू से चलाएँ</string>
++  <string name="audiobook_mark_finished">पूर्ण चिह्नित करें</string>
++  <string name="audiobook_mark_unfinished">अपूर्ण चिह्नित करें</string>
++  <string name="audiobook_all">सभी किताबें</string>
++  <string name="audiobook_not_started">शुरू नहीं हुई</string>
++  <string name="audiobook_in_progress">जारी है</string>
++  <string name="audiobook_finished">पूर्ण</string>
++  <string name="audiobook_remaining">%1$s शेष</string>
++  <string name="audiobook_book_time">किताब</string>
++  <string name="audiobook_chapters">अध्याय</string>
++  <string name="audiobook_previous_chapter">पिछला अध्याय</string>
++  <string name="audiobook_next_chapter">अगला अध्याय</string>
++  <string name="audiobook_chapter_number">अध्याय %1$d</string>
++  <string name="audiobook_files">फ़ाइलें</string>
++  <string name="audiobook_bookmarks">बुकमार्क</string>
++  <string name="audiobook_add_bookmark">बुकमार्क जोड़ें</string>
++  <string name="audiobook_bookmark_name">बुकमार्क का नाम</string>
++  <string name="audiobook_no_bookmarks">कोई बुकमार्क नहीं</string>
++  <string name="audiobook_delete_bookmark">बुकमार्क हटाएँ</string>
++  <string name="audiobook_sleep_timer">स्लीप टाइमर</string>
++  <string name="audiobook_timer_off">बंद</string>
++  <string name="audiobook_end_chapter">अध्याय के अंत में</string>
++  <string name="audiobook_minutes">%1$d मिनट</string>
++  <string name="audiobook_smart_rewind">विराम के बाद पीछे जाएँ</string>
++  <string name="audiobook_seconds">%1$d सेकंड</string>
++  <string name="audiobook_rewind">15 सेकंड पीछे जाएँ</string>
++  <string name="audiobook_forward">30 सेकंड आगे जाएँ</string>
++  <string name="audiobook_pause">विराम दें</string>
++  <string name="audiobook_stop">सुनना रोकें</string>
++  <string name="audiobook_search">किताबें, लेखक और वाचक खोजें</string>
++  <string name="audiobook_save_failed">सुनने की प्रगति सहेजी नहीं जा सकी।</string>
++  <string name="audiobook_play_failed">यह किताब खुल नहीं सकी। जाँचें कि इसकी फ़ाइलें अभी भी उपलब्ध हैं।</string>
++  <string name="audiobook_retry">फिर कोशिश करें</string>
+ </resources>
+diff --git a/app/src/main/res/values-ja/strings.xml b/app/src/main/res/values-ja/strings.xml
+index dd0347be..35db75f0 100644
+--- a/app/src/main/res/values-ja/strings.xml
++++ b/app/src/main/res/values-ja/strings.xml
+@@ -2296,4 +2296,65 @@
+   <string name="video_swipe_finished">視聴完了</string>
+   <string name="video_swipe_clear_history">マークと再生履歴を消去</string>
+   <string name="video_swipe_recent_disabled">設定で最近の再生履歴が無効になっています</string>
++  <string name="audiobooks_title">オーディオブック</string>
++  <string name="audiobook_import_files">本のファイルを読み込む</string>
++  <string name="audiobook_import_folder">本のフォルダーを読み込む</string>
++  <string name="audiobook_importing">%2$d 件中 %1$d 件を読み込み中</string>
++  <string name="audiobook_import_failed">本を読み込めませんでした: %1$s</string>
++  <string name="audiobook_no_audio">対応する音声ファイルが見つかりません。</string>
++  <string name="audiobook_unreadable">音声を読み取れません: %1$s</string>
++  <string name="audiobook_empty">オーディオブックはありません</string>
++  <string name="audiobook_title">本のタイトル</string>
++  <string name="audiobook_subtitle">副題</string>
++  <string name="audiobook_stop_before_remove">この本の再生を停止してから削除してください。</string>
++  <string name="audiobook_author">著者</string>
++  <string name="audiobook_narrator">ナレーター</string>
++  <string name="audiobook_series">シリーズ</string>
++  <string name="audiobook_series_part">巻番号</string>
++  <string name="audiobook_description">説明</string>
++  <string name="audiobook_genre">ジャンル</string>
++  <string name="audiobook_language">言語</string>
++  <string name="audiobook_publisher">出版社</string>
++  <string name="audiobook_published">出版日</string>
++  <string name="audiobook_abridged">要約版</string>
++  <string name="audiobook_unabridged">完全版</string>
++  <string name="audiobook_details">本の詳細</string>
++  <string name="audiobook_edit">本を編集</string>
++  <string name="audiobook_save">保存</string>
++  <string name="audiobook_remove">ライブラリから削除</string>
++  <string name="audiobook_remove_confirmation">「%1$s」とその再生状況、ブックマークを削除しますか？音声ファイルは削除されません。</string>
++  <string name="audiobook_continue">続きから聴く</string>
++  <string name="audiobook_start_over">最初から再生</string>
++  <string name="audiobook_mark_finished">再生済みにする</string>
++  <string name="audiobook_mark_unfinished">未完了にする</string>
++  <string name="audiobook_all">すべての本</string>
++  <string name="audiobook_not_started">未再生</string>
++  <string name="audiobook_in_progress">再生中</string>
++  <string name="audiobook_finished">再生済み</string>
++  <string name="audiobook_remaining">残り %1$s</string>
++  <string name="audiobook_book_time">本</string>
++  <string name="audiobook_chapters">チャプター</string>
++  <string name="audiobook_previous_chapter">前のチャプター</string>
++  <string name="audiobook_next_chapter">次のチャプター</string>
++  <string name="audiobook_chapter_number">チャプター %1$d</string>
++  <string name="audiobook_files">ファイル</string>
++  <string name="audiobook_bookmarks">ブックマーク</string>
++  <string name="audiobook_add_bookmark">ブックマークを追加</string>
++  <string name="audiobook_bookmark_name">ブックマーク名</string>
++  <string name="audiobook_no_bookmarks">ブックマークはありません</string>
++  <string name="audiobook_delete_bookmark">ブックマークを削除</string>
++  <string name="audiobook_sleep_timer">スリープタイマー</string>
++  <string name="audiobook_timer_off">オフ</string>
++  <string name="audiobook_end_chapter">チャプターの終わり</string>
++  <string name="audiobook_minutes">%1$d 分</string>
++  <string name="audiobook_smart_rewind">一時停止後に巻き戻す</string>
++  <string name="audiobook_seconds">%1$d 秒</string>
++  <string name="audiobook_rewind">15 秒戻る</string>
++  <string name="audiobook_forward">30 秒進む</string>
++  <string name="audiobook_pause">一時停止</string>
++  <string name="audiobook_stop">再生を停止</string>
++  <string name="audiobook_search">本、著者、ナレーターを検索</string>
++  <string name="audiobook_save_failed">再生状況を保存できませんでした。</string>
++  <string name="audiobook_play_failed">この本を開けませんでした。ファイルにアクセスできるか確認してください。</string>
++  <string name="audiobook_retry">再試行</string>
+ </resources>
+diff --git a/app/src/main/res/values-pt-rBR/strings.xml b/app/src/main/res/values-pt-rBR/strings.xml
+index c962d6e1..583492cb 100644
+--- a/app/src/main/res/values-pt-rBR/strings.xml
++++ b/app/src/main/res/values-pt-rBR/strings.xml
+@@ -2300,4 +2300,65 @@ Reinicie o aplicativo para que todas as alterações entrem em vigor.</string>
+   <string name="video_swipe_finished">Assistido por completo</string>
+   <string name="video_swipe_clear_history">Limpar marcações e histórico</string>
+   <string name="video_swipe_recent_disabled">As reproduções recentes estão desativadas nas configurações</string>
++  <string name="audiobooks_title">Audiolivros</string>
++  <string name="audiobook_import_files">Importar arquivos do livro</string>
++  <string name="audiobook_import_folder">Importar pasta do livro</string>
++  <string name="audiobook_importing">Importando %1$d de %2$d</string>
++  <string name="audiobook_import_failed">Não foi possível importar o livro: %1$s</string>
++  <string name="audiobook_no_audio">Nenhum arquivo de áudio compatível encontrado.</string>
++  <string name="audiobook_unreadable">Não foi possível ler o áudio: %1$s</string>
++  <string name="audiobook_empty">Nenhum audiolivro</string>
++  <string name="audiobook_title">Título do livro</string>
++  <string name="audiobook_subtitle">Subtítulo</string>
++  <string name="audiobook_stop_before_remove">Pare a reprodução deste livro antes de removê-lo.</string>
++  <string name="audiobook_author">Autor</string>
++  <string name="audiobook_narrator">Narrador</string>
++  <string name="audiobook_series">Série</string>
++  <string name="audiobook_series_part">Número do livro</string>
++  <string name="audiobook_description">Descrição</string>
++  <string name="audiobook_genre">Gênero</string>
++  <string name="audiobook_language">Idioma</string>
++  <string name="audiobook_publisher">Editora</string>
++  <string name="audiobook_published">Publicação</string>
++  <string name="audiobook_abridged">Resumido</string>
++  <string name="audiobook_unabridged">Integral</string>
++  <string name="audiobook_details">Detalhes do livro</string>
++  <string name="audiobook_edit">Editar livro</string>
++  <string name="audiobook_save">Salvar</string>
++  <string name="audiobook_remove">Remover da biblioteca</string>
++  <string name="audiobook_remove_confirmation">Remover “%1$s”, seu progresso e seus marcadores? Os arquivos de áudio não serão excluídos.</string>
++  <string name="audiobook_continue">Continuar ouvindo</string>
++  <string name="audiobook_start_over">Recomeçar do início</string>
++  <string name="audiobook_mark_finished">Marcar como concluído</string>
++  <string name="audiobook_mark_unfinished">Marcar como não concluído</string>
++  <string name="audiobook_all">Todos os livros</string>
++  <string name="audiobook_not_started">Não iniciado</string>
++  <string name="audiobook_in_progress">Em andamento</string>
++  <string name="audiobook_finished">Concluído</string>
++  <string name="audiobook_remaining">%1$s restantes</string>
++  <string name="audiobook_book_time">Livro</string>
++  <string name="audiobook_chapters">Capítulos</string>
++  <string name="audiobook_previous_chapter">Capítulo anterior</string>
++  <string name="audiobook_next_chapter">Próximo capítulo</string>
++  <string name="audiobook_chapter_number">Capítulo %1$d</string>
++  <string name="audiobook_files">Arquivos</string>
++  <string name="audiobook_bookmarks">Marcadores</string>
++  <string name="audiobook_add_bookmark">Adicionar marcador</string>
++  <string name="audiobook_bookmark_name">Nome do marcador</string>
++  <string name="audiobook_no_bookmarks">Nenhum marcador</string>
++  <string name="audiobook_delete_bookmark">Excluir marcador</string>
++  <string name="audiobook_sleep_timer">Temporizador de sono</string>
++  <string name="audiobook_timer_off">Desativado</string>
++  <string name="audiobook_end_chapter">Fim do capítulo</string>
++  <string name="audiobook_minutes">%1$d minutos</string>
++  <string name="audiobook_smart_rewind">Retroceder após uma pausa</string>
++  <string name="audiobook_seconds">%1$d segundos</string>
++  <string name="audiobook_rewind">Retroceder 15 segundos</string>
++  <string name="audiobook_forward">Avançar 30 segundos</string>
++  <string name="audiobook_pause">Pausar</string>
++  <string name="audiobook_stop">Parar de ouvir</string>
++  <string name="audiobook_search">Buscar livros, autores e narradores</string>
++  <string name="audiobook_save_failed">Não foi possível salvar o progresso.</string>
++  <string name="audiobook_play_failed">Não foi possível abrir este livro. Verifique se os arquivos ainda estão acessíveis.</string>
++  <string name="audiobook_retry">Tentar novamente</string>
+ </resources>
+diff --git a/app/src/main/res/values-ru/strings.xml b/app/src/main/res/values-ru/strings.xml
+index 3635610f..5b3ddcf6 100644
+--- a/app/src/main/res/values-ru/strings.xml
++++ b/app/src/main/res/values-ru/strings.xml
+@@ -2308,4 +2308,65 @@
+   <string name="video_swipe_finished">Просмотрено полностью</string>
+   <string name="video_swipe_clear_history">Удалить отметки и историю</string>
+   <string name="video_swipe_recent_disabled">История недавних воспроизведений отключена в настройках</string>
++  <string name="audiobooks_title">Аудиокниги</string>
++  <string name="audiobook_import_files">Импорт файлов книги</string>
++  <string name="audiobook_import_folder">Импорт папки книги</string>
++  <string name="audiobook_importing">Импорт %1$d из %2$d</string>
++  <string name="audiobook_import_failed">Не удалось импортировать книгу: %1$s</string>
++  <string name="audiobook_no_audio">Поддерживаемые аудиофайлы не найдены.</string>
++  <string name="audiobook_unreadable">Не удалось прочитать аудио: %1$s</string>
++  <string name="audiobook_empty">Нет аудиокниг</string>
++  <string name="audiobook_title">Название книги</string>
++  <string name="audiobook_subtitle">Подзаголовок</string>
++  <string name="audiobook_stop_before_remove">Остановите воспроизведение книги перед её удалением.</string>
++  <string name="audiobook_author">Автор</string>
++  <string name="audiobook_narrator">Чтец</string>
++  <string name="audiobook_series">Серия</string>
++  <string name="audiobook_series_part">Номер книги</string>
++  <string name="audiobook_description">Описание</string>
++  <string name="audiobook_genre">Жанр</string>
++  <string name="audiobook_language">Язык</string>
++  <string name="audiobook_publisher">Издатель</string>
++  <string name="audiobook_published">Дата публикации</string>
++  <string name="audiobook_abridged">Сокращённая версия</string>
++  <string name="audiobook_unabridged">Полная версия</string>
++  <string name="audiobook_details">Сведения о книге</string>
++  <string name="audiobook_edit">Изменить книгу</string>
++  <string name="audiobook_save">Сохранить</string>
++  <string name="audiobook_remove">Удалить из библиотеки</string>
++  <string name="audiobook_remove_confirmation">Удалить «%1$s», прогресс прослушивания и закладки? Аудиофайлы не будут удалены.</string>
++  <string name="audiobook_continue">Продолжить прослушивание</string>
++  <string name="audiobook_start_over">Начать сначала</string>
++  <string name="audiobook_mark_finished">Отметить как прослушанную</string>
++  <string name="audiobook_mark_unfinished">Отметить как непрослушанную</string>
++  <string name="audiobook_all">Все книги</string>
++  <string name="audiobook_not_started">Не начато</string>
++  <string name="audiobook_in_progress">В процессе</string>
++  <string name="audiobook_finished">Прослушано</string>
++  <string name="audiobook_remaining">Осталось %1$s</string>
++  <string name="audiobook_book_time">Книга</string>
++  <string name="audiobook_chapters">Главы</string>
++  <string name="audiobook_previous_chapter">Предыдущая глава</string>
++  <string name="audiobook_next_chapter">Следующая глава</string>
++  <string name="audiobook_chapter_number">Глава %1$d</string>
++  <string name="audiobook_files">Файлы</string>
++  <string name="audiobook_bookmarks">Закладки</string>
++  <string name="audiobook_add_bookmark">Добавить закладку</string>
++  <string name="audiobook_bookmark_name">Название закладки</string>
++  <string name="audiobook_no_bookmarks">Нет закладок</string>
++  <string name="audiobook_delete_bookmark">Удалить закладку</string>
++  <string name="audiobook_sleep_timer">Таймер сна</string>
++  <string name="audiobook_timer_off">Выключен</string>
++  <string name="audiobook_end_chapter">Конец главы</string>
++  <string name="audiobook_minutes">%1$d мин.</string>
++  <string name="audiobook_smart_rewind">Перемотка назад после паузы</string>
++  <string name="audiobook_seconds">%1$d сек.</string>
++  <string name="audiobook_rewind">Назад на 15 секунд</string>
++  <string name="audiobook_forward">Вперёд на 30 секунд</string>
++  <string name="audiobook_pause">Пауза</string>
++  <string name="audiobook_stop">Остановить прослушивание</string>
++  <string name="audiobook_search">Поиск книг, авторов и чтецов</string>
++  <string name="audiobook_save_failed">Не удалось сохранить прогресс прослушивания.</string>
++  <string name="audiobook_play_failed">Не удалось открыть книгу. Убедитесь, что её файлы по-прежнему доступны.</string>
++  <string name="audiobook_retry">Повторить попытку</string>
+ </resources>
+diff --git a/app/src/main/res/values-zh-rCN/strings.xml b/app/src/main/res/values-zh-rCN/strings.xml
+index c5efb617..63cc32f1 100644
+--- a/app/src/main/res/values-zh-rCN/strings.xml
++++ b/app/src/main/res/values-zh-rCN/strings.xml
+@@ -2296,4 +2296,65 @@
+   <string name="video_swipe_finished">已看完</string>
+   <string name="video_swipe_clear_history">清除标记和观看历史</string>
+   <string name="video_swipe_recent_disabled">设置中已禁用最近播放记录</string>
++  <string name="audiobooks_title">有声书</string>
++  <string name="audiobook_import_files">导入书籍文件</string>
++  <string name="audiobook_import_folder">导入书籍文件夹</string>
++  <string name="audiobook_importing">正在导入 %1$d/%2$d</string>
++  <string name="audiobook_import_failed">无法导入书籍：%1$s</string>
++  <string name="audiobook_no_audio">未找到支持的音频文件。</string>
++  <string name="audiobook_unreadable">无法读取音频：%1$s</string>
++  <string name="audiobook_empty">暂无有声书</string>
++  <string name="audiobook_title">书名</string>
++  <string name="audiobook_subtitle">副标题</string>
++  <string name="audiobook_stop_before_remove">请先停止播放此书，再将其移除。</string>
++  <string name="audiobook_author">作者</string>
++  <string name="audiobook_narrator">朗读者</string>
++  <string name="audiobook_series">系列</string>
++  <string name="audiobook_series_part">册号</string>
++  <string name="audiobook_description">简介</string>
++  <string name="audiobook_genre">类型</string>
++  <string name="audiobook_language">语言</string>
++  <string name="audiobook_publisher">出版方</string>
++  <string name="audiobook_published">出版时间</string>
++  <string name="audiobook_abridged">删节版</string>
++  <string name="audiobook_unabridged">完整版</string>
++  <string name="audiobook_details">书籍详情</string>
++  <string name="audiobook_edit">编辑书籍</string>
++  <string name="audiobook_save">保存</string>
++  <string name="audiobook_remove">从书库中移除</string>
++  <string name="audiobook_remove_confirmation">移除“%1$s”及其收听进度和书签？音频文件不会被删除。</string>
++  <string name="audiobook_continue">继续收听</string>
++  <string name="audiobook_start_over">从头开始</string>
++  <string name="audiobook_mark_finished">标记为已听完</string>
++  <string name="audiobook_mark_unfinished">标记为未听完</string>
++  <string name="audiobook_all">所有书籍</string>
++  <string name="audiobook_not_started">尚未开始</string>
++  <string name="audiobook_in_progress">收听中</string>
++  <string name="audiobook_finished">已听完</string>
++  <string name="audiobook_remaining">剩余 %1$s</string>
++  <string name="audiobook_book_time">全书</string>
++  <string name="audiobook_chapters">章节</string>
++  <string name="audiobook_previous_chapter">上一章</string>
++  <string name="audiobook_next_chapter">下一章</string>
++  <string name="audiobook_chapter_number">第 %1$d 章</string>
++  <string name="audiobook_files">文件</string>
++  <string name="audiobook_bookmarks">书签</string>
++  <string name="audiobook_add_bookmark">添加书签</string>
++  <string name="audiobook_bookmark_name">书签名称</string>
++  <string name="audiobook_no_bookmarks">暂无书签</string>
++  <string name="audiobook_delete_bookmark">删除书签</string>
++  <string name="audiobook_sleep_timer">睡眠定时器</string>
++  <string name="audiobook_timer_off">关闭</string>
++  <string name="audiobook_end_chapter">本章结束时</string>
++  <string name="audiobook_minutes">%1$d 分钟</string>
++  <string name="audiobook_smart_rewind">暂停后回退</string>
++  <string name="audiobook_seconds">%1$d 秒</string>
++  <string name="audiobook_rewind">后退 15 秒</string>
++  <string name="audiobook_forward">前进 30 秒</string>
++  <string name="audiobook_pause">暂停</string>
++  <string name="audiobook_stop">停止收听</string>
++  <string name="audiobook_search">搜索书籍、作者、朗读者</string>
++  <string name="audiobook_save_failed">无法保存收听进度。</string>
++  <string name="audiobook_play_failed">无法打开此书。请检查其文件是否仍可访问。</string>
++  <string name="audiobook_retry">重试</string>
+ </resources>
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index 90a833d7..bfb85cf6 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -2328,4 +2328,67 @@
+   <string name="video_swipe_finished">Finished</string>
+   <string name="video_swipe_clear_history">Clear marks and history</string>
+   <string name="video_swipe_recent_disabled">Recently Played is disabled in settings</string>
++  <string name="audiobooks_title">Audiobooks</string>
++  <string name="audiobook_import_files">Import book files</string>
++  <string name="audiobook_import_folder">Import book folder</string>
++  <string name="audiobook_importing">Importing %1$d of %2$d</string>
++  <string name="audiobook_import_failed">Could not import book: %1$s</string>
++  <string name="audiobook_no_audio">No supported audio files found.</string>
++  <string name="audiobook_unreadable">Cannot read audio: %1$s</string>
++  <string name="audiobook_empty">No audiobooks</string>
++  <string name="audiobook_title">Book title</string>
++  <string name="audiobook_subtitle">Subtitle</string>
++  <string name="audiobook_stop_before_remove">Stop listening to this book before removing it.</string>
++  <string name="audiobook_author">Author</string>
++  <string name="audiobook_narrator">Narrator</string>
++  <string name="audiobook_series">Series</string>
++  <string name="audiobook_series_part">Book number</string>
++  <string name="audiobook_description">Description</string>
++  <string name="audiobook_genre">Genre</string>
++  <string name="audiobook_language">Language</string>
++  <string name="audiobook_publisher">Publisher</string>
++  <string name="audiobook_published">Published</string>
++  <string name="audiobook_isbn" translatable="false">ISBN</string>
++  <string name="audiobook_asin" translatable="false">ASIN</string>
++  <string name="audiobook_abridged">Abridged</string>
++  <string name="audiobook_unabridged">Unabridged</string>
++  <string name="audiobook_details">Book details</string>
++  <string name="audiobook_edit">Edit book</string>
++  <string name="audiobook_save">Save</string>
++  <string name="audiobook_remove">Remove from library</string>
++  <string name="audiobook_remove_confirmation">Remove “%1$s” and its listening progress and bookmarks? Audio files will not be deleted.</string>
++  <string name="audiobook_continue">Continue listening</string>
++  <string name="audiobook_start_over">Start from beginning</string>
++  <string name="audiobook_mark_finished">Mark as finished</string>
++  <string name="audiobook_mark_unfinished">Mark as unfinished</string>
++  <string name="audiobook_all">All books</string>
++  <string name="audiobook_not_started">Not started</string>
++  <string name="audiobook_in_progress">In progress</string>
++  <string name="audiobook_finished">Finished</string>
++  <string name="audiobook_remaining">%1$s remaining</string>
++  <string name="audiobook_book_time">Book</string>
++  <string name="audiobook_chapters">Chapters</string>
++  <string name="audiobook_previous_chapter">Previous chapter</string>
++  <string name="audiobook_next_chapter">Next chapter</string>
++  <string name="audiobook_chapter_number">Chapter %1$d</string>
++  <string name="audiobook_files">Files</string>
++  <string name="audiobook_bookmarks">Bookmarks</string>
++  <string name="audiobook_add_bookmark">Add bookmark</string>
++  <string name="audiobook_bookmark_name">Bookmark name</string>
++  <string name="audiobook_no_bookmarks">No bookmarks</string>
++  <string name="audiobook_delete_bookmark">Delete bookmark</string>
++  <string name="audiobook_sleep_timer">Sleep timer</string>
++  <string name="audiobook_timer_off">Off</string>
++  <string name="audiobook_end_chapter">End of chapter</string>
++  <string name="audiobook_minutes">%1$d minutes</string>
++  <string name="audiobook_smart_rewind">Rewind after a pause</string>
++  <string name="audiobook_seconds">%1$d seconds</string>
++  <string name="audiobook_rewind">Rewind 15 seconds</string>
++  <string name="audiobook_forward">Forward 30 seconds</string>
++  <string name="audiobook_pause">Pause</string>
++  <string name="audiobook_stop">Stop listening</string>
++  <string name="audiobook_search">Search books, authors, narrators</string>
++  <string name="audiobook_save_failed">Could not save listening progress.</string>
++  <string name="audiobook_play_failed">Could not open this book. Check that its files are still accessible.</string>
++  <string name="audiobook_retry">Retry</string>
+ </resources>
+-- 
+2.25.1
+

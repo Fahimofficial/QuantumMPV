@@ -1,0 +1,906 @@
+From c660ced62ec7ea20ef975b4823c1732a1a4a538c Mon Sep 17 00:00:00 2001
+From: Arnab Sadhukhan <arnab@Arnabs-Mac-Mini.local>
+Date: Wed, 2 Sep 2026 22:55:15 +0530
+Subject: [PATCH 005/140] feat(audio): add fluid wavy seekbar visualizer
+ overlay with thickness adaptation
+
+---
+ .../mpvrx/preferences/AudioPreferences.kt     |   1 +
+ .../ui/player/controls/AudioPlayerControls.kt |   5 +-
+ .../controls/components/AudioWavySeekBar.kt   | 578 ++++++++++++++++++
+ .../ui/player/controls/components/Seekbar.kt  |  22 +-
+ .../ui/preferences/AudioPreferencesScreen.kt  |  15 +
+ .../ui/preferences/SearchablePreference.kt    |   1 +
+ app/src/main/res/values-ar/strings.xml        |   2 +
+ app/src/main/res/values-de/strings.xml        |   2 +
+ app/src/main/res/values-es/strings.xml        |   2 +
+ app/src/main/res/values-fr/strings.xml        |   2 +
+ app/src/main/res/values-hi/strings.xml        |   2 +
+ app/src/main/res/values-ja/strings.xml        |   2 +
+ app/src/main/res/values-pt-rBR/strings.xml    |   2 +
+ app/src/main/res/values-ru/strings.xml        |   2 +
+ app/src/main/res/values-zh-rCN/strings.xml    |   2 +
+ app/src/main/res/values/strings.xml           |   2 +
+ 16 files changed, 638 insertions(+), 4 deletions(-)
+ create mode 100644 app/src/main/java/com/quantummpv/app/ui/player/controls/components/AudioWavySeekBar.kt
+
+diff --git a/app/src/main/java/com/quantummpv/app/preferences/AudioPreferences.kt b/app/src/main/java/com/quantummpv/app/preferences/AudioPreferences.kt
+index cf4a36e1..93b8d8c7 100644
+--- a/app/src/main/java/com/quantummpv/app/preferences/AudioPreferences.kt
++++ b/app/src/main/java/com/quantummpv/app/preferences/AudioPreferences.kt
+@@ -32,6 +32,7 @@ class AudioPreferences(
+   val audioVisualizerStyle = preferenceStore.getEnum("audio_visualizer_style", AudioVisualizerStyle.Blob)
+   val audioOrientation = preferenceStore.getEnum("audio_player_orientation", AudioPlayerOrientation.Auto)
+   val audioAmbientMode = preferenceStore.getBoolean("audio_ambient_mode", true)
++  val audioWavySeekbar = preferenceStore.getBoolean("audio_wavy_seekbar", true)
+   val enabledMusicTabs = preferenceStore.getStringSet(
+     "enabled_music_tabs",
+     setOf("SONGS", "ALBUMS", "ARTISTS", "PLAYLISTS", "FOLDERS"),
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/AudioPlayerControls.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/AudioPlayerControls.kt
+index e302d151..5efe4535 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/AudioPlayerControls.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/AudioPlayerControls.kt
+@@ -595,6 +595,7 @@ fun AudioPlayerControls(
+   val audioPreferences = koinInject<AudioPreferences>()
+   val appearancePreferences = koinInject<AppearancePreferences>()
+   val audioVisualizerStyle by audioPreferences.audioVisualizerStyle.collectAsState()
++  val audioWavySeekbar by audioPreferences.audioWavySeekbar.collectAsState()
+   val backgroundPlaybackEnabled by audioPreferences.audioBackgroundPlayback.collectAsState()
+   val colorScheme = MaterialTheme.colorScheme
+   val palette =
+@@ -1394,6 +1395,7 @@ fun AudioPlayerControls(
+       val remaining  by PlaybackSession.propFloat["playtime-remaining"].collectAsState()
+       val precisePosition by viewModel.precisePosition.collectAsStateWithLifecycle()
+       val currentPosSec = if (precisePosition > 0f) precisePosition else position?.toFloat() ?: 0f
++      val isPaused = paused ?: false
+ 
+       SeekbarWithTimers(
+         position = currentPosSec,
+@@ -1407,8 +1409,9 @@ fun AudioPlayerControls(
+         positionTimerOnClick = {},
+         chapters = seekbarChapters,
+         skipSegments = persistentListOf(),
+-        paused = paused ?: false,
++        paused = isPaused,
+         seekbarStyle = seekbarStyle,
++        showWavyVisualizer = audioWavySeekbar,
+         loopStart = abLoopA?.toFloat(),
+         loopEnd = abLoopB?.toFloat(),
+         isPortrait = isPortrait,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/AudioWavySeekBar.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/AudioWavySeekBar.kt
+new file mode 100644
+index 00000000..8a5caaf7
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/AudioWavySeekBar.kt
+@@ -0,0 +1,578 @@
++/*
++ * SPDX-License-Identifier: AGPL-3.0-or-later
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Affero General Public License as published
++ * by the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ */
++
++package com.quantummpv.app.ui.player.controls.components
++
++import androidx.compose.animation.core.animateDpAsState
++import androidx.compose.animation.core.animateFloatAsState
++import androidx.compose.animation.core.spring
++import androidx.compose.animation.core.tween
++import androidx.compose.foundation.Canvas
++import androidx.compose.foundation.interaction.MutableInteractionSource
++import androidx.compose.foundation.interaction.collectIsDraggedAsState
++import androidx.compose.foundation.layout.Arrangement
++import androidx.compose.foundation.layout.Box
++import androidx.compose.foundation.layout.Column
++import androidx.compose.foundation.layout.Row
++import androidx.compose.foundation.layout.Spacer
++import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.height
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.Slider
++import androidx.compose.material3.SliderDefaults
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.LaunchedEffect
++import androidx.compose.runtime.getValue
++import androidx.compose.runtime.mutableFloatStateOf
++import androidx.compose.runtime.remember
++import androidx.compose.runtime.setValue
++import androidx.compose.runtime.withFrameMillis
++import androidx.compose.ui.Alignment
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.draw.alpha
++import androidx.compose.ui.geometry.CornerRadius
++import androidx.compose.ui.geometry.Offset
++import androidx.compose.ui.geometry.Size
++import androidx.compose.ui.graphics.Brush
++import androidx.compose.ui.graphics.Color
++import androidx.compose.ui.graphics.Path
++import androidx.compose.ui.graphics.StrokeCap
++import androidx.compose.ui.graphics.StrokeJoin
++import androidx.compose.ui.graphics.drawscope.Stroke
++import androidx.compose.ui.graphics.drawscope.clipRect
++import androidx.compose.ui.platform.LocalDensity
++import androidx.compose.ui.unit.Dp
++import androidx.compose.ui.unit.dp
++import com.quantummpv.app.preferences.SeekbarStyle
++import com.quantummpv.app.ui.player.controls.LocalPlayerButtonsClickEvent
++import com.quantummpv.app.ui.theme.AppMotion
++import dev.vivvvek.seeker.Segment
++import kotlinx.collections.immutable.ImmutableList
++import kotlinx.collections.immutable.persistentListOf
++import kotlinx.coroutines.isActive
++import kotlin.math.PI
++import kotlin.math.sin
++
++/**
++ * Shifts lightness and saturation of a Compose Color to produce
++ * rich, dynamic tonal variations within the Material Design 3 theme palette.
++ */
++fun Color.shiftTonal(lightnessDelta: Float, saturationScale: Float = 1.0f): Color {
++  val hsv = FloatArray(3)
++  android.graphics.Color.RGBToHSV(
++    (red * 255).toInt().coerceIn(0, 255),
++    (green * 255).toInt().coerceIn(0, 255),
++    (blue * 255).toInt().coerceIn(0, 255),
++    hsv,
++  )
++  hsv[1] = (hsv[1] * saturationScale).coerceIn(0.15f, 1.0f)
++  hsv[2] = (hsv[2] + lightnessDelta).coerceIn(0.15f, 1.0f)
++  val rgb = android.graphics.Color.HSVToColor(hsv)
++  return Color(rgb)
++}
++
++/**
++ * Advanced Dynamic Counter-Gradient Frosted Glass Waveform Visualizer Overlay
++ * (Incorporating PR #9 improvements from LastWave):
++ * - Multi-depth liquid gradient body fills (Layer 1, 2, 3 vertical & horizontal gradients)
++ * - Multi-stage luminous glow halos along the wave crests
++ * - Crisp contour line strokes (1.0dp, 1.2dp, 1.8dp)
++ * - 4.5dp sampling step optimization for low-end device performance
++ * - Pre-allocated gradient color lists to prevent garbage collection churn during 60fps draw loop
++ * - Smooth 280ms amplitude dampening when paused or dragging
++ * - Dynamic thickness adaptation: vertical baseline position, wave amplitude, and end-of-wave thumb
++ *   offset automatically adjust based on the seekbar thickness and style (Thick, Standard, Normal, Slim, Wavy).
++ * - Floats strictly ABOVE the seekbar track: never draws into the track, never covers the thumb/tip,
++ *   and naturally tapers smoothly to 0 height before the seekbar tip with zero flat/rounded cutoff box.
++ */
++@Composable
++fun SeekbarWavyVisualizerOverlay(
++  positionProvider: () -> Float,
++  duration: Float,
++  isPaused: Boolean,
++  isScrubbing: Boolean,
++  trackHeight: Dp = 8.dp,
++  seekbarStyle: SeekbarStyle = SeekbarStyle.Standard,
++  modifier: Modifier = Modifier,
++) {
++  val primaryColor = MaterialTheme.colorScheme.primary
++  val secondaryColor = MaterialTheme.colorScheme.secondary
++  val tertiaryColor = MaterialTheme.colorScheme.tertiary
++
++  // Pre-calculated tonal palette (zero allocation in draw loop)
++  val layer1Light = remember(tertiaryColor) { tertiaryColor.shiftTonal(lightnessDelta = +0.18f, saturationScale = 0.85f) }
++  val layer1Dark = remember(tertiaryColor) { tertiaryColor.shiftTonal(lightnessDelta = -0.15f, saturationScale = 1.30f) }
++  val layer2Dark = remember(secondaryColor) { secondaryColor.shiftTonal(lightnessDelta = -0.16f, saturationScale = 1.30f) }
++  val layer2Light = remember(secondaryColor) { secondaryColor.shiftTonal(lightnessDelta = +0.18f, saturationScale = 0.85f) }
++  val layer3Light = remember(primaryColor) { primaryColor.shiftTonal(lightnessDelta = +0.20f, saturationScale = 0.90f) }
++  val layer3Dark = remember(primaryColor) { primaryColor.shiftTonal(lightnessDelta = -0.14f, saturationScale = 1.35f) }
++
++  // Pre-allocated gradient color lists to eliminate garbage collection churn during frame rendering (PR #9)
++  val gradient1Colors = remember(layer1Light, layer1Dark) {
++    listOf(layer1Light.copy(alpha = 0.30f), layer1Dark.copy(alpha = 0.08f))
++  }
++  val gradient2Colors = remember(layer2Light, layer2Dark) {
++    listOf(layer2Light.copy(alpha = 0.38f), layer2Dark.copy(alpha = 0.12f))
++  }
++  val gradient3Colors = remember(layer3Light, layer3Dark) {
++    listOf(layer3Light.copy(alpha = 0.56f), layer3Dark.copy(alpha = 0.22f))
++  }
++  val gradient3HorizontalColors = remember(layer3Light, layer3Dark, secondaryColor) {
++    listOf(layer3Light.copy(alpha = 0.32f), secondaryColor.copy(alpha = 0.22f), layer3Dark.copy(alpha = 0.38f))
++  }
++
++  val contour1Colors = remember(layer1Light, layer1Dark) {
++    listOf(layer1Light.copy(alpha = 0.18f), layer1Dark.copy(alpha = 0.12f))
++  }
++  val contour2Colors = remember(layer2Light, layer2Dark) {
++    listOf(layer2Dark.copy(alpha = 0.24f), layer2Light.copy(alpha = 0.18f))
++  }
++  val contour3OuterColors = remember(layer3Light, layer3Dark) {
++    listOf(layer3Light.copy(alpha = 0.32f), layer3Dark.copy(alpha = 0.22f))
++  }
++  val contour3InnerColors = remember(layer3Light, layer3Dark) {
++    listOf(layer3Light.copy(alpha = 0.52f), layer3Dark.copy(alpha = 0.40f))
++  }
++
++  val crispContour1Colors = remember(layer1Light, layer1Dark) {
++    listOf(layer1Light.copy(alpha = 0.45f), layer1Dark.copy(alpha = 0.32f))
++  }
++  val crispContour2Colors = remember(layer2Light, layer2Dark) {
++    listOf(layer2Dark.copy(alpha = 0.72f), layer2Light.copy(alpha = 0.62f))
++  }
++  val crispContour3Colors = remember(layer3Light, layer3Dark) {
++    listOf(layer3Light.copy(alpha = 0.98f), layer3Dark.copy(alpha = 0.92f))
++  }
++
++  // Dynamic seekbar track thickness that tracks the underlying seekbar's exact height
++  val effectiveTrackHeightDp = when (seekbarStyle) {
++    SeekbarStyle.Thick -> if (isPaused || isScrubbing) 11.2.dp else 16.dp
++    SeekbarStyle.Standard -> if (isPaused || isScrubbing) 5.6.dp else 8.dp
++    SeekbarStyle.Normal -> if (isScrubbing) 6.dp else 4.dp
++    SeekbarStyle.Slim -> when {
++      isScrubbing -> 15.dp
++      isPaused -> 6.dp
++      else -> 8.dp
++    }
++    SeekbarStyle.Wavy -> 8.dp
++  }
++
++  val animatedTrackHeight by animateDpAsState(
++    targetValue = effectiveTrackHeightDp,
++    animationSpec = spring(
++      dampingRatio = AppMotion.Spatial.Expressive.dampingRatio,
++      stiffness = AppMotion.Spatial.Expressive.stiffness,
++    ),
++    label = "wavy_overlay_track_height",
++  )
++
++  // Continuous running phase accumulator that smoothly freezes when paused without snapping
++  var phase1 by remember { mutableFloatStateOf(2.2f) }
++  var phase2 by remember { mutableFloatStateOf(1.2f) }
++  var phase3 by remember { mutableFloatStateOf(0f) }
++
++  val wavesActive = !isPaused && !isScrubbing
++
++  LaunchedEffect(wavesActive) {
++    if (!wavesActive) return@LaunchedEffect
++    var lastFrameTime = withFrameMillis { it }
++    val speed1 = (2 * PI / 2.4).toFloat()
++    val speed2 = (2 * PI / 1.8).toFloat()
++    val speed3 = (2 * PI / 1.3).toFloat()
++    val twoPi = (2 * PI).toFloat()
++    while (isActive) {
++      withFrameMillis { frameTimeMillis ->
++        val dt = ((frameTimeMillis - lastFrameTime) / 1000f).coerceIn(0f, 0.1f)
++        phase1 = (phase1 + dt * speed1) % twoPi
++        phase2 = (phase2 + dt * speed2) % twoPi
++        phase3 = (phase3 + dt * speed3) % twoPi
++        lastFrameTime = frameTimeMillis
++      }
++    }
++  }
++
++  // 3-Tier Amplitudes scaled proportionally with seekbar thickness, with smooth 280ms dampening on pause/scrub
++  val density = LocalDensity.current
++  val thicknessScale = (effectiveTrackHeightDp.value / 12f).coerceIn(0.75f, 1.25f)
++  val baseAmp1Px = with(density) { 13.0.dp.toPx() } * thicknessScale
++  val baseAmp2Px = with(density) { 10.0.dp.toPx() } * thicknessScale
++  val baseAmp3Px = with(density) { 7.5.dp.toPx() } * thicknessScale
++
++  val amp1 by animateFloatAsState(
++    targetValue = if (!wavesActive) 0f else baseAmp1Px,
++    animationSpec = tween(durationMillis = 280),
++    label = "WavyOverlay_Amp1",
++  )
++  val amp2 by animateFloatAsState(
++    targetValue = if (!wavesActive) 0f else baseAmp2Px,
++    animationSpec = tween(durationMillis = 280),
++    label = "WavyOverlay_Amp2",
++  )
++  val amp3 by animateFloatAsState(
++    targetValue = if (!wavesActive) 0f else baseAmp3Px,
++    animationSpec = tween(durationMillis = 280),
++    label = "WavyOverlay_Amp3",
++  )
++
++  // Broad wavelengths for smooth, elegant rolling waves
++  val waveLength1Px = with(density) { 160.dp.toPx() }
++  val waveLength2Px = with(density) { 125.dp.toPx() }
++  val waveLength3Px = with(density) { 95.dp.toPx() }
++
++  val transitionLengthPx = with(density) { 44.dp.toPx() }
++  val waveSampleStepPx = with(density) { 4.5.dp.toPx() } // Optimized for lower end devices (PR #9)
++
++  // Reusable Path caches to eliminate GC allocations during frame drawing
++  val pathFilled1 = remember { Path() }
++  val pathContour1 = remember { Path() }
++  val pathFilled2 = remember { Path() }
++  val pathContour2 = remember { Path() }
++  val pathFilled3 = remember { Path() }
++  val pathContour3 = remember { Path() }
++
++  Canvas(modifier = modifier) {
++    val width = size.width
++    val height = size.height
++    val centerY = height / 2f
++    val currentPosition = positionProvider()
++    val safeDuration = duration.takeIf { it.isFinite() && it > 0f } ?: 0f
++    val fraction = if (safeDuration > 0f) (currentPosition / safeDuration).coerceIn(0f, 1f) else 0f
++    val thumbX = (fraction * width).coerceIn(0f, width)
++    val halfThickness = animatedTrackHeight.toPx() / 2f
++    val topBaselineY = centerY - halfThickness
++
++    // Thumb clearance offset adjusted per seekbar style so wave stops right before the thumb tip
++    val thumbOffsetPx = when (seekbarStyle) {
++      SeekbarStyle.Thick -> if (isScrubbing) 5.dp.toPx() else 7.dp.toPx()
++      SeekbarStyle.Standard -> if (isScrubbing) 5.dp.toPx() else 7.5.dp.toPx()
++      SeekbarStyle.Normal -> if (isScrubbing) 9.dp.toPx() else 6.5.dp.toPx()
++      SeekbarStyle.Slim -> halfThickness
++      SeekbarStyle.Wavy -> 4.dp.toPx()
++    }
++
++    // Wave stops gracefully just before the thumb tip so it never overlaps or covers the seekbar thumb
++    val waveEndX = (thumbX - thumbOffsetPx).coerceAtLeast(0f)
++
++    // If nothing has played past the thumb yet, don't draw
++    if (waveEndX <= 0.5f || width <= 0f) return@Canvas
++
++    // Strictly contain waves above the track baseline: never bleed into the track or past horizontal bounds
++    clipRect(left = 0f, top = 0f, right = width, bottom = topBaselineY + 1.dp.toPx()) {
++      fun smootherstep(t: Float): Float {
++        val c = t.coerceIn(0f, 1f)
++        return c * c * c * (c * (c * 6f - 15f) + 10f)
++      }
++
++      fun populateWave(
++        filled: Path,
++        contour: Path,
++        wavelength: Float,
++        amplitude: Float,
++        phase: Float,
++      ) {
++        filled.reset()
++        contour.reset()
++        filled.moveTo(0f, topBaselineY)
++        contour.moveTo(0f, topBaselineY)
++
++        var x = 0f
++        val effectiveTransition = minOf(transitionLengthPx, waveEndX * 0.48f)
++        val invTransition = if (effectiveTransition > 0f) 1f / effectiveTransition else 0f
++        val invWavelength2Pi = (2 * PI / wavelength).toFloat()
++        while (x < waveEndX) {
++          val startEnv = if (invTransition > 0f) smootherstep(x * invTransition) else 1f
++          val endEnv = if (invTransition > 0f) smootherstep((waveEndX - x) * invTransition) else 1f
++          val envelope = startEnv * endEnv
++
++          val angle = x * invWavelength2Pi - phase
++          val waveHeight = (0.5f + 0.5f * sin(angle)) * amplitude * envelope
++          val y = topBaselineY - waveHeight
++
++          filled.lineTo(x, y)
++          contour.lineTo(x, y)
++          x += waveSampleStepPx
++        }
++        val endY = topBaselineY
++        filled.lineTo(waveEndX, endY)
++        contour.lineTo(waveEndX, endY)
++
++        // Close filled path along topBaselineY so it floats purely above the track
++        filled.close()
++      }
++
++      populateWave(pathFilled1, pathContour1, waveLength1Px, amp1, phase1)
++      populateWave(pathFilled2, pathContour2, waveLength2Px, amp2, phase2)
++      populateWave(pathFilled3, pathContour3, waveLength3Px, amp3, phase3)
++
++      val activeWidth = waveEndX.coerceAtLeast(1f)
++      val maxAmp = maxOf(amp1, maxOf(amp2, amp3))
++      val topWaveY = topBaselineY - maxAmp
++
++      // 1. Layer 1 Filled Wave (Ambient deep vertical gradient body — PR #9)
++      if (amp1 > 0.05f) {
++        drawPath(
++          path = pathFilled1,
++          brush = Brush.verticalGradient(
++            colors = gradient1Colors,
++            startY = topWaveY,
++            endY = topBaselineY,
++          ),
++        )
++      }
++
++      // 2. Layer 2 Filled Wave (Middle harmonic translucent gradient body — PR #9)
++      if (amp2 > 0.05f) {
++        drawPath(
++          path = pathFilled2,
++          brush = Brush.verticalGradient(
++            colors = gradient2Colors,
++            startY = topWaveY,
++            endY = topBaselineY,
++          ),
++        )
++      }
++
++      // 3. Layer 3 Filled Wave (Primary vibrant vertical + horizontal liquid gradient body — PR #9)
++      if (amp3 > 0.05f) {
++        drawPath(
++          path = pathFilled3,
++          brush = Brush.verticalGradient(
++            colors = gradient3Colors,
++            startY = topWaveY,
++            endY = topBaselineY,
++          ),
++        )
++        drawPath(
++          path = pathFilled3,
++          brush = Brush.horizontalGradient(
++            colors = gradient3HorizontalColors,
++            startX = 0f,
++            endX = activeWidth,
++          ),
++        )
++      }
++
++      // ── Gradient Glow Halos (Luminous bloom along wave crests — PR #9) ──
++      if (maxAmp > 0.05f) {
++        // Layer 1 Ambient Glow
++        drawPath(
++          path = pathContour1,
++          brush = Brush.horizontalGradient(
++            colors = contour1Colors,
++            startX = 0f,
++            endX = activeWidth,
++          ),
++          style = Stroke(width = 4.0.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round),
++        )
++
++        // Layer 2 Harmonic Glow
++        drawPath(
++          path = pathContour2,
++          brush = Brush.horizontalGradient(
++            colors = contour2Colors,
++            startX = 0f,
++            endX = activeWidth,
++          ),
++          style = Stroke(width = 5.0.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round),
++        )
++
++        // Layer 3 Primary Outer Soft Glow
++        drawPath(
++          path = pathContour3,
++          brush = Brush.horizontalGradient(
++            colors = contour3OuterColors,
++            startX = 0f,
++            endX = activeWidth,
++          ),
++          style = Stroke(width = 6.5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round),
++        )
++
++        // Layer 3 Primary Inner Focused Halo
++        drawPath(
++          path = pathContour3,
++          brush = Brush.horizontalGradient(
++            colors = contour3InnerColors,
++            startX = 0f,
++            endX = activeWidth,
++          ),
++          style = Stroke(width = 3.5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round),
++        )
++      }
++
++      // ── Crisp Contour Line Strokes ──
++
++      // Layer 1: Soft organic contour stroke
++      drawPath(
++        path = pathContour1,
++        brush = Brush.horizontalGradient(
++          colors = crispContour1Colors,
++          startX = 0f,
++          endX = activeWidth,
++        ),
++        style = Stroke(width = 1.0.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round),
++      )
++
++      // Layer 2: Medium harmonic contour stroke
++      drawPath(
++        path = pathContour2,
++        brush = Brush.horizontalGradient(
++          colors = crispContour2Colors,
++          startX = 0f,
++          endX = activeWidth,
++        ),
++        style = Stroke(width = 1.2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round),
++      )
++
++      // Layer 3: Vibrant primary contour stroke (1.8dp in PR #9)
++      drawPath(
++        path = pathContour3,
++        brush = Brush.horizontalGradient(
++          colors = crispContour3Colors,
++          startX = 0f,
++          endX = activeWidth,
++        ),
++        style = Stroke(width = 1.8.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round),
++      )
++    }
++  }
++}
++
++/**
++ * Standalone AudioWavySeekBar component with integrated track and timers.
++ */
++@Composable
++fun AudioWavySeekBar(
++  position: Float,
++  duration: Float,
++  remaining: Float,
++  isPlaying: Boolean,
++  onSeek: (Float) -> Unit,
++  onSeekFinished: (Float) -> Unit,
++  timersInverted: Pair<Boolean, Boolean>,
++  positionTimerOnClick: () -> Unit,
++  durationTimerOnClick: () -> Unit,
++  chapters: ImmutableList<Segment> = persistentListOf(),
++  timerTextColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
++  modifier: Modifier = Modifier,
++) {
++  val clickEvent = LocalPlayerButtonsClickEvent.current
++  val interactionSource = remember { MutableInteractionSource() }
++  val dragging by interactionSource.collectIsDraggedAsState()
++  var dragPosition by remember { mutableFloatStateOf(0f) }
++
++  val boundedDuration = duration.coerceAtLeast(0f)
++  val boundedPosition = if (boundedDuration > 0f) position.coerceIn(0f, boundedDuration) else 0f
++  val shownPosition = if (dragging) dragPosition.coerceIn(0f, boundedDuration) else boundedPosition
++
++  val inactiveColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.14f)
++  val chapterDividerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.70f)
++  val density = LocalDensity.current
++  val baseTrackThicknessPx = with(density) { 4.5.dp.toPx() }
++
++  Column(modifier = modifier.fillMaxWidth()) {
++    Box(
++      modifier = Modifier
++        .fillMaxWidth()
++        .height(50.dp),
++    ) {
++      Canvas(modifier = Modifier.matchParentSize()) {
++        val width = size.width
++        val height = size.height
++        val centerY = height / 2f + 7.dp.toPx()
++        val halfTrack = baseTrackThicknessPx / 2f
++
++        // 1. Inactive background track: Full smooth capsule bar with exact bounds [0f, width]
++        drawRoundRect(
++          color = inactiveColor,
++          topLeft = Offset(0f, centerY - halfTrack),
++          size = Size(width, baseTrackThicknessPx),
++          cornerRadius = CornerRadius(halfTrack, halfTrack),
++        )
++
++        // Chapter markers along the inactive track
++        if (chapters.isNotEmpty() && boundedDuration > 0f) {
++          val tickHalfH = baseTrackThicknessPx * 0.75f
++          for (chapter in chapters) {
++            val frac = chapter.start / boundedDuration
++            if (frac > 0.005f && frac < 0.995f) {
++              val chX = frac * width
++              drawLine(
++                color = chapterDividerColor,
++                start = Offset(chX, centerY - tickHalfH),
++                end = Offset(chX, centerY + tickHalfH),
++                strokeWidth = 2.dp.toPx(),
++                cap = StrokeCap.Round,
++              )
++            }
++          }
++        }
++      }
++
++      SeekbarWavyVisualizerOverlay(
++        positionProvider = { shownPosition },
++        duration = boundedDuration,
++        isPaused = !isPlaying,
++        isScrubbing = dragging,
++        trackHeight = 4.5.dp,
++        modifier = Modifier.matchParentSize(),
++      )
++
++      Slider(
++        value = shownPosition,
++        onValueChange = {
++          dragPosition = it
++          onSeek(it)
++        },
++        onValueChangeFinished = {
++          onSeekFinished(dragPosition.coerceIn(0f, boundedDuration))
++        },
++        valueRange = 0f..boundedDuration.coerceAtLeast(1f),
++        enabled = boundedDuration > 0f,
++        interactionSource = interactionSource,
++        colors = SliderDefaults.colors(
++          thumbColor = Color.Transparent,
++          activeTrackColor = Color.Transparent,
++          inactiveTrackColor = Color.Transparent,
++        ),
++        modifier = Modifier
++          .matchParentSize()
++          .alpha(0f),
++      )
++    }
++
++    Spacer(Modifier.height(2.dp))
++
++    // Time labels with inverted duration support
++    Row(
++      modifier = Modifier.fillMaxWidth(),
++      horizontalArrangement = Arrangement.SpaceBetween,
++      verticalAlignment = Alignment.CenterVertically,
++    ) {
++      VideoTimer(
++        value = shownPosition,
++        isInverted = timersInverted.first,
++        textColor = timerTextColor,
++        onClick = {
++          clickEvent()
++          positionTimerOnClick()
++        },
++      )
++
++      VideoTimer(
++        value = if (timersInverted.second) -remaining else duration,
++        isInverted = timersInverted.second,
++        textColor = timerTextColor,
++        onClick = {
++          clickEvent()
++          durationTimerOnClick()
++        },
++      )
++    }
++  }
++}
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/Seekbar.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/Seekbar.kt
+index 9f53a132..9b8aa395 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/Seekbar.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/Seekbar.kt
+@@ -290,6 +290,7 @@ fun SeekbarWithTimers(
+   paused: Boolean,
+   seekbarStyle: SeekbarStyle = SeekbarStyle.Wavy,
+   useWavySeekbar: Boolean = true,
++  showWavyVisualizer: Boolean = false,
+   loopStart: Float? = null,
+   loopEnd: Float? = null,
+   bufferDuration: Float? = null,
+@@ -342,6 +343,7 @@ fun SeekbarWithTimers(
+         isUserInteracting = isUserInteracting,
+         seekbarStyle = seekbarStyle,
+         useWavySeekbar = useWavySeekbar,
++        showWavyVisualizer = showWavyVisualizer,
+         loopStart = loopStart,
+         loopEnd = loopEnd,
+         bufferDuration = bufferDuration,
+@@ -351,7 +353,7 @@ fun SeekbarWithTimers(
+         onValueChangeFinished = onValueChangeFinished,
+         scope = scope,
+         animatedPosition = animatedPosition,
+-        modifier = Modifier.fillMaxWidth().height(44.dp), // Taller for visibility
++        modifier = Modifier.fillMaxWidth().height(if (showWavyVisualizer) 50.dp else 44.dp), // Taller for visibility
+       )
+ 
+       Row(
+@@ -408,6 +410,7 @@ fun SeekbarWithTimers(
+         isUserInteracting = isUserInteracting,
+         seekbarStyle = seekbarStyle,
+         useWavySeekbar = useWavySeekbar,
++        showWavyVisualizer = showWavyVisualizer,
+         loopStart = loopStart,
+         loopEnd = loopEnd,
+         bufferDuration = bufferDuration,
+@@ -417,7 +420,7 @@ fun SeekbarWithTimers(
+         onValueChangeFinished = onValueChangeFinished,
+         scope = scope,
+         animatedPosition = animatedPosition,
+-        modifier = Modifier.weight(1f).height(48.dp),
++        modifier = Modifier.weight(1f).height(if (showWavyVisualizer) 50.dp else 48.dp),
+       )
+ 
+       VideoTimer(
+@@ -446,6 +449,7 @@ private fun SeekbarContent(
+   isUserInteracting: Boolean,
+   seekbarStyle: SeekbarStyle,
+   useWavySeekbar: Boolean,
++  showWavyVisualizer: Boolean = false,
+   loopStart: Float?,
+   loopEnd: Float?,
+   bufferDuration: Float?,
+@@ -483,7 +487,7 @@ private fun SeekbarContent(
+     }
+   val overlayTrackHeight =
+     when (seekbarStyle) {
+-      SeekbarStyle.Normal -> 8.dp
++      SeekbarStyle.Normal -> 4.dp
+       SeekbarStyle.Slim ->
+         when {
+           isVisuallyInteracting -> 15.dp
+@@ -618,6 +622,18 @@ private fun SeekbarContent(
+       }
+     }
+ 
++    if (showWavyVisualizer) {
++      SeekbarWavyVisualizerOverlay(
++        positionProvider = positionProvider,
++        duration = safeDuration,
++        isPaused = paused,
++        isScrubbing = isVisuallyInteracting,
++        trackHeight = overlayTrackHeight,
++        seekbarStyle = seekbarStyle,
++        modifier = Modifier.fillMaxWidth().matchParentSize(),
++      )
++    }
++
+     Canvas(
+       modifier =
+         Modifier
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/AudioPreferencesScreen.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/AudioPreferencesScreen.kt
+index 46bf7f4c..1dd5f3ca 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/AudioPreferencesScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/AudioPreferencesScreen.kt
+@@ -351,6 +351,21 @@ object AudioPreferencesScreen : Screen {
+                   )
+                 },
+               )
++
++              PreferenceDivider()
++              val audioWavySeekbar by preferences.audioWavySeekbar.collectAsState()
++              SwitchPreference(
++                modifier = Modifier.settingsSearchTarget(R.string.pref_audio_wavy_seekbar_title),
++                value = audioWavySeekbar,
++                onValueChange = { preferences.audioWavySeekbar.set(it) },
++                title = { Text(stringResource(R.string.pref_audio_wavy_seekbar_title)) },
++                summary = {
++                  Text(
++                    stringResource(R.string.pref_audio_wavy_seekbar_summary),
++                    color = MaterialTheme.colorScheme.outline,
++                  )
++                },
++              )
+             }
+           }
+ 
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/SearchablePreference.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/SearchablePreference.kt
+index 16293c59..ccbf66e0 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/SearchablePreference.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/SearchablePreference.kt
+@@ -1428,6 +1428,7 @@ object SearchablePreferences {
+         screen = AudioPreferencesScreen,
+         anchorItemIndex = 3,
+         SearchEntrySpec(R.string.pref_audio_ambient_mode_title, listOf("audio", "ambient", "background", "visualizer")),
++        SearchEntrySpec(R.string.pref_audio_wavy_seekbar_title, listOf("audio", "wavy", "seekbar", "visualizer", "animation", "wave")),
+       )
+       addSearchEntries(
+         category = "Audio",
+diff --git a/app/src/main/res/values-ar/strings.xml b/app/src/main/res/values-ar/strings.xml
+index d7794908..cbdcbb3f 100644
+--- a/app/src/main/res/values-ar/strings.xml
++++ b/app/src/main/res/values-ar/strings.xml
+@@ -295,6 +295,8 @@
+   <string name="pref_audio_visualizer_galaxy_credit">مستوحى من عمل Zain Raza على CodePen</string>
+   <string name="pref_audio_ambient_mode_title">الوضع المحيطي</string>
+   <string name="pref_audio_ambient_mode_summary">عرض تدرجات ألوان ديناميكية مستمدة من غلاف الألبوم في مشغل الموسيقى (معطل عند تفعيل المؤثر البصري)</string>
++  <string name="pref_audio_wavy_seekbar_title">شريط تقديم متموج</string>
++  <string name="pref_audio_wavy_seekbar_summary">عرض رسوم متحركة لمؤثر بصري متموج متعدد الطبقات وانسيابي فوق شريط التقديم</string>
+   <string name="pref_audio_channels">قنوات الصوت</string>
+   <string name="pref_audio_channels_auto">تلقائي</string>
+   <string name="pref_audio_channels_auto_safe">تلقائي آمن</string>
+diff --git a/app/src/main/res/values-de/strings.xml b/app/src/main/res/values-de/strings.xml
+index 1da67b82..d5d1d55c 100644
+--- a/app/src/main/res/values-de/strings.xml
++++ b/app/src/main/res/values-de/strings.xml
+@@ -295,6 +295,8 @@ Weiter: NEXT</string>
+   <string name="pref_audio_visualizer_galaxy_credit">Inspiriert von Zain Raza auf CodePen</string>
+   <string name="pref_audio_ambient_mode_title">Ambient-Modus</string>
+   <string name="pref_audio_ambient_mode_summary">Dynamische Farbverläufe aus dem Album-Cover im Musikplayer anzeigen (deaktiviert, wenn der Visualizer aktiv ist)</string>
++  <string name="pref_audio_wavy_seekbar_title">Wellenförmige Suchleiste</string>
++  <string name="pref_audio_wavy_seekbar_summary">Flüssige, mehrschichtige wellenförmige Visualizer-Animation über der Suchleiste anzeigen</string>
+   <string name="pref_audio_channels">Audiokanäle</string>
+   <string name="pref_audio_channels_auto">Automatisch</string>
+   <string name="pref_audio_channels_auto_safe">Automatisch sicher</string>
+diff --git a/app/src/main/res/values-es/strings.xml b/app/src/main/res/values-es/strings.xml
+index 195fdf89..dcc53e82 100644
+--- a/app/src/main/res/values-es/strings.xml
++++ b/app/src/main/res/values-es/strings.xml
+@@ -295,6 +295,8 @@ Siguiente: NEXT</string>
+   <string name="pref_audio_visualizer_galaxy_credit">Inspirado en Zain Raza en CodePen</string>
+   <string name="pref_audio_ambient_mode_title">Modo ambiente</string>
+   <string name="pref_audio_ambient_mode_summary">Mostrar gradientes de color dinámicos derivados de la portada del álbum en el reproductor de música (desactivado cuando el visualizador está activo)</string>
++  <string name="pref_audio_wavy_seekbar_title">Barra de búsqueda ondulada</string>
++  <string name="pref_audio_wavy_seekbar_summary">Mostrar una animación de visualizador ondulado fluido de múltiples capas sobre la barra de búsqueda</string>
+   <string name="pref_audio_channels">Canales de audio</string>
+   <string name="pref_audio_channels_auto">Automático</string>
+   <string name="pref_audio_channels_auto_safe">Automático seguro</string>
+diff --git a/app/src/main/res/values-fr/strings.xml b/app/src/main/res/values-fr/strings.xml
+index ddfbc77d..a34adf0d 100644
+--- a/app/src/main/res/values-fr/strings.xml
++++ b/app/src/main/res/values-fr/strings.xml
+@@ -295,6 +295,8 @@ Suivant : NEXT</string>
+   <string name="pref_audio_visualizer_galaxy_credit">Inspiré par Zain Raza sur CodePen</string>
+   <string name="pref_audio_ambient_mode_title">Mode ambiant</string>
+   <string name="pref_audio_ambient_mode_summary">Afficher des dégradés de couleurs dynamiques issus de la pochette d\'album dans le lecteur de musique (désactivé lorsque le visualiseur est actif)</string>
++  <string name="pref_audio_wavy_seekbar_title">Barre de progression ondulée</string>
++  <string name="pref_audio_wavy_seekbar_summary">Afficher une animation fluide de visualiseur ondulé multicouche au-dessus de la barre de progression</string>
+   <string name="pref_audio_channels">Canaux audio</string>
+   <string name="pref_audio_channels_auto">Automatique</string>
+   <string name="pref_audio_channels_auto_safe">Automatique sécurisé</string>
+diff --git a/app/src/main/res/values-hi/strings.xml b/app/src/main/res/values-hi/strings.xml
+index 94f95edd..4987f213 100644
+--- a/app/src/main/res/values-hi/strings.xml
++++ b/app/src/main/res/values-hi/strings.xml
+@@ -287,6 +287,8 @@
+   <string name="pref_audio_visualizer_galaxy_credit">Zain Raza (CodePen) से प्रेरित</string>
+   <string name="pref_audio_ambient_mode_title">एम्बिएंट मोड</string>
+   <string name="pref_audio_ambient_mode_summary">म्यूजिक प्लेयर में एल्बम कवर आर्ट से बने गतिशील रंग ग्रेडिएंट प्रदर्शित करें (विज़ुअलाइज़र सक्रिय होने पर अक्षम)</string>
++  <string name="pref_audio_wavy_seekbar_title">लहरदार सीकबार</string>
++  <string name="pref_audio_wavy_seekbar_summary">सीकबार के ऊपर मल्टी-लेयर फ्लूइड वेवी विज़ुअलाइज़र एनिमेशन प्रदर्शित करें</string>
+   <string name="pref_audio_channels">ऑडियो चैनल</string>
+   <string name="pref_audio_channels_auto">ऑटो</string>
+   <string name="pref_audio_channels_auto_safe">ऑटो सेफ</string>
+diff --git a/app/src/main/res/values-ja/strings.xml b/app/src/main/res/values-ja/strings.xml
+index 1242c9e1..3342c91f 100644
+--- a/app/src/main/res/values-ja/strings.xml
++++ b/app/src/main/res/values-ja/strings.xml
+@@ -295,6 +295,8 @@
+   <string name="pref_audio_visualizer_galaxy_credit">CodePenのZain Razaに着想を得ています</string>
+   <string name="pref_audio_ambient_mode_title">アンビエントモード</string>
+   <string name="pref_audio_ambient_mode_summary">音楽プレーヤーでアルバムのアートワークから抽出したダイナミックなグラデーションを表示（ビジュアライザー有効時は無効）</string>
++  <string name="pref_audio_wavy_seekbar_title">波状シークバー</string>
++  <string name="pref_audio_wavy_seekbar_summary">シークバーの上に多層の流体ウェーブビジュアライザーアニメーションを表示</string>
+   <string name="pref_audio_channels">音声チャンネル</string>
+   <string name="pref_audio_channels_auto">自動</string>
+   <string name="pref_audio_channels_auto_safe">安全な自動設定</string>
+diff --git a/app/src/main/res/values-pt-rBR/strings.xml b/app/src/main/res/values-pt-rBR/strings.xml
+index 5016fc5f..a3c8cbdd 100644
+--- a/app/src/main/res/values-pt-rBR/strings.xml
++++ b/app/src/main/res/values-pt-rBR/strings.xml
+@@ -295,6 +295,8 @@ Próximo: NEXT</string>
+   <string name="pref_audio_visualizer_galaxy_credit">Inspirado por Zain Raza no CodePen</string>
+   <string name="pref_audio_ambient_mode_title">Modo ambiente</string>
+   <string name="pref_audio_ambient_mode_summary">Exibir gradientes de cores dinâmicos derivados da capa do álbum no reprodutor de música (desativado quando o visualizador está ativo)</string>
++  <string name="pref_audio_wavy_seekbar_title">Barra de progresso ondulada</string>
++  <string name="pref_audio_wavy_seekbar_summary">Exibir animação fluida de visualizador ondulado em várias camadas acima da barra de progresso</string>
+   <string name="pref_audio_channels">Canais de áudio</string>
+   <string name="pref_audio_channels_auto">Automático</string>
+   <string name="pref_audio_channels_auto_safe">Automático seguro</string>
+diff --git a/app/src/main/res/values-ru/strings.xml b/app/src/main/res/values-ru/strings.xml
+index a8c27b63..0fa135f5 100644
+--- a/app/src/main/res/values-ru/strings.xml
++++ b/app/src/main/res/values-ru/strings.xml
+@@ -295,6 +295,8 @@
+   <string name="pref_audio_visualizer_galaxy_credit">Вдохновлено работой Zain Raza на CodePen</string>
+   <string name="pref_audio_ambient_mode_title">Эмбиент режим</string>
+   <string name="pref_audio_ambient_mode_summary">Отображать динамические цветовые градиенты на основе обложки альбома в плеере (отключается при включенном визуализаторе)</string>
++  <string name="pref_audio_wavy_seekbar_title">Волнообразная шкала перемотки</string>
++  <string name="pref_audio_wavy_seekbar_summary">Отображать плавную многослойную волновую анимацию визуализатора над шкалой перемотки</string>
+   <string name="pref_audio_channels">Аудиоканалы</string>
+   <string name="pref_audio_channels_auto">Авто</string>
+   <string name="pref_audio_channels_auto_safe">Безопасный авто</string>
+diff --git a/app/src/main/res/values-zh-rCN/strings.xml b/app/src/main/res/values-zh-rCN/strings.xml
+index 31d2dd1f..a098fa21 100644
+--- a/app/src/main/res/values-zh-rCN/strings.xml
++++ b/app/src/main/res/values-zh-rCN/strings.xml
+@@ -295,6 +295,8 @@
+   <string name="pref_audio_visualizer_galaxy_credit">灵感来自 CodePen 上的 Zain Raza</string>
+   <string name="pref_audio_ambient_mode_title">氛围模式</string>
+   <string name="pref_audio_ambient_mode_summary">在音乐播放器中显示基于专辑封面生成的动态色彩渐变（可视化效果开启时禁用）</string>
++  <string name="pref_audio_wavy_seekbar_title">波浪进度条</string>
++  <string name="pref_audio_wavy_seekbar_summary">在进度条上方显示多层流动波浪可视化动画</string>
+   <string name="pref_audio_channels">音频声道</string>
+   <string name="pref_audio_channels_auto">自动</string>
+   <string name="pref_audio_channels_auto_safe">安全自动</string>
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index 6a5476a3..4a627f91 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -313,6 +313,8 @@
+   <string name="pref_audio_visualizer_galaxy_credit">Inspired by Zain Raza on CodePen</string>
+   <string name="pref_audio_ambient_mode_title">Ambient Mode</string>
+   <string name="pref_audio_ambient_mode_summary">Display dynamic color gradients derived from album cover art in music player (disabled when visualizer is active)</string>
++  <string name="pref_audio_wavy_seekbar_title">Wavy seekbar</string>
++  <string name="pref_audio_wavy_seekbar_summary">Display multi-layer fluid wavy visualizer animation above the seekbar</string>
+   <string name="pref_audio_channels">Audio channels</string>
+   <string name="pref_audio_channels_auto">Auto</string>
+   <string name="pref_audio_channels_auto_safe">Auto Safe</string>
+-- 
+2.25.1
+

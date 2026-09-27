@@ -1,0 +1,159 @@
+From 87734a5ca42bb3c27d2ef0cd92e271e84171c122 Mon Sep 17 00:00:00 2001
+From: Arnab Sadhukhan <arnab@Arnabs-Mac-Mini.local>
+Date: Thu, 10 Sep 2026 20:16:02 +0530
+Subject: [PATCH 080/140] feat(ui/jellyfin): refine hero carousel year badge
+ and detail sheet restart button
+
+---
+ .../ui/browser/jellyfin/JellyfinCards.kt      | 24 ++++--
+ .../browser/jellyfin/JellyfinDetailSheet.kt   | 83 ++++++++++---------
+ 2 files changed, 59 insertions(+), 48 deletions(-)
+
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinCards.kt b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinCards.kt
+index 6a72c334..aba946d0 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinCards.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinCards.kt
+@@ -314,6 +314,21 @@ fun JellyfinHeroBanner(
+               }
+             }
+ 
++            // Year Pill
++            item.productionYear?.let { year ->
++              Surface(
++                shape = RoundedCornerShape(6.dp),
++                color = Color.Black.copy(alpha = 0.6f),
++              ) {
++                Text(
++                  text = year.toString(),
++                  style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
++                  color = Color.White,
++                  modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
++                )
++              }
++            }
++
+             // Quality Badge (4K / HDR)
+             item.qualityBadge?.let { badge ->
+               Surface(
+@@ -329,15 +344,6 @@ fun JellyfinHeroBanner(
+                 )
+               }
+             }
+-
+-            // Year
+-            item.productionYear?.let { year ->
+-              Text(
+-                text = year.toString(),
+-                style = MaterialTheme.typography.labelSmall,
+-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+-              )
+-            }
+           }
+ 
+           // Title
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinDetailSheet.kt b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinDetailSheet.kt
+index e3448684..b27da087 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinDetailSheet.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinDetailSheet.kt
+@@ -579,30 +579,52 @@ fun JellyfinDetailSheet(
+           modifier = Modifier.fillMaxWidth(),
+           verticalArrangement = Arrangement.spacedBy(10.dp),
+         ) {
+-          // Play / Resume Button
+-          Button(
+-            onClick = { onPlay(item, false) },
+-            shape = RoundedCornerShape(14.dp),
+-            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
++          // Play / Resume Row
++          Row(
+             modifier = Modifier.fillMaxWidth(),
+-            contentPadding = PaddingValues(vertical = 12.dp),
++            verticalAlignment = Alignment.CenterVertically,
++            horizontalArrangement = Arrangement.spacedBy(10.dp),
+           ) {
+-            Icon(
+-              imageVector = Icons.RoundedFilled.PlayArrow,
+-              contentDescription = null,
+-              modifier = Modifier.size(20.dp),
+-            )
+-            Spacer(modifier = Modifier.width(8.dp))
+-            Text(
+-              text =
+-                when {
+-                  item.progressPercent > 0.05f -> "Resume"
+-                  item.isSeries -> "Watch S1:E1"
+-                  else -> "Play Movie"
+-                },
+-              fontWeight = FontWeight.Bold,
+-              style = MaterialTheme.typography.labelLarge,
+-            )
++            Button(
++              onClick = { onPlay(item, false) },
++              shape = RoundedCornerShape(14.dp),
++              colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
++              modifier = Modifier.weight(1f),
++              contentPadding = PaddingValues(vertical = 12.dp),
++            ) {
++              Icon(
++                imageVector = Icons.RoundedFilled.PlayArrow,
++                contentDescription = null,
++                modifier = Modifier.size(20.dp),
++              )
++              Spacer(modifier = Modifier.width(8.dp))
++              Text(
++                text =
++                  when {
++                    item.progressPercent > 0.05f -> "Resume"
++                    item.isSeries -> "Watch S1:E1"
++                    else -> "Play Movie"
++                  },
++                fontWeight = FontWeight.Bold,
++                style = MaterialTheme.typography.labelLarge,
++              )
++            }
++
++            // Play from Beginning icon button if in progress
++            if (item.progressPercent > 0.05f) {
++              FilledTonalIconButton(
++                onClick = { onPlay(item, true) },
++                shape = RoundedCornerShape(14.dp),
++                modifier = Modifier.size(48.dp),
++              ) {
++                Icon(
++                  imageVector = Icons.RoundedFilled.Refresh,
++                  contentDescription = "Play from Beginning",
++                  tint = MaterialTheme.colorScheme.onSecondaryContainer,
++                  modifier = Modifier.size(22.dp),
++                )
++              }
++            }
+           }
+ 
+           Row(
+@@ -775,23 +797,6 @@ fun JellyfinDetailSheet(
+           }
+         }
+ 
+-        // Restart from Beginning option if in progress
+-        if (item.progressPercent > 0.05f) {
+-          OutlinedButton(
+-            onClick = { onPlay(item, true) },
+-            shape = RoundedCornerShape(12.dp),
+-            modifier = Modifier.fillMaxWidth(),
+-          ) {
+-            Icon(
+-              imageVector = Icons.RoundedFilled.Refresh,
+-              contentDescription = null,
+-              modifier = Modifier.size(16.dp),
+-            )
+-            Spacer(modifier = Modifier.width(6.dp))
+-            Text("Play from Beginning", style = MaterialTheme.typography.labelMedium)
+-          }
+-        }
+-
+         // Overview / Synopsis with expand animation
+         val isArtistItem = item.type == "MusicArtist" || item.type == "Artist" || item.type == "AlbumArtist"
+         if (!isArtistItem && !item.overview.isNullOrBlank()) {
+-- 
+2.25.1
+

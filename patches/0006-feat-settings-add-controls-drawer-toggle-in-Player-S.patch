@@ -1,0 +1,356 @@
+From 5503092bd09c7d59db2a249d6404ab5c5a4856f5 Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <87899750+Riteshp2001@users.noreply.github.com>
+Date: Thu, 3 Sep 2026 02:05:28 +0000
+Subject: [PATCH 006/140] feat(settings): add controls drawer toggle in Player
+ Settings
+
+---
+ .../mpvrx/preferences/PlayerPreferences.kt    |  1 +
+ .../ui/player/controls/PlayerControls.kt      | 95 +++++++++++--------
+ .../ui/preferences/PlayerPreferencesScreen.kt | 16 ++++
+ .../ui/preferences/SearchablePreference.kt    |  9 ++
+ app/src/main/res/values-ar/strings.xml        |  2 +
+ app/src/main/res/values-de/strings.xml        |  2 +
+ app/src/main/res/values-es/strings.xml        |  2 +
+ app/src/main/res/values-fr/strings.xml        |  2 +
+ app/src/main/res/values-hi/strings.xml        |  2 +
+ app/src/main/res/values-ja/strings.xml        |  2 +
+ app/src/main/res/values-pt-rBR/strings.xml    |  2 +
+ app/src/main/res/values-ru/strings.xml        |  2 +
+ app/src/main/res/values-zh-rCN/strings.xml    |  2 +
+ app/src/main/res/values/strings.xml           |  2 +
+ 14 files changed, 99 insertions(+), 42 deletions(-)
+
+diff --git a/app/src/main/java/com/quantummpv/app/preferences/PlayerPreferences.kt b/app/src/main/java/com/quantummpv/app/preferences/PlayerPreferences.kt
+index 11174254..69fa4f1d 100644
+--- a/app/src/main/java/com/quantummpv/app/preferences/PlayerPreferences.kt
++++ b/app/src/main/java/com/quantummpv/app/preferences/PlayerPreferences.kt
+@@ -81,6 +81,7 @@ class PlayerPreferences(
+   val defaultBrightness = preferenceStore.getFloat("default_brightness", -1f)
+ 
+   val allowGesturesInPanels = preferenceStore.getBoolean("allow_gestures_in_panels")
++  val showControlsDrawer = preferenceStore.getBoolean("show_controls_drawer", true)
+   val showSystemStatusBar = preferenceStore.getBoolean("show_system_status_bar")
+   val showSystemNavigationBar = preferenceStore.getBoolean("show_system_navigation_bar")
+   val safeAreaWindow = preferenceStore.getBoolean("safe_area_window", false)
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControls.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControls.kt
+index 5502f6f4..7edb9b03 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControls.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControls.kt
+@@ -208,6 +208,7 @@ fun PlayerControls(
+   val audioPreferences = koinInject<AudioPreferences>()
+   val showSystemStatusBar by playerPreferences.showSystemStatusBar.collectAsState()
+   val showSystemNavigationBar by playerPreferences.showSystemNavigationBar.collectAsState()
++  val showControlsDrawer by playerPreferences.showControlsDrawer.collectAsState()
+   val interactionSource = remember { MutableInteractionSource() }
+   val controlsShown by viewModel.controlsShown.collectAsState()
+   val statisticsPage by advancedPreferences.enabledStatisticsPage.collectAsState()
+@@ -483,12 +484,19 @@ fun PlayerControls(
+ 
+   var isUnlockSliderDragging by remember { mutableStateOf(false) }
+   var isPlayerDrawerShown by remember { mutableStateOf(false) }
++  LaunchedEffect(showControlsDrawer) {
++    if (!showControlsDrawer && isPlayerDrawerShown) {
++      isPlayerDrawerShown = false
++    }
++  }
+   val setPlayerDrawerShown: (Boolean) -> Unit = { visible ->
+-    isPlayerDrawerShown = visible
+-    if (visible) {
+-      viewModel.hideControls()
+-    } else if (viewModel.sheetShown.value == Sheets.None && viewModel.panelShown.value == Panels.None) {
+-      viewModel.showControls()
++    if (showControlsDrawer) {
++      isPlayerDrawerShown = visible
++      if (visible) {
++        viewModel.hideControls()
++      } else if (viewModel.sheetShown.value == Sheets.None && viewModel.panelShown.value == Panels.None) {
++        viewModel.showControls()
++      }
+     }
+   }
+   val isBrightnessSliderShown by viewModel.isBrightnessSliderShown.collectAsState()
+@@ -504,13 +512,14 @@ fun PlayerControls(
+     isUnlockSliderDragging,
+     isAudioOnly,
+     isPlayerDrawerShown,
++    showControlsDrawer,
+   ) {
+     if (!isAudioOnly &&
+       controlsShown &&
+       paused == false &&
+       !isSeeking &&
+       !isUnlockSliderDragging &&
+-      !isPlayerDrawerShown
++      !(showControlsDrawer && isPlayerDrawerShown)
+     ) {
+       // Use 2 second delay when controls are locked, otherwise use user preference
+       val delayTime = if (areControlsLocked) 2000L else playerTimeToDisappear.toLong()
+@@ -536,7 +545,7 @@ fun PlayerControls(
+   GestureHandler(
+     viewModel = viewModel,
+     interactionSource = interactionSource,
+-    externalPanelShown = isPlayerDrawerShown,
++    externalPanelShown = showControlsDrawer && isPlayerDrawerShown,
+     onDismissExternalPanel = { setPlayerDrawerShown(false) },
+   )
+ 
+@@ -1949,41 +1958,43 @@ fun PlayerControls(
+         }
+       }
+ 
+-    PlayerButtonTheme(hideBackground = false) {
+-      PlayerControlDrawer(
+-        buttons = playerDrawerButtons,
+-        activeButtons = activePlayerDrawerButtons,
+-        controlsVisible =
+-          controlsShown &&
+-            !areControlsLocked &&
+-            !areSlidersShown &&
+-            sheetShown == Sheets.None &&
+-            panel == Panels.None,
+-        panelVisible = isPlayerDrawerShown,
+-        onPanelVisibilityChanged = setPlayerDrawerShown,
+-        renderButton = { button ->
+-          RenderPlayerButton(
+-            button = button,
+-            chapters = chapters,
+-            currentChapter = currentChapter,
+-            isPortrait = isPortrait,
+-            isSpeedNonOne = isSpeedNonOne,
+-            currentZoom = currentZoom,
+-            aspect = aspect,
+-            mediaTitle = mediaTitle,
+-            hideBackground = true,
+-            decoder = decoder,
+-            playbackSpeed = playbackSpeed ?: 1f,
+-            onBackPress = onBackPress,
+-            onOpenSheet = onOpenSheet,
+-            onOpenPanel = onOpenPanel,
+-            viewModel = viewModel,
+-            activity = playerActivity,
+-            buttonSize = 44.dp,
+-            compact = true,
+-          )
+-        },
+-      )
++    if (showControlsDrawer) {
++      PlayerButtonTheme(hideBackground = false) {
++        PlayerControlDrawer(
++          buttons = playerDrawerButtons,
++          activeButtons = activePlayerDrawerButtons,
++          controlsVisible =
++            controlsShown &&
++              !areControlsLocked &&
++              !areSlidersShown &&
++              sheetShown == Sheets.None &&
++              panel == Panels.None,
++          panelVisible = isPlayerDrawerShown,
++          onPanelVisibilityChanged = setPlayerDrawerShown,
++          renderButton = { button ->
++            RenderPlayerButton(
++              button = button,
++              chapters = chapters,
++              currentChapter = currentChapter,
++              isPortrait = isPortrait,
++              isSpeedNonOne = isSpeedNonOne,
++              currentZoom = currentZoom,
++              aspect = aspect,
++              mediaTitle = mediaTitle,
++              hideBackground = true,
++              decoder = decoder,
++              playbackSpeed = playbackSpeed ?: 1f,
++              onBackPress = onBackPress,
++              onOpenSheet = onOpenSheet,
++              onOpenPanel = onOpenPanel,
++              viewModel = viewModel,
++              activity = playerActivity,
++              buttonSize = 44.dp,
++              compact = true,
++            )
++          },
++        )
++      }
+     }
+   }
+ }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/PlayerPreferencesScreen.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/PlayerPreferencesScreen.kt
+index a6a79e2e..8c9ac9eb 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/PlayerPreferencesScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/PlayerPreferencesScreen.kt
+@@ -739,6 +739,22 @@ object PlayerPreferencesScreen : Screen {
+           item { PreferenceSectionHeader(title = stringResource(R.string.pref_section_display_controls)) }
+           item {
+             PreferenceCard {
++              val showControlsDrawer by preferences.showControlsDrawer.collectAsState()
++              SwitchPreference(
++                modifier = Modifier.settingsSearchTarget(R.string.pref_player_controls_drawer_title),
++                value = showControlsDrawer,
++                onValueChange = preferences.showControlsDrawer::set,
++                title = { Text(stringResource(R.string.pref_player_controls_drawer_title)) },
++                summary = {
++                  Text(
++                    stringResource(R.string.pref_player_controls_drawer_summary),
++                    color = MaterialTheme.colorScheme.outline,
++                  )
++                },
++              )
++
++              PreferenceDivider()
++
+               val showSystemStatusBar by preferences.showSystemStatusBar.collectAsState()
+               SwitchPreference(
+                 modifier = Modifier.settingsSearchTarget(R.string.pref_player_display_show_status_bar),
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/SearchablePreference.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/SearchablePreference.kt
+index ccbf66e0..1adab982 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/SearchablePreference.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/SearchablePreference.kt
+@@ -530,6 +530,15 @@ object SearchablePreferences {
+           screen = PlayerPreferencesScreen,
+         ),
+       )
++      add(
++        SearchablePreference(
++          titleRes = R.string.pref_player_controls_drawer_title,
++          summaryRes = R.string.pref_player_controls_drawer_summary,
++          keywords = listOf("controls", "drawer", "chevron", "panel", "side", "drag", "more controls"),
++          category = "Player",
++          screen = PlayerPreferencesScreen,
++        ),
++      )
+       add(
+         SearchablePreference(
+           titleRes = R.string.pref_player_display_show_status_bar,
+diff --git a/app/src/main/res/values-ar/strings.xml b/app/src/main/res/values-ar/strings.xml
+index cbdcbb3f..fa8ec1cd 100644
+--- a/app/src/main/res/values-ar/strings.xml
++++ b/app/src/main/res/values-ar/strings.xml
+@@ -632,6 +632,8 @@
+ 
+   <!-- Player - Display & Controls Section                        -->
+   <string name="pref_section_display_controls">العرض وعناصر التحكم</string>
++  <string name="pref_player_controls_drawer_title">درج عناصر التحكم</string>
++  <string name="pref_player_controls_drawer_summary">عرض مقبض الحافة للسحب وفتح لوحة عناصر التحكم</string>
+   <string name="pref_nav_bar_title">إظهار شريط التنقل مع عناصر التحكم</string>
+   <string name="pref_nav_bar_summary">عرض شريط تنقل نظام Android فوق عناصر تحكم المشغّل</string>
+ 
+diff --git a/app/src/main/res/values-de/strings.xml b/app/src/main/res/values-de/strings.xml
+index d5d1d55c..02e05142 100644
+--- a/app/src/main/res/values-de/strings.xml
++++ b/app/src/main/res/values-de/strings.xml
+@@ -632,6 +632,8 @@ Weiter: NEXT</string>
+ 
+   <!-- Player - Display & Controls Section                        -->
+   <string name="pref_section_display_controls">Anzeige und Steuerelemente</string>
++  <string name="pref_player_controls_drawer_title">Steuerungsleiste</string>
++  <string name="pref_player_controls_drawer_summary">Randgriff anzeigen, um das Steuerungsfeld durch Ziehen zu öffnen</string>
+   <string name="pref_nav_bar_title">Navigationsleiste mit Steuerelementen anzeigen</string>
+   <string name="pref_nav_bar_summary">Android-Systemnavigationsleiste über den Player-Steuerelementen anzeigen</string>
+ 
+diff --git a/app/src/main/res/values-es/strings.xml b/app/src/main/res/values-es/strings.xml
+index dcc53e82..df3442b1 100644
+--- a/app/src/main/res/values-es/strings.xml
++++ b/app/src/main/res/values-es/strings.xml
+@@ -632,6 +632,8 @@ Siguiente: NEXT</string>
+ 
+   <!-- Player - Display & Controls Section                        -->
+   <string name="pref_section_display_controls">Pantalla y controles</string>
++  <string name="pref_player_controls_drawer_title">Cajón de controles</string>
++  <string name="pref_player_controls_drawer_summary">Mostrar el tirador del borde para abrir el panel de controles arrastrando</string>
+   <string name="pref_nav_bar_title">Mostrar barra de navegación con controles</string>
+   <string name="pref_nav_bar_summary">Mostrar la barra de navegación del sistema Android sobre los controles del reproductor</string>
+ 
+diff --git a/app/src/main/res/values-fr/strings.xml b/app/src/main/res/values-fr/strings.xml
+index a34adf0d..431d482a 100644
+--- a/app/src/main/res/values-fr/strings.xml
++++ b/app/src/main/res/values-fr/strings.xml
+@@ -632,6 +632,8 @@ Suivant : NEXT</string>
+ 
+   <!-- Player - Display & Controls Section                        -->
+   <string name="pref_section_display_controls">Affichage et commandes</string>
++  <string name="pref_player_controls_drawer_title">Tiroir de commandes</string>
++  <string name="pref_player_controls_drawer_summary">Afficher la poignée latérale pour ouvrir le panneau de commandes en faisant glisser</string>
+   <string name="pref_nav_bar_title">Afficher la barre de navigation avec les commandes</string>
+   <string name="pref_nav_bar_summary">Afficher la barre de navigation du système Android au-dessus des commandes du lecteur</string>
+ 
+diff --git a/app/src/main/res/values-hi/strings.xml b/app/src/main/res/values-hi/strings.xml
+index 4987f213..f1f838b3 100644
+--- a/app/src/main/res/values-hi/strings.xml
++++ b/app/src/main/res/values-hi/strings.xml
+@@ -610,6 +610,8 @@
+   <string name="pref_auto_skip_outro_title">आउट्रो ऑटो-स्किप करें</string>
+   <string name="pref_auto_skip_outro_summary">प्लेबैक के दौरान एंडिंग मार्कर अपने आप स्किप करें</string>
+   <string name="pref_section_display_controls">डिस्प्ले और कंट्रोल्स</string>
++  <string name="pref_player_controls_drawer_title">कंट्रोल्स दराज</string>
++  <string name="pref_player_controls_drawer_summary">कंट्रोल्स पैनल को खींचकर खोलने के लिए किनारे का हैंडल प्रदर्शित करें</string>
+   <string name="pref_nav_bar_title">कंट्रोल्स के साथ नेविगेशन बार दिखाएं</string>
+   <string name="pref_nav_bar_summary">प्लेयर कंट्रोल्स के ऊपर Android सिस्टम नेविगेशन बार दिखाएं</string>
+   <string name="pref_section_overlays">जेस्चर और एक्शन ओवरले</string>
+diff --git a/app/src/main/res/values-ja/strings.xml b/app/src/main/res/values-ja/strings.xml
+index 3342c91f..30ad86e2 100644
+--- a/app/src/main/res/values-ja/strings.xml
++++ b/app/src/main/res/values-ja/strings.xml
+@@ -632,6 +632,8 @@
+ 
+   <!-- Player - Display & Controls Section                        -->
+   <string name="pref_section_display_controls">表示と操作</string>
++  <string name="pref_player_controls_drawer_title">コントロールの引き出し</string>
++  <string name="pref_player_controls_drawer_summary">ドラッグしてコントロールパネルを開くためのエッジハンドルを表示</string>
+   <string name="pref_nav_bar_title">操作中にナビゲーションバーを表示</string>
+   <string name="pref_nav_bar_summary">プレーヤー操作の上にAndroidシステムナビゲーションバーを表示します</string>
+ 
+diff --git a/app/src/main/res/values-pt-rBR/strings.xml b/app/src/main/res/values-pt-rBR/strings.xml
+index a3c8cbdd..aebadc16 100644
+--- a/app/src/main/res/values-pt-rBR/strings.xml
++++ b/app/src/main/res/values-pt-rBR/strings.xml
+@@ -632,6 +632,8 @@ Próximo: NEXT</string>
+ 
+   <!-- Player - Display & Controls Section                        -->
+   <string name="pref_section_display_controls">Tela e controles</string>
++  <string name="pref_player_controls_drawer_title">Gaveta de controles</string>
++  <string name="pref_player_controls_drawer_summary">Exibir alça de borda para abrir o painel de controles arrastrando</string>
+   <string name="pref_nav_bar_title">Mostrar barra de navegação com controles</string>
+   <string name="pref_nav_bar_summary">Exibir a barra de navegação do sistema Android sobre os controles do player</string>
+ 
+diff --git a/app/src/main/res/values-ru/strings.xml b/app/src/main/res/values-ru/strings.xml
+index 0fa135f5..b5bea05e 100644
+--- a/app/src/main/res/values-ru/strings.xml
++++ b/app/src/main/res/values-ru/strings.xml
+@@ -632,6 +632,8 @@
+ 
+   <!-- Player - Display & Controls Section                        -->
+   <string name="pref_section_display_controls">Экран и управление</string>
++  <string name="pref_player_controls_drawer_title">Панель управления</string>
++  <string name="pref_player_controls_drawer_summary">Отображать боковой маркер для открытия панели управления перетаскиванием</string>
+   <string name="pref_nav_bar_title">Показывать панель навигации с элементами управления</string>
+   <string name="pref_nav_bar_summary">Показывать системную панель навигации Android поверх элементов управления проигрывателем</string>
+ 
+diff --git a/app/src/main/res/values-zh-rCN/strings.xml b/app/src/main/res/values-zh-rCN/strings.xml
+index a098fa21..11f55d7b 100644
+--- a/app/src/main/res/values-zh-rCN/strings.xml
++++ b/app/src/main/res/values-zh-rCN/strings.xml
+@@ -634,6 +634,8 @@
+ 
+   <!-- Player - Display & Controls Section                        -->
+   <string name="pref_section_display_controls">显示和控制</string>
++  <string name="pref_player_controls_drawer_title">控制面板侧拉抽屉</string>
++  <string name="pref_player_controls_drawer_summary">显示边缘滑块，拖拽即可打开控制面板</string>
+   <string name="pref_nav_bar_title">显示带控制项的导航栏</string>
+   <string name="pref_nav_bar_summary">在播放器控制项上方显示 Android 系统导航栏</string>
+ 
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index 4a627f91..8237db36 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -714,6 +714,8 @@
+ 
+   <!-- Player - Display & Controls Section                        -->
+   <string name="pref_section_display_controls">Display &amp; Controls</string>
++  <string name="pref_player_controls_drawer_title">Controls drawer</string>
++  <string name="pref_player_controls_drawer_summary">Display edge handle to drag open the controls panel</string>
+   <string name="pref_nav_bar_title">Show navigation bar with controls</string>
+   <string name="pref_nav_bar_summary">Display the Android system navigation bar over player controls</string>
+ 
+-- 
+2.25.1
+

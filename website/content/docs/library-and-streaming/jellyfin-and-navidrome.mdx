@@ -1,0 +1,64 @@
+---
+title: Jellyfin and Navidrome
+description: Connect media servers, browse remote libraries, and understand direct streaming and account behavior.
+---
+
+mpvRx can use Jellyfin for video and music libraries and Navidrome or another compatible Subsonic server for music.
+
+## Choose the integration
+
+| Capability | Jellyfin | Navidrome / Subsonic |
+| --- | --- | --- |
+| Movies and TV | Yes | No |
+| Music library | Yes | Yes |
+| Continue watching | Yes | Server-dependent music history only |
+| Direct and transcoded video | Yes | No |
+| Albums, artists, songs | Yes | Yes |
+| Server playlists | Yes, where exposed | Yes |
+| Server favorites | Jellyfin user favorites | Starred songs, albums, and artists |
+| Multiple saved servers | Yes | Yes |
+
+## Jellyfin
+
+The Jellyfin client provides artwork-rich library browsing, continue-watching rows, filters for movies, shows, anime, music, and box sets, season and episode selection, and server-synchronized favorites.
+
+Playback can use direct streams or server transcoding. The result depends on server configuration, exposed streams, selected audio/subtitle tracks, network bandwidth, and device decoder support.
+
+<Steps>
+  <Step title="Add the server">
+    Enter the reachable Jellyfin server URL and authenticate with your account.
+  </Step>
+  <Step title="Choose a library">
+    Browse the server's available libraries and open an item or episode.
+  </Step>
+  <Step title="Check the playback path">
+    If direct playback fails, verify the server can transcode the source and that its public URL is reachable from the device.
+  </Step>
+</Steps>
+
+Favorites update the Jellyfin account's `UserData.IsFavorite` state. Continue
+watching and recently watched depend on server progress updates, so clock,
+account, and reverse-proxy problems can affect them even when direct streaming
+works.
+
+## Navidrome and Subsonic
+
+Navidrome connections use the Subsonic API. mpvRx supports multiple named servers, token-and-salt authentication, music search, recently added albums, quick mixes, artists, albums, server playlists, and synchronized favorites.
+
+Sign in with username/password or a supported app password/token. Select one
+saved server as active for the Music tab. Starred songs appear in Favorites;
+album and artist starring depends on server API support.
+
+Some compatible Subsonic servers implement only part of the API. Missing discovery or favorite behavior may be a server capability difference rather than a playback failure.
+
+## Connection checklist
+
+- Use the base server URL reachable from the Android device, not a web-player subpage.
+- Verify TLS certificates and reverse-proxy paths outside mpvRx.
+- Confirm the account can browse and stream the same item in another client.
+- Distinguish authentication, catalog, artwork, favorites, and playback failures.
+- Test the local network URL before diagnosing remote-access or VPN behavior.
+
+## Account safety
+
+Credentials and tokens remain sensitive even on a local network. Do not paste them into issue reports. When reporting a problem, include the server product/version, whether the same item works in another client, and whether the problem affects browsing, authentication, artwork, direct playback, or transcoding.

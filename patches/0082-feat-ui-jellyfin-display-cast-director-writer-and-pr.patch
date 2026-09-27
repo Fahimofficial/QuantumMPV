@@ -1,0 +1,274 @@
+From 96ee221780d1e723f25389dd0eae6cc3a1428ec5 Mon Sep 17 00:00:00 2001
+From: Arnab Sadhukhan <arnab@Arnabs-Mac-Mini.local>
+Date: Thu, 10 Sep 2026 20:29:54 +0530
+Subject: [PATCH 082/140] feat(ui/jellyfin): display cast, director, writer,
+ and producer info on media detail sheet
+
+---
+ .../mpvrx/data/jellyfin/JellyfinClient.kt     |  20 +++
+ .../mpvrx/domain/jellyfin/JellyfinModels.kt   |  23 +++
+ .../browser/jellyfin/JellyfinDetailSheet.kt   | 154 ++++++++++++++++++
+ 3 files changed, 197 insertions(+)
+
+diff --git a/app/src/main/java/com/quantummpv/app/data/jellyfin/JellyfinClient.kt b/app/src/main/java/com/quantummpv/app/data/jellyfin/JellyfinClient.kt
+index 5817b757..1f98a361 100644
+--- a/app/src/main/java/com/quantummpv/app/data/jellyfin/JellyfinClient.kt
++++ b/app/src/main/java/com/quantummpv/app/data/jellyfin/JellyfinClient.kt
+@@ -17,6 +17,7 @@ import com.quantummpv.app.BuildConfig
+ import com.quantummpv.app.data.network.ServerUrlUtils
+ import com.quantummpv.app.domain.jellyfin.JellyfinAuthResult
+ import com.quantummpv.app.domain.jellyfin.JellyfinItem
++import com.quantummpv.app.domain.jellyfin.JellyfinPerson
+ import com.quantummpv.app.domain.jellyfin.JellyfinUser
+ import com.quantummpv.app.network.awaitResponse
+ import com.quantummpv.app.utils.media.PlaybackSubtitleTrack
+@@ -1068,6 +1069,24 @@ class JellyfinClient(
+       }
+     } ?: obj["RemoteTrailerUrl"]?.jsonPrimitive?.content
+ 
++    val peopleList =
++      obj["People"]?.jsonArray?.mapNotNull { element ->
++        if (element is JsonObject) {
++          val personId = element["Id"]?.jsonPrimitive?.content ?: return@mapNotNull null
++          val personName = element["Name"]?.jsonPrimitive?.content ?: ""
++          val personRole = element["Role"]?.jsonPrimitive?.content
++          val personType = element["Type"]?.jsonPrimitive?.content
++          val personImageTag = element["PrimaryImageTag"]?.jsonPrimitive?.content
++          JellyfinPerson(
++            id = personId,
++            name = personName,
++            role = personRole,
++            type = personType,
++            primaryImageTag = personImageTag,
++          )
++        } else null
++      } ?: emptyList()
++
+     return JellyfinItem(
+       id = id,
+       name = name,
+@@ -1107,6 +1126,7 @@ class JellyfinClient(
+       lastPlayedDate = lastPlayedDate,
+       remoteTrailerUrl = remoteTrailerUrl,
+       canDelete = obj["CanDelete"]?.jsonPrimitive?.booleanOrNull ?: true,
++      people = peopleList,
+     )
+   }
+ 
+diff --git a/app/src/main/java/com/quantummpv/app/domain/jellyfin/JellyfinModels.kt b/app/src/main/java/com/quantummpv/app/domain/jellyfin/JellyfinModels.kt
+index 590eae35..856dfa20 100644
+--- a/app/src/main/java/com/quantummpv/app/domain/jellyfin/JellyfinModels.kt
++++ b/app/src/main/java/com/quantummpv/app/domain/jellyfin/JellyfinModels.kt
+@@ -59,6 +59,16 @@ data class JellyfinQueryResult(
+   val startIndex: Int,
+ )
+ 
++@Immutable
++@Serializable
++data class JellyfinPerson(
++  val id: String,
++  val name: String,
++  val role: String? = null,
++  val type: String? = null,
++  val primaryImageTag: String? = null,
++)
++
+ @Immutable
+ @Serializable
+ data class JellyfinItem(
+@@ -100,7 +110,20 @@ data class JellyfinItem(
+   val lastPlayedDate: String? = null,
+   val remoteTrailerUrl: String? = null,
+   val canDelete: Boolean = true,
++  val people: List<JellyfinPerson> = emptyList(),
+ ) {
++  val directors: List<JellyfinPerson>
++    get() = people.filter { it.type.equals("Director", ignoreCase = true) }.distinctBy { it.id }
++
++  val writers: List<JellyfinPerson>
++    get() = people.filter { it.type.equals("Writer", ignoreCase = true) || it.type.equals("Writing", ignoreCase = true) }.distinctBy { it.id }
++
++  val producers: List<JellyfinPerson>
++    get() = people.filter { it.type.equals("Producer", ignoreCase = true) || it.type.equals("ExecutiveProducer", ignoreCase = true) }.distinctBy { it.id }
++
++  val actors: List<JellyfinPerson>
++    get() = people.filter { it.type.equals("Actor", ignoreCase = true) || it.type.equals("GuestStar", ignoreCase = true) || it.type == null }.distinctBy { it.id to (it.role ?: "") }
++
+   val isVideo: Boolean
+     get() = type == "Movie" || type == "Episode" || type == "Video"
+ 
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinDetailSheet.kt b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinDetailSheet.kt
+index 5afa8c60..3230fce4 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinDetailSheet.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinDetailSheet.kt
+@@ -81,6 +81,7 @@ import androidx.compose.ui.graphics.Color
+ import androidx.compose.ui.layout.ContentScale
+ import androidx.compose.ui.text.font.FontStyle
+ import androidx.compose.ui.text.font.FontWeight
++import androidx.compose.ui.text.style.TextAlign
+ import androidx.compose.ui.text.style.TextOverflow
+ import androidx.compose.ui.unit.dp
+ import androidx.compose.ui.unit.sp
+@@ -838,6 +839,159 @@ fun JellyfinDetailSheet(
+           }
+         }
+ 
++        // Directors, Writers, Producers
++        val directors = remember(item.people) { item.directors }
++        val writers = remember(item.people) { item.writers }
++        val producers = remember(item.people) { item.producers }
++
++        if (directors.isNotEmpty() || writers.isNotEmpty() || producers.isNotEmpty()) {
++          Column(
++            modifier = Modifier.fillMaxWidth(),
++            verticalArrangement = Arrangement.spacedBy(4.dp),
++          ) {
++            if (directors.isNotEmpty()) {
++              Row(
++                modifier = Modifier.fillMaxWidth(),
++                horizontalArrangement = Arrangement.spacedBy(4.dp),
++              ) {
++                Text(
++                  text = if (directors.size > 1) "Directors: " else "Director: ",
++                  style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
++                  color = MaterialTheme.colorScheme.onSurface,
++                )
++                Text(
++                  text = directors.joinToString(", ") { it.name },
++                  style = MaterialTheme.typography.bodyMedium,
++                  color = MaterialTheme.colorScheme.onSurfaceVariant,
++                )
++              }
++            }
++
++            if (writers.isNotEmpty()) {
++              Row(
++                modifier = Modifier.fillMaxWidth(),
++                horizontalArrangement = Arrangement.spacedBy(4.dp),
++              ) {
++                Text(
++                  text = if (writers.size > 1) "Writers: " else "Writer: ",
++                  style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
++                  color = MaterialTheme.colorScheme.onSurface,
++                )
++                Text(
++                  text = writers.joinToString(", ") { it.name },
++                  style = MaterialTheme.typography.bodyMedium,
++                  color = MaterialTheme.colorScheme.onSurfaceVariant,
++                )
++              }
++            }
++
++            if (producers.isNotEmpty()) {
++              Row(
++                modifier = Modifier.fillMaxWidth(),
++                horizontalArrangement = Arrangement.spacedBy(4.dp),
++              ) {
++                Text(
++                  text = if (producers.size > 1) "Producers: " else "Producer: ",
++                  style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
++                  color = MaterialTheme.colorScheme.onSurface,
++                )
++                Text(
++                  text = producers.joinToString(", ") { it.name },
++                  style = MaterialTheme.typography.bodyMedium,
++                  color = MaterialTheme.colorScheme.onSurfaceVariant,
++                )
++              }
++            }
++          }
++        }
++
++        // Cast Section
++        val cast = remember(item.people) { item.actors }
++        if (cast.isNotEmpty()) {
++          Column(
++            modifier = Modifier.fillMaxWidth(),
++            verticalArrangement = Arrangement.spacedBy(8.dp),
++          ) {
++            Text(
++              text = "Cast",
++              style = MaterialTheme.typography.titleMedium,
++              fontWeight = FontWeight.Bold,
++              color = MaterialTheme.colorScheme.onSurface,
++            )
++
++            LazyRow(
++              horizontalArrangement = Arrangement.spacedBy(14.dp),
++              contentPadding = PaddingValues(vertical = 4.dp),
++              modifier = Modifier.fillMaxWidth(),
++            ) {
++              items(cast, key = { "${it.id}|${it.role ?: ""}" }) { person ->
++                Column(
++                  horizontalAlignment = Alignment.CenterHorizontally,
++                  modifier = Modifier.width(72.dp),
++                  verticalArrangement = Arrangement.spacedBy(4.dp),
++                ) {
++                  val personImageUrl = remember(person.id, person.primaryImageTag, server.serverUrl, server.accessToken) {
++                    JellyfinClient.getImageUrl(
++                      serverUrl = server.serverUrl,
++                      itemId = person.id,
++                      imageTag = person.primaryImageTag,
++                      maxWidth = 200,
++                      token = server.accessToken,
++                    )
++                  }
++
++                  if (!person.primaryImageTag.isNullOrBlank()) {
++                    RemoteImage(
++                      url = personImageUrl,
++                      contentDescription = person.name,
++                      contentScale = ContentScale.Crop,
++                      modifier = Modifier
++                        .size(56.dp)
++                        .clip(CircleShape),
++                    )
++                  } else {
++                    Box(
++                      modifier = Modifier
++                        .size(56.dp)
++                        .clip(CircleShape)
++                        .background(MaterialTheme.colorScheme.surfaceContainerHighest),
++                      contentAlignment = Alignment.Center,
++                    ) {
++                      Text(
++                        text = person.name.take(1).uppercase(),
++                        style = MaterialTheme.typography.titleMedium,
++                        fontWeight = FontWeight.Bold,
++                        color = MaterialTheme.colorScheme.onSurfaceVariant,
++                      )
++                    }
++                  }
++
++                  Text(
++                    text = person.name,
++                    style = MaterialTheme.typography.labelMedium,
++                    fontWeight = FontWeight.SemiBold,
++                    color = MaterialTheme.colorScheme.onSurface,
++                    maxLines = 1,
++                    overflow = TextOverflow.Ellipsis,
++                    textAlign = TextAlign.Center,
++                  )
++
++                  person.role?.takeIf { it.isNotBlank() }?.let { role ->
++                    Text(
++                      text = role,
++                      style = MaterialTheme.typography.labelSmall,
++                      color = MaterialTheme.colorScheme.onSurfaceVariant,
++                      maxLines = 1,
++                      overflow = TextOverflow.Ellipsis,
++                      textAlign = TextAlign.Center,
++                    )
++                  }
++                }
++              }
++            }
++          }
++        }
++
+         // TV Shows: Seasons and Episodes Browser
+         if (item.isSeries && seasons.isNotEmpty()) {
+           Column(
+-- 
+2.25.1
+

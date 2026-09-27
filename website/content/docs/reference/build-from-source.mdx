@@ -1,0 +1,53 @@
+---
+title: Build from source
+description: Build mpvRx with the Gradle wrapper and select a distribution flavor.
+---
+
+## Requirements
+
+- JDK 17
+- Android SDK and current build tools
+- Git
+- The repository's Gradle wrapper
+
+Clone the repository and run commands from its root.
+
+```bash
+./gradlew :app:assembleStandardDebug
+```
+
+On Windows PowerShell:
+
+```powershell
+.\gradlew.bat :app:assembleStandardDebug
+```
+
+## Product flavors
+
+| Flavor | Gradle task prefix |
+| --- | --- |
+| Standard | `assembleStandard...` |
+| No Vulkan | `assembleNoVulkan...` |
+| FongMi | `assembleFongmi...` |
+
+Examples:
+
+```bash
+./gradlew :app:assembleStandardRelease
+./gradlew :app:assembleNoVulkanRelease
+./gradlew :app:assembleFongmiRelease
+```
+
+The mpv native libraries are resolved from the pinned mpvlib release declared in `gradle/libs.versions.toml`. Gradle caches downloaded artifacts, so they do not need to be copied into `app/libs/` for each build.
+
+## Limit architectures
+
+The app build supports a `targetAbi` property for focused development builds and an `enableX86` switch. Without an override, the build includes ARM architectures and enables x86 targets according to project defaults.
+
+## Release signing
+
+Public release workflows require repository secrets for the keystore, alias, store password, and key password. Never commit a keystore or credentials. Local unsigned release output is not equivalent to an official signed release.
+
+## Before submitting a change
+
+Run the focused checks for the touched area, then the relevant flavor build. Changes to shared playback, networking, databases, or release wiring deserve broader validation than a documentation-only change.

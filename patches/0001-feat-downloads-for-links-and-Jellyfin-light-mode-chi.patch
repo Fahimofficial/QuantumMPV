@@ -1,0 +1,4119 @@
+From 4cd93a3ea2dedc24f8b047bb08db28faeced4fce Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <PanditRitesh@JohnDeere.com>
+Date: Wed, 2 Sep 2026 11:22:54 +0530
+Subject: [PATCH 001/140] feat: downloads for links and Jellyfin, light-mode
+ chip fix, M3 search
+
+Downloads:
+- Queue-based downloader built on Ketch with per-download progress
+  notifications (pause/resume/cancel) and a yt-dlp foreground-service
+  engine for HLS/DASH/extractor links
+- Downloads screen with queue controls and SAF download-location picker,
+  reachable from the Network and Jellyfin top bars
+- Jellyfin: per-episode, season and whole-series downloads; external
+  subtitles saved as sidecar files next to the video; downloaded badges;
+  offline-first playback of completed downloads with their subtitles
+- Network tab: recents-row download action and Play Link sheet download
+  button (direct links -> queue, m3u8/mpd/extractor -> yt-dlp, magnets ->
+  torrent flow)
+
+Fixes:
+- 4K/HDR overlay chips and watch-progress fills were invisible in light
+  mode (primary-on-black scrim); now use the always-dark accent scheme
+
+UI:
+- InlineSearchBar rewritten on Material 3 SearchBar/InputField with proper
+  IME Search handling; migrated remaining custom search fields (settings
+  search, mpv help, codec list, torrent selection)
+- New strings translated for all bundled locales
+---
+ app/src/main/AndroidManifest.xml              |  11 +
+ app/src/main/java/com/quantummpv/app/App.kt    |   1 +
+ .../gyrolet/mpvrx/database/MpvRxDatabase.kt   |   7 +-
+ .../mpvrx/database/dao/DownloadItemDao.kt     |  42 ++
+ .../database/entities/DownloadItemEntity.kt   |  49 ++
+ .../com/quantummpv/app/di/DatabaseModule.kt    |  43 ++
+ .../com/quantummpv/app/di/DownloadModule.kt    |  25 +
+ .../com/quantummpv/app/di/PreferencesModule.kt |   2 +
+ .../domain/download/AppDownloadManager.kt     | 419 ++++++++++++++
+ .../domain/download/DirectDownloadService.kt  | 161 ++++++
+ .../domain/download/DownloadLocations.kt      | 116 ++++
+ .../mpvrx/domain/download/DownloadTypes.kt    |  71 +++
+ .../download/LinkDownloadCoordinator.kt       |  82 +++
+ .../domain/download/YtdlpDownloadEngine.kt    | 301 ++++++++++
+ .../domain/download/YtdlpDownloadService.kt   | 145 +++++
+ .../mpvrx/preferences/DownloadPreferences.kt  |  22 +
+ .../ui/browser/jellyfin/JellyfinCards.kt      | 163 ++++--
+ .../ui/browser/jellyfin/JellyfinContent.kt    |  42 +-
+ .../browser/jellyfin/JellyfinDetailSheet.kt   | 180 +++++-
+ .../ui/browser/jellyfin/JellyfinViewModel.kt  | 189 ++++++
+ .../NetworkStreamingScreen.kt                 |  29 +-
+ .../mpvrx/ui/browser/sheets/PlayLinkSheet.kt  |  35 ++
+ .../mpvrx/ui/components/InlineSearchBar.kt    |  86 ++-
+ .../mpvrx/ui/downloads/DownloadsScreen.kt     | 539 ++++++++++++++++++
+ .../gyrolet/mpvrx/ui/editor/MpvHelpScreen.kt  |  34 +-
+ .../mpvrx/ui/player/ytdlp/YtdlpManager.kt     |  13 +
+ .../ui/preferences/CodecCapabilitiesScreen.kt |  19 +-
+ .../ui/preferences/SettingsSearchScreen.kt    |  39 +-
+ .../ui/torrent/TorrentSelectionScreen.kt      |  18 +-
+ app/src/main/res/values-ar/strings.xml        |  35 ++
+ app/src/main/res/values-de/strings.xml        |  35 ++
+ app/src/main/res/values-es/strings.xml        |  35 ++
+ app/src/main/res/values-fr/strings.xml        |  35 ++
+ app/src/main/res/values-hi/strings.xml        |  35 ++
+ app/src/main/res/values-ja/strings.xml        |  35 ++
+ app/src/main/res/values-pt-rBR/strings.xml    |  35 ++
+ app/src/main/res/values-ru/strings.xml        |  35 ++
+ app/src/main/res/values-zh-rCN/strings.xml    |  35 ++
+ app/src/main/res/values/strings.xml           |  35 ++
+ 39 files changed, 3016 insertions(+), 217 deletions(-)
+ create mode 100644 app/src/main/java/com/quantummpv/app/database/dao/DownloadItemDao.kt
+ create mode 100644 app/src/main/java/com/quantummpv/app/database/entities/DownloadItemEntity.kt
+ create mode 100644 app/src/main/java/com/quantummpv/app/di/DownloadModule.kt
+ create mode 100644 app/src/main/java/com/quantummpv/app/domain/download/AppDownloadManager.kt
+ create mode 100644 app/src/main/java/com/quantummpv/app/domain/download/DirectDownloadService.kt
+ create mode 100644 app/src/main/java/com/quantummpv/app/domain/download/DownloadLocations.kt
+ create mode 100644 app/src/main/java/com/quantummpv/app/domain/download/DownloadTypes.kt
+ create mode 100644 app/src/main/java/com/quantummpv/app/domain/download/LinkDownloadCoordinator.kt
+ create mode 100644 app/src/main/java/com/quantummpv/app/domain/download/YtdlpDownloadEngine.kt
+ create mode 100644 app/src/main/java/com/quantummpv/app/domain/download/YtdlpDownloadService.kt
+ create mode 100644 app/src/main/java/com/quantummpv/app/preferences/DownloadPreferences.kt
+ create mode 100644 app/src/main/java/com/quantummpv/app/ui/downloads/DownloadsScreen.kt
+
+diff --git a/app/src/main/AndroidManifest.xml b/app/src/main/AndroidManifest.xml
+index 13843ace..bb4b7a3b 100644
+--- a/app/src/main/AndroidManifest.xml
++++ b/app/src/main/AndroidManifest.xml
+@@ -20,6 +20,7 @@
+     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
++    <uses-permission android:name="android.permission.WAKE_LOCK" />
+     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+     <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATION" />
+@@ -53,6 +54,16 @@
+                 android:value="true" />
+         </service>
+ 
++        <service
++            android:name=".domain.download.YtdlpDownloadService"
++            android:exported="false"
++            android:foregroundServiceType="dataSync" />
++
++        <service
++            android:name=".domain.download.DirectDownloadService"
++            android:exported="false"
++            android:foregroundServiceType="dataSync" />
++
+         <meta-data
+             android:name="com.google.android.gms.cast.framework.OPTIONS_PROVIDER_CLASS_NAME"
+             android:value="com.quantummpv.app.ui.cast.MpvRxCastOptionsProvider" />
+diff --git a/app/src/main/java/com/quantummpv/app/App.kt b/app/src/main/java/com/quantummpv/app/App.kt
+index 40d98439..febf0e5a 100644
+--- a/app/src/main/java/com/quantummpv/app/App.kt
++++ b/app/src/main/java/com/quantummpv/app/App.kt
+@@ -74,6 +74,7 @@ class App :
+         DatabaseModule,
+         FileManagerModule,
+         com.quantummpv.app.di.domainModule,
++        com.quantummpv.app.di.DownloadModule,
+       )
+     }
+     if (!BuildConfig.MPV_SUPPORTS_VULKAN) {
+diff --git a/app/src/main/java/com/quantummpv/app/database/MpvRxDatabase.kt b/app/src/main/java/com/quantummpv/app/database/MpvRxDatabase.kt
+index 044b3665..eb943867 100644
+--- a/app/src/main/java/com/quantummpv/app/database/MpvRxDatabase.kt
++++ b/app/src/main/java/com/quantummpv/app/database/MpvRxDatabase.kt
+@@ -15,6 +15,7 @@ import androidx.room.TypeConverters
+ import com.quantummpv.app.database.converters.NetworkProtocolConverter
+ import com.quantummpv.app.database.converters.NetworkStreamEntryTypeConverter
+ import com.quantummpv.app.database.dao.DirectoryScanDao
++import com.quantummpv.app.database.dao.DownloadItemDao
+ import com.quantummpv.app.database.dao.NetworkConnectionDao
+ import com.quantummpv.app.database.dao.NetworkStreamEntryDao
+ import com.quantummpv.app.database.dao.PlaybackStateDao
+@@ -24,6 +25,7 @@ import com.quantummpv.app.database.dao.SecureMediaDao
+ import com.quantummpv.app.database.dao.VideoMetadataDao
+ import com.quantummpv.app.database.dao.JellyfinServerDao
+ import com.quantummpv.app.database.entities.DirectoryScanEntity
++import com.quantummpv.app.database.entities.DownloadItemEntity
+ import com.quantummpv.app.database.entities.JellyfinServerEntity
+ import com.quantummpv.app.database.entities.NetworkStreamEntryEntity
+ import com.quantummpv.app.database.entities.PlaybackStateEntity
+@@ -46,8 +48,9 @@ import com.quantummpv.app.domain.network.NetworkConnection
+     SecureMediaEntity::class,
+     NetworkStreamEntryEntity::class,
+     JellyfinServerEntity::class,
++    DownloadItemEntity::class,
+   ],
+-  version = 16,
++  version = 18,
+   exportSchema = true,
+ )
+ @TypeConverters(NetworkProtocolConverter::class, NetworkStreamEntryTypeConverter::class)
+@@ -69,4 +72,6 @@ abstract class MpvRxDatabase : RoomDatabase() {
+   abstract fun secureMediaDao(): SecureMediaDao
+ 
+   abstract fun jellyfinServerDao(): JellyfinServerDao
++
++  abstract fun downloadItemDao(): DownloadItemDao
+ }
+diff --git a/app/src/main/java/com/quantummpv/app/database/dao/DownloadItemDao.kt b/app/src/main/java/com/quantummpv/app/database/dao/DownloadItemDao.kt
+new file mode 100644
+index 00000000..ad27c50e
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/database/dao/DownloadItemDao.kt
+@@ -0,0 +1,42 @@
++/*
++ * SPDX-License-Identifier: AGPL-3.0-or-later
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Affero General Public License as published
++ * by the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ */
++
++package com.quantummpv.app.database.dao
++
++import androidx.room.Dao
++import androidx.room.Insert
++import androidx.room.OnConflictStrategy
++import androidx.room.Query
++import androidx.room.Update
++import com.quantummpv.app.database.entities.DownloadItemEntity
++import kotlinx.coroutines.flow.Flow
++
++@Dao
++interface DownloadItemDao {
++  @Query("SELECT * FROM download_items ORDER BY timeQueued DESC")
++  fun observeAll(): Flow<List<DownloadItemEntity>>
++
++  @Query("SELECT * FROM download_items")
++  suspend fun getAll(): List<DownloadItemEntity>
++
++  @Query("SELECT * FROM download_items WHERE id = :id LIMIT 1")
++  suspend fun findById(id: Long): DownloadItemEntity?
++
++  @Query("SELECT * FROM download_items WHERE systemDownloadId = :systemDownloadId LIMIT 1")
++  suspend fun findBySystemDownloadId(systemDownloadId: Long): DownloadItemEntity?
++
++  @Insert(onConflict = OnConflictStrategy.REPLACE)
++  suspend fun insert(entity: DownloadItemEntity): Long
++
++  @Update
++  suspend fun update(entity: DownloadItemEntity)
++
++  @Query("DELETE FROM download_items WHERE id = :id")
++  suspend fun delete(id: Long)
++}
+diff --git a/app/src/main/java/com/quantummpv/app/database/entities/DownloadItemEntity.kt b/app/src/main/java/com/quantummpv/app/database/entities/DownloadItemEntity.kt
+new file mode 100644
+index 00000000..d9ab567b
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/database/entities/DownloadItemEntity.kt
+@@ -0,0 +1,49 @@
++/*
++ * SPDX-License-Identifier: AGPL-3.0-or-later
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Affero General Public License as published
++ * by the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ */
++
++package com.quantummpv.app.database.entities
++
++import androidx.room.Entity
++import androidx.room.Index
++import androidx.room.PrimaryKey
++
++/**
++ * Registry of file downloads handed to the system DownloadManager, joined with the
++ * app metadata needed to render the Downloads screen and resolve offline copies.
++ */
++@Entity(
++  tableName = "download_items",
++  indices = [Index("systemDownloadId"), Index("jellyfinItemId")],
++)
++data class DownloadItemEntity(
++  @PrimaryKey(autoGenerate = true) val id: Long = 0,
++  /** ID returned by the system DownloadManager; -1 when not currently enqueued. */
++  val systemDownloadId: Long = -1,
++  val url: String,
++  val dirPath: String,
++  val fileName: String,
++  /** Request headers for the transfer, one `name: value` per line. */
++  val stagingPath: String? = null,
++  /** Name of [com.quantummpv.app.domain.download.AppDownloadStatus]. */
++  val status: String = "QUEUED",
++  val progress: Int = 0,
++  val totalBytes: Long = 0,
++  val failureReason: String? = null,
++  val timeQueued: Long = System.currentTimeMillis(),
++  val source: String = "link",
++  val title: String = "",
++  val posterUrl: String? = null,
++  val sourceUrl: String? = null,
++  val jellyfinServerId: String? = null,
++  val jellyfinItemId: String? = null,
++  val jellyfinSeriesName: String? = null,
++  val seasonNumber: Int? = null,
++  val episodeNumber: Int? = null,
++  val isAudio: Boolean = false,
++)
+diff --git a/app/src/main/java/com/quantummpv/app/di/DatabaseModule.kt b/app/src/main/java/com/quantummpv/app/di/DatabaseModule.kt
+index 02faa1b1..b8049860 100644
+--- a/app/src/main/java/com/quantummpv/app/di/DatabaseModule.kt
++++ b/app/src/main/java/com/quantummpv/app/di/DatabaseModule.kt
+@@ -693,6 +693,47 @@ val MIGRATION_15_16 =
+     }
+   }
+ 
++val MIGRATION_16_17 =
++  object : Migration(16, 17) {
++    override fun migrate(db: SupportSQLiteDatabase) {
++      db.execSQL(
++        """
++        CREATE TABLE IF NOT EXISTS `download_items` (
++          `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
++          `systemDownloadId` INTEGER NOT NULL DEFAULT -1,
++          `url` TEXT NOT NULL,
++          `dirPath` TEXT NOT NULL,
++          `fileName` TEXT NOT NULL,
++          `status` TEXT NOT NULL DEFAULT 'QUEUED',
++          `progress` INTEGER NOT NULL DEFAULT 0,
++          `totalBytes` INTEGER NOT NULL DEFAULT 0,
++          `failureReason` TEXT,
++          `timeQueued` INTEGER NOT NULL DEFAULT 0,
++          `source` TEXT NOT NULL DEFAULT 'link',
++          `title` TEXT NOT NULL DEFAULT '',
++          `posterUrl` TEXT,
++          `sourceUrl` TEXT,
++          `jellyfinServerId` TEXT,
++          `jellyfinItemId` TEXT,
++          `jellyfinSeriesName` TEXT,
++          `seasonNumber` INTEGER,
++          `episodeNumber` INTEGER,
++          `isAudio` INTEGER NOT NULL DEFAULT 0
++        )
++        """.trimIndent(),
++      )
++      db.execSQL("CREATE INDEX IF NOT EXISTS `index_download_items_systemDownloadId` ON `download_items` (`systemDownloadId`)")
++      db.execSQL("CREATE INDEX IF NOT EXISTS `index_download_items_jellyfinItemId` ON `download_items` (`jellyfinItemId`)")
++    }
++  }
++
++val MIGRATION_17_18 =
++  object : Migration(17, 18) {
++    override fun migrate(db: SupportSQLiteDatabase) {
++      db.execSQL("ALTER TABLE `download_items` ADD COLUMN `stagingPath` TEXT")
++    }
++  }
++
+ val DatabaseModule =
+   module {
+     single<Json> {
+@@ -723,6 +764,8 @@ val DatabaseModule =
+           MIGRATION_13_14,
+           MIGRATION_14_15,
+           MIGRATION_15_16,
++          MIGRATION_16_17,
++          MIGRATION_17_18,
+         ).build()
+     }
+ 
+diff --git a/app/src/main/java/com/quantummpv/app/di/DownloadModule.kt b/app/src/main/java/com/quantummpv/app/di/DownloadModule.kt
+new file mode 100644
+index 00000000..c2bbe74d
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/di/DownloadModule.kt
+@@ -0,0 +1,25 @@
++/*
++ * SPDX-License-Identifier: AGPL-3.0-or-later
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Affero General Public License as published
++ * by the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ */
++
++package com.quantummpv.app.di
++
++import com.quantummpv.app.domain.download.AppDownloadManager
++import com.quantummpv.app.domain.download.DownloadLocations
++import com.quantummpv.app.domain.download.LinkDownloadCoordinator
++import com.quantummpv.app.domain.download.YtdlpDownloadEngine
++import org.koin.android.ext.koin.androidContext
++import org.koin.dsl.module
++
++val DownloadModule =
++  module {
++    single { DownloadLocations(androidContext(), get()) }
++    single { AppDownloadManager(androidContext(), get<com.quantummpv.app.database.MpvRxDatabase>().downloadItemDao(), get()) }
++    single { YtdlpDownloadEngine(androidContext(), get()) }
++    single { LinkDownloadCoordinator(get(), get()) }
++  }
+diff --git a/app/src/main/java/com/quantummpv/app/di/PreferencesModule.kt b/app/src/main/java/com/quantummpv/app/di/PreferencesModule.kt
+index 454e0a55..70991bf5 100644
+--- a/app/src/main/java/com/quantummpv/app/di/PreferencesModule.kt
++++ b/app/src/main/java/com/quantummpv/app/di/PreferencesModule.kt
+@@ -15,6 +15,7 @@ import com.quantummpv.app.preferences.AppearancePreferences
+ import com.quantummpv.app.preferences.AudioPreferences
+ import com.quantummpv.app.preferences.BrowserPreferences
+ import com.quantummpv.app.preferences.DecoderPreferences
++import com.quantummpv.app.preferences.DownloadPreferences
+ import com.quantummpv.app.preferences.FoldersPreferences
+ import com.quantummpv.app.preferences.GesturePreferences
+ import com.quantummpv.app.preferences.NetworkBookmarkPreferences
+@@ -50,4 +51,5 @@ val PreferencesModule =
+     singleOf(::SettingsManager)
+     singleOf(::SecureFolderPreferences)
+     singleOf(::SeerrPreferences)
++    singleOf(::DownloadPreferences)
+   }
+diff --git a/app/src/main/java/com/quantummpv/app/domain/download/AppDownloadManager.kt b/app/src/main/java/com/quantummpv/app/domain/download/AppDownloadManager.kt
+new file mode 100644
+index 00000000..9737b3a2
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/domain/download/AppDownloadManager.kt
+@@ -0,0 +1,419 @@
++/*
++ * SPDX-License-Identifier: AGPL-3.0-or-later
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Affero General Public License as published
++ * by the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ */
++
++package com.quantummpv.app.domain.download
++
++import android.content.Context
++import android.os.Handler
++import android.os.Looper
++import android.util.Log
++import android.widget.Toast
++import com.quantummpv.app.R
++import com.quantummpv.app.database.dao.DownloadItemDao
++import com.quantummpv.app.database.entities.DownloadItemEntity
++import com.quantummpv.app.network.SharedHttpClient
++import com.quantummpv.app.network.awaitResponse
++import com.quantummpv.app.utils.media.PlaybackSubtitleTrack
++import kotlinx.coroutines.CoroutineScope
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.SupervisorJob
++import kotlinx.coroutines.flow.MutableStateFlow
++import kotlinx.coroutines.flow.SharingStarted
++import kotlinx.coroutines.flow.StateFlow
++import kotlinx.coroutines.flow.asStateFlow
++import kotlinx.coroutines.flow.map
++import kotlinx.coroutines.flow.stateIn
++import kotlinx.coroutines.launch
++import okhttp3.Request
++import java.io.File
++import java.io.FileOutputStream
++import java.io.IOException
++import java.util.Collections
++import java.util.concurrent.TimeUnit
++
++/**
++ * In-app direct-file download engine: streams with OkHttp straight into the selected
++ * download folder (`<name>.part` in place, renamed on completion), resumes interrupted
++ * transfers with Range requests, and reports live progress/speed. Runs inside
++ * [DirectDownloadService] so transfers survive backgrounding, with the same
++ * notification treatment as the yt-dlp engine.
++ *
++ * Subtitle sidecars are fetched eagerly and non-fatally next to the video with the same
++ * basename, so the player's sibling-subtitle autoload picks them up for local playback.
++ */
++class AppDownloadManager(
++  private val context: Context,
++  private val dao: DownloadItemDao,
++  val locations: DownloadLocations,
++) {
++  /** Live notification/UI info for the transfer currently on the wire. */
++  data class ActiveSnapshot(
++    val id: Long,
++    val title: String,
++    val progress: Int,
++    val downloadedBytes: Long,
++    val totalBytes: Long,
++    val speedBytesPerSec: Long,
++  )
++
++  private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
++  private val mainHandler = Handler(Looper.getMainLooper())
++
++  private val httpClient =
++    SharedHttpClient.derive {
++      connectTimeout(30, TimeUnit.SECONDS)
++      readTimeout(60, TimeUnit.SECONDS)
++    }
++
++  private val cancelledIds: MutableSet<Long> = Collections.synchronizedSet(mutableSetOf<Long>())
++
++  private val _activeSnapshot = MutableStateFlow<ActiveSnapshot?>(null)
++
++  /** Snapshot of the currently transferring item (speed for the Downloads screen). */
++  val activeSnapshot: StateFlow<ActiveSnapshot?> = _activeSnapshot.asStateFlow()
++
++  /** All registry rows, newest first. */
++  val downloads: StateFlow<List<AppDownload>> =
++    dao
++      .observeAll()
++      .map { entities -> entities.map(::AppDownload) }
++      .stateIn(scope, SharingStarted.Eagerly, emptyList())
++
++  init {
++    // Rows left QUEUED/RUNNING by a killed process resume from their .part files.
++    scope.launch {
++      val unfinished =
++        dao.getAll().filter {
++          AppDownloadStatus.from(it.status).let { s -> s == AppDownloadStatus.QUEUED || s == AppDownloadStatus.RUNNING }
++        }
++      if (unfinished.isNotEmpty()) {
++        unfinished.forEach { dao.update(it.copy(status = AppDownloadStatus.QUEUED.name)) }
++        DirectDownloadService.start(context)
++      }
++    }
++  }
++
++  fun enqueueVideo(
++    url: String,
++    directory: File,
++    fileName: String,
++    meta: DownloadMetadata,
++    headers: Map<String, String> = emptyMap(),
++  ) {
++    scope.launch {
++      runCatching {
++        if (!directory.exists()) directory.mkdirs()
++        check(directory.isDirectory && directory.canWrite()) {
++          context.getString(R.string.downloads_location_invalid)
++        }
++        dao.insert(
++          DownloadItemEntity(
++            url = url,
++            dirPath = directory.absolutePath,
++            fileName = fileName,
++            // Auth headers ride along for the worker, encoded as simple lines.
++            stagingPath = encodeHeaders(headers),
++            status = AppDownloadStatus.QUEUED.name,
++            source = meta.source,
++            title = meta.title,
++            posterUrl = meta.posterUrl,
++            sourceUrl = meta.sourceUrl,
++            jellyfinServerId = meta.jellyfinServerId,
++            jellyfinItemId = meta.jellyfinItemId,
++            jellyfinSeriesName = meta.jellyfinSeriesName,
++            seasonNumber = meta.seasonNumber,
++            episodeNumber = meta.episodeNumber,
++            isAudio = meta.isAudio,
++          ),
++        )
++        DirectDownloadService.start(context)
++      }.onFailure { error ->
++        Log.e(TAG, "Failed to enqueue download for $url", error)
++        mainHandler.post {
++          Toast
++            .makeText(
++              context,
++              context.getString(R.string.downloads_failed) + ": " + (error.message ?: error.javaClass.simpleName),
++              Toast.LENGTH_LONG,
++            ).show()
++        }
++      }
++    }
++  }
++
++  /** Runs queued rows sequentially until the queue drains. Called from the service. */
++  suspend fun drainQueue(onUpdate: (ActiveSnapshot) -> Unit) {
++    while (true) {
++      val next =
++        dao.getAll()
++          .filter { it.status == AppDownloadStatus.QUEUED.name }
++          .minByOrNull { it.timeQueued } ?: break
++      runDownload(next, onUpdate)
++    }
++    _activeSnapshot.value = null
++  }
++
++  fun queuedCount(): Int = downloads.value.count { it.status == AppDownloadStatus.QUEUED }
++
++  /** Cancels whatever transfer the service is currently running. */
++  fun cancelActive() {
++    _activeSnapshot.value?.let { cancel(it.id) }
++  }
++
++  private suspend fun runDownload(
++    entity: DownloadItemEntity,
++    onUpdate: (ActiveSnapshot) -> Unit,
++  ) {
++    val id = entity.id
++    cancelledIds.remove(id)
++    dao.update(entity.copy(status = AppDownloadStatus.RUNNING.name))
++
++    val directory = File(entity.dirPath)
++    val finalFile = File(directory, entity.fileName)
++    val partFile = File(directory, entity.fileName + PART_SUFFIX)
++
++    val result =
++      runCatching {
++        if (!directory.exists()) directory.mkdirs()
++        var resumeFrom = if (partFile.isFile) partFile.length() else 0L
++
++        val requestBuilder = Request.Builder().url(entity.url).get()
++        decodeHeaders(entity.stagingPath).forEach { (key, value) -> requestBuilder.header(key, value) }
++        if (resumeFrom > 0) requestBuilder.header("Range", "bytes=$resumeFrom-")
++
++        httpClient.newCall(requestBuilder.build()).awaitResponse().use { response ->
++          if (resumeFrom > 0 && response.code != 206) {
++            // Server ignored the range; start over.
++            partFile.delete()
++            resumeFrom = 0
++          }
++          check(response.isSuccessful) { "HTTP ${response.code}" }
++          val body = response.body
++          val totalBytes =
++            body.contentLength().takeIf { it > 0 }?.plus(resumeFrom) ?: 0L
++
++          var downloaded = resumeFrom
++          var windowBytes = 0L
++          var windowStart = System.currentTimeMillis()
++          var lastDbWrite = 0L
++
++          body.byteStream().use { input ->
++            FileOutputStream(partFile, resumeFrom > 0).use { output ->
++              val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
++              while (true) {
++                if (id in cancelledIds) throw CancelledDownloadException()
++                val read = input.read(buffer)
++                if (read < 0) break
++                output.write(buffer, 0, read)
++                downloaded += read
++                windowBytes += read
++
++                val now = System.currentTimeMillis()
++                if (now - windowStart >= PROGRESS_INTERVAL_MS) {
++                  val speed = windowBytes * 1000 / (now - windowStart).coerceAtLeast(1)
++                  windowBytes = 0
++                  windowStart = now
++                  val progress =
++                    if (totalBytes > 0) ((downloaded * 100) / totalBytes).toInt().coerceIn(0, 100) else 0
++                  val snapshot =
++                    ActiveSnapshot(
++                      id = id,
++                      title = entity.title.ifBlank { entity.fileName },
++                      progress = progress,
++                      downloadedBytes = downloaded,
++                      totalBytes = totalBytes,
++                      speedBytesPerSec = speed,
++                    )
++                  _activeSnapshot.value = snapshot
++                  onUpdate(snapshot)
++                  if (now - lastDbWrite >= DB_WRITE_INTERVAL_MS) {
++                    lastDbWrite = now
++                    dao.findById(id)?.let {
++                      dao.update(it.copy(progress = progress, totalBytes = totalBytes))
++                    }
++                  }
++                }
++              }
++            }
++          }
++
++          check(partFile.renameTo(finalFile)) { "Could not finalize file in download folder" }
++          totalBytes.takeIf { it > 0 } ?: finalFile.length()
++        }
++      }
++
++    result
++      .onSuccess { total ->
++        dao.findById(id)?.let {
++          dao.update(
++            it.copy(
++              status = AppDownloadStatus.SUCCESS.name,
++              progress = 100,
++              totalBytes = total,
++              failureReason = null,
++              stagingPath = null,
++            ),
++          )
++        }
++      }.onFailure { error ->
++        when {
++          error is CancelledDownloadException || id in cancelledIds -> {
++            runCatching { partFile.delete() }
++            dao.findById(id)?.let { dao.update(it.copy(status = AppDownloadStatus.CANCELLED.name)) }
++          }
++          else -> {
++            Log.e(TAG, "Download failed for ${entity.url}", error)
++            // Keep the .part file so retry resumes from where it stopped.
++            dao.findById(id)?.let {
++              dao.update(
++                it.copy(
++                  status = AppDownloadStatus.FAILED.name,
++                  failureReason = error.message ?: error.javaClass.simpleName,
++                ),
++              )
++            }
++          }
++        }
++      }
++    cancelledIds.remove(id)
++  }
++
++  /**
++   * Fetches external subtitle tracks as sidecar files named `<videoBaseName>.<label>.<ext>`.
++   * Failures are logged and skipped: subtitles must never block a video download.
++   */
++  fun enqueueSubtitleSidecars(
++    directory: File,
++    videoFileName: String,
++    tracks: List<PlaybackSubtitleTrack>,
++  ) {
++    if (tracks.isEmpty()) return
++    val baseName = videoFileName.substringBeforeLast('.')
++    scope.launch {
++      tracks.forEachIndexed { index, track ->
++        runCatching {
++          val extension = subtitleExtension(track.url)
++          val label =
++            DownloadLocations
++              .sanitizeName(track.languageCode ?: track.label.ifBlank { "sub${index + 1}" })
++              .replace(' ', '_')
++              .take(24)
++          val target = File(directory, "$baseName.$label.$extension")
++          if (target.isFile && target.length() > 0) return@forEachIndexed
++          val request = Request.Builder().url(track.url).get().build()
++          httpClient.newCall(request).awaitResponse().use { response ->
++            check(response.isSuccessful) { "HTTP ${response.code}" }
++            val body = response.body.bytes()
++            check(body.isNotEmpty()) { "Empty subtitle body" }
++            if (!directory.exists()) directory.mkdirs()
++            target.writeBytes(body)
++          }
++          Log.d(TAG, "Saved subtitle sidecar: ${target.name}")
++        }.onFailure { error ->
++          Log.w(TAG, "Subtitle sidecar failed for ${track.url}: ${error.message}")
++        }
++      }
++    }
++  }
++
++  /** Sidecar subtitle files saved next to a completed download. */
++  fun sidecarSubtitles(download: AppDownload): List<File> {
++    val baseName = download.entity.fileName.substringBeforeLast('.')
++    return download.file.parentFile
++      ?.listFiles()
++      ?.filter { file ->
++        file.isFile &&
++          file.name != download.entity.fileName &&
++          !file.name.endsWith(PART_SUFFIX) &&
++          file.nameWithoutExtension.startsWith(baseName) &&
++          file.extension.lowercase() in SUBTITLE_EXTENSIONS
++      }.orEmpty()
++  }
++
++  fun cancel(id: Long) {
++    cancelledIds.add(id)
++    scope.launch {
++      val entity = dao.findById(id) ?: return@launch
++      // The worker handles rows it is streaming; queued rows are finalized here.
++      if (entity.status == AppDownloadStatus.QUEUED.name) {
++        dao.update(entity.copy(status = AppDownloadStatus.CANCELLED.name))
++      }
++    }
++  }
++
++  fun retry(id: Long) {
++    scope.launch {
++      val entity = dao.findById(id) ?: return@launch
++      dao.update(
++        entity.copy(
++          status = AppDownloadStatus.QUEUED.name,
++          failureReason = null,
++        ),
++      )
++      DirectDownloadService.start(context)
++    }
++  }
++
++  /** Removes the registry entry; optionally deletes the file and its subtitle sidecars. */
++  fun remove(
++    download: AppDownload,
++    deleteFile: Boolean,
++  ) {
++    scope.launch {
++      val entity = download.entity
++      if (download.isActive) cancelledIds.add(entity.id)
++      runCatching { File(entity.dirPath, entity.fileName + PART_SUFFIX).delete() }
++      if (deleteFile) {
++        sidecarSubtitles(download).forEach { runCatching { it.delete() } }
++        runCatching { download.file.delete() }
++      }
++      dao.delete(entity.id)
++    }
++  }
++
++  /** Completed, still-on-disk download for a Jellyfin item, if any. */
++  fun playableForJellyfinItem(itemId: String): AppDownload? =
++    downloads.value.firstOrNull { it.entity.jellyfinItemId == itemId && it.isPlayable }
++
++  /** Any live or completed entry for a Jellyfin item, used to avoid duplicates. */
++  fun entryForJellyfinItem(itemId: String): AppDownload? =
++    downloads.value.firstOrNull {
++      it.entity.jellyfinItemId == itemId && (it.isActive || it.isPlayable)
++    }
++
++  private class CancelledDownloadException : IOException("Cancelled")
++
++  companion object {
++    private const val TAG = "AppDownloadManager"
++    private const val PART_SUFFIX = ".part"
++    private const val PROGRESS_INTERVAL_MS = 750L
++    private const val DB_WRITE_INTERVAL_MS = 1_500L
++
++    val SUBTITLE_EXTENSIONS = setOf("srt", "ass", "ssa", "vtt", "sub", "sup", "idx", "txt")
++
++    fun subtitleExtension(url: String): String {
++      val path = url.substringBefore('?').substringBefore('#')
++      val ext = path.substringAfterLast('.', "").lowercase()
++      return if (ext in SUBTITLE_EXTENSIONS) ext else "srt"
++    }
++
++    /** Headers are stored one per line as `name: value` in the registry row. */
++    fun encodeHeaders(headers: Map<String, String>): String? =
++      headers.takeIf { it.isNotEmpty() }?.entries?.joinToString("\n") { "${it.key}: ${it.value}" }
++
++    fun decodeHeaders(encoded: String?): Map<String, String> =
++      encoded
++        ?.lineSequence()
++        ?.mapNotNull { line ->
++          val separator = line.indexOf(": ")
++          if (separator <= 0) null else line.substring(0, separator) to line.substring(separator + 2)
++        }?.toMap()
++        .orEmpty()
++  }
++}
+diff --git a/app/src/main/java/com/quantummpv/app/domain/download/DirectDownloadService.kt b/app/src/main/java/com/quantummpv/app/domain/download/DirectDownloadService.kt
+new file mode 100644
+index 00000000..9eb71cdf
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/domain/download/DirectDownloadService.kt
+@@ -0,0 +1,161 @@
++/*
++ * SPDX-License-Identifier: AGPL-3.0-or-later
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Affero General Public License as published
++ * by the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ */
++
++package com.quantummpv.app.domain.download
++
++import android.app.NotificationChannel
++import android.app.NotificationManager
++import android.app.PendingIntent
++import android.app.Service
++import android.content.Context
++import android.content.Intent
++import android.content.pm.ServiceInfo
++import android.os.Build
++import android.os.IBinder
++import androidx.core.app.NotificationCompat
++import androidx.core.app.ServiceCompat
++import com.quantummpv.app.R
++import kotlinx.coroutines.CoroutineScope
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.Job
++import kotlinx.coroutines.SupervisorJob
++import kotlinx.coroutines.cancel
++import kotlinx.coroutines.launch
++import org.koin.android.ext.android.inject
++import java.util.Locale
++
++/**
++ * Foreground service that runs the in-app direct download queue, mirroring progress and
++ * speed into its notification (same treatment as the yt-dlp download service). Stops
++ * itself when the queue drains.
++ */
++class DirectDownloadService : Service() {
++  private val downloadManager: AppDownloadManager by inject()
++  private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
++  private var drainJob: Job? = null
++
++  override fun onBind(intent: Intent?): IBinder? = null
++
++  override fun onStartCommand(
++    intent: Intent?,
++    flags: Int,
++    startId: Int,
++  ): Int {
++    if (intent?.action == ACTION_CANCEL_ACTIVE) {
++      downloadManager.cancelActive()
++    }
++    ensureChannel()
++    startAsForeground(buildNotification(null))
++    if (drainJob?.isActive != true) {
++      drainJob =
++        scope.launch {
++          downloadManager.drainQueue { snapshot -> notify(buildNotification(snapshot)) }
++          stopSelf()
++        }
++    }
++    return START_NOT_STICKY
++  }
++
++  override fun onDestroy() {
++    scope.cancel()
++    super.onDestroy()
++  }
++
++  private fun startAsForeground(notification: android.app.Notification) {
++    val type =
++      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
++        ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
++      } else {
++        0
++      }
++    ServiceCompat.startForeground(this, NOTIFICATION_ID, notification, type)
++  }
++
++  private fun notify(notification: android.app.Notification) {
++    val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
++    manager.notify(NOTIFICATION_ID, notification)
++  }
++
++  private fun buildNotification(snapshot: AppDownloadManager.ActiveSnapshot?): android.app.Notification {
++    val queued = downloadManager.queuedCount()
++    val title = snapshot?.title ?: getString(R.string.downloads_notification_channel)
++    val progress = snapshot?.progress ?: 0
++    val text =
++      if (snapshot != null) {
++        buildString {
++          append("$progress%")
++          if (snapshot.totalBytes > 0) {
++            append("  ${formatBytes(snapshot.downloadedBytes)}/${formatBytes(snapshot.totalBytes)}")
++          } else if (snapshot.downloadedBytes > 0) {
++            append("  ${formatBytes(snapshot.downloadedBytes)}")
++          }
++          if (snapshot.speedBytesPerSec > 0) append("  ${formatBytes(snapshot.speedBytesPerSec)}/s")
++          if (queued > 0) append("  (+$queued)")
++        }
++      } else {
++        getString(R.string.downloads_preparing)
++      }
++
++    val cancelIntent =
++      PendingIntent.getService(
++        this,
++        2,
++        Intent(this, DirectDownloadService::class.java).setAction(ACTION_CANCEL_ACTIVE),
++        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
++      )
++
++    return NotificationCompat
++      .Builder(this, CHANNEL_ID)
++      .setSmallIcon(android.R.drawable.stat_sys_download)
++      .setContentTitle(title)
++      .setContentText(text)
++      .setOnlyAlertOnce(true)
++      .setOngoing(true)
++      .setProgress(100, progress, snapshot == null || snapshot.totalBytes <= 0)
++      .addAction(0, getString(android.R.string.cancel), cancelIntent)
++      .build()
++  }
++
++  private fun ensureChannel() {
++    val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
++    if (manager.getNotificationChannel(CHANNEL_ID) == null) {
++      manager.createNotificationChannel(
++        NotificationChannel(
++          CHANNEL_ID,
++          getString(R.string.downloads_notification_channel),
++          NotificationManager.IMPORTANCE_LOW,
++        ).apply { description = getString(R.string.downloads_notification_channel_description) },
++      )
++    }
++  }
++
++  private fun formatBytes(bytes: Long): String {
++    if (bytes < 1024) return "$bytes B"
++    val kb = bytes / 1024.0
++    if (kb < 1024) return "%.0f KB".format(Locale.US, kb)
++    val mb = kb / 1024.0
++    if (mb < 1024) return "%.1f MB".format(Locale.US, mb)
++    return "%.2f GB".format(Locale.US, mb / 1024.0)
++  }
++
++  companion object {
++    private const val CHANNEL_ID = "direct_downloads"
++    private const val NOTIFICATION_ID = 0x59D2
++    private const val ACTION_CANCEL_ACTIVE = "com.quantummpv.app.download.CANCEL_DIRECT_ACTIVE"
++
++    fun start(context: Context) {
++      val intent = Intent(context, DirectDownloadService::class.java)
++      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
++        context.startForegroundService(intent)
++      } else {
++        context.startService(intent)
++      }
++    }
++  }
++}
+diff --git a/app/src/main/java/com/quantummpv/app/domain/download/DownloadLocations.kt b/app/src/main/java/com/quantummpv/app/domain/download/DownloadLocations.kt
+new file mode 100644
+index 00000000..c98c68a5
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/domain/download/DownloadLocations.kt
+@@ -0,0 +1,116 @@
++/*
++ * SPDX-License-Identifier: AGPL-3.0-or-later
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Affero General Public License as published
++ * by the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ */
++
++package com.quantummpv.app.domain.download
++
++import android.content.Context
++import android.net.Uri
++import android.provider.DocumentsContract
++import com.quantummpv.app.preferences.DownloadPreferences
++import java.io.File
++
++/**
++ * Resolves where downloads are written.
++ *
++ * The user picks a public folder with the system SAF picker; the tree URI is resolved to a real
++ * filesystem path (the app ships with broad storage access for its file browser) so the download
++ * engine, mpv and the sidecar-subtitle autoload all work on plain files. When no folder is picked
++ * or resolution fails, downloads land in the app-private external files dir.
++ */
++class DownloadLocations(
++  private val context: Context,
++  private val preferences: DownloadPreferences,
++) {
++  /** Root directory downloads are written under, created on demand. */
++  fun root(): File {
++    val configured = resolveConfiguredRoot()
++    val dir = configured ?: defaultRoot()
++    if (!dir.exists()) dir.mkdirs()
++    return dir
++  }
++
++  fun defaultRoot(): File = File(context.getExternalFilesDir(null), "Downloads")
++
++  fun isUsingCustomLocation(): Boolean = resolveConfiguredRoot() != null
++
++  /** Persist a picked SAF tree; returns the resolved path or null when unusable. */
++  fun setLocationFromTree(treeUri: Uri): String? {
++    val path = resolveTreeUriToPath(treeUri) ?: return null
++    val dir = File(path)
++    if (!dir.isDirectory || !dir.canWrite()) return null
++    preferences.downloadLocationTreeUri.set(treeUri.toString())
++    preferences.downloadLocationPath.set(path)
++    return path
++  }
++
++  fun clearCustomLocation() {
++    preferences.downloadLocationTreeUri.set("")
++    preferences.downloadLocationPath.set("")
++  }
++
++  fun linksDir(): File = subDir(root(), "Links")
++
++  fun jellyfinMovieDir(title: String): File = subDir(subDir(root(), "Jellyfin"), sanitizeName(title))
++
++  fun jellyfinSeasonDir(
++    seriesName: String,
++    seasonNumber: Int?,
++  ): File {
++    val seriesDir = subDir(subDir(root(), "Jellyfin"), sanitizeName(seriesName))
++    return if (seasonNumber != null) subDir(seriesDir, "Season %02d".format(seasonNumber)) else seriesDir
++  }
++
++  private fun subDir(
++    parent: File,
++    name: String,
++  ): File = File(parent, name).apply { if (!exists()) mkdirs() }
++
++  private fun resolveConfiguredRoot(): File? {
++    val cachedPath = preferences.downloadLocationPath.get()
++    if (cachedPath.isNotBlank()) {
++      val dir = File(cachedPath)
++      if (dir.isDirectory && dir.canWrite()) return dir
++    }
++    val treeUri = preferences.downloadLocationTreeUri.get()
++    if (treeUri.isBlank()) return null
++    val resolved = resolveTreeUriToPath(Uri.parse(treeUri)) ?: return null
++    val dir = File(resolved)
++    if (!dir.isDirectory || !dir.canWrite()) return null
++    preferences.downloadLocationPath.set(resolved)
++    return dir
++  }
++
++  private fun resolveTreeUriToPath(treeUri: Uri): String? =
++    runCatching {
++      val docId = DocumentsContract.getTreeDocumentId(treeUri)
++      val volume = docId.substringBefore(':')
++      val relativePath = docId.substringAfter(':', "")
++      val candidates =
++        if (volume.equals("primary", ignoreCase = true)) {
++          listOf("/storage/emulated/0")
++        } else {
++          listOf("/storage/$volume", "/mnt/media_rw/$volume")
++        }
++      candidates
++        .map { base -> if (relativePath.isBlank()) base else "$base/$relativePath" }
++        .firstOrNull { File(it).isDirectory }
++    }.getOrNull()
++
++  companion object {
++    /** Strips characters that are invalid in filenames across Android filesystems. */
++    fun sanitizeName(name: String): String =
++      name
++        .replace(Regex("[\\\\/:*?\"<>|\\x00-\\x1f]"), " ")
++        .replace(Regex("\\s+"), " ")
++        .trim()
++        .trimEnd('.')
++        .take(120)
++        .ifBlank { "download" }
++  }
++}
+diff --git a/app/src/main/java/com/quantummpv/app/domain/download/DownloadTypes.kt b/app/src/main/java/com/quantummpv/app/domain/download/DownloadTypes.kt
+new file mode 100644
+index 00000000..81d9a3d8
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/domain/download/DownloadTypes.kt
+@@ -0,0 +1,71 @@
++/*
++ * SPDX-License-Identifier: AGPL-3.0-or-later
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Affero General Public License as published
++ * by the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ */
++
++package com.quantummpv.app.domain.download
++
++import com.quantummpv.app.database.entities.DownloadItemEntity
++import java.io.File
++
++enum class AppDownloadStatus {
++  QUEUED,
++  RUNNING,
++  SUCCESS,
++  FAILED,
++  CANCELLED,
++  ;
++
++  companion object {
++    fun from(raw: String): AppDownloadStatus = entries.firstOrNull { it.name == raw } ?: QUEUED
++  }
++}
++
++/** Where a queued download originated from. */
++object DownloadSources {
++  const val LINK = "link"
++  const val JELLYFIN = "jellyfin"
++}
++
++/** Metadata captured when queueing, persisted onto the registry row. */
++data class DownloadMetadata(
++  val source: String = DownloadSources.LINK,
++  val title: String = "",
++  val posterUrl: String? = null,
++  /** Canonical URL the user downloaded from (stream page or direct link). */
++  val sourceUrl: String? = null,
++  val jellyfinServerId: String? = null,
++  val jellyfinItemId: String? = null,
++  val jellyfinSeriesName: String? = null,
++  val seasonNumber: Int? = null,
++  val episodeNumber: Int? = null,
++  val isAudio: Boolean = false,
++)
++
++/** A registry row with typed status and file helpers, consumed by the UI. */
++data class AppDownload(
++  val entity: DownloadItemEntity,
++) {
++  val id: Long get() = entity.id
++  val status: AppDownloadStatus get() = AppDownloadStatus.from(entity.status)
++
++  val displayTitle: String
++    get() = entity.title.ifBlank { entity.fileName }
++
++  val file: File
++    get() = File(entity.dirPath, entity.fileName)
++
++  val isCompleted: Boolean
++    get() = status == AppDownloadStatus.SUCCESS
++
++  val isActive: Boolean
++    get() = status == AppDownloadStatus.QUEUED || status == AppDownloadStatus.RUNNING
++
++  /** Completed and the file is still present on disk. */
++  val isPlayable: Boolean
++    get() = isCompleted && file.isFile
++}
+diff --git a/app/src/main/java/com/quantummpv/app/domain/download/LinkDownloadCoordinator.kt b/app/src/main/java/com/quantummpv/app/domain/download/LinkDownloadCoordinator.kt
+new file mode 100644
+index 00000000..0ea9b54f
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/domain/download/LinkDownloadCoordinator.kt
+@@ -0,0 +1,82 @@
++/*
++ * SPDX-License-Identifier: AGPL-3.0-or-later
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Affero General Public License as published
++ * by the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ */
++
++package com.quantummpv.app.domain.download
++
++import android.net.Uri
++import com.quantummpv.app.ui.player.ytdlp.YtdlpManager
++
++/**
++ * Routes a link download to the right engine: plain HTTP(S) files go through the
++ * queue-based engine, while HLS/DASH manifests and extractor sites (YouTube, ...)
++ * go through the bundled yt-dlp runtime which muxes segments into a single file.
++ */
++class LinkDownloadCoordinator(
++  private val downloadManager: AppDownloadManager,
++  private val ytdlpEngine: YtdlpDownloadEngine,
++) {
++  enum class Route { DIRECT, YTDLP, UNSUPPORTED }
++
++  fun routeFor(url: String): Route {
++    val uri = runCatching { Uri.parse(url) }.getOrNull() ?: return Route.UNSUPPORTED
++    val scheme = uri.scheme?.lowercase()
++    if (scheme != "http" && scheme != "https") return Route.UNSUPPORTED
++    val path = uri.path?.lowercase().orEmpty()
++    return when {
++      // Manifests play directly in mpv but need yt-dlp to be downloaded as one file.
++      path.endsWith(".m3u8") || path.endsWith(".mpd") -> Route.YTDLP
++      YtdlpManager.requiresYtdlp(url) -> Route.YTDLP
++      else -> Route.DIRECT
++    }
++  }
++
++  /** Queues the link; returns the chosen route or UNSUPPORTED when nothing was queued. */
++  fun enqueue(
++    url: String,
++    title: String?,
++  ): Route {
++    val route = routeFor(url)
++    val directory = downloadManager.locations.linksDir()
++    val displayTitle = title?.takeIf { it.isNotBlank() } ?: fileNameFromUrl(url).substringBeforeLast('.')
++
++    when (route) {
++      Route.DIRECT -> {
++        val fileName = fileNameFromUrl(url)
++        downloadManager.enqueueVideo(
++          url = url,
++          directory = directory,
++          fileName = fileName,
++          meta =
++            DownloadMetadata(
++              source = DownloadSources.LINK,
++              title = displayTitle,
++              sourceUrl = url,
++            ),
++        )
++      }
++      Route.YTDLP -> ytdlpEngine.enqueue(url = url, title = displayTitle, directory = directory)
++      Route.UNSUPPORTED -> {}
++    }
++    return route
++  }
++
++  companion object {
++    private val MEDIA_EXTENSION_REGEX = Regex("""\.[a-z0-9]{2,5}$""", RegexOption.IGNORE_CASE)
++
++    fun fileNameFromUrl(url: String): String {
++      val lastSegment =
++        runCatching { Uri.parse(url).lastPathSegment }
++          .getOrNull()
++          ?.takeIf { it.isNotBlank() }
++          ?: "download"
++      val sanitized = DownloadLocations.sanitizeName(Uri.decode(lastSegment))
++      return if (MEDIA_EXTENSION_REGEX.containsMatchIn(sanitized)) sanitized else "$sanitized.mp4"
++    }
++  }
++}
+diff --git a/app/src/main/java/com/quantummpv/app/domain/download/YtdlpDownloadEngine.kt b/app/src/main/java/com/quantummpv/app/domain/download/YtdlpDownloadEngine.kt
+new file mode 100644
+index 00000000..05d99c66
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/domain/download/YtdlpDownloadEngine.kt
+@@ -0,0 +1,301 @@
++/*
++ * SPDX-License-Identifier: AGPL-3.0-or-later
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Affero General Public License as published
++ * by the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ */
++
++package com.quantummpv.app.domain.download
++
++import android.content.Context
++import android.util.Log
++import com.quantummpv.app.network.AndroidCookieJar
++import com.quantummpv.app.preferences.YtdlPreferences
++import com.quantummpv.app.ui.player.ytdlp.YtdlpManager
++import kotlinx.coroutines.CancellationException
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.flow.MutableStateFlow
++import kotlinx.coroutines.flow.StateFlow
++import kotlinx.coroutines.flow.asStateFlow
++import kotlinx.coroutines.flow.update
++import kotlinx.coroutines.runInterruptible
++import kotlinx.coroutines.withContext
++import java.io.BufferedReader
++import java.io.File
++import java.io.InputStreamReader
++import java.util.concurrent.atomic.AtomicInteger
++
++/**
++ * Downloads HLS / extractor-backed links (YouTube, m3u8, ...) with the bundled yt-dlp
++ * runtime, which handles playlist resolution, segment downloading and AES-128 decryption.
++ * Jobs run one at a time inside [YtdlpDownloadService] so they survive backgrounding.
++ */
++class YtdlpDownloadEngine(
++  private val context: Context,
++  private val preferences: YtdlPreferences,
++) {
++  enum class JobState { QUEUED, RUNNING, SUCCESS, FAILED, CANCELLED }
++
++  data class Job(
++    val id: Int,
++    val url: String,
++    val title: String,
++    val directory: String,
++    val state: JobState = JobState.QUEUED,
++    val progressPercent: Float = 0f,
++    val detail: String = "",
++    val error: String? = null,
++    val outputFile: String? = null,
++  ) {
++    val isActive: Boolean get() = state == JobState.QUEUED || state == JobState.RUNNING
++  }
++
++  private val nextId = AtomicInteger(1)
++  private val _jobs = MutableStateFlow<List<Job>>(emptyList())
++  val jobs: StateFlow<List<Job>> = _jobs.asStateFlow()
++
++  @Volatile
++  private var activeProcess: Process? = null
++
++  @Volatile
++  private var activeJobId: Int = -1
++
++  @Volatile
++  private var cancelRequested = false
++
++  fun enqueue(
++    url: String,
++    title: String,
++    directory: File,
++  ): Int {
++    val id = nextId.getAndIncrement()
++    if (!directory.exists()) directory.mkdirs()
++    _jobs.update { current ->
++      current + Job(id = id, url = url, title = title, directory = directory.absolutePath)
++    }
++    YtdlpDownloadService.start(context)
++    return id
++  }
++
++  fun cancel(id: Int) {
++    _jobs.update { current ->
++      current.map { job ->
++        if (job.id == id && job.state == JobState.QUEUED) job.copy(state = JobState.CANCELLED) else job
++      }
++    }
++    if (activeJobId == id) {
++      cancelRequested = true
++      activeProcess?.destroyForcibly()
++    }
++  }
++
++  fun retry(id: Int) {
++    _jobs.update { current ->
++      current.map { job ->
++        if (job.id == id && (job.state == JobState.FAILED || job.state == JobState.CANCELLED)) {
++          job.copy(state = JobState.QUEUED, progressPercent = 0f, error = null, detail = "")
++        } else {
++          job
++        }
++      }
++    }
++    YtdlpDownloadService.start(context)
++  }
++
++  fun remove(id: Int) {
++    val job = _jobs.value.firstOrNull { it.id == id } ?: return
++    if (job.isActive) cancel(id)
++    _jobs.update { current -> current.filterNot { it.id == id } }
++  }
++
++  fun hasQueuedWork(): Boolean = _jobs.value.any { it.state == JobState.QUEUED }
++
++  /** Runs queued jobs sequentially until the queue drains. Called from the service. */
++  suspend fun drainQueue(onJobUpdate: (Job) -> Unit) {
++    while (true) {
++      val job = _jobs.value.firstOrNull { it.state == JobState.QUEUED } ?: return
++      updateJob(job.id) { it.copy(state = JobState.RUNNING) }
++      currentJob(job.id)?.let(onJobUpdate)
++      runJob(job.id, onJobUpdate)
++    }
++  }
++
++  private suspend fun runJob(
++    id: Int,
++    onJobUpdate: (Job) -> Unit,
++  ) {
++    val job = currentJob(id) ?: return
++    cancelRequested = false
++    activeJobId = id
++
++    val ready = YtdlpManager.ensureRuntimeInstalled(context)
++    if (!ready) {
++      updateJob(id) { it.copy(state = JobState.FAILED, error = "yt-dlp runtime is not installed") }
++      currentJob(id)?.let(onJobUpdate)
++      return
++    }
++
++    val outputTemplate = "${job.directory}/${DownloadLocations.sanitizeName(job.title)}.%(ext)s"
++    val command = buildCommand(job.url, outputTemplate)
++
++    val result =
++      withContext(Dispatchers.IO) {
++        runCatching {
++          val process = startProcess(command)
++          activeProcess = process
++          var destination: String? = null
++          BufferedReader(InputStreamReader(process.inputStream)).useLines { lines ->
++            lines.forEach { line ->
++              parseDestination(line)?.let { destination = it }
++              val progress = parseProgressLine(line)
++              if (progress != null) {
++                updateJob(id) { it.copy(progressPercent = progress.first, detail = progress.second) }
++                currentJob(id)?.let(onJobUpdate)
++              }
++            }
++          }
++          val exitCode = runInterruptible { process.waitFor() }
++          Pair(exitCode, destination)
++        }
++      }
++
++    activeProcess = null
++    activeJobId = -1
++
++    result
++      .onSuccess { (exitCode, destination) ->
++        when {
++          cancelRequested -> updateJob(id) { it.copy(state = JobState.CANCELLED, detail = "") }
++          exitCode == 0 -> {
++            val resolved = destination ?: findNewestOutput(job)
++            updateJob(id) {
++              it.copy(state = JobState.SUCCESS, progressPercent = 100f, detail = "", outputFile = resolved)
++            }
++          }
++          else ->
++            updateJob(id) {
++              it.copy(state = JobState.FAILED, error = "yt-dlp exited with code $exitCode")
++            }
++        }
++      }.onFailure { error ->
++        if (error is CancellationException) throw error
++        Log.e(TAG, "yt-dlp download failed", error)
++        updateJob(id) { it.copy(state = JobState.FAILED, error = error.message ?: "Unknown error") }
++      }
++    currentJob(id)?.let(onJobUpdate)
++  }
++
++  private fun buildCommand(
++    url: String,
++    outputTemplate: String,
++  ): List<String> =
++    buildList {
++      add(YtdlpManager.getExecutablePath(context))
++      add(File(YtdlpManager.getYtdlDir(context), "yt-dlp").absolutePath)
++      add("--ignore-config")
++      add("--no-playlist")
++      add("--newline")
++      add("--no-warnings")
++      add("--retries")
++      add("5")
++      add("--fragment-retries")
++      add("5")
++      add("--concurrent-fragments")
++      add("4")
++      add("-o")
++      add(outputTemplate)
++
++      preferences.customUserAgent.get().takeIf(String::isNotBlank)?.let { userAgent ->
++        add("--user-agent")
++        add(userAgent)
++      }
++      preferences.referer.get().takeIf(String::isNotBlank)?.let { referer ->
++        add("--referer")
++        add(referer)
++      }
++      preferences.proxy.get().takeIf(String::isNotBlank)?.let { proxy ->
++        add("--proxy")
++        add(proxy)
++      }
++      preferences.extractorArgs.get().takeIf(String::isNotBlank)?.let { extractorArgs ->
++        add("--extractor-args")
++        add(extractorArgs)
++      }
++      if (preferences.geoBypass.get()) add("--geo-bypass")
++
++      val cookiesFile =
++        preferences.cookiesFile.get().takeIf(String::isNotBlank)
++          ?.let(::File)
++          ?.takeIf(File::isFile)
++          ?: AndroidCookieJar.playbackCookieFile(context).takeIf(File::isFile)
++      cookiesFile?.let { file ->
++        add("--cookies")
++        add(file.absolutePath)
++      }
++
++      File(context.applicationInfo.nativeLibraryDir, "libqjs.so")
++        .takeIf(File::isFile)
++        ?.let { quickJs ->
++          add("--js-runtimes")
++          add("quickjs:${quickJs.absolutePath}")
++        }
++      add("--")
++      add(url)
++    }
++
++  private fun startProcess(command: List<String>): Process {
++    val processBuilder =
++      ProcessBuilder(command)
++        .directory(YtdlpManager.getYtdlDir(context))
++        .redirectErrorStream(true)
++    val env = processBuilder.environment()
++    val ytdlDir = YtdlpManager.getYtdlDir(context).absolutePath
++    val nativeLibDir = context.applicationInfo.nativeLibraryDir
++    env.remove("YTDL_SCRIPT")
++    env["YTDL_PYTHON"] = File(nativeLibDir, "libpython.so").absolutePath
++    env["PYTHONHOME"] = ytdlDir
++    env["PYTHONPATH"] = "$ytdlDir/python313.zip"
++    env["SSL_CERT_FILE"] = File(context.filesDir, "cacert.pem").absolutePath
++    env["LD_LIBRARY_PATH"] = nativeLibDir
++    return processBuilder.start()
++  }
++
++  private fun findNewestOutput(job: Job): String? {
++    val prefix = DownloadLocations.sanitizeName(job.title)
++    return File(job.directory)
++      .listFiles()
++      ?.filter { it.isFile && it.name.startsWith(prefix) && !it.name.endsWith(".part") && !it.name.endsWith(".ytdl") }
++      ?.maxByOrNull { it.lastModified() }
++      ?.absolutePath
++  }
++
++  private fun currentJob(id: Int): Job? = _jobs.value.firstOrNull { it.id == id }
++
++  private fun updateJob(
++    id: Int,
++    transform: (Job) -> Job,
++  ) {
++    _jobs.update { current -> current.map { if (it.id == id) transform(it) else it } }
++  }
++
++  companion object {
++    private const val TAG = "YtdlpDownloadEngine"
++
++    // Example: "[download]  42.3% of ~ 123.45MiB at 2.34MiB/s ETA 01:23"
++    private val PROGRESS_REGEX = Regex("""\[download]\s+([0-9.]+)%(.*)""")
++    private val DESTINATION_REGEX = Regex("""\[download] Destination: (.+)""")
++    private val ALREADY_DOWNLOADED_REGEX = Regex("""\[download] (.+) has already been downloaded""")
++
++    fun parseProgressLine(line: String): Pair<Float, String>? {
++      val match = PROGRESS_REGEX.find(line.trim()) ?: return null
++      val percent = match.groupValues[1].toFloatOrNull() ?: return null
++      return percent.coerceIn(0f, 100f) to match.groupValues[2].trim()
++    }
++
++    fun parseDestination(line: String): String? =
++      DESTINATION_REGEX.find(line.trim())?.groupValues?.get(1)?.trim()
++        ?: ALREADY_DOWNLOADED_REGEX.find(line.trim())?.groupValues?.get(1)?.trim()
++  }
++}
+diff --git a/app/src/main/java/com/quantummpv/app/domain/download/YtdlpDownloadService.kt b/app/src/main/java/com/quantummpv/app/domain/download/YtdlpDownloadService.kt
+new file mode 100644
+index 00000000..36c2d671
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/domain/download/YtdlpDownloadService.kt
+@@ -0,0 +1,145 @@
++/*
++ * SPDX-License-Identifier: AGPL-3.0-or-later
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Affero General Public License as published
++ * by the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ */
++
++package com.quantummpv.app.domain.download
++
++import android.app.NotificationChannel
++import android.app.NotificationManager
++import android.app.PendingIntent
++import android.app.Service
++import android.content.Context
++import android.content.Intent
++import android.content.pm.ServiceInfo
++import android.os.Build
++import android.os.IBinder
++import androidx.core.app.NotificationCompat
++import androidx.core.app.ServiceCompat
++import com.quantummpv.app.R
++import kotlinx.coroutines.CoroutineScope
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.Job
++import kotlinx.coroutines.SupervisorJob
++import kotlinx.coroutines.cancel
++import kotlinx.coroutines.launch
++import org.koin.android.ext.android.inject
++
++/**
++ * Foreground service that keeps yt-dlp subprocess downloads alive while the app is
++ * backgrounded. Runs the engine queue sequentially and mirrors progress into its
++ * foreground notification; stops itself when the queue drains.
++ */
++class YtdlpDownloadService : Service() {
++  private val engine: YtdlpDownloadEngine by inject()
++  private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
++  private var drainJob: Job? = null
++
++  override fun onBind(intent: Intent?): IBinder? = null
++
++  override fun onStartCommand(
++    intent: Intent?,
++    flags: Int,
++    startId: Int,
++  ): Int {
++    if (intent?.action == ACTION_CANCEL_ACTIVE) {
++      engine.jobs.value.firstOrNull { it.state == YtdlpDownloadEngine.JobState.RUNNING }?.let { engine.cancel(it.id) }
++    }
++    ensureChannel()
++    startAsForeground(buildNotification(null))
++    if (drainJob?.isActive != true) {
++      drainJob =
++        scope.launch {
++          engine.drainQueue { job -> notify(buildNotification(job)) }
++          stopSelf()
++        }
++    }
++    return START_NOT_STICKY
++  }
++
++  override fun onDestroy() {
++    scope.cancel()
++    super.onDestroy()
++  }
++
++  private fun startAsForeground(notification: android.app.Notification) {
++    val type =
++      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
++        ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
++      } else {
++        0
++      }
++    ServiceCompat.startForeground(this, NOTIFICATION_ID, notification, type)
++  }
++
++  private fun notify(notification: android.app.Notification) {
++    val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
++    manager.notify(NOTIFICATION_ID, notification)
++  }
++
++  private fun buildNotification(job: YtdlpDownloadEngine.Job?): android.app.Notification {
++    val queued = engine.jobs.value.count { it.state == YtdlpDownloadEngine.JobState.QUEUED }
++    val title = job?.title ?: getString(R.string.downloads_notification_channel)
++    val running = job?.state == YtdlpDownloadEngine.JobState.RUNNING
++    val progress = job?.progressPercent?.toInt() ?: 0
++    val text =
++      when {
++        running && job != null -> {
++          val queueSuffix = if (queued > 0) " (+$queued)" else ""
++          "$progress% ${job.detail}$queueSuffix".trim()
++        }
++        else -> getString(R.string.downloads_preparing)
++      }
++
++    val cancelIntent =
++      PendingIntent.getService(
++        this,
++        1,
++        Intent(this, YtdlpDownloadService::class.java).setAction(ACTION_CANCEL_ACTIVE),
++        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
++      )
++
++    return NotificationCompat
++      .Builder(this, CHANNEL_ID)
++      .setSmallIcon(android.R.drawable.stat_sys_download)
++      .setContentTitle(title)
++      .setContentText(text)
++      .setOnlyAlertOnce(true)
++      .setOngoing(true)
++      .setProgress(100, progress, !running || progress <= 0)
++      .addAction(0, getString(android.R.string.cancel), cancelIntent)
++      .build()
++  }
++
++  private fun ensureChannel() {
++    val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
++    if (manager.getNotificationChannel(CHANNEL_ID) == null) {
++      manager.createNotificationChannel(
++        NotificationChannel(
++          CHANNEL_ID,
++          getString(R.string.downloads_notification_channel),
++          NotificationManager.IMPORTANCE_LOW,
++        ).apply { description = getString(R.string.downloads_notification_channel_description) },
++      )
++    }
++  }
++
++  companion object {
++    private const val CHANNEL_ID = "ytdlp_downloads"
++    private const val NOTIFICATION_ID = 0x59D1
++    private const val ACTION_CANCEL_ACTIVE = "com.quantummpv.app.download.CANCEL_ACTIVE"
++
++    fun start(context: Context) {
++      val intent = Intent(context, YtdlpDownloadService::class.java)
++      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
++        context.startForegroundService(intent)
++      } else {
++        context.startService(intent)
++      }
++    }
++  }
++}
+diff --git a/app/src/main/java/com/quantummpv/app/preferences/DownloadPreferences.kt b/app/src/main/java/com/quantummpv/app/preferences/DownloadPreferences.kt
+new file mode 100644
+index 00000000..6a2ffa0e
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/preferences/DownloadPreferences.kt
+@@ -0,0 +1,22 @@
++/*
++ * SPDX-License-Identifier: AGPL-3.0-or-later
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Affero General Public License as published
++ * by the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ */
++
++package com.quantummpv.app.preferences
++
++import com.quantummpv.app.preferences.preference.PreferenceStore
++
++class DownloadPreferences(
++  preferenceStore: PreferenceStore,
++) {
++  /** Persisted SAF tree URI of the user-picked download folder; blank = app-private default. */
++  val downloadLocationTreeUri = preferenceStore.getString("download_location_tree_uri", "")
++
++  /** Resolved filesystem path of the picked folder, cached for display and fast reuse. */
++  val downloadLocationPath = preferenceStore.getString("download_location_path", "")
++}
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinCards.kt b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinCards.kt
+index 9dc565d9..0c81ca95 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinCards.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinCards.kt
+@@ -47,6 +47,7 @@ import androidx.compose.material3.Button
+ import androidx.compose.material3.ButtonDefaults
+ import androidx.compose.material3.Card
+ import androidx.compose.material3.CardDefaults
++import androidx.compose.material3.CircularProgressIndicator
+ import android.content.Intent
+ import android.net.Uri
+ import androidx.compose.ui.platform.LocalContext
+@@ -55,7 +56,6 @@ import androidx.compose.material3.FilledTonalIconButton
+ import androidx.compose.material3.FilterChip
+ import androidx.compose.material3.FilterChipDefaults
+ import androidx.compose.material3.IconButton
+-import androidx.compose.material3.LinearProgressIndicator
+ import androidx.compose.material3.MaterialTheme
+ import androidx.compose.material3.OutlinedButton
+ import androidx.compose.material3.Surface
+@@ -73,6 +73,7 @@ import androidx.compose.ui.draw.shadow
+ import androidx.compose.ui.graphics.Brush
+ import androidx.compose.ui.graphics.Color
+ import androidx.compose.ui.layout.ContentScale
++import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.text.AnnotatedString
+ import androidx.compose.ui.text.SpanStyle
+ import androidx.compose.ui.text.buildAnnotatedString
+@@ -82,15 +83,36 @@ import androidx.compose.ui.text.style.TextOverflow
+ import androidx.compose.ui.text.withStyle
+ import androidx.compose.ui.unit.dp
+ import androidx.compose.ui.unit.sp
++import com.quantummpv.app.R
+ import com.quantummpv.app.data.jellyfin.JellyfinClient
+ import com.quantummpv.app.domain.jellyfin.JellyfinItem
+ import com.quantummpv.app.domain.jellyfin.JellyfinServer
+ import com.quantummpv.app.presentation.components.RemoteImage
+ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
++import com.quantummpv.app.ui.theme.LocalDarkAppColorScheme
+ import kotlinx.coroutines.delay
+ import kotlin.math.roundToInt
+ 
++/** Watch-progress overlay drawn on top of artwork; uses the always-dark accent so the
++ * fill stays visible on the black track in light mode. */
++@Composable
++private fun WatchProgressOverlayBar(
++  progress: Float,
++  modifier: Modifier = Modifier,
++) {
++  Box(modifier = modifier.height(4.dp)) {
++    Box(modifier = Modifier.matchParentSize().background(Color.Black.copy(alpha = 0.6f)))
++    Box(
++      modifier =
++        Modifier
++          .fillMaxHeight()
++          .fillMaxWidth(progress.coerceIn(0f, 1f))
++          .background((LocalDarkAppColorScheme.current ?: MaterialTheme.colorScheme).primary),
++    )
++  }
++}
++
+ private fun buildStarSubtitle(
+   partsBeforeRating: List<String>,
+   communityRating: Double?,
+@@ -300,7 +322,8 @@ fun JellyfinHeroBanner(
+                 Text(
+                   text = badge,
+                   style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+-                  color = MaterialTheme.colorScheme.primary,
++                  // Always-dark accent: colorScheme.primary is too dark for the black scrim in light mode.
++                  color = (LocalDarkAppColorScheme.current ?: MaterialTheme.colorScheme).primary,
+                   modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                 )
+               }
+@@ -749,22 +772,13 @@ fun JellyfinResumeCard(
+ 
+       // Progress bar at bottom
+       if (item.progressPercent > 0.01f) {
+-        Box(
++        WatchProgressOverlayBar(
++          progress = item.progressPercent,
+           modifier =
+             Modifier
+               .fillMaxWidth()
+-              .align(Alignment.BottomCenter)
+-              .height(4.dp),
+-        ) {
+-          Box(modifier = Modifier.matchParentSize().background(Color.Black.copy(alpha = 0.6f)))
+-          Box(
+-            modifier =
+-              Modifier
+-                .fillMaxHeight()
+-                .fillMaxWidth(item.progressPercent.coerceIn(0f, 1f))
+-                .background(MaterialTheme.colorScheme.primary),
+-          )
+-        }
++              .align(Alignment.BottomCenter),
++        )
+       }
+     }
+ 
+@@ -825,6 +839,7 @@ fun JellyfinPosterCard(
+   cardWidth: androidx.compose.ui.unit.Dp? = null,
+   onLongClick: (() -> Unit)? = null,
+   isSelected: Boolean = false,
++  isDownloaded: Boolean = false,
+ ) {
+   val imageUrl =
+     remember(server.serverUrl, item.id, item.primaryImageTag, server.accessToken) {
+@@ -907,30 +922,26 @@ fun JellyfinPosterCard(
+           Text(
+             text = qBadge,
+             style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold),
+-            color = MaterialTheme.colorScheme.primary,
++            // Always-dark accent: colorScheme.primary is too dark for the black scrim in light mode.
++            color = (LocalDarkAppColorScheme.current ?: MaterialTheme.colorScheme).primary,
+             modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+           )
+         }
+       }
+ 
++      if (isDownloaded) {
++        DownloadedBadge(modifier = Modifier.align(Alignment.TopEnd).padding(6.dp))
++      }
++
+       // Progress bar if partially watched
+       if (item.progressPercent > 0.02f && !item.isPlayed) {
+-        Box(
++        WatchProgressOverlayBar(
++          progress = item.progressPercent,
+           modifier =
+             Modifier
+               .fillMaxWidth()
+-              .align(Alignment.BottomCenter)
+-              .height(4.dp),
+-        ) {
+-          Box(modifier = Modifier.matchParentSize().background(Color.Black.copy(alpha = 0.6f)))
+-          Box(
+-            modifier =
+-              Modifier
+-                .fillMaxHeight()
+-                .fillMaxWidth(item.progressPercent.coerceIn(0f, 1f))
+-                .background(MaterialTheme.colorScheme.primary),
+-          )
+-        }
++              .align(Alignment.BottomCenter),
++        )
+       }
+ 
+       // Selection / Played Check badge
+@@ -1390,6 +1401,8 @@ fun JellyfinEpisodeCard(
+   modifier: Modifier = Modifier,
+   onLongClick: (() -> Unit)? = null,
+   isSelected: Boolean = false,
++  downloadState: EpisodeDownloadState? = null,
++  onDownload: (() -> Unit)? = null,
+ ) {
+   val imageUrl =
+     remember(server.serverUrl, item.id, item.primaryImageTag, server.accessToken) {
+@@ -1457,22 +1470,13 @@ fun JellyfinEpisodeCard(
+ 
+         // Progress bar
+         if (item.progressPercent > 0.02f && !item.isPlayed) {
+-          Box(
++          WatchProgressOverlayBar(
++            progress = item.progressPercent,
+             modifier =
+               Modifier
+                 .fillMaxWidth()
+-                .align(Alignment.BottomCenter)
+-                .height(4.dp),
+-          ) {
+-            Box(modifier = Modifier.matchParentSize().background(Color.Black.copy(alpha = 0.6f)))
+-            Box(
+-              modifier =
+-                Modifier
+-                  .fillMaxHeight()
+-                  .fillMaxWidth(item.progressPercent.coerceIn(0f, 1f))
+-                  .background(MaterialTheme.colorScheme.primary),
+-            )
+-          }
++                .align(Alignment.BottomCenter),
++          )
+         }
+ 
+         if (isSelected) {
+@@ -1549,6 +1553,32 @@ fun JellyfinEpisodeCard(
+         }
+       }
+ 
++      when (downloadState) {
++        EpisodeDownloadState.NOT_DOWNLOADED ->
++          IconButton(onClick = { onDownload?.invoke() }) {
++            Icon(
++              imageVector = Icons.RoundedFilled.Download,
++              contentDescription = stringResource(R.string.downloads_download),
++              tint = MaterialTheme.colorScheme.onSurfaceVariant,
++              modifier = Modifier.size(22.dp),
++            )
++          }
++        EpisodeDownloadState.ACTIVE ->
++          Box(modifier = Modifier.size(40.dp), contentAlignment = Alignment.Center) {
++            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
++          }
++        EpisodeDownloadState.DOWNLOADED ->
++          Box(modifier = Modifier.size(40.dp), contentAlignment = Alignment.Center) {
++            Icon(
++              imageVector = Icons.RoundedFilled.CheckCircle,
++              contentDescription = stringResource(R.string.downloads_downloaded),
++              tint = MaterialTheme.colorScheme.primary,
++              modifier = Modifier.size(22.dp),
++            )
++          }
++        null -> {}
++      }
++
+       IconButton(onClick = onPlay) {
+         Icon(
+           imageVector = Icons.RoundedFilled.PlayArrow,
+@@ -1561,6 +1591,33 @@ fun JellyfinEpisodeCard(
+   }
+ }
+ 
++/** Download indicator shown at the trailing edge of an episode row. */
++enum class EpisodeDownloadState {
++  NOT_DOWNLOADED,
++  ACTIVE,
++  DOWNLOADED,
++}
++
++/** Small overlay badge marking items with a completed local download. */
++@Composable
++private fun DownloadedBadge(modifier: Modifier = Modifier) {
++  Surface(
++    shape = CircleShape,
++    color = Color.Black.copy(alpha = 0.7f),
++    modifier = modifier.size(20.dp),
++  ) {
++    Box(contentAlignment = Alignment.Center) {
++      Icon(
++        imageVector = Icons.RoundedFilled.Download,
++        contentDescription = null,
++        // Always-dark accent keeps the badge readable on the black scrim in light mode.
++        tint = (LocalDarkAppColorScheme.current ?: MaterialTheme.colorScheme).primary,
++        modifier = Modifier.size(13.dp),
++      )
++    }
++  }
++}
++
+ // ============================================================================
+ // List Item Card (List Mode in Browsing)
+ // ============================================================================
+@@ -1574,6 +1631,7 @@ fun JellyfinListItemCard(
+   modifier: Modifier = Modifier,
+   onLongClick: (() -> Unit)? = null,
+   isSelected: Boolean = false,
++  isDownloaded: Boolean = false,
+ ) {
+   val imageUrl =
+     remember(server.serverUrl, item.id, item.primaryImageTag, server.accessToken) {
+@@ -1646,22 +1704,17 @@ fun JellyfinListItemCard(
+         }
+ 
+         if (item.progressPercent > 0.02f && !item.isPlayed) {
+-          Box(
++          WatchProgressOverlayBar(
++            progress = item.progressPercent,
+             modifier =
+               Modifier
+                 .fillMaxWidth()
+-                .align(Alignment.BottomCenter)
+-                .height(4.dp),
+-          ) {
+-            Box(modifier = Modifier.matchParentSize().background(Color.Black.copy(alpha = 0.6f)))
+-            Box(
+-              modifier =
+-                Modifier
+-                  .fillMaxHeight()
+-                  .fillMaxWidth(item.progressPercent.coerceIn(0f, 1f))
+-                  .background(MaterialTheme.colorScheme.primary),
+-            )
+-          }
++                .align(Alignment.BottomCenter),
++          )
++        }
++
++        if (isDownloaded) {
++          DownloadedBadge(modifier = Modifier.align(Alignment.BottomEnd).padding(6.dp))
+         }
+ 
+         if (isSelected) {
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinContent.kt b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinContent.kt
+index f1c64e05..750f64b0 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinContent.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinContent.kt
+@@ -132,6 +132,16 @@ fun JellyfinContent(
+   val showQuickPlayFab by appearancePreferences.showQuickPlayFab.collectAsState()
+   val quickPlayFabDirect by appearancePreferences.quickPlayFabDirect.collectAsState()
+ 
++  val allDownloads by viewModel.downloads.collectAsState()
++  val downloadedItemIds =
++    remember(allDownloads) {
++      allDownloads.filter { it.isPlayable }.mapNotNull { it.entity.jellyfinItemId }.toSet()
++    }
++  val activeDownloadItemIds =
++    remember(allDownloads) {
++      allDownloads.filter { it.isActive }.mapNotNull { it.entity.jellyfinItemId }.toSet()
++    }
++
+   var isAddDialogOpen by remember { mutableStateOf(false) }
+   var serverToReauth by remember { mutableStateOf<JellyfinServer?>(null) }
+   var isManageServersOpen by rememberSaveable { mutableStateOf(false) }
+@@ -379,19 +389,24 @@ fun JellyfinContent(
+             { isSortDialogOpen = true }
+           } else null,
+           onSearchClick = { isSearching = true },
+-          onRequestClick = { isSeerrRequestsOpen = true },
++          // Seerr requests only surface on the untouched Jellyfin home page.
++          onRequestClick = if (uiState.openLibrary == null && uiState.selectedLibraryId == null) {
++            { isSeerrRequestsOpen = true }
++          } else {
++            null
++          },
+           onSettingsClick = {
+             backstack.add(com.quantummpv.app.ui.preferences.PreferencesScreen)
+           },
+           additionalActions = {
+             if (!selectionManager.isInSelectionMode) {
+               IconButton(
+-                onClick = { isManageServersOpen = true },
++                onClick = { backstack.add(com.quantummpv.app.ui.downloads.DownloadsScreen) },
+                 modifier = Modifier.padding(horizontal = 2.dp),
+               ) {
+                 Icon(
+-                  imageVector = Icons.RoundedFilled.BringYourOwnIp,
+-                  contentDescription = "Manage Servers",
++                  imageVector = Icons.RoundedFilled.Download,
++                  contentDescription = stringResource(R.string.downloads_open_downloads),
+                   modifier = Modifier.size(24.dp),
+                   tint = MaterialTheme.colorScheme.secondary,
+                 )
+@@ -766,6 +781,13 @@ fun JellyfinContent(
+                             },
+                             onLongClick = { selectionManager.handleLongClick(item) },
+                             isSelected = selectionManager.isSelected(item),
++                            downloadState =
++                              when {
++                                item.id in downloadedItemIds -> EpisodeDownloadState.DOWNLOADED
++                                item.id in activeDownloadItemIds -> EpisodeDownloadState.ACTIVE
++                                else -> EpisodeDownloadState.NOT_DOWNLOADED
++                              },
++                            onDownload = { viewModel.downloadItem(item) },
+                           )
+                         } else {
+                           JellyfinListItemCard(
+@@ -784,6 +806,7 @@ fun JellyfinContent(
+                             },
+                             onLongClick = { selectionManager.handleLongClick(item) },
+                             isSelected = selectionManager.isSelected(item),
++                            isDownloaded = item.id in downloadedItemIds,
+                           )
+                         }
+                       }
+@@ -866,6 +889,7 @@ fun JellyfinContent(
+                           },
+                           onLongClick = { selectionManager.handleLongClick(item) },
+                           isSelected = selectionManager.isSelected(item),
++                          isDownloaded = item.id in downloadedItemIds,
+                         )
+                       }
+                     }
+@@ -1049,8 +1073,9 @@ fun JellyfinContent(
+                 }
+               },
+             ) {
+-              val checkedProgress = if (isFabExpanded && !quickPlayFabDirect) 1f else 0f
+-              val imageVector by remember {
++              // The scope's animated checkedProgress drives the icon; a local val here
++              // shadowed it before, freezing the FAB on the play icon while expanded.
++              val imageVector by remember(quickPlayFabDirect) {
+                 derivedStateOf {
+                   if (checkedProgress > 0.5f && !quickPlayFabDirect) Icons.RoundedFilled.Close else Icons.RoundedFilled.PlayArrow
+                 }
+@@ -1126,6 +1151,11 @@ fun JellyfinContent(
+           viewModel.closeDetail()
+         }
+       },
++      onDownload = { itemToDownload -> viewModel.downloadItem(itemToDownload) },
++      onDownloadSeason = { viewModel.downloadSelectedSeason() },
++      onDownloadSeries = { viewModel.downloadWholeSeries() },
++      downloadedItemIds = downloadedItemIds,
++      activeDownloadItemIds = activeDownloadItemIds,
+     )
+   }
+ 
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinDetailSheet.kt b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinDetailSheet.kt
+index e8e8a691..397eed36 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinDetailSheet.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinDetailSheet.kt
+@@ -11,7 +11,12 @@ package com.quantummpv.app.ui.browser.jellyfin
+ 
+ import androidx.compose.animation.AnimatedVisibility
+ import androidx.compose.animation.animateContentSize
++import androidx.compose.animation.core.RepeatMode
++import androidx.compose.animation.core.animateFloat
+ import androidx.compose.animation.core.animateFloatAsState
++import androidx.compose.animation.core.infiniteRepeatable
++import androidx.compose.animation.core.rememberInfiniteTransition
++import androidx.compose.animation.core.tween
+ import androidx.compose.foundation.BorderStroke
+ import androidx.compose.foundation.background
+ import androidx.compose.foundation.clickable
+@@ -82,6 +87,8 @@ import androidx.compose.ui.unit.sp
+ import android.content.Intent
+ import android.net.Uri
+ import androidx.compose.ui.platform.LocalContext
++import androidx.compose.ui.res.stringResource
++import com.quantummpv.app.R
+ import com.quantummpv.app.data.jellyfin.JellyfinClient
+ import com.quantummpv.app.domain.jellyfin.JellyfinItem
+ import com.quantummpv.app.domain.jellyfin.JellyfinServer
+@@ -112,6 +119,11 @@ fun JellyfinDetailSheet(
+   onTogglePlayed: (JellyfinItem) -> Unit,
+   onItemClick: (JellyfinItem) -> Unit,
+   onDeleteItem: ((JellyfinItem) -> Unit)? = null,
++  onDownload: ((JellyfinItem) -> Unit)? = null,
++  onDownloadSeason: (() -> Unit)? = null,
++  onDownloadSeries: (() -> Unit)? = null,
++  downloadedItemIds: Set<String> = emptySet(),
++  activeDownloadItemIds: Set<String> = emptySet(),
+   sheetState: SheetState =
+     rememberBottomSheetState(
+       initialValue = SheetValue.Hidden,
+@@ -218,14 +230,7 @@ fun JellyfinDetailSheet(
+         }
+ 
+         if (isLoading) {
+-          Box(
+-            modifier = Modifier
+-              .fillMaxWidth()
+-              .height(150.dp),
+-            contentAlignment = Alignment.Center,
+-          ) {
+-            CircularProgressIndicator()
+-          }
++          GhostDetailSections()
+         } else {
+           // Albums section for Artist Sheet
+           if ((item.type == "MusicArtist" || item.type == "Artist" || item.type == "AlbumArtist") && seasons.isNotEmpty()) {
+@@ -614,18 +619,17 @@ fun JellyfinDetailSheet(
+           }
+         }
+ 
+-        // Action Buttons Row
+-        Row(
++        // Action Buttons: play on its own row, secondary icons below (one row was cramped)
++        Column(
+           modifier = Modifier.fillMaxWidth(),
+-          verticalAlignment = Alignment.CenterVertically,
+-          horizontalArrangement = Arrangement.spacedBy(10.dp),
++          verticalArrangement = Arrangement.spacedBy(10.dp),
+         ) {
+           // Play / Resume Button
+           Button(
+             onClick = { onPlay(item, false) },
+             shape = RoundedCornerShape(14.dp),
+             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+-            modifier = Modifier.weight(1f),
++            modifier = Modifier.fillMaxWidth(),
+             contentPadding = PaddingValues(vertical = 12.dp),
+           ) {
+             Icon(
+@@ -646,6 +650,11 @@ fun JellyfinDetailSheet(
+             )
+           }
+ 
++          Row(
++            modifier = Modifier.fillMaxWidth(),
++            verticalAlignment = Alignment.CenterVertically,
++            horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
++          ) {
+           // Trailer Button for Movies & Series
+           if (item.type == "Movie" || item.isSeries || item.type == "Series") {
+             FilledTonalIconButton(
+@@ -674,6 +683,65 @@ fun JellyfinDetailSheet(
+             }
+           }
+ 
++          // Download Button (movie: direct; series: season / all-seasons menu)
++          if (onDownload != null && (item.type == "Movie" || item.isSeries)) {
++            var isDownloadMenuOpen by remember { mutableStateOf(false) }
++            val isItemDownloaded = item.id in downloadedItemIds
++            val isItemDownloading = item.id in activeDownloadItemIds
++            Box {
++              FilledTonalIconButton(
++                onClick = {
++                  when {
++                    item.isSeries -> isDownloadMenuOpen = true
++                    isItemDownloaded || isItemDownloading -> {}
++                    else -> onDownload(item)
++                  }
++                },
++                shape = RoundedCornerShape(14.dp),
++                modifier = Modifier.size(48.dp),
++              ) {
++                when {
++                  isItemDownloading ->
++                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
++                  isItemDownloaded ->
++                    Icon(
++                      imageVector = Icons.RoundedFilled.CheckCircle,
++                      contentDescription = stringResource(R.string.downloads_downloaded),
++                      tint = MaterialTheme.colorScheme.primary,
++                      modifier = Modifier.size(22.dp),
++                    )
++                  else ->
++                    Icon(
++                      imageVector = Icons.RoundedFilled.Download,
++                      contentDescription = stringResource(R.string.downloads_download),
++                      tint = MaterialTheme.colorScheme.onSecondaryContainer,
++                      modifier = Modifier.size(22.dp),
++                    )
++                }
++              }
++
++              DropdownMenu(
++                expanded = isDownloadMenuOpen,
++                onDismissRequest = { isDownloadMenuOpen = false },
++              ) {
++                DropdownMenuItem(
++                  text = { Text(stringResource(R.string.downloads_download_season)) },
++                  onClick = {
++                    isDownloadMenuOpen = false
++                    onDownloadSeason?.invoke()
++                  },
++                )
++                DropdownMenuItem(
++                  text = { Text(stringResource(R.string.downloads_download_series)) },
++                  onClick = {
++                    isDownloadMenuOpen = false
++                    onDownloadSeries?.invoke()
++                  },
++                )
++              }
++            }
++          }
++
+           // Favorite Toggle Button
+           FilledTonalIconButton(
+             onClick = { onToggleFavorite(item) },
+@@ -749,6 +817,7 @@ fun JellyfinDetailSheet(
+               )
+             }
+           }
++          }
+         }
+ 
+         // Restart from Beginning option if in progress
+@@ -909,15 +978,7 @@ fun JellyfinDetailSheet(
+ 
+             // Episode List
+             if (isEpisodesLoading) {
+-              Box(
+-                modifier =
+-                  Modifier
+-                    .fillMaxWidth()
+-                    .height(100.dp),
+-                contentAlignment = Alignment.Center,
+-              ) {
+-                CircularProgressIndicator(modifier = Modifier.size(32.dp))
+-              }
++              GhostEpisodeRows()
+             } else {
+               Column(
+                 modifier = Modifier.fillMaxWidth(),
+@@ -928,6 +989,14 @@ fun JellyfinDetailSheet(
+                     item = episode,
+                     server = server,
+                     onPlay = { onPlay(episode, false) },
++                    downloadState =
++                      when {
++                        onDownload == null -> null
++                        episode.id in downloadedItemIds -> EpisodeDownloadState.DOWNLOADED
++                        episode.id in activeDownloadItemIds -> EpisodeDownloadState.ACTIVE
++                        else -> EpisodeDownloadState.NOT_DOWNLOADED
++                      },
++                    onDownload = { onDownload?.invoke(episode) },
+                   )
+                 }
+               }
+@@ -1039,3 +1108,70 @@ fun JellyfinDetailSheet(
+     }
+   }
+ }
++
++/** Pulsing placeholder block used while sheet sections stream in. */
++@Composable
++private fun GhostBlock(modifier: Modifier = Modifier) {
++  val transition = rememberInfiniteTransition(label = "ghost_pulse")
++  val alpha by transition.animateFloat(
++    initialValue = 0.35f,
++    targetValue = 0.8f,
++    animationSpec =
++      infiniteRepeatable(
++        animation = tween(durationMillis = 650),
++        repeatMode = RepeatMode.Reverse,
++      ),
++    label = "ghost_alpha",
++  )
++  Box(
++    modifier =
++      modifier.background(
++        MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = alpha),
++        RoundedCornerShape(10.dp),
++      ),
++  )
++}
++
++/** Skeleton for the episode list while a season's episodes load. */
++@Composable
++private fun GhostEpisodeRows(count: Int = 4) {
++  Column(
++    modifier = Modifier.fillMaxWidth(),
++    verticalArrangement = Arrangement.spacedBy(10.dp),
++  ) {
++    repeat(count) {
++      Row(
++        modifier = Modifier.fillMaxWidth(),
++        verticalAlignment = Alignment.CenterVertically,
++        horizontalArrangement = Arrangement.spacedBy(12.dp),
++      ) {
++        GhostBlock(Modifier.width(128.dp).height(72.dp))
++        Column(
++          modifier = Modifier.weight(1f),
++          verticalArrangement = Arrangement.spacedBy(8.dp),
++        ) {
++          GhostBlock(Modifier.fillMaxWidth(0.72f).height(14.dp))
++          GhostBlock(Modifier.fillMaxWidth(0.45f).height(12.dp))
++        }
++      }
++    }
++  }
++}
++
++/** Skeleton for the seasons/similar area while the full item detail loads. */
++@Composable
++private fun GhostDetailSections() {
++  Column(
++    modifier = Modifier.fillMaxWidth(),
++    verticalArrangement = Arrangement.spacedBy(14.dp),
++  ) {
++    GhostBlock(Modifier.width(160.dp).height(36.dp))
++    GhostEpisodeRows(count = 3)
++    GhostBlock(Modifier.width(140.dp).height(16.dp))
++    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
++      repeat(3) {
++        GhostBlock(Modifier.width(120.dp).height(180.dp))
++      }
++    }
++  }
++}
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinViewModel.kt b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinViewModel.kt
+index 7d252d6b..3fc962a5 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinViewModel.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinViewModel.kt
+@@ -20,6 +20,10 @@ import androidx.lifecycle.viewmodel.initializer
+ import androidx.lifecycle.viewmodel.viewModelFactory
+ import com.quantummpv.app.data.jellyfin.JellyfinClient
+ import com.quantummpv.app.database.entities.PlaybackStateEntity
++import com.quantummpv.app.domain.download.AppDownloadManager
++import com.quantummpv.app.domain.download.DownloadLocations
++import com.quantummpv.app.domain.download.DownloadMetadata
++import com.quantummpv.app.domain.download.DownloadSources
+ import com.quantummpv.app.domain.jellyfin.JellyfinAuthMode
+ import com.quantummpv.app.domain.jellyfin.JellyfinItem
+ import com.quantummpv.app.domain.jellyfin.JellyfinSearchCategory
+@@ -123,6 +127,7 @@ class JellyfinViewModel(
+   private val playbackStateRepository: PlaybackStateRepository by inject()
+   private val subtitlesPreferences: SubtitlesPreferences by inject()
+   private val audioPreferences: AudioPreferences by inject()
++  private val downloadManager: AppDownloadManager by inject()
+ 
+   private var loadDashboardJob: Job? = null
+   private var loadItemsJob: Job? = null
+@@ -1113,6 +1118,165 @@ class JellyfinViewModel(
+     }
+   }
+ 
++  // ── Downloads ─────────────────────────────────────────────────────────────
++
++  /** Engine download list, exposed for per-item badges and indicators. */
++  val downloads get() = downloadManager.downloads
++
++  fun downloadItem(item: JellyfinItem) {
++    val server = _uiState.value.activeServer ?: return
++    viewModelScope.launch(Dispatchers.IO) {
++      val queued = enqueueJellyfinDownload(server, item)
++      showDownloadToast(
++        if (queued) {
++          getApplication<Application>().getString(com.quantummpv.app.R.string.downloads_started)
++        } else {
++          getApplication<Application>().getString(com.quantummpv.app.R.string.downloads_already_downloaded)
++        },
++      )
++    }
++  }
++
++  /** Downloads every episode of the currently selected detail season. */
++  fun downloadSelectedSeason() {
++    val server = _uiState.value.activeServer ?: return
++    val episodes = _uiState.value.detailEpisodes.filter { it.type == "Episode" }
++    if (episodes.isEmpty()) return
++    viewModelScope.launch(Dispatchers.IO) {
++      var queued = 0
++      episodes.forEach { episode ->
++        if (enqueueJellyfinDownload(server, episode)) queued++
++      }
++      showDownloadToast(
++        getApplication<Application>().getString(com.quantummpv.app.R.string.downloads_episodes_queued, queued),
++      )
++    }
++  }
++
++  /** Downloads every episode of every season of the detail series. */
++  fun downloadWholeSeries() {
++    val server = _uiState.value.activeServer ?: return
++    val series = _uiState.value.detailItem?.takeIf { it.isSeries } ?: return
++    val seasons = _uiState.value.detailSeasons
++    if (seasons.isEmpty()) return
++    viewModelScope.launch(Dispatchers.IO) {
++      var queued = 0
++      seasons.forEach { season ->
++        val episodes =
++          jellyfinRepository
++            .getEpisodes(server, series.id, season.id)
++            .getOrDefault(emptyList())
++            .filter { it.type == "Episode" }
++        episodes.forEach { episode ->
++          if (enqueueJellyfinDownload(server, episode)) queued++
++        }
++      }
++      showDownloadToast(
++        getApplication<Application>().getString(com.quantummpv.app.R.string.downloads_episodes_queued, queued),
++      )
++    }
++  }
++
++  /**
++   * Resolves the direct stream URL plus external subtitle tracks and queues them.
++   * Subtitles are saved as sidecars with the video's basename so local playback
++   * (and the player's sibling-subtitle autoload) picks them up automatically.
++   */
++  private suspend fun enqueueJellyfinDownload(
++    server: JellyfinServer,
++    item: JellyfinItem,
++  ): Boolean {
++    if (downloadManager.entryForJellyfinItem(item.id) != null) return false
++
++    val streamUrl = jellyfinRepository.getStreamUrl(server, item)
++    if (streamUrl.isBlank()) return false
++    val subtitleTracks =
++      jellyfinRepository
++        .getSubtitleTracks(server = server, itemId = item.id)
++        .getOrDefault(emptyList())
++
++    val extension =
++      item.container
++        ?.substringBefore(',')
++        ?.trim()
++        ?.lowercase()
++        ?.takeIf { it.isNotBlank() && it.length <= 5 }
++        ?: "mkv"
++
++    val locations = downloadManager.locations
++    val isEpisode = item.type == "Episode"
++    val directory: java.io.File
++    val fileName: String
++    val displayTitle: String
++    if (isEpisode) {
++      val seriesName = item.seriesName ?: item.name
++      val episodeCode = "S%02dE%02d".format(item.parentIndexNumber ?: 1, item.indexNumber ?: 0)
++      directory = locations.jellyfinSeasonDir(seriesName, item.parentIndexNumber)
++      fileName = "${DownloadLocations.sanitizeName("$episodeCode - ${item.name}")}.$extension"
++      displayTitle = "$seriesName $episodeCode - ${item.name}"
++    } else {
++      val titleWithYear = item.name + (item.productionYear?.let { " ($it)" } ?: "")
++      directory = locations.jellyfinMovieDir(titleWithYear)
++      fileName = "${DownloadLocations.sanitizeName(titleWithYear)}.$extension"
++      displayTitle = titleWithYear
++    }
++
++    val meta =
++      DownloadMetadata(
++        source = DownloadSources.JELLYFIN,
++        title = displayTitle,
++        posterUrl = jellyfinRepository.getImageUrl(server, item),
++        sourceUrl = streamUrl,
++        jellyfinServerId = server.id.toString(),
++        jellyfinItemId = item.id,
++        jellyfinSeriesName = item.seriesName,
++        seasonNumber = item.parentIndexNumber,
++        episodeNumber = item.indexNumber,
++        isAudio = item.isAudio,
++      )
++
++    downloadManager.enqueueVideo(
++      url = streamUrl,
++      directory = directory,
++      fileName = fileName,
++      meta = meta,
++      // Belt and braces for reverse proxies that strip query-string auth.
++      headers = mapOf("X-Emby-Token" to server.accessToken),
++    )
++    downloadManager.enqueueSubtitleSidecars(directory = directory, videoFileName = fileName, tracks = subtitleTracks)
++    return true
++  }
++
++  /** Plays a completed local copy with its sidecar subtitles; true when handled. */
++  private fun playLocalCopyIfAvailable(
++    context: Context,
++    item: JellyfinItem,
++    title: String,
++    posterUrl: String?,
++    backdropUrl: String?,
++  ): Boolean {
++    val download = downloadManager.playableForJellyfinItem(item.id) ?: return false
++    MediaUtils.playFile(
++      source = download.file.absolutePath,
++      context = context,
++      launchSource = "jellyfin_download",
++      title = title,
++      subtitles = downloadManager.sidecarSubtitles(download).map { Uri.fromFile(it) },
++      posterUrl = posterUrl,
++      backdropUrl = backdropUrl,
++      isAudio = item.isAudio,
++    )
++    return true
++  }
++
++  private suspend fun showDownloadToast(message: String) {
++    withContext(Dispatchers.Main) {
++      android.widget.Toast
++        .makeText(getApplication(), message, android.widget.Toast.LENGTH_SHORT)
++        .show()
++    }
++  }
++
+   fun toggleItemFavorite(item: JellyfinItem) {
+     val server = _uiState.value.activeServer ?: return
+     val newFavoriteState = !item.isFavorite
+@@ -1279,6 +1443,31 @@ class JellyfinViewModel(
+           else -> targetItem.name
+         }
+ 
++      // Offline-first: a completed download plays locally with its sidecar subtitles.
++      if (!isAudio) {
++        val localDownload = downloadManager.playableForJellyfinItem(targetItem.id)
++        if (localDownload != null) {
++          if (startFromBeginning) {
++            runCatching {
++              playbackStateRepository.deleteByTitle(PlaybackIdentity.forUri(localDownload.file.absolutePath))
++              playbackStateRepository.deleteByTitle(
++                PlaybackIdentity.forUri(Uri.fromFile(localDownload.file).toString()),
++              )
++            }
++          }
++          withContext(Dispatchers.Main) {
++            playLocalCopyIfAvailable(
++              context = context,
++              item = targetItem,
++              title = itemTitle,
++              posterUrl = posterUrl,
++              backdropUrl = backdropUrl,
++            )
++          }
++          return@launch
++        }
++      }
++
+       if (startFromBeginning) {
+         runCatching {
+           playbackStateRepository.deleteByTitle(mediaIdentifier)
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/networkstreaming/NetworkStreamingScreen.kt b/app/src/main/java/com/quantummpv/app/ui/browser/networkstreaming/NetworkStreamingScreen.kt
+index 8f014220..3029885d 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/networkstreaming/NetworkStreamingScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/networkstreaming/NetworkStreamingScreen.kt
+@@ -149,6 +149,7 @@ object NetworkStreamingScreen : Screen {
+     val ytdlPreferences = koinInject<YtdlPreferences>()
+     val bookmarkPreferences = koinInject<NetworkBookmarkPreferences>()
+     val wyzieSearchRepository = koinInject<WyzieSearchRepository>()
++    val linkDownloadCoordinator = koinInject<com.quantummpv.app.domain.download.LinkDownloadCoordinator>()
+     val torrentPickerViewModel: TorrentSelectionViewModel =
+       viewModel(
+         key = "network_torrent_picker",
+@@ -370,6 +371,19 @@ object NetworkStreamingScreen : Screen {
+                 onSelectAll = null,
+                 onInvertSelection = null,
+                 onDeselectAll = null,
++                additionalActions = {
++                  IconButton(
++                    onClick = { backstack.add(com.quantummpv.app.ui.downloads.DownloadsScreen) },
++                    modifier = Modifier.padding(horizontal = 2.dp),
++                  ) {
++                    Icon(
++                      imageVector = Icons.RoundedFilled.Download,
++                      contentDescription = stringResource(R.string.downloads_open_downloads),
++                      modifier = Modifier.size(24.dp),
++                      tint = MaterialTheme.colorScheme.secondary,
++                    )
++                  }
++                },
+               )
+             }
+           }
+@@ -477,7 +491,16 @@ object NetworkStreamingScreen : Screen {
+                     showTorrentPicker = true
+                     torrentPickerViewModel.open(TorrentSelectionInput(source = playableSource, title = entry.fileName))
+                   } else {
+-                    viewModel.saveLinkToMedia(entry.canonicalSourceUri, entry.fileName)
++                    when (linkDownloadCoordinator.enqueue(playableSource, entry.fileName)) {
++                      com.quantummpv.app.domain.download.LinkDownloadCoordinator.Route.UNSUPPORTED ->
++                        android.widget.Toast
++                          .makeText(context, R.string.downloads_location_invalid, android.widget.Toast.LENGTH_SHORT)
++                          .show()
++                      else ->
++                        android.widget.Toast
++                          .makeText(context, R.string.downloads_started, android.widget.Toast.LENGTH_SHORT)
++                          .show()
++                    }
+                   }
+                 },
+                 onDeleteRecent = viewModel::deleteStreamEntry,
+@@ -1235,8 +1258,8 @@ private fun StreamLinkSection(
+                 modifier = Modifier.size(32.dp),
+               ) {
+                 Icon(
+-                  imageVector = Icons.RoundedFilled.CloudDownload,
+-                  contentDescription = "Save to Torrent Sheet",
++                  imageVector = Icons.RoundedFilled.Download,
++                  contentDescription = stringResource(R.string.downloads_download),
+                   tint = MaterialTheme.colorScheme.secondary,
+                   modifier = Modifier.size(18.dp),
+                 )
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/sheets/PlayLinkSheet.kt b/app/src/main/java/com/quantummpv/app/ui/browser/sheets/PlayLinkSheet.kt
+index fd935d78..707ff49f 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/sheets/PlayLinkSheet.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/sheets/PlayLinkSheet.kt
+@@ -27,6 +27,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
+ import androidx.compose.material3.Icon
+ import androidx.compose.material3.MaterialTheme
+ import androidx.compose.material3.ModalBottomSheet
++import androidx.compose.material3.OutlinedButton
+ import androidx.compose.material3.OutlinedTextField
+ import androidx.compose.material3.SheetValue
+ import androidx.compose.material3.Text
+@@ -234,6 +235,40 @@ fun PlayLinkSheet(
+           )
+         }
+         Spacer(modifier = Modifier.width(8.dp))
++        val linkDownloadCoordinator = koinInject<com.quantummpv.app.domain.download.LinkDownloadCoordinator>()
++        OutlinedButton(
++          onClick = {
++            val url = normalizedInput
++            if (url.isNotBlank() && MediaUtils.isURLValid(url)) {
++              val playableSource = normalizeTorrentSource(url) ?: url
++              if (isTorrentSource(playableSource)) {
++                // Torrents download through the torrent flow.
++                onPlayLink(playableSource)
++              } else {
++                when (linkDownloadCoordinator.enqueue(playableSource, MediaInfoParser.parseStreamTitle(playableSource))) {
++                  com.quantummpv.app.domain.download.LinkDownloadCoordinator.Route.UNSUPPORTED ->
++                    android.widget.Toast
++                      .makeText(context, com.quantummpv.app.R.string.downloads_location_invalid, android.widget.Toast.LENGTH_SHORT)
++                      .show()
++                  else ->
++                    android.widget.Toast
++                      .makeText(context, com.quantummpv.app.R.string.downloads_started, android.widget.Toast.LENGTH_SHORT)
++                      .show()
++                }
++              }
++              onDismiss()
++            }
++          },
++          enabled = linkInputUrl.isNotBlank() && isLinkInputUrlValid && !isSubmitting,
++        ) {
++          Text(
++            text =
++              androidx.compose.ui.res
++                .stringResource(com.quantummpv.app.R.string.downloads_download),
++            fontWeight = FontWeight.Medium,
++          )
++        }
++        Spacer(modifier = Modifier.width(8.dp))
+         Button(
+           onClick = handleConfirm,
+           enabled = linkInputUrl.isNotBlank() && isLinkInputUrlValid && !isSubmitting,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/components/InlineSearchBar.kt b/app/src/main/java/com/quantummpv/app/ui/components/InlineSearchBar.kt
+index 24f0d7d5..72855dd6 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/components/InlineSearchBar.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/components/InlineSearchBar.kt
+@@ -13,25 +13,24 @@ import androidx.compose.foundation.layout.WindowInsets
+ import androidx.compose.foundation.layout.fillMaxWidth
+ import androidx.compose.foundation.layout.padding
+ import androidx.compose.foundation.layout.windowInsetsPadding
+-import androidx.compose.foundation.text.KeyboardOptions
+-import androidx.compose.foundation.text.input.TextFieldLineLimits
+-import androidx.compose.foundation.text.input.rememberTextFieldState
+-import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
++import androidx.compose.material3.ExperimentalMaterial3Api
++import androidx.compose.material3.SearchBar
+ import androidx.compose.material3.SearchBarDefaults
+-import androidx.compose.material3.Surface
+-import androidx.compose.material3.TextField
+ import androidx.compose.runtime.Composable
+-import androidx.compose.runtime.LaunchedEffect
+-import androidx.compose.runtime.getValue
+-import androidx.compose.runtime.rememberUpdatedState
+-import androidx.compose.runtime.snapshotFlow
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.graphics.Shape
+-import androidx.compose.ui.text.input.ImeAction
++import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+ import androidx.compose.ui.unit.Dp
+ import androidx.compose.ui.unit.dp
+-import kotlinx.coroutines.flow.collect
+ 
++/**
++ * Material 3 search bar used inline at the top of list screens.
++ *
++ * Wraps the M3 [SearchBar]/[SearchBarDefaults.InputField] pair in its collapsed state so
++ * every screen gets proper search semantics, the IME Search action (which submits and
++ * hides the keyboard) and standard M3 styling from a single component.
++ */
++@OptIn(ExperimentalMaterial3Api::class)
+ @Composable
+ fun InlineSearchBar(
+   query: String,
+@@ -47,46 +46,37 @@ fun InlineSearchBar(
+   shadowElevation: Dp = SearchBarDefaults.ShadowElevation,
+   windowInsets: WindowInsets = SearchBarDefaults.windowInsets,
+ ) {
+-  val textFieldState = rememberTextFieldState(query)
+-  val currentQuery by rememberUpdatedState(query)
+-  val currentOnQueryChange by rememberUpdatedState(onQueryChange)
+-
+-  LaunchedEffect(query, textFieldState) {
+-    if (textFieldState.text.toString() != query) {
+-      textFieldState.setTextAndPlaceCursorAtEnd(query)
+-    }
+-  }
+-  LaunchedEffect(textFieldState) {
+-    snapshotFlow { textFieldState.text.toString() }
+-      .collect { updatedQuery ->
+-        if (updatedQuery != currentQuery) currentOnQueryChange(updatedQuery)
+-      }
+-  }
++  val keyboardController = LocalSoftwareKeyboardController.current
+ 
+-  val colors = SearchBarDefaults.colors()
+-  Surface(
++  SearchBar(
++    inputField = {
++      SearchBarDefaults.InputField(
++        query = query,
++        onQueryChange = onQueryChange,
++        onSearch = { submitted ->
++          keyboardController?.hide()
++          onSearch(submitted)
++        },
++        expanded = false,
++        onExpandedChange = {},
++        modifier = inputFieldModifier.fillMaxWidth(),
++        placeholder = placeholder,
++        leadingIcon = leadingIcon,
++        trailingIcon = trailingIcon,
++      )
++    },
++    expanded = false,
++    onExpandedChange = {},
+     // M3 SearchBar applied status-bar insets by default; keep that plus breathing room so
+     // top-bar usages don't render under (or hug) the status bar / display cutout.
+-    modifier = Modifier
+-      .windowInsetsPadding(windowInsets)
+-      .padding(top = 12.dp)
+-      .then(modifier),
++    modifier =
++      Modifier
++        .windowInsetsPadding(windowInsets)
++        .then(modifier),
+     shape = shape,
+-    color = colors.containerColor,
+     tonalElevation = tonalElevation,
+     shadowElevation = shadowElevation,
+-  ) {
+-    TextField(
+-      state = textFieldState,
+-      modifier = inputFieldModifier.fillMaxWidth(),
+-      placeholder = placeholder,
+-      leadingIcon = leadingIcon,
+-      trailingIcon = trailingIcon,
+-      keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+-      onKeyboardAction = { onSearch(textFieldState.text.toString()) },
+-      lineLimits = TextFieldLineLimits.SingleLine,
+-      shape = shape,
+-      colors = colors.inputFieldColors,
+-    )
+-  }
++    windowInsets = WindowInsets(0.dp),
++    content = {},
++  )
+ }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/downloads/DownloadsScreen.kt b/app/src/main/java/com/quantummpv/app/ui/downloads/DownloadsScreen.kt
+new file mode 100644
+index 00000000..61f48edc
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/ui/downloads/DownloadsScreen.kt
+@@ -0,0 +1,539 @@
++/*
++ * SPDX-License-Identifier: AGPL-3.0-or-later
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Affero General Public License as published
++ * by the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ */
++
++package com.quantummpv.app.ui.downloads
++
++import android.Manifest
++import android.content.Intent
++import android.content.pm.PackageManager
++import android.net.Uri
++import android.os.Build
++import android.widget.Toast
++import androidx.activity.compose.rememberLauncherForActivityResult
++import androidx.activity.result.contract.ActivityResultContracts
++import androidx.compose.foundation.layout.Arrangement
++import androidx.compose.foundation.layout.Column
++import androidx.compose.foundation.layout.PaddingValues
++import androidx.compose.foundation.layout.Row
++import androidx.compose.foundation.layout.Spacer
++import androidx.compose.foundation.layout.fillMaxSize
++import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.layout.size
++import androidx.compose.foundation.layout.width
++import androidx.compose.foundation.lazy.LazyColumn
++import androidx.compose.foundation.lazy.items
++import androidx.compose.foundation.shape.RoundedCornerShape
++import androidx.compose.material3.AlertDialog
++import androidx.compose.material3.Card
++import androidx.compose.material3.CardDefaults
++import androidx.compose.material3.ExperimentalMaterial3Api
++import androidx.compose.material3.IconButton
++import androidx.compose.material3.LinearProgressIndicator
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.Scaffold
++import androidx.compose.material3.Text
++import androidx.compose.material3.TextButton
++import androidx.compose.material3.TopAppBar
++import androidx.compose.material3.TopAppBarDefaults
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.LaunchedEffect
++import androidx.compose.runtime.collectAsState
++import androidx.compose.runtime.getValue
++import androidx.compose.runtime.mutableStateOf
++import androidx.compose.runtime.remember
++import androidx.compose.runtime.setValue
++import androidx.compose.ui.Alignment
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.platform.LocalContext
++import androidx.compose.ui.res.stringResource
++import androidx.compose.ui.text.font.FontWeight
++import androidx.compose.ui.text.style.TextOverflow
++import androidx.compose.ui.unit.dp
++import androidx.core.content.ContextCompat
++import com.quantummpv.app.R
++import com.quantummpv.app.domain.download.AppDownload
++import com.quantummpv.app.domain.download.AppDownloadManager
++import com.quantummpv.app.domain.download.AppDownloadStatus
++import com.quantummpv.app.domain.download.YtdlpDownloadEngine
++import com.quantummpv.app.presentation.Screen
++import com.quantummpv.app.ui.browser.states.EmptyState
++import com.quantummpv.app.ui.icons.Icon
++import com.quantummpv.app.ui.icons.Icons
++import com.quantummpv.app.ui.utils.LocalBackStack
++import com.quantummpv.app.ui.utils.popSafely
++import com.quantummpv.app.utils.media.MediaUtils
++import kotlinx.serialization.Serializable
++import org.koin.compose.koinInject
++import java.io.File
++import java.util.Locale
++
++@Serializable
++object DownloadsScreen : Screen {
++  @OptIn(ExperimentalMaterial3Api::class)
++  @Composable
++  override fun Content() {
++    val context = LocalContext.current
++    val backStack = LocalBackStack.current
++    val downloadManager = koinInject<AppDownloadManager>()
++    val ytdlpEngine = koinInject<YtdlpDownloadEngine>()
++
++    val downloads by downloadManager.downloads.collectAsState()
++    val ytdlpJobs by ytdlpEngine.jobs.collectAsState()
++    val activeSnapshot by downloadManager.activeSnapshot.collectAsState()
++
++    // Progress notifications need POST_NOTIFICATIONS on Android 13+.
++    val notificationPermissionLauncher =
++      rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
++    LaunchedEffect(Unit) {
++      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
++        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
++        PackageManager.PERMISSION_GRANTED
++      ) {
++        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
++      }
++    }
++
++    val locationPicker =
++      rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
++        if (uri == null) return@rememberLauncherForActivityResult
++        runCatching {
++          context.contentResolver.takePersistableUriPermission(
++            uri,
++            Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
++          )
++        }
++        val resolved = downloadManager.locations.setLocationFromTree(uri)
++        if (resolved == null) {
++          Toast.makeText(context, R.string.downloads_location_invalid, Toast.LENGTH_LONG).show()
++        }
++      }
++
++    var pendingDelete by remember { mutableStateOf<AppDownload?>(null) }
++
++    val activeDownloads = downloads.filter { !it.isCompleted }
++    val completedDownloads = downloads.filter { it.isCompleted }
++    val activeYtdlp = ytdlpJobs.filter { it.state != YtdlpDownloadEngine.JobState.SUCCESS }
++    val completedYtdlp = ytdlpJobs.filter { it.state == YtdlpDownloadEngine.JobState.SUCCESS }
++
++    Scaffold(
++      topBar = {
++        TopAppBar(
++          title = {
++            Text(
++              text = stringResource(R.string.downloads_title),
++              style = MaterialTheme.typography.titleLarge,
++              fontWeight = FontWeight.Bold,
++            )
++          },
++          navigationIcon = {
++            IconButton(onClick = { backStack.popSafely() }) {
++              Icon(Icons.RoundedFilled.ArrowBack, contentDescription = stringResource(R.string.back))
++            }
++          },
++          colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
++        )
++      },
++    ) { padding ->
++      LazyColumn(
++        modifier = Modifier.fillMaxSize().padding(padding),
++        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
++        verticalArrangement = Arrangement.spacedBy(10.dp),
++      ) {
++        item(key = "location") {
++          DownloadLocationCard(
++            path = downloadManager.locations.root().absolutePath,
++            isCustom = downloadManager.locations.isUsingCustomLocation(),
++            onPick = { locationPicker.launch(null) },
++            onReset = { downloadManager.locations.clearCustomLocation() },
++          )
++        }
++
++        if (downloads.isEmpty() && ytdlpJobs.isEmpty()) {
++          item(key = "empty") {
++            EmptyState(
++              icon = Icons.RoundedFilled.FileDownload,
++              title = stringResource(R.string.downloads_empty),
++              message = stringResource(R.string.downloads_empty_hint),
++              modifier = Modifier.fillMaxWidth().padding(top = 48.dp),
++            )
++          }
++        }
++
++        if (activeDownloads.isNotEmpty() || activeYtdlp.isNotEmpty()) {
++          item(key = "active_header") { SectionHeader(stringResource(R.string.downloads_active_section)) }
++          items(activeYtdlp, key = { "ytdlp_${it.id}" }) { job ->
++            YtdlpJobRow(
++              job = job,
++              onCancel = { ytdlpEngine.cancel(job.id) },
++              onRetry = { ytdlpEngine.retry(job.id) },
++              onRemove = { ytdlpEngine.remove(job.id) },
++            )
++          }
++          items(activeDownloads, key = { "dl_${it.id}" }) { download ->
++            ActiveDownloadRow(
++              download = download,
++              speedBytesPerSec = activeSnapshot?.takeIf { it.id == download.id }?.speedBytesPerSec ?: 0L,
++              onRetry = { downloadManager.retry(download.id) },
++              onCancel = { downloadManager.remove(download, deleteFile = true) },
++            )
++          }
++        }
++
++        if (completedDownloads.isNotEmpty() || completedYtdlp.isNotEmpty()) {
++          item(key = "completed_header") { SectionHeader(stringResource(R.string.downloads_completed_section)) }
++          items(completedYtdlp, key = { "ytdlp_done_${it.id}" }) { job ->
++            CompletedRow(
++              title = job.title,
++              subtitle = job.outputFile?.let { File(it).name }.orEmpty(),
++              playable = job.outputFile?.let { File(it).isFile } == true,
++              onPlay = {
++                job.outputFile?.let { path ->
++                  MediaUtils.playFile(source = path, context = context, launchSource = "downloads", title = job.title)
++                }
++              },
++              onDelete = {
++                job.outputFile?.let { path -> runCatching { File(path).delete() } }
++                ytdlpEngine.remove(job.id)
++              },
++            )
++          }
++          items(completedDownloads, key = { "dl_done_${it.id}" }) { download ->
++            CompletedRow(
++              title = download.displayTitle,
++              subtitle = buildString {
++                append(download.entity.fileName)
++                if (download.entity.totalBytes > 0) {
++                  append("  •  ")
++                  append(formatBytes(download.entity.totalBytes))
++                }
++              },
++              playable = download.isPlayable,
++              onPlay = {
++                MediaUtils.playFile(
++                  source = download.file.absolutePath,
++                  context = context,
++                  launchSource = "downloads",
++                  title = download.displayTitle,
++                  subtitles = downloadManager.sidecarSubtitles(download).map { Uri.fromFile(it) },
++                  posterUrl = download.entity.posterUrl,
++                  isAudio = download.entity.isAudio,
++                )
++              },
++              onDelete = { pendingDelete = download },
++            )
++          }
++        }
++      }
++    }
++
++    pendingDelete?.let { download ->
++      AlertDialog(
++        onDismissRequest = { pendingDelete = null },
++        title = { Text(stringResource(R.string.downloads_delete_confirm_title)) },
++        text = { Text(stringResource(R.string.downloads_delete_confirm_message, download.displayTitle)) },
++        confirmButton = {
++          TextButton(
++            onClick = {
++              downloadManager.remove(download, deleteFile = true)
++              pendingDelete = null
++            },
++          ) { Text(stringResource(R.string.downloads_delete_file)) }
++        },
++        dismissButton = {
++          Row {
++            TextButton(
++              onClick = {
++                downloadManager.remove(download, deleteFile = false)
++                pendingDelete = null
++              },
++            ) { Text(stringResource(R.string.downloads_remove_entry)) }
++            TextButton(onClick = { pendingDelete = null }) { Text(stringResource(R.string.generic_cancel)) }
++          }
++        },
++      )
++    }
++  }
++}
++
++@Composable
++private fun SectionHeader(title: String) {
++  Text(
++    text = title,
++    style = MaterialTheme.typography.titleSmall,
++    color = MaterialTheme.colorScheme.primary,
++    fontWeight = FontWeight.Bold,
++    modifier = Modifier.padding(top = 8.dp, bottom = 2.dp),
++  )
++}
++
++@Composable
++private fun DownloadLocationCard(
++  path: String,
++  isCustom: Boolean,
++  onPick: () -> Unit,
++  onReset: () -> Unit,
++) {
++  Card(
++    shape = RoundedCornerShape(14.dp),
++    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
++  ) {
++    Row(
++      modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
++      verticalAlignment = Alignment.CenterVertically,
++    ) {
++      Icon(
++        Icons.RoundedFilled.Folder,
++        contentDescription = null,
++        tint = MaterialTheme.colorScheme.primary,
++        modifier = Modifier.size(22.dp),
++      )
++      Spacer(modifier = Modifier.width(10.dp))
++      Column(modifier = Modifier.weight(1f)) {
++        Text(
++          text = stringResource(R.string.downloads_location),
++          style = MaterialTheme.typography.labelMedium,
++          color = MaterialTheme.colorScheme.onSurfaceVariant,
++        )
++        Text(
++          text = if (isCustom) path else stringResource(R.string.downloads_location_default),
++          style = MaterialTheme.typography.bodySmall,
++          maxLines = 2,
++          overflow = TextOverflow.Ellipsis,
++        )
++      }
++      if (isCustom) {
++        IconButton(onClick = onReset) {
++          Icon(
++            Icons.RoundedFilled.Close,
++            contentDescription = stringResource(R.string.downloads_location_reset),
++            modifier = Modifier.size(20.dp),
++          )
++        }
++      }
++      IconButton(onClick = onPick) {
++        Icon(
++          Icons.RoundedFilled.Edit,
++          contentDescription = stringResource(R.string.downloads_location),
++          modifier = Modifier.size(20.dp),
++        )
++      }
++    }
++  }
++}
++
++@Composable
++private fun ActiveDownloadRow(
++  download: AppDownload,
++  speedBytesPerSec: Long,
++  onRetry: () -> Unit,
++  onCancel: () -> Unit,
++) {
++  val status = download.status
++  Card(
++    shape = RoundedCornerShape(14.dp),
++    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
++  ) {
++    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)) {
++      Row(verticalAlignment = Alignment.CenterVertically) {
++        Column(modifier = Modifier.weight(1f)) {
++          Text(
++            text = download.displayTitle,
++            style = MaterialTheme.typography.bodyMedium,
++            fontWeight = FontWeight.SemiBold,
++            maxLines = 1,
++            overflow = TextOverflow.Ellipsis,
++          )
++          Text(
++            text = downloadStatusLine(download, speedBytesPerSec),
++            style = MaterialTheme.typography.bodySmall,
++            color =
++              if (status == AppDownloadStatus.FAILED) {
++                MaterialTheme.colorScheme.error
++              } else {
++                MaterialTheme.colorScheme.onSurfaceVariant
++              },
++            maxLines = 1,
++            overflow = TextOverflow.Ellipsis,
++          )
++        }
++        if (status == AppDownloadStatus.FAILED || status == AppDownloadStatus.CANCELLED) {
++          IconButton(onClick = onRetry) {
++            Icon(Icons.RoundedFilled.Refresh, contentDescription = stringResource(R.string.downloads_retry))
++          }
++        }
++        IconButton(onClick = onCancel) {
++          Icon(Icons.RoundedFilled.Close, contentDescription = stringResource(R.string.downloads_cancel))
++        }
++      }
++      if (status == AppDownloadStatus.RUNNING || status == AppDownloadStatus.QUEUED) {
++        LinearProgressIndicator(
++          progress = { (download.entity.progress / 100f).coerceIn(0f, 1f) },
++          modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
++        )
++      }
++    }
++  }
++}
++
++@Composable
++private fun YtdlpJobRow(
++  job: YtdlpDownloadEngine.Job,
++  onCancel: () -> Unit,
++  onRetry: () -> Unit,
++  onRemove: () -> Unit,
++) {
++  Card(
++    shape = RoundedCornerShape(14.dp),
++    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
++  ) {
++    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)) {
++      Row(verticalAlignment = Alignment.CenterVertically) {
++        Column(modifier = Modifier.weight(1f)) {
++          Text(
++            text = job.title,
++            style = MaterialTheme.typography.bodyMedium,
++            fontWeight = FontWeight.SemiBold,
++            maxLines = 1,
++            overflow = TextOverflow.Ellipsis,
++          )
++          Text(
++            text = ytdlpStatusLine(job),
++            style = MaterialTheme.typography.bodySmall,
++            color =
++              if (job.state == YtdlpDownloadEngine.JobState.FAILED) {
++                MaterialTheme.colorScheme.error
++              } else {
++                MaterialTheme.colorScheme.onSurfaceVariant
++              },
++            maxLines = 1,
++            overflow = TextOverflow.Ellipsis,
++          )
++        }
++        when (job.state) {
++          YtdlpDownloadEngine.JobState.FAILED, YtdlpDownloadEngine.JobState.CANCELLED -> {
++            IconButton(onClick = onRetry) {
++              Icon(Icons.RoundedFilled.Refresh, contentDescription = stringResource(R.string.downloads_retry))
++            }
++            IconButton(onClick = onRemove) {
++              Icon(Icons.RoundedFilled.Close, contentDescription = stringResource(R.string.downloads_remove_entry))
++            }
++          }
++          else -> {
++            IconButton(onClick = onCancel) {
++              Icon(Icons.RoundedFilled.Close, contentDescription = stringResource(R.string.downloads_cancel))
++            }
++          }
++        }
++      }
++      if (job.state == YtdlpDownloadEngine.JobState.RUNNING) {
++        LinearProgressIndicator(
++          progress = { (job.progressPercent / 100f).coerceIn(0f, 1f) },
++          modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
++        )
++      }
++    }
++  }
++}
++
++@Composable
++private fun CompletedRow(
++  title: String,
++  subtitle: String,
++  playable: Boolean,
++  onPlay: () -> Unit,
++  onDelete: () -> Unit,
++) {
++  Card(
++    shape = RoundedCornerShape(14.dp),
++    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
++  ) {
++    Row(
++      modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
++      verticalAlignment = Alignment.CenterVertically,
++    ) {
++      Column(modifier = Modifier.weight(1f)) {
++        Text(
++          text = title,
++          style = MaterialTheme.typography.bodyMedium,
++          fontWeight = FontWeight.SemiBold,
++          maxLines = 1,
++          overflow = TextOverflow.Ellipsis,
++        )
++        if (subtitle.isNotBlank()) {
++          Text(
++            text = subtitle,
++            style = MaterialTheme.typography.bodySmall,
++            color = MaterialTheme.colorScheme.onSurfaceVariant,
++            maxLines = 1,
++            overflow = TextOverflow.Ellipsis,
++          )
++        }
++      }
++      if (playable) {
++        IconButton(onClick = onPlay) {
++          Icon(
++            Icons.RoundedFilled.PlayArrow,
++            contentDescription = stringResource(R.string.downloads_play),
++            tint = MaterialTheme.colorScheme.primary,
++          )
++        }
++      }
++      IconButton(onClick = onDelete) {
++        Icon(Icons.RoundedFilled.Delete, contentDescription = stringResource(R.string.downloads_delete_file))
++      }
++    }
++  }
++}
++
++@Composable
++private fun downloadStatusLine(
++  download: AppDownload,
++  speedBytesPerSec: Long = 0L,
++): String {
++  val entity = download.entity
++  return when (download.status) {
++    AppDownloadStatus.QUEUED -> stringResource(R.string.downloads_queued)
++    AppDownloadStatus.FAILED ->
++      stringResource(R.string.downloads_failed) +
++        entity.failureReason?.takeIf { it.isNotBlank() }?.let { ": $it" }.orEmpty()
++    AppDownloadStatus.CANCELLED -> stringResource(R.string.downloads_cancelled)
++    AppDownloadStatus.SUCCESS -> stringResource(R.string.downloads_downloaded)
++    AppDownloadStatus.RUNNING ->
++      buildString {
++        append("${entity.progress}%")
++        if (entity.totalBytes > 0) {
++          val downloadedBytes = entity.totalBytes * entity.progress / 100
++          append("  •  ${formatBytes(downloadedBytes)}/${formatBytes(entity.totalBytes)}")
++        }
++        if (speedBytesPerSec > 0) append("  •  ${formatBytes(speedBytesPerSec)}/s")
++      }
++  }
++}
++
++@Composable
++private fun ytdlpStatusLine(job: YtdlpDownloadEngine.Job): String =
++  when (job.state) {
++    YtdlpDownloadEngine.JobState.QUEUED -> stringResource(R.string.downloads_queued)
++    YtdlpDownloadEngine.JobState.RUNNING ->
++      "${"%.1f".format(Locale.US, job.progressPercent)}% ${job.detail}".trim()
++    YtdlpDownloadEngine.JobState.FAILED ->
++      stringResource(R.string.downloads_failed) + job.error?.let { ": $it" }.orEmpty()
++    YtdlpDownloadEngine.JobState.CANCELLED -> stringResource(R.string.downloads_cancelled)
++    YtdlpDownloadEngine.JobState.SUCCESS -> stringResource(R.string.downloads_downloaded)
++  }
++
++private fun formatBytes(bytes: Long): String {
++  if (bytes < 1024) return "$bytes B"
++  val kb = bytes / 1024.0
++  if (kb < 1024) return "%.0f KB".format(Locale.US, kb)
++  val mb = kb / 1024.0
++  if (mb < 1024) return "%.1f MB".format(Locale.US, mb)
++  return "%.2f GB".format(Locale.US, mb / 1024.0)
++}
+diff --git a/app/src/main/java/com/quantummpv/app/ui/editor/MpvHelpScreen.kt b/app/src/main/java/com/quantummpv/app/ui/editor/MpvHelpScreen.kt
+index 153345e5..aaa9a8f1 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/editor/MpvHelpScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/editor/MpvHelpScreen.kt
+@@ -32,16 +32,12 @@ import androidx.compose.foundation.lazy.itemsIndexed
+ import androidx.compose.foundation.lazy.rememberLazyListState
+ import androidx.compose.foundation.rememberScrollState
+ import androidx.compose.foundation.shape.RoundedCornerShape
+-import androidx.compose.foundation.text.KeyboardActions
+-import androidx.compose.foundation.text.KeyboardOptions
+ import androidx.compose.material3.ExperimentalMaterial3Api
+ import androidx.compose.material3.FilterChip
+ import androidx.compose.material3.FilterChipDefaults
+ import androidx.compose.material3.HorizontalDivider
+ import androidx.compose.material3.IconButton
+ import androidx.compose.material3.MaterialTheme
+-import androidx.compose.material3.OutlinedTextField
+-import androidx.compose.material3.OutlinedTextFieldDefaults
+ import androidx.compose.material3.Scaffold
+ import androidx.compose.material3.Surface
+ import androidx.compose.material3.Text
+@@ -62,7 +58,6 @@ import androidx.compose.ui.platform.LocalContext
+ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+ import androidx.compose.ui.text.font.FontFamily
+ import androidx.compose.ui.text.font.FontWeight
+-import androidx.compose.ui.text.input.ImeAction
+ import androidx.compose.ui.text.style.TextOverflow
+ import androidx.compose.ui.unit.dp
+ import com.quantummpv.app.R
+@@ -175,14 +170,13 @@ data class MpvHelpScreen(
+             .fillMaxSize()
+             .padding(padding),
+       ) {
+-        OutlinedTextField(
+-          value = searchQuery,
+-          onValueChange = { searchQuery = it },
+-          modifier =
+-            Modifier
+-              .fillMaxWidth()
+-              .padding(horizontal = 16.dp, vertical = 8.dp)
+-              .focusRequester(focusRequester),
++        com.quantummpv.app.ui.components.InlineSearchBar(
++          query = searchQuery,
++          onQueryChange = { searchQuery = it },
++          onSearch = { keyboardController?.hide() },
++          modifier = Modifier.padding(horizontal = 16.dp),
++          inputFieldModifier = Modifier.focusRequester(focusRequester),
++          windowInsets = androidx.compose.foundation.layout.WindowInsets(0.dp),
+           placeholder = {
+             Text(
+               text =
+@@ -217,20 +211,6 @@ data class MpvHelpScreen(
+               }
+             }
+           },
+-          singleLine = true,
+-          shape = RoundedCornerShape(28.dp),
+-          colors =
+-            OutlinedTextFieldDefaults.colors(
+-              focusedBorderColor = MaterialTheme.colorScheme.primary,
+-              unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+-              focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+-              unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+-            ),
+-          keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+-          keyboardActions =
+-            KeyboardActions(
+-              onSearch = { keyboardController?.hide() },
+-            ),
+         )
+ 
+         Row(
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/ytdlp/YtdlpManager.kt b/app/src/main/java/com/quantummpv/app/ui/player/ytdlp/YtdlpManager.kt
+index bbd5cf0b..1574ec82 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/ytdlp/YtdlpManager.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/ytdlp/YtdlpManager.kt
+@@ -365,6 +365,19 @@ object YtdlpManager {
+     }
+   }
+ 
++  /** Ensures the yt-dlp runtime is installed regardless of URL shape (used by the downloader). */
++  suspend fun ensureRuntimeInstalled(
++    context: Context,
++    onLog: (String) -> Unit = {},
++  ): Boolean =
++    withContext(Dispatchers.IO) {
++      installMutex.withLock {
++        if (!prepareRuntimeAssets(context, onLog)) return@withLock false
++        if (isPlaybackRuntimeReady(context)) return@withLock true
++        installYtdlp(context, onLog)
++      }
++    }
++
+   suspend fun copyAssets(context: Context) =
+     withContext(Dispatchers.IO) {
+       val ytdlDir = getYtdlDir(context)
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/CodecCapabilitiesScreen.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/CodecCapabilitiesScreen.kt
+index 6eb4d321..960281e5 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/CodecCapabilitiesScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/CodecCapabilitiesScreen.kt
+@@ -48,8 +48,6 @@ import androidx.compose.material3.FilterChipDefaults
+ import androidx.compose.material3.Icon
+ import androidx.compose.material3.IconButton
+ import androidx.compose.material3.MaterialTheme
+-import androidx.compose.material3.OutlinedTextField
+-import androidx.compose.material3.OutlinedTextFieldDefaults
+ import androidx.compose.material3.Scaffold
+ import androidx.compose.material3.Surface
+ import androidx.compose.material3.Text
+@@ -787,10 +785,11 @@ object CodecCapabilitiesScreen : Screen {
+         // Search Field & Filter Chips
+         item {
+           Column {
+-            OutlinedTextField(
+-              value = searchQuery,
+-              onValueChange = { searchQuery = it },
+-              modifier = Modifier.fillMaxWidth(),
++            com.quantummpv.app.ui.components.InlineSearchBar(
++              query = searchQuery,
++              onQueryChange = { searchQuery = it },
++              onSearch = {},
++              windowInsets = androidx.compose.foundation.layout.WindowInsets(0.dp),
+               placeholder = { Text(stringResource(R.string.pref_codecs_search_placeholder)) },
+               leadingIcon = {
+                 Icon(
+@@ -808,14 +807,6 @@ object CodecCapabilitiesScreen : Screen {
+                   }
+                 }
+               },
+-              singleLine = true,
+-              shape = RoundedCornerShape(16.dp),
+-              colors = OutlinedTextFieldDefaults.colors(
+-                focusedBorderColor = MaterialTheme.colorScheme.primary,
+-                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+-                focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+-                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+-              ),
+             )
+ 
+             Spacer(modifier = Modifier.height(12.dp))
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/SettingsSearchScreen.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/SettingsSearchScreen.kt
+index bf564738..aa2866c8 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/SettingsSearchScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/SettingsSearchScreen.kt
+@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Column
+ import androidx.compose.foundation.layout.PaddingValues
+ import androidx.compose.foundation.layout.Row
+ import androidx.compose.foundation.layout.Spacer
++import androidx.compose.foundation.layout.WindowInsets
+ import androidx.compose.foundation.layout.fillMaxSize
+ import androidx.compose.foundation.layout.fillMaxWidth
+ import androidx.compose.foundation.layout.height
+@@ -27,8 +28,6 @@ import androidx.compose.foundation.layout.size
+ import androidx.compose.foundation.layout.width
+ import androidx.compose.foundation.lazy.LazyColumn
+ import androidx.compose.foundation.lazy.itemsIndexed
+-import androidx.compose.foundation.text.KeyboardActions
+-import androidx.compose.foundation.text.KeyboardOptions
+ import androidx.compose.material3.ExperimentalMaterial3Api
+ import androidx.compose.material3.Icon
+ import androidx.compose.material3.IconButton
+@@ -36,8 +35,6 @@ import androidx.compose.material3.MaterialTheme
+ import androidx.compose.material3.Scaffold
+ import androidx.compose.material3.Surface
+ import androidx.compose.material3.Text
+-import androidx.compose.material3.TextField
+-import androidx.compose.material3.TextFieldDefaults
+ import androidx.compose.material3.TopAppBar
+ import androidx.compose.runtime.Composable
+ import androidx.compose.runtime.LaunchedEffect
+@@ -52,19 +49,18 @@ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.draw.clip
+ import androidx.compose.ui.focus.FocusRequester
+ import androidx.compose.ui.focus.focusRequester
+-import androidx.compose.ui.graphics.Color
+ import androidx.compose.ui.platform.LocalResources
+ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+ import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.text.SpanStyle
+ import androidx.compose.ui.text.buildAnnotatedString
+ import androidx.compose.ui.text.font.FontWeight
+-import androidx.compose.ui.text.input.ImeAction
+ import androidx.compose.ui.text.style.TextOverflow
+ import androidx.compose.ui.unit.dp
+ import com.quantummpv.app.R
+ import com.quantummpv.app.preferences.preference.collectAsState
+ import com.quantummpv.app.presentation.Screen
++import com.quantummpv.app.ui.components.InlineSearchBar
+ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
+ import com.quantummpv.app.ui.theme.LocalEmphasizedTypography
+@@ -144,14 +140,13 @@ object SettingsSearchScreen : Screen {
+             .fillMaxSize()
+             .padding(padding),
+       ) {
+-        TextField(
+-          value = searchQuery,
+-          onValueChange = { searchQuery = it },
+-          modifier =
+-            Modifier
+-              .fillMaxWidth()
+-              .padding(horizontal = 16.dp, vertical = 8.dp)
+-              .focusRequester(focusRequester),
++        InlineSearchBar(
++          query = searchQuery,
++          onQueryChange = { searchQuery = it },
++          onSearch = { keyboardController?.hide() },
++          modifier = Modifier.padding(horizontal = 16.dp),
++          inputFieldModifier = Modifier.focusRequester(focusRequester),
++          windowInsets = WindowInsets(0.dp),
+           placeholder = {
+             Text(
+               text = stringResource(R.string.settings_search_hint),
+@@ -183,22 +178,6 @@ object SettingsSearchScreen : Screen {
+               }
+             }
+           },
+-          singleLine = true,
+-          shape = MaterialTheme.shapes.extraExtraLarge,
+-          colors =
+-            TextFieldDefaults.colors(
+-              focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+-              unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+-              disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+-              focusedIndicatorColor = Color.Transparent,
+-              unfocusedIndicatorColor = Color.Transparent,
+-              disabledIndicatorColor = Color.Transparent,
+-            ),
+-          keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+-          keyboardActions =
+-            KeyboardActions(
+-              onSearch = { keyboardController?.hide() },
+-            ),
+         )
+ 
+         Spacer(modifier = Modifier.height(8.dp))
+diff --git a/app/src/main/java/com/quantummpv/app/ui/torrent/TorrentSelectionScreen.kt b/app/src/main/java/com/quantummpv/app/ui/torrent/TorrentSelectionScreen.kt
+index 0c302348..20cfc178 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/torrent/TorrentSelectionScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/torrent/TorrentSelectionScreen.kt
+@@ -29,7 +29,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
+ import androidx.compose.material3.CircularProgressIndicator
+ import androidx.compose.material3.IconButton
+ import androidx.compose.material3.MaterialTheme
+-import androidx.compose.material3.OutlinedTextField
++
+ import androidx.compose.material3.Surface
+ import androidx.compose.material3.Text
+ import androidx.compose.material3.TextButton
+@@ -251,13 +251,12 @@ private fun TorrentReadyScreen(
+           }
+ 
+           if (isSearchOpen && state.catalog.playableFiles.size > 1) {
+-            OutlinedTextField(
+-              value = searchQuery,
+-              onValueChange = { searchQuery = it },
+-              modifier =
+-                Modifier
+-                  .fillMaxWidth()
+-                  .padding(top = 4.dp, bottom = 4.dp),
++            com.quantummpv.app.ui.components.InlineSearchBar(
++              query = searchQuery,
++              onQueryChange = { searchQuery = it },
++              onSearch = {},
++              modifier = Modifier.padding(bottom = 4.dp),
++              windowInsets = androidx.compose.foundation.layout.WindowInsets(0.dp),
+               placeholder = {
+                 Text(
+                   stringResource(R.string.ui_search_episodes),
+@@ -283,9 +282,6 @@ private fun TorrentReadyScreen(
+                   }
+                 }
+               },
+-              singleLine = true,
+-              shape = RoundedCornerShape(12.dp),
+-              textStyle = MaterialTheme.typography.bodySmall,
+             )
+           }
+         }
+diff --git a/app/src/main/res/values-ar/strings.xml b/app/src/main/res/values-ar/strings.xml
+index c3ff7487..d7794908 100644
+--- a/app/src/main/res/values-ar/strings.xml
++++ b/app/src/main/res/values-ar/strings.xml
+@@ -2000,4 +2000,39 @@
+   <string name="storage_permission_grant">منح الإذن</string>
+   <string name="pref_player_web_stream_links_title">فتح روابط مواقع البث</string>
+   <string name="pref_player_web_stream_links_summary">عرض mpvRx لروابط YouTube وVimeo وTwitch وOdysee وBilibili. أوقف الخيار لتركها لتطبيقاتها الأصلية.</string>
++
++  <!-- Downloads -->
++  <string name="downloads_title">التنزيلات</string>
++  <string name="downloads_notification_channel">التنزيلات</string>
++  <string name="downloads_notification_channel_description">يعرض تقدم تنزيل الملفات</string>
++  <string name="downloads_preparing">جارٍ تحضير التنزيل…</string>
++  <string name="downloads_empty">لا توجد تنزيلات بعد</string>
++  <string name="downloads_empty_hint">تظهر هنا التنزيلات من الروابط وJellyfin</string>
++  <string name="downloads_active_section">نشطة</string>
++  <string name="downloads_completed_section">مكتملة</string>
++  <string name="downloads_pause">إيقاف مؤقت</string>
++  <string name="downloads_resume">استئناف</string>
++  <string name="downloads_retry">إعادة المحاولة</string>
++  <string name="downloads_cancel">إلغاء</string>
++  <string name="downloads_remove_entry">إزالة من القائمة</string>
++  <string name="downloads_delete_file">حذف الملف</string>
++  <string name="downloads_delete_confirm_title">حذف التنزيل؟</string>
++  <string name="downloads_delete_confirm_message">سيتم حذف \"%1$s\" وملفات الترجمة الخاصة به من وحدة التخزين.</string>
++  <string name="downloads_location">موقع التنزيل</string>
++  <string name="downloads_location_default">تخزين التطبيق (يُحذف عند إلغاء تثبيت التطبيق)</string>
++  <string name="downloads_location_invalid">لا يمكن استخدام هذا المجلد للتنزيلات</string>
++  <string name="downloads_location_reset">إعادة التعيين إلى تخزين التطبيق</string>
++  <string name="downloads_queued">في قائمة الانتظار</string>
++  <string name="downloads_failed">فشل</string>
++  <string name="downloads_paused">متوقف مؤقتًا</string>
++  <string name="downloads_cancelled">أُلغي</string>
++  <string name="downloads_download">تنزيل</string>
++  <string name="downloads_downloaded">تم التنزيل</string>
++  <string name="downloads_started">بدأ التنزيل</string>
++  <string name="downloads_already_downloaded">تم تنزيله بالفعل أو موجود في قائمة الانتظار</string>
++  <string name="downloads_download_season">تنزيل الموسم</string>
++  <string name="downloads_download_series">تنزيل كل المواسم</string>
++  <string name="downloads_episodes_queued">تمت إضافة %1$d حلقة إلى قائمة التنزيل</string>
++  <string name="downloads_play">تشغيل</string>
++  <string name="downloads_open_downloads">فتح التنزيلات</string>
+ </resources>
+diff --git a/app/src/main/res/values-de/strings.xml b/app/src/main/res/values-de/strings.xml
+index d0aad441..1da67b82 100644
+--- a/app/src/main/res/values-de/strings.xml
++++ b/app/src/main/res/values-de/strings.xml
+@@ -1998,4 +1998,39 @@ Bitte starten Sie die App neu, damit alle Änderungen wirksam werden.</string>
+   <string name="storage_permission_grant">Zugriff gewähren</string>
+   <string name="pref_player_web_stream_links_title">Streaming-Website-Links öffnen</string>
+   <string name="pref_player_web_stream_links_summary">mpvRx für Links von YouTube, Vimeo, Twitch, Odysee und Bilibili anbieten. Deaktivieren, damit deren eigene Apps sie öffnen.</string>
++
++  <!-- Downloads -->
++  <string name="downloads_title">Downloads</string>
++  <string name="downloads_notification_channel">Downloads</string>
++  <string name="downloads_notification_channel_description">Zeigt den Fortschritt von Datei-Downloads</string>
++  <string name="downloads_preparing">Download wird vorbereitet…</string>
++  <string name="downloads_empty">Noch keine Downloads</string>
++  <string name="downloads_empty_hint">Downloads aus Links und Jellyfin erscheinen hier</string>
++  <string name="downloads_active_section">Aktiv</string>
++  <string name="downloads_completed_section">Abgeschlossen</string>
++  <string name="downloads_pause">Pausieren</string>
++  <string name="downloads_resume">Fortsetzen</string>
++  <string name="downloads_retry">Erneut versuchen</string>
++  <string name="downloads_cancel">Abbrechen</string>
++  <string name="downloads_remove_entry">Aus Liste entfernen</string>
++  <string name="downloads_delete_file">Datei löschen</string>
++  <string name="downloads_delete_confirm_title">Download löschen?</string>
++  <string name="downloads_delete_confirm_message">„%1$s“ und die zugehörigen Untertiteldateien werden vom Speicher gelöscht.</string>
++  <string name="downloads_location">Download-Speicherort</string>
++  <string name="downloads_location_default">App-Speicher (wird bei Deinstallation entfernt)</string>
++  <string name="downloads_location_invalid">Dieser Ordner kann nicht für Downloads verwendet werden</string>
++  <string name="downloads_location_reset">Auf App-Speicher zurücksetzen</string>
++  <string name="downloads_queued">In Warteschlange</string>
++  <string name="downloads_failed">Fehlgeschlagen</string>
++  <string name="downloads_paused">Pausiert</string>
++  <string name="downloads_cancelled">Abgebrochen</string>
++  <string name="downloads_download">Herunterladen</string>
++  <string name="downloads_downloaded">Heruntergeladen</string>
++  <string name="downloads_started">Download gestartet</string>
++  <string name="downloads_already_downloaded">Bereits heruntergeladen oder in der Warteschlange</string>
++  <string name="downloads_download_season">Staffel herunterladen</string>
++  <string name="downloads_download_series">Alle Staffeln herunterladen</string>
++  <string name="downloads_episodes_queued">%1$d Episoden zum Download eingereiht</string>
++  <string name="downloads_play">Abspielen</string>
++  <string name="downloads_open_downloads">Downloads öffnen</string>
+ </resources>
+diff --git a/app/src/main/res/values-es/strings.xml b/app/src/main/res/values-es/strings.xml
+index 0ce458ce..195fdf89 100644
+--- a/app/src/main/res/values-es/strings.xml
++++ b/app/src/main/res/values-es/strings.xml
+@@ -1998,4 +1998,39 @@ Reinicia la aplicación para que se apliquen todos los cambios.</string>
+   <string name="storage_permission_grant">Conceder acceso</string>
+   <string name="pref_player_web_stream_links_title">Abrir enlaces de sitios de streaming</string>
+   <string name="pref_player_web_stream_links_summary">Ofrecer mpvRx para enlaces de YouTube, Vimeo, Twitch, Odysee y Bilibili. Desactívalo para que los abran sus propias apps.</string>
++
++  <!-- Downloads -->
++  <string name="downloads_title">Descargas</string>
++  <string name="downloads_notification_channel">Descargas</string>
++  <string name="downloads_notification_channel_description">Muestra el progreso de descarga de archivos</string>
++  <string name="downloads_preparing">Preparando la descarga…</string>
++  <string name="downloads_empty">Aún no hay descargas</string>
++  <string name="downloads_empty_hint">Las descargas de enlaces y Jellyfin aparecen aquí</string>
++  <string name="downloads_active_section">Activas</string>
++  <string name="downloads_completed_section">Completadas</string>
++  <string name="downloads_pause">Pausar</string>
++  <string name="downloads_resume">Reanudar</string>
++  <string name="downloads_retry">Reintentar</string>
++  <string name="downloads_cancel">Cancelar</string>
++  <string name="downloads_remove_entry">Quitar de la lista</string>
++  <string name="downloads_delete_file">Eliminar archivo</string>
++  <string name="downloads_delete_confirm_title">¿Eliminar descarga?</string>
++  <string name="downloads_delete_confirm_message">Se eliminarán \"%1$s\" y sus archivos de subtítulos del almacenamiento.</string>
++  <string name="downloads_location">Ubicación de descarga</string>
++  <string name="downloads_location_default">Almacenamiento de la app (se elimina al desinstalar)</string>
++  <string name="downloads_location_invalid">Esta carpeta no se puede usar para descargas</string>
++  <string name="downloads_location_reset">Restablecer al almacenamiento de la app</string>
++  <string name="downloads_queued">En cola</string>
++  <string name="downloads_failed">Error</string>
++  <string name="downloads_paused">En pausa</string>
++  <string name="downloads_cancelled">Cancelada</string>
++  <string name="downloads_download">Descargar</string>
++  <string name="downloads_downloaded">Descargado</string>
++  <string name="downloads_started">Descarga iniciada</string>
++  <string name="downloads_already_downloaded">Ya descargado o en la cola</string>
++  <string name="downloads_download_season">Descargar temporada</string>
++  <string name="downloads_download_series">Descargar todas las temporadas</string>
++  <string name="downloads_episodes_queued">%1$d episodios añadidos a la cola de descarga</string>
++  <string name="downloads_play">Reproducir</string>
++  <string name="downloads_open_downloads">Abrir descargas</string>
+ </resources>
+diff --git a/app/src/main/res/values-fr/strings.xml b/app/src/main/res/values-fr/strings.xml
+index 7fdc89b2..ddfbc77d 100644
+--- a/app/src/main/res/values-fr/strings.xml
++++ b/app/src/main/res/values-fr/strings.xml
+@@ -1998,4 +1998,39 @@ Veuillez redémarrer l’application pour appliquer toutes les modifications.</s
+   <string name="storage_permission_grant">Accorder l\'accès</string>
+   <string name="pref_player_web_stream_links_title">Ouvrir les liens de sites de streaming</string>
+   <string name="pref_player_web_stream_links_summary">Proposer mpvRx pour les liens YouTube, Vimeo, Twitch, Odysee et Bilibili. Désactivez pour laisser leurs applications les ouvrir.</string>
++
++  <!-- Downloads -->
++  <string name="downloads_title">Téléchargements</string>
++  <string name="downloads_notification_channel">Téléchargements</string>
++  <string name="downloads_notification_channel_description">Affiche la progression des téléchargements</string>
++  <string name="downloads_preparing">Préparation du téléchargement…</string>
++  <string name="downloads_empty">Aucun téléchargement pour l’instant</string>
++  <string name="downloads_empty_hint">Les téléchargements de liens et de Jellyfin apparaissent ici</string>
++  <string name="downloads_active_section">Actifs</string>
++  <string name="downloads_completed_section">Terminés</string>
++  <string name="downloads_pause">Mettre en pause</string>
++  <string name="downloads_resume">Reprendre</string>
++  <string name="downloads_retry">Réessayer</string>
++  <string name="downloads_cancel">Annuler</string>
++  <string name="downloads_remove_entry">Retirer de la liste</string>
++  <string name="downloads_delete_file">Supprimer le fichier</string>
++  <string name="downloads_delete_confirm_title">Supprimer le téléchargement ?</string>
++  <string name="downloads_delete_confirm_message">« %1$s » et ses fichiers de sous-titres seront supprimés du stockage.</string>
++  <string name="downloads_location">Emplacement de téléchargement</string>
++  <string name="downloads_location_default">Stockage de l’app (supprimé à la désinstallation)</string>
++  <string name="downloads_location_invalid">Ce dossier ne peut pas être utilisé pour les téléchargements</string>
++  <string name="downloads_location_reset">Réinitialiser vers le stockage de l’app</string>
++  <string name="downloads_queued">En file d’attente</string>
++  <string name="downloads_failed">Échec</string>
++  <string name="downloads_paused">En pause</string>
++  <string name="downloads_cancelled">Annulé</string>
++  <string name="downloads_download">Télécharger</string>
++  <string name="downloads_downloaded">Téléchargé</string>
++  <string name="downloads_started">Téléchargement démarré</string>
++  <string name="downloads_already_downloaded">Déjà téléchargé ou dans la file d’attente</string>
++  <string name="downloads_download_season">Télécharger la saison</string>
++  <string name="downloads_download_series">Télécharger toutes les saisons</string>
++  <string name="downloads_episodes_queued">%1$d épisodes ajoutés à la file de téléchargement</string>
++  <string name="downloads_play">Lire</string>
++  <string name="downloads_open_downloads">Ouvrir les téléchargements</string>
+ </resources>
+diff --git a/app/src/main/res/values-hi/strings.xml b/app/src/main/res/values-hi/strings.xml
+index 96f2db7f..94f95edd 100644
+--- a/app/src/main/res/values-hi/strings.xml
++++ b/app/src/main/res/values-hi/strings.xml
+@@ -1902,4 +1902,39 @@
+   <string name="storage_permission_grant">एक्सेस दें</string>
+   <string name="pref_player_web_stream_links_title">स्ट्रीमिंग साइट लिंक खोलें</string>
+   <string name="pref_player_web_stream_links_summary">YouTube, Vimeo, Twitch, Odysee और Bilibili लिंक के लिए mpvRx दिखाएं। बंद करने पर उनके अपने ऐप उन्हें खोलेंगे।</string>
++
++  <!-- Downloads -->
++  <string name="downloads_title">डाउनलोड</string>
++  <string name="downloads_notification_channel">डाउनलोड</string>
++  <string name="downloads_notification_channel_description">फ़ाइल डाउनलोड की प्रगति दिखाता है</string>
++  <string name="downloads_preparing">डाउनलोड तैयार हो रहा है…</string>
++  <string name="downloads_empty">अभी कोई डाउनलोड नहीं</string>
++  <string name="downloads_empty_hint">लिंक और Jellyfin से डाउनलोड यहां दिखेंगे</string>
++  <string name="downloads_active_section">सक्रिय</string>
++  <string name="downloads_completed_section">पूर्ण</string>
++  <string name="downloads_pause">रोकें</string>
++  <string name="downloads_resume">जारी रखें</string>
++  <string name="downloads_retry">फिर कोशिश करें</string>
++  <string name="downloads_cancel">रद्द करें</string>
++  <string name="downloads_remove_entry">सूची से हटाएं</string>
++  <string name="downloads_delete_file">फ़ाइल हटाएं</string>
++  <string name="downloads_delete_confirm_title">डाउनलोड हटाएं?</string>
++  <string name="downloads_delete_confirm_message">\"%1$s\" और इसकी सबटाइटल फ़ाइलें स्टोरेज से हटा दी जाएंगी।</string>
++  <string name="downloads_location">डाउनलोड स्थान</string>
++  <string name="downloads_location_default">ऐप स्टोरेज (ऐप हटाने पर हट जाता है)</string>
++  <string name="downloads_location_invalid">यह फ़ोल्डर डाउनलोड के लिए इस्तेमाल नहीं हो सकता</string>
++  <string name="downloads_location_reset">ऐप स्टोरेज पर रीसेट करें</string>
++  <string name="downloads_queued">कतार में</string>
++  <string name="downloads_failed">विफल</string>
++  <string name="downloads_paused">रुका हुआ</string>
++  <string name="downloads_cancelled">रद्द</string>
++  <string name="downloads_download">डाउनलोड करें</string>
++  <string name="downloads_downloaded">डाउनलोड हो गया</string>
++  <string name="downloads_started">डाउनलोड शुरू हुआ</string>
++  <string name="downloads_already_downloaded">पहले से डाउनलोड या कतार में है</string>
++  <string name="downloads_download_season">सीज़न डाउनलोड करें</string>
++  <string name="downloads_download_series">सभी सीज़न डाउनलोड करें</string>
++  <string name="downloads_episodes_queued">%1$d एपिसोड डाउनलोड कतार में जोड़े गए</string>
++  <string name="downloads_play">चलाएं</string>
++  <string name="downloads_open_downloads">डाउनलोड खोलें</string>
+ </resources>
+diff --git a/app/src/main/res/values-ja/strings.xml b/app/src/main/res/values-ja/strings.xml
+index 900048d7..1242c9e1 100644
+--- a/app/src/main/res/values-ja/strings.xml
++++ b/app/src/main/res/values-ja/strings.xml
+@@ -1998,4 +1998,39 @@
+   <string name="storage_permission_grant">アクセスを許可</string>
+   <string name="pref_player_web_stream_links_title">ストリーミングサイトのリンクを開く</string>
+   <string name="pref_player_web_stream_links_summary">YouTube、Vimeo、Twitch、Odysee、Bilibili のリンクで mpvRx を候補に表示。オフにすると各アプリが開きます。</string>
++
++  <!-- Downloads -->
++  <string name="downloads_title">ダウンロード</string>
++  <string name="downloads_notification_channel">ダウンロード</string>
++  <string name="downloads_notification_channel_description">ファイルのダウンロード進捗を表示します</string>
++  <string name="downloads_preparing">ダウンロードを準備中…</string>
++  <string name="downloads_empty">ダウンロードはまだありません</string>
++  <string name="downloads_empty_hint">リンクや Jellyfin からのダウンロードがここに表示されます</string>
++  <string name="downloads_active_section">実行中</string>
++  <string name="downloads_completed_section">完了</string>
++  <string name="downloads_pause">一時停止</string>
++  <string name="downloads_resume">再開</string>
++  <string name="downloads_retry">再試行</string>
++  <string name="downloads_cancel">キャンセル</string>
++  <string name="downloads_remove_entry">リストから削除</string>
++  <string name="downloads_delete_file">ファイルを削除</string>
++  <string name="downloads_delete_confirm_title">ダウンロードを削除しますか？</string>
++  <string name="downloads_delete_confirm_message">「%1$s」とその字幕ファイルがストレージから削除されます。</string>
++  <string name="downloads_location">ダウンロード先</string>
++  <string name="downloads_location_default">アプリのストレージ（アンインストール時に削除）</string>
++  <string name="downloads_location_invalid">このフォルダはダウンロードに使用できません</string>
++  <string name="downloads_location_reset">アプリのストレージに戻す</string>
++  <string name="downloads_queued">待機中</string>
++  <string name="downloads_failed">失敗</string>
++  <string name="downloads_paused">一時停止中</string>
++  <string name="downloads_cancelled">キャンセル済み</string>
++  <string name="downloads_download">ダウンロード</string>
++  <string name="downloads_downloaded">ダウンロード済み</string>
++  <string name="downloads_started">ダウンロードを開始しました</string>
++  <string name="downloads_already_downloaded">すでにダウンロード済みかキューにあります</string>
++  <string name="downloads_download_season">シーズンをダウンロード</string>
++  <string name="downloads_download_series">全シーズンをダウンロード</string>
++  <string name="downloads_episodes_queued">%1$d 話をダウンロードキューに追加しました</string>
++  <string name="downloads_play">再生</string>
++  <string name="downloads_open_downloads">ダウンロードを開く</string>
+ </resources>
+diff --git a/app/src/main/res/values-pt-rBR/strings.xml b/app/src/main/res/values-pt-rBR/strings.xml
+index 9318ef65..5016fc5f 100644
+--- a/app/src/main/res/values-pt-rBR/strings.xml
++++ b/app/src/main/res/values-pt-rBR/strings.xml
+@@ -1998,4 +1998,39 @@ Reinicie o aplicativo para que todas as alterações entrem em vigor.</string>
+   <string name="storage_permission_grant">Conceder acesso</string>
+   <string name="pref_player_web_stream_links_title">Abrir links de sites de streaming</string>
+   <string name="pref_player_web_stream_links_summary">Oferecer o mpvRx para links do YouTube, Vimeo, Twitch, Odysee e Bilibili. Desative para que os próprios apps os abram.</string>
++
++  <!-- Downloads -->
++  <string name="downloads_title">Downloads</string>
++  <string name="downloads_notification_channel">Downloads</string>
++  <string name="downloads_notification_channel_description">Mostra o progresso dos downloads de arquivos</string>
++  <string name="downloads_preparing">Preparando o download…</string>
++  <string name="downloads_empty">Nenhum download ainda</string>
++  <string name="downloads_empty_hint">Downloads de links e do Jellyfin aparecem aqui</string>
++  <string name="downloads_active_section">Ativos</string>
++  <string name="downloads_completed_section">Concluídos</string>
++  <string name="downloads_pause">Pausar</string>
++  <string name="downloads_resume">Retomar</string>
++  <string name="downloads_retry">Tentar novamente</string>
++  <string name="downloads_cancel">Cancelar</string>
++  <string name="downloads_remove_entry">Remover da lista</string>
++  <string name="downloads_delete_file">Excluir arquivo</string>
++  <string name="downloads_delete_confirm_title">Excluir download?</string>
++  <string name="downloads_delete_confirm_message">\"%1$s\" e seus arquivos de legenda serão excluídos do armazenamento.</string>
++  <string name="downloads_location">Local de download</string>
++  <string name="downloads_location_default">Armazenamento do app (removido ao desinstalar)</string>
++  <string name="downloads_location_invalid">Esta pasta não pode ser usada para downloads</string>
++  <string name="downloads_location_reset">Redefinir para o armazenamento do app</string>
++  <string name="downloads_queued">Na fila</string>
++  <string name="downloads_failed">Falhou</string>
++  <string name="downloads_paused">Pausado</string>
++  <string name="downloads_cancelled">Cancelado</string>
++  <string name="downloads_download">Baixar</string>
++  <string name="downloads_downloaded">Baixado</string>
++  <string name="downloads_started">Download iniciado</string>
++  <string name="downloads_already_downloaded">Já baixado ou na fila</string>
++  <string name="downloads_download_season">Baixar temporada</string>
++  <string name="downloads_download_series">Baixar todas as temporadas</string>
++  <string name="downloads_episodes_queued">%1$d episódios adicionados à fila de download</string>
++  <string name="downloads_play">Reproduzir</string>
++  <string name="downloads_open_downloads">Abrir downloads</string>
+ </resources>
+diff --git a/app/src/main/res/values-ru/strings.xml b/app/src/main/res/values-ru/strings.xml
+index 87639ac0..a8c27b63 100644
+--- a/app/src/main/res/values-ru/strings.xml
++++ b/app/src/main/res/values-ru/strings.xml
+@@ -1998,4 +1998,39 @@
+   <string name="storage_permission_grant">Предоставить доступ</string>
+   <string name="pref_player_web_stream_links_title">Открывать ссылки стриминговых сайтов</string>
+   <string name="pref_player_web_stream_links_summary">Предлагать mpvRx для ссылок YouTube, Vimeo, Twitch, Odysee и Bilibili. Отключите, чтобы их открывали собственные приложения.</string>
++
++  <!-- Downloads -->
++  <string name="downloads_title">Загрузки</string>
++  <string name="downloads_notification_channel">Загрузки</string>
++  <string name="downloads_notification_channel_description">Показывает ход загрузки файлов</string>
++  <string name="downloads_preparing">Подготовка загрузки…</string>
++  <string name="downloads_empty">Загрузок пока нет</string>
++  <string name="downloads_empty_hint">Загрузки из ссылок и Jellyfin появятся здесь</string>
++  <string name="downloads_active_section">Активные</string>
++  <string name="downloads_completed_section">Завершённые</string>
++  <string name="downloads_pause">Пауза</string>
++  <string name="downloads_resume">Возобновить</string>
++  <string name="downloads_retry">Повторить</string>
++  <string name="downloads_cancel">Отменить</string>
++  <string name="downloads_remove_entry">Убрать из списка</string>
++  <string name="downloads_delete_file">Удалить файл</string>
++  <string name="downloads_delete_confirm_title">Удалить загрузку?</string>
++  <string name="downloads_delete_confirm_message">«%1$s» и его файлы субтитров будут удалены из хранилища.</string>
++  <string name="downloads_location">Папка загрузок</string>
++  <string name="downloads_location_default">Хранилище приложения (удаляется при удалении приложения)</string>
++  <string name="downloads_location_invalid">Эту папку нельзя использовать для загрузок</string>
++  <string name="downloads_location_reset">Сбросить к хранилищу приложения</string>
++  <string name="downloads_queued">В очереди</string>
++  <string name="downloads_failed">Ошибка</string>
++  <string name="downloads_paused">На паузе</string>
++  <string name="downloads_cancelled">Отменено</string>
++  <string name="downloads_download">Скачать</string>
++  <string name="downloads_downloaded">Скачано</string>
++  <string name="downloads_started">Загрузка начата</string>
++  <string name="downloads_already_downloaded">Уже скачано или в очереди</string>
++  <string name="downloads_download_season">Скачать сезон</string>
++  <string name="downloads_download_series">Скачать все сезоны</string>
++  <string name="downloads_episodes_queued">В очередь добавлено серий: %1$d</string>
++  <string name="downloads_play">Воспроизвести</string>
++  <string name="downloads_open_downloads">Открыть загрузки</string>
+ </resources>
+diff --git a/app/src/main/res/values-zh-rCN/strings.xml b/app/src/main/res/values-zh-rCN/strings.xml
+index 49964467..31d2dd1f 100644
+--- a/app/src/main/res/values-zh-rCN/strings.xml
++++ b/app/src/main/res/values-zh-rCN/strings.xml
+@@ -2000,4 +2000,39 @@
+   <string name="storage_permission_grant">授予访问权限</string>
+   <string name="pref_player_web_stream_links_title">打开流媒体网站链接</string>
+   <string name="pref_player_web_stream_links_summary">为 YouTube、Vimeo、Twitch、Odysee 和 Bilibili 链接提供 mpvRx 选项。关闭后由它们自己的应用打开。</string>
++
++  <!-- Downloads -->
++  <string name="downloads_title">下载</string>
++  <string name="downloads_notification_channel">下载</string>
++  <string name="downloads_notification_channel_description">显示文件下载进度</string>
++  <string name="downloads_preparing">正在准备下载…</string>
++  <string name="downloads_empty">暂无下载</string>
++  <string name="downloads_empty_hint">来自链接和 Jellyfin 的下载会显示在这里</string>
++  <string name="downloads_active_section">进行中</string>
++  <string name="downloads_completed_section">已完成</string>
++  <string name="downloads_pause">暂停</string>
++  <string name="downloads_resume">继续</string>
++  <string name="downloads_retry">重试</string>
++  <string name="downloads_cancel">取消</string>
++  <string name="downloads_remove_entry">从列表中移除</string>
++  <string name="downloads_delete_file">删除文件</string>
++  <string name="downloads_delete_confirm_title">删除下载？</string>
++  <string name="downloads_delete_confirm_message">“%1$s”及其字幕文件将从存储中删除。</string>
++  <string name="downloads_location">下载位置</string>
++  <string name="downloads_location_default">应用存储（卸载应用时会被删除）</string>
++  <string name="downloads_location_invalid">此文件夹无法用于下载</string>
++  <string name="downloads_location_reset">重置为应用存储</string>
++  <string name="downloads_queued">排队中</string>
++  <string name="downloads_failed">失败</string>
++  <string name="downloads_paused">已暂停</string>
++  <string name="downloads_cancelled">已取消</string>
++  <string name="downloads_download">下载</string>
++  <string name="downloads_downloaded">已下载</string>
++  <string name="downloads_started">下载已开始</string>
++  <string name="downloads_already_downloaded">已下载或已在队列中</string>
++  <string name="downloads_download_season">下载本季</string>
++  <string name="downloads_download_series">下载全部季</string>
++  <string name="downloads_episodes_queued">已将 %1$d 集加入下载队列</string>
++  <string name="downloads_play">播放</string>
++  <string name="downloads_open_downloads">打开下载</string>
+ </resources>
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index c9608d31..f2d3a1b7 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -2022,4 +2022,39 @@
+   <string name="seerr_tab_movies">Movies</string>
+   <string name="seerr_tab_tv">TV Shows</string>
+   <string name="seerr_tab_my_requests">My Requests</string>
++
++  <!-- Downloads -->
++  <string name="downloads_title">Downloads</string>
++  <string name="downloads_notification_channel">Downloads</string>
++  <string name="downloads_notification_channel_description">Shows file download progress</string>
++  <string name="downloads_preparing">Preparing download…</string>
++  <string name="downloads_empty">No downloads yet</string>
++  <string name="downloads_empty_hint">Downloads from links and Jellyfin appear here</string>
++  <string name="downloads_active_section">Active</string>
++  <string name="downloads_completed_section">Completed</string>
++  <string name="downloads_pause">Pause</string>
++  <string name="downloads_resume">Resume</string>
++  <string name="downloads_retry">Retry</string>
++  <string name="downloads_cancel">Cancel</string>
++  <string name="downloads_remove_entry">Remove from list</string>
++  <string name="downloads_delete_file">Delete file</string>
++  <string name="downloads_delete_confirm_title">Delete download?</string>
++  <string name="downloads_delete_confirm_message">\"%1$s\" and its subtitle files will be deleted from storage.</string>
++  <string name="downloads_location">Download location</string>
++  <string name="downloads_location_default">App storage (removed when the app is uninstalled)</string>
++  <string name="downloads_location_invalid">This folder can\'t be used for downloads</string>
++  <string name="downloads_location_reset">Reset to app storage</string>
++  <string name="downloads_queued">Queued</string>
++  <string name="downloads_failed">Failed</string>
++  <string name="downloads_paused">Paused</string>
++  <string name="downloads_cancelled">Cancelled</string>
++  <string name="downloads_download">Download</string>
++  <string name="downloads_downloaded">Downloaded</string>
++  <string name="downloads_started">Download started</string>
++  <string name="downloads_already_downloaded">Already downloaded or in the queue</string>
++  <string name="downloads_download_season">Download season</string>
++  <string name="downloads_download_series">Download all seasons</string>
++  <string name="downloads_episodes_queued">%1$d episodes queued for download</string>
++  <string name="downloads_play">Play</string>
++  <string name="downloads_open_downloads">Open downloads</string>
+ </resources>
+-- 
+2.25.1
+

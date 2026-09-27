@@ -1,0 +1,434 @@
+From 70ce3137d8181a89b817cc6ba72f5ceff6436054 Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <riteshp2001@gmail.com>
+Date: Fri, 18 Sep 2026 10:09:22 +0530
+Subject: [PATCH 132/140] fix(player): avoid redundant remote media requests
+
+---
+ .../mpvrx/data/network/client/WebDavClient.kt |  43 ++----
+ .../com/quantummpv/app/ui/player/MPVView.kt    |  19 ++-
+ .../gyrolet/mpvrx/ui/player/PlaybackModels.kt |   5 +-
+ .../mpvrx/ui/player/PlaybackSession.kt        |  25 ++--
+ .../gyrolet/mpvrx/ui/player/PlayerActivity.kt | 122 ++++++++++--------
+ 5 files changed, 112 insertions(+), 102 deletions(-)
+
+diff --git a/app/src/main/java/com/quantummpv/app/data/network/client/WebDavClient.kt b/app/src/main/java/com/quantummpv/app/data/network/client/WebDavClient.kt
+index 520a6bb1..6994ae3f 100644
+--- a/app/src/main/java/com/quantummpv/app/data/network/client/WebDavClient.kt
++++ b/app/src/main/java/com/quantummpv/app/data/network/client/WebDavClient.kt
+@@ -48,7 +48,7 @@ class WebDavClient(
+   private data class RangedResponse(
+     val response: Response,
+     val start: Long,
+-    val endInclusive: Long,
++    val endInclusive: Long?,
+     val totalLength: Long?,
+   )
+ 
+@@ -263,27 +263,7 @@ class WebDavClient(
+     withContext(Dispatchers.IO) {
+       require(offset >= 0L) { "Stream offset must not be negative" }
+       try {
+-        if (offset > 0L) {
+-          return@withContext getRangedFileStream(NetworkPath.from(path), offset)
+-        }
+-
+-        // A per-call OkHttpSardine leaks its own OkHttpClient and applies a 10s read timeout
+-        // that kills healthy long-running media bodies; the shared ranged client does neither.
+-        val requestBuilder =
+-          Request
+-            .Builder()
+-            .url(buildUrl(NetworkPath.from(path).value))
+-            .get()
+-            .header("Accept-Encoding", "identity")
+-        if (!connection.isAnonymous) {
+-          requestBuilder.header("Authorization", Credentials.basic(connection.username, connection.password))
+-        }
+-        val response = rangeHttpClient.newCall(requestBuilder.build()).execute()
+-        if (!response.isSuccessful) {
+-          response.close()
+-          throw IOException("WebDAV request failed with HTTP ${response.code}")
+-        }
+-        Result.success(response.body.byteStream())
++        getRangedFileStream(NetworkPath.from(path), offset)
+       } catch (cancellation: CancellationException) {
+         throw cancellation
+       } catch (error: Exception) {
+@@ -307,7 +287,7 @@ class WebDavClient(
+         private var current = initial
+         private var stream = current.response.body.byteStream()
+         private var position = current.start
+-        private var bytesRemaining = current.endInclusive - current.start + 1L
++        private var bytesRemaining = current.endInclusive?.let { it - current.start + 1L }
+         private var totalLength = current.totalLength
+         private var closed = false
+ 
+@@ -339,18 +319,19 @@ class WebDavClient(
+               }
+               current = next
+               stream = next.response.body.byteStream()
+-              bytesRemaining = next.endInclusive - next.start + 1L
++              bytesRemaining = next.endInclusive?.let { it - next.start + 1L }
+               totalLength = next.totalLength ?: completeLength
+             }
+ 
+-            val toRead = minOf(len.toLong(), bytesRemaining).toInt()
++            val toRead = bytesRemaining?.let { minOf(len.toLong(), it).toInt() } ?: len
+             val count = stream.read(b, off, toRead)
+             if (count > 0) {
+               position += count
+-              bytesRemaining -= count
++              bytesRemaining = bytesRemaining?.minus(count)
+               return count
+             }
+             if (count == 0) continue
++            if (bytesRemaining == null) return -1
+             throw IOException("WebDAV range response ended before its declared Content-Range")
+           }
+         }
+@@ -359,7 +340,9 @@ class WebDavClient(
+           if (closed) {
+             0
+           } else {
+-            minOf(stream.available().toLong(), bytesRemaining, Int.MAX_VALUE.toLong()).toInt()
++            bytesRemaining
++              ?.let { minOf(stream.available().toLong(), it, Int.MAX_VALUE.toLong()).toInt() }
++              ?: stream.available()
+           }
+ 
+         override fun close() {
+@@ -402,7 +385,7 @@ class WebDavClient(
+ 
+     // Some DAV servers ignore Range and reply 200 with the full body. Consuming up to the offset
+     // keeps seeking functional there; slow for deep seeks, but strictly better than failing.
+-    if (response.code == 200 && bodyLength > offset) {
++    if (response.code == 200 && (bodyLength < 0L || bodyLength >= offset)) {
+       try {
+         skipExactly(response.body.byteStream(), offset)
+       } catch (error: Exception) {
+@@ -412,8 +395,8 @@ class WebDavClient(
+       return RangedResponse(
+         response = response,
+         start = offset,
+-        endInclusive = bodyLength - 1L,
+-        totalLength = bodyLength,
++        endInclusive = bodyLength.takeIf { it >= 0L }?.minus(1L),
++        totalLength = bodyLength.takeIf { it >= 0L },
+       )
+     }
+ 
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/MPVView.kt b/app/src/main/java/com/quantummpv/app/ui/player/MPVView.kt
+index bf9abbe5..a85c9a5c 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/MPVView.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/MPVView.kt
+@@ -45,6 +45,9 @@ import org.koin.core.component.KoinComponent
+ import org.koin.core.component.inject
+ import kotlin.reflect.KProperty
+ 
++private fun String.toMpvLanguageList(): String =
++  split(',').map(String::trim).filter(String::isNotEmpty).joinToString(",")
++
+ class MPVView(
+   context: Context,
+   attributes: AttributeSet,
+@@ -475,9 +478,9 @@ class MPVView(
+     )
+ 
+   private fun setupAudioOptions() {
+-    // Disable MPV's automatic audio selection
+-    // App will handle track selection manually via TrackSelector to respect user choices
+-    PlaybackSession.setOptionString("alang", "")
++    // Let mpv resolve the common case during demuxer initialization. TrackSelector still applies
++    // title-based commentary/description filtering after load when mpv's choice needs correction.
++    PlaybackSession.setOptionString("alang", audioPreferences.preferredLanguages.get().toMpvLanguageList())
+     PlaybackSession.setOptionString("audio-display", "embedded-first")
+     PlaybackSession.setOptionString("audio-delay", (audioPreferences.defaultAudioDelay.get() / 1000.0).toString())
+     PlaybackSession.setOptionString("audio-pitch-correction", audioPreferences.audioPitchCorrection.get().toString())
+@@ -488,9 +491,13 @@ class MPVView(
+ 
+   // Setup
+   private fun setupSubtitlesOptions() {
+-    // Disable MPV's automatic subtitle selection
+-    // App will handle track selection manually via TrackSelector to respect user choices
+-    PlaybackSession.setOptionString("slang", "")
++    // Resolve preferred languages before packet reads begin, but preserve the global subtitle-off
++    // preference. TrackSelector remains responsible for title/forced/hearing-impaired filtering.
++    val preferredSubtitleLanguages =
++      subtitlesPreferences.preferredLanguages.get().toMpvLanguageList()
++        .takeIf { subtitlesPreferences.autoEnableSubtitles.get() }
++        .orEmpty()
++    PlaybackSession.setOptionString("slang", preferredSubtitleLanguages)
+     PlaybackSession.setOptionString("sub-auto", "no")
+     PlaybackSession.setOptionString("sub-file-paths", "")
+     PlaybackSession.setOptionString("subs-fallback", "no")
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/PlaybackModels.kt b/app/src/main/java/com/quantummpv/app/ui/player/PlaybackModels.kt
+index 519d0a00..7f7639f6 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/PlaybackModels.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/PlaybackModels.kt
+@@ -129,15 +129,14 @@ internal fun PlaybackItem.isDefinitelyAudioOnly(): Boolean =
+ internal enum class PlaybackVideoSelection {
+   DISABLED,
+   IMMEDIATE,
+-  DEFERRED,
+ }
+ 
+-internal fun PlaybackItem.videoSelection(surfaceAttached: Boolean): PlaybackVideoSelection =
++internal fun PlaybackItem.videoSelection(): PlaybackVideoSelection =
+   when (declaredMediaKind()) {
+     DeclaredPlaybackMediaKind.AUDIO -> PlaybackVideoSelection.DISABLED
+     DeclaredPlaybackMediaKind.VIDEO,
+     DeclaredPlaybackMediaKind.UNKNOWN,
+-    -> if (surfaceAttached) PlaybackVideoSelection.IMMEDIATE else PlaybackVideoSelection.DEFERRED
++    -> PlaybackVideoSelection.IMMEDIATE
+   }
+ 
+ data class PlaybackQueueState(
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/PlaybackSession.kt b/app/src/main/java/com/quantummpv/app/ui/player/PlaybackSession.kt
+index 3fffcc46..0e46ee64 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/PlaybackSession.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/PlaybackSession.kt
+@@ -110,6 +110,7 @@ object PlaybackSession : MPVLib.EventObserver {
+       "time-remaining",
+       "percent-pos",
+     )
++  private val AUDIO_SUBTITLE_TRACK_PROPERTIES = setOf("aid", "sid", "secondary-sid")
+ 
+   private enum class EndFileReason {
+     EOF,
+@@ -132,10 +133,7 @@ object PlaybackSession : MPVLib.EventObserver {
+     val registration: NetworkStreamRegistration? = null,
+   )
+ 
+-  /**
+-   * Video decoding is intentionally disabled while Android has no render surface. Keep the track
+-   * id process-wide so Activity recreation (for example notification re-entry) cannot lose it.
+-   */
++  /** Keeps a hardware-decoded track across the loss and replacement of its Android Surface. */
+   private data class SuspendedVideoTrack(
+     val id: Int,
+     val generation: Long,
+@@ -406,7 +404,9 @@ object PlaybackSession : MPVLib.EventObserver {
+   fun setVideoOutput(videoOutput: String) {
+     desiredVideoOutput = videoOutput
+     withCore(Unit, allowInitializing = true) {
+-      MPVLib.setOptionString("vo", videoOutput)
++      // Track selection does not require an Android Surface, but a GPU video output does.
++      // bindSurface() performs the real null -> configured output transition later.
++      MPVLib.setOptionString("vo", if (_state.value.surfaceAttached) videoOutput else "null")
+     }
+   }
+ 
+@@ -835,10 +835,9 @@ object PlaybackSession : MPVLib.EventObserver {
+         if (!MpvConfigOverridePolicy.isOwnedByMpvConf("speed")) MPVLib.setPropertyDouble("speed", speedBeforeAudiobook!!.toDouble())
+         speedBeforeAudiobook = null
+       }
+-      val videoSelection = resolvedItem.videoSelection(_state.value.surfaceAttached)
+-      // A preceding surface detach may have left the outgoing file at vid=no. Select video in the
+-      // load command only when Android has already attached a valid render Surface; otherwise
+-      // bindSurface() enables it after the native window exists.
++      val videoSelection = resolvedItem.videoSelection()
++      // Select the track during demuxer initialization. Video output remains `vo=null` until a
++      // Surface is attached, so cold starts do not need a post-load track reselect.
+       val selectVideoForNewFile = videoSelection == PlaybackVideoSelection.IMMEDIATE
+ 
+       // An OUTPUT Ambient shader bakes the previous video's aspect ratio into its GLSL. Because the
+@@ -866,7 +865,7 @@ object PlaybackSession : MPVLib.EventObserver {
+       pendingPositionRestoreOverride = positionRestoreOverride?.let { generation to it }
+       initialPositionGeneration = generation.takeIf { initialPosition != null } ?: 0L
+       val holdForPositionRestore = pendingPositionRestoreGeneration == generation
+-      deferredVideoSelectionGeneration = generation.takeIf { videoSelection == PlaybackVideoSelection.DEFERRED }
++      deferredVideoSelectionGeneration = null
+       updateState {
+         it.copy(
+           phase = PlaybackPhase.LOADING,
+@@ -1034,6 +1033,9 @@ object PlaybackSession : MPVLib.EventObserver {
+   ) {
+     if (MpvConfigOverridePolicy.isOwnedByMpvConf(property)) return
+     withCore(Unit) {
++      if (property in AUDIO_SUBTITLE_TRACK_PROPERTIES && MPVLib.getPropertyInt(property) == value) {
++        return@withCore
++      }
+       MPVLib.setPropertyInt(property, value)
+       if (property == "vid" && value > 0) {
+         suspendedVideoTrack = null
+@@ -1174,6 +1176,9 @@ object PlaybackSession : MPVLib.EventObserver {
+   ) {
+     if (MpvConfigOverridePolicy.isOwnedByMpvConf(property)) return
+     withCore(Unit) {
++      if (property in AUDIO_SUBTITLE_TRACK_PROPERTIES && MPVLib.getPropertyString(property) == value) {
++        return@withCore
++      }
+       if (property == "vid") {
+         if (value == "no" && _state.value.phase in setOf(PlaybackPhase.READY, PlaybackPhase.BACKGROUND)) {
+           val activeVid = MPVLib.getPropertyInt("vid") ?: -1
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt b/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt
+index 3c2add56..8a30f57a 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt
+@@ -463,6 +463,7 @@ class PlayerActivity :
+ 
+   @Volatile private var playWhenFileLoaded = false
+   private var pendingVideoParamRefreshRequiresShaderReload = false
++  private var pendingBackgroundThumbnailKey: String? = null
+   private var lastBackgroundThumbnailKey: String? = null
+   private var lastBackgroundThumbnail: Bitmap? = null
+   private var currentPlayableUri: String? = null // Store current URI for notification re-entry
+@@ -4990,16 +4991,20 @@ class PlayerActivity :
+       }
+     }
+ 
+-    // Always restore subtitle and audio tracks from saved state
+-    // User's manual selection has highest priority
+-    if (state.sid > 0) {
+-      player.sid = state.sid
+-      Log.d(TAG, "Restored primary subtitle track: ${state.sid} (user selection)")
++    // Restore explicit selections as well as "off" so mpv's pre-load language choice cannot
++    // override a saved manual choice.
++    val restoredSid = state.sid.takeIf { it > 0 } ?: -1
++    if (player.sid != restoredSid) {
++      player.sid = restoredSid
++      if (restoredSid > 0) Log.d(TAG, "Restored primary subtitle track: $restoredSid (user selection)")
+     }
+ 
+-    if (state.secondarySid > 0) {
+-      player.secondarySid = state.secondarySid
+-      Log.d(TAG, "Restored secondary subtitle track: ${state.secondarySid} (user selection)")
++    val restoredSecondarySid = state.secondarySid.takeIf { it > 0 } ?: -1
++    if (player.secondarySid != restoredSecondarySid) {
++      player.secondarySid = restoredSecondarySid
++      if (restoredSecondarySid > 0) {
++        Log.d(TAG, "Restored secondary subtitle track: $restoredSecondarySid (user selection)")
++      }
+     }
+ 
+     applySubtitleLayout(
+@@ -5009,7 +5014,7 @@ class PlayerActivity :
+       screenHeight = player.height.takeIf { it > 0 }?.toFloat(),
+     )
+ 
+-    if (restoreAudioTrack && state.aid > 0) {
++    if (restoreAudioTrack && state.aid > 0 && player.aid != state.aid) {
+       player.aid = state.aid
+       Log.d(TAG, "Restored audio track: ${state.aid} (user selection)")
+     }
+@@ -7361,63 +7366,74 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
+     service.setPlaylistInfo(isAudio = isCurrentPlaybackAudio())
+     service.setChapters(viewModel.chapters.value.map { ChapterNode(time = it.start, title = it.name) })
+ 
+-    if (!updateThumbnail || thumbnailKey.isBlank()) return
+-    if (thumbnailKey == lastBackgroundThumbnailKey && cachedThumbnail != null) return
++    if (!updateThumbnail || !isReady || thumbnailKey.isBlank()) return
++    if (thumbnailKey == lastBackgroundThumbnailKey || thumbnailKey == pendingBackgroundThumbnailKey) return
+ 
+     backgroundServiceSyncJob?.cancel()
++    pendingBackgroundThumbnailKey = thumbnailKey
+     backgroundServiceSyncJob =
+       lifecycleScope.launch {
+-        delay(150)
+-        val generatedThumbnail =
+-          withContext(Dispatchers.IO) {
+-            com.quantummpv.app.domain.thumbnail.EmbeddedArtworkResolver.decodeArtworkUri(
+-              this@PlayerActivity,
+-              currentQueueItem?.artworkUri,
+-            ) ?: runCatching { PlaybackSession.grabThumbnail(480) }.getOrNull() ?: runCatching {
+-              val uriStr = currentPlayableUri
+-              if (!uriStr.isNullOrBlank()) {
+-                val parsedUri = Uri.parse(uriStr)
+-                val cleanPath =
+-                  when (parsedUri.scheme) {
+-                    null, "file" -> parsedUri.path ?: uriStr
+-                    "content" -> null
+-                    // Probing a remote/proxied URL opens a second upstream stream that competes
+-                    // with live playback and audibly stalls it during Mini Player handoffs.
+-                    else -> return@runCatching null
++        try {
++          delay(150)
++          val generatedThumbnail =
++            withContext(Dispatchers.IO) {
++              com.quantummpv.app.domain.thumbnail.EmbeddedArtworkResolver.decodeArtworkUri(
++                this@PlayerActivity,
++                currentQueueItem?.artworkUri,
++              ) ?: runCatching { PlaybackSession.grabThumbnail(480) }.getOrNull() ?: runCatching {
++                val uriStr = currentPlayableUri
++                if (!uriStr.isNullOrBlank()) {
++                  val parsedUri = Uri.parse(uriStr)
++                  val cleanPath =
++                    when (parsedUri.scheme) {
++                      null, "file" -> parsedUri.path ?: uriStr
++                      "content" -> null
++                      // Probing a remote/proxied URL opens a second upstream stream that competes
++                      // with live playback and audibly stalls it during Mini Player handoffs.
++                      else -> return@runCatching null
++                    }
++                  val retriever = android.media.MediaMetadataRetriever()
++                  try {
++                    if (cleanPath != null) {
++                      retriever.setDataSource(cleanPath)
++                    } else {
++                      retriever.setDataSource(this@PlayerActivity, parsedUri)
++                    }
++                    com.quantummpv.app.domain.thumbnail.EmbeddedArtworkResolver.decodeEmbeddedArtwork(
++                      cleanPath,
++                      retriever,
++                    )
++                  } finally {
++                    retriever.release()
+                   }
+-                val retriever = android.media.MediaMetadataRetriever()
+-                if (cleanPath != null) {
+-                  retriever.setDataSource(cleanPath)
+                 } else {
+-                  retriever.setDataSource(this@PlayerActivity, parsedUri)
++                  null
+                 }
+-                val art = com.quantummpv.app.domain.thumbnail.EmbeddedArtworkResolver.decodeEmbeddedArtwork(cleanPath, retriever)
+-                retriever.release()
+-                art
+-              } else {
+-                null
+-              }
+-            }.getOrNull()
+-          }
+-
+-        if (!ownsPlaybackSession() || !mpvInitialized || player.isExiting || isFinishing) return@launch
+-        if (thumbnailKey != buildBackgroundThumbnailKey()) return@launch
++              }.getOrNull()
++            }
+ 
+-        lastBackgroundThumbnailKey = thumbnailKey
+-        lastBackgroundThumbnail = generatedThumbnail
+-        mediaPlaybackService?.setMediaInfo(
+-          title = title,
+-          artist = artist,
+-          thumbnail = generatedThumbnail,
+-          uri = currentDurableMediaUri(),
+-          identifier = notificationIdentifier,
+-        )
++          if (!ownsPlaybackSession() || !mpvInitialized || player.isExiting || isFinishing) return@launch
++          if (thumbnailKey != buildBackgroundThumbnailKey()) return@launch
++
++          lastBackgroundThumbnailKey = thumbnailKey
++          lastBackgroundThumbnail = generatedThumbnail
++          mediaPlaybackService?.setMediaInfo(
++            title = title,
++            artist = artist,
++            thumbnail = generatedThumbnail,
++            uri = currentDurableMediaUri(),
++            identifier = notificationIdentifier,
++          )
++        } finally {
++          if (pendingBackgroundThumbnailKey == thumbnailKey) pendingBackgroundThumbnailKey = null
++        }
+       }
+   }
+ 
+   private fun buildBackgroundThumbnailKey(): String {
+     if (mediaIdentifier.isBlank()) return ""
+-    return "$mediaIdentifier|$playlistIndex"
++    val artworkUri = PlaybackSession.queue.value.currentItem?.artworkUri.orEmpty()
++    return "$mediaIdentifier|$playlistIndex|$artworkUri"
+   }
+ 
+   /**
+-- 
+2.25.1
+

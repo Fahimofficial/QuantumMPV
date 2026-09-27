@@ -1,0 +1,33 @@
+From 3877d0566adf944d298f68463380758ef3600fd2 Mon Sep 17 00:00:00 2001
+From: Arnab Sadhukhan <arnab@Arnabs-Mac-Mini.local>
+Date: Mon, 7 Sep 2026 20:39:49 +0530
+Subject: [PATCH 045/140] fix(player): render music playlist cover art
+ edge-to-edge
+
+---
+ .../ui/player/controls/components/sheets/PlaylistSheet.kt    | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/PlaylistSheet.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/PlaylistSheet.kt
+index 34edf17b..e9b146f8 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/PlaylistSheet.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/PlaylistSheet.kt
+@@ -226,12 +226,13 @@ private fun PlaylistThumbnail(
+   }
+ 
+   val currentImageBitmap = remember(bitmap) { bitmap?.asImageBitmap() }
++  val isEdgeToEdge = item.isAudio || isYouTubeArtwork
+   if (hasArtwork) {
+     RemoteImage(
+       url = item.tvgLogo,
+       contentDescription = contentDescription,
+-      contentScale = if (isYouTubeArtwork) ContentScale.Crop else contentScale,
+-      modifier = if (isYouTubeArtwork) modifier else modifier.padding(4.dp),
++      contentScale = if (isEdgeToEdge) ContentScale.Crop else contentScale,
++      modifier = if (isEdgeToEdge) modifier else modifier.padding(4.dp),
+     )
+   } else if (currentImageBitmap != null) {
+     androidx.compose.foundation.Image(
+-- 
+2.25.1
+

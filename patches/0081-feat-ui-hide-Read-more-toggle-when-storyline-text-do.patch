@@ -1,0 +1,149 @@
+From dd623ca982dccce8de820b18e73c43aec52b79f1 Mon Sep 17 00:00:00 2001
+From: Arnab Sadhukhan <arnab@Arnabs-Mac-Mini.local>
+Date: Thu, 10 Sep 2026 20:21:15 +0530
+Subject: [PATCH 081/140] feat(ui): hide 'Read more' toggle when storyline text
+ does not overflow
+
+---
+ .../browser/jellyfin/JellyfinDetailSheet.kt   | 24 +++++++++++------
+ .../jellyfin/seerr/SeerrDetailSheet.kt        | 13 +++++++---
+ .../networkstreaming/TorrentDetailSheet.kt    | 26 ++++++++++++-------
+ 3 files changed, 42 insertions(+), 21 deletions(-)
+
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinDetailSheet.kt b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinDetailSheet.kt
+index b27da087..5afa8c60 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinDetailSheet.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinDetailSheet.kt
+@@ -259,7 +259,8 @@ fun JellyfinDetailSheet(
+     return
+   }
+ 
+-  var isOverviewExpanded by remember { mutableStateOf(false) }
++  var isOverviewExpanded by remember(item.id) { mutableStateOf(false) }
++  var canExpandOverview by remember(item.id) { mutableStateOf(false) }
+   val context = LocalContext.current
+ 
+   ModalBottomSheet(
+@@ -805,7 +806,7 @@ fun JellyfinDetailSheet(
+               Modifier
+                 .fillMaxWidth()
+                 .animateContentSize()
+-                .clickable { isOverviewExpanded = !isOverviewExpanded },
++                .clickable(enabled = canExpandOverview) { isOverviewExpanded = !isOverviewExpanded },
+             verticalArrangement = Arrangement.spacedBy(4.dp),
+           ) {
+             Text(
+@@ -820,13 +821,20 @@ fun JellyfinDetailSheet(
+               color = MaterialTheme.colorScheme.onSurfaceVariant,
+               maxLines = if (isOverviewExpanded) Int.MAX_VALUE else 3,
+               overflow = TextOverflow.Ellipsis,
++              onTextLayout = { textLayoutResult ->
++                if (!isOverviewExpanded) {
++                  canExpandOverview = textLayoutResult.hasVisualOverflow
++                }
++              },
+             )
+-            Text(
+-              text = if (isOverviewExpanded) "Show less" else "Read more",
+-              style = MaterialTheme.typography.labelSmall,
+-              color = MaterialTheme.colorScheme.primary,
+-              fontWeight = FontWeight.SemiBold,
+-            )
++            if (canExpandOverview) {
++              Text(
++                text = if (isOverviewExpanded) "Show less" else "Read more",
++                style = MaterialTheme.typography.labelSmall,
++                color = MaterialTheme.colorScheme.primary,
++                fontWeight = FontWeight.SemiBold,
++              )
++            }
+           }
+         }
+ 
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/seerr/SeerrDetailSheet.kt b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/seerr/SeerrDetailSheet.kt
+index be16d36e..15f7c11c 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/seerr/SeerrDetailSheet.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/seerr/SeerrDetailSheet.kt
+@@ -224,8 +224,8 @@ fun SeerrDetailSheet(
+       resolutionOptions.firstOrNull { !it.is4k } ?: resolutionOptions.first(),
+     )
+   }
+-  var isResolutionDropdownExpanded by remember { mutableStateOf(false) }
+-  var isOverviewExpanded by remember { mutableStateOf(false) }
++  var isOverviewExpanded by remember(details?.id, searchItem?.id) { mutableStateOf(false) }
++  var canExpandOverview by remember(details?.id, searchItem?.id) { mutableStateOf(false) }
+ 
+   ModalBottomSheet(
+     onDismissRequest = onDismiss,
+@@ -771,9 +771,14 @@ fun SeerrDetailSheet(
+             color = MaterialTheme.colorScheme.onSurfaceVariant,
+             maxLines = if (isOverviewExpanded) Int.MAX_VALUE else 3,
+             overflow = TextOverflow.Ellipsis,
+-            modifier = Modifier.clickable { isOverviewExpanded = !isOverviewExpanded },
++            onTextLayout = { textLayoutResult ->
++              if (!isOverviewExpanded) {
++                canExpandOverview = textLayoutResult.hasVisualOverflow
++              }
++            },
++            modifier = Modifier.clickable(enabled = canExpandOverview) { isOverviewExpanded = !isOverviewExpanded },
+           )
+-          if (overview.length > 150) {
++          if (canExpandOverview) {
+             Text(
+               text = if (isOverviewExpanded) "Show less" else "Read more",
+               style = MaterialTheme.typography.labelSmall,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/networkstreaming/TorrentDetailSheet.kt b/app/src/main/java/com/quantummpv/app/ui/browser/networkstreaming/TorrentDetailSheet.kt
+index 8107afe7..38ea737d 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/networkstreaming/TorrentDetailSheet.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/networkstreaming/TorrentDetailSheet.kt
+@@ -113,7 +113,8 @@ fun TorrentDetailSheet(
+       enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded),
+     )
+   val context = LocalContext.current
+-  var isOverviewExpanded by remember { mutableStateOf(false) }
++  var isOverviewExpanded by remember(group.id) { mutableStateOf(false) }
++  var canExpandOverview by remember(group.id) { mutableStateOf(false) }
+   var searchQuery by remember { mutableStateOf("") }
+   var isSearchOpen by remember { mutableStateOf(false) }
+   var sortDescending by remember { mutableStateOf(false) }
+@@ -496,7 +497,7 @@ fun TorrentDetailSheet(
+                 .fillMaxWidth()
+                 .padding(horizontal = 20.dp, vertical = 8.dp)
+                 .clip(RoundedCornerShape(12.dp))
+-                .clickable { isOverviewExpanded = !isOverviewExpanded },
++                .clickable(enabled = canExpandOverview) { isOverviewExpanded = !isOverviewExpanded },
+           ) {
+             Text(
+               text = "Storyline",
+@@ -511,14 +512,21 @@ fun TorrentDetailSheet(
+               color = MaterialTheme.colorScheme.onSurfaceVariant,
+               maxLines = if (isOverviewExpanded) Int.MAX_VALUE else 3,
+               overflow = TextOverflow.Ellipsis,
++              onTextLayout = { textLayoutResult ->
++                if (!isOverviewExpanded) {
++                  canExpandOverview = textLayoutResult.hasVisualOverflow
++                }
++              },
+             )
+-            Text(
+-              text = if (isOverviewExpanded) "Show less" else "Read more",
+-              style = MaterialTheme.typography.labelSmall,
+-              fontWeight = FontWeight.Bold,
+-              color = MaterialTheme.colorScheme.primary,
+-              modifier = Modifier.padding(top = 4.dp),
+-            )
++            if (canExpandOverview) {
++              Text(
++                text = if (isOverviewExpanded) "Show less" else "Read more",
++                style = MaterialTheme.typography.labelSmall,
++                fontWeight = FontWeight.Bold,
++                color = MaterialTheme.colorScheme.primary,
++                modifier = Modifier.padding(top = 4.dp),
++              )
++            }
+           }
+         }
+       }
+-- 
+2.25.1
+

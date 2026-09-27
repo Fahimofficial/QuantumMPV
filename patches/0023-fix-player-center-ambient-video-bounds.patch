@@ -1,0 +1,47 @@
+From 0470f8e3a101de172bf33ab1ef6ee13fe6a19477 Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <87899750+Riteshp2001@users.noreply.github.com>
+Date: Sun, 6 Sep 2026 09:21:08 +0000
+Subject: [PATCH 023/140] fix(player): center ambient video bounds
+
+Refs #605
+---
+ .../com/quantummpv/app/ui/player/PlayerActivity.kt  | 14 ++++++++++++--
+ 1 file changed, 12 insertions(+), 2 deletions(-)
+
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt b/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt
+index 7f0b7670..53394a7d 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt
+@@ -1101,10 +1101,10 @@ class PlayerActivity :
+     val videoHeight: Int
+     if (containerAspect > videoAspect) {
+       videoHeight = containerHeight
+-      videoWidth = (videoHeight * videoAspect).roundToInt().coerceAtLeast(1)
++      videoWidth = centeredFittedDimension((videoHeight * videoAspect).roundToInt(), containerWidth)
+     } else {
+       videoWidth = containerWidth
+-      videoHeight = (videoWidth / videoAspect).roundToInt().coerceAtLeast(1)
++      videoHeight = centeredFittedDimension((videoWidth / videoAspect).roundToInt(), containerHeight)
+     }
+ 
+     val params = binding.player.layoutParams as ConstraintLayout.LayoutParams
+@@ -1118,6 +1118,16 @@ class PlayerActivity :
+     binding.player.layoutParams = params
+   }
+ 
++  private fun centeredFittedDimension(
++    requested: Int,
++    container: Int,
++  ): Int {
++    val fitted = requested.coerceIn(1, container)
++    // An odd remainder cannot be split equally by ConstraintLayout. Prefer one pixel less video
++    // over visibly placing the extra ambient/letterbox pixel on only one side.
++    return if (fitted > 1 && (container - fitted) % 2 != 0) fitted - 1 else fitted
++  }
++
+   private fun restoreFullSizePlayerBounds() {
+     val params = binding.player.layoutParams as ConstraintLayout.LayoutParams
+     if (params.width == ViewGroup.LayoutParams.MATCH_PARENT &&
+-- 
+2.25.1
+

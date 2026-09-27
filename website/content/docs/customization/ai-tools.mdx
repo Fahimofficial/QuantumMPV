@@ -1,0 +1,42 @@
+---
+title: AI and speech tools
+description: Configure optional AI providers for subtitle translation, formatting, file naming, and speech transcription.
+---
+
+mpvRx can connect to supported AI and speech providers for optional workflows. These features are not required for normal playback.
+
+## AI providers
+
+Supported integrations include OpenAI, Anthropic, Groq, OpenRouter, Together, and OpenCode Zen. Available models, pricing, retention, rate limits, and regional access are controlled by each provider.
+
+Possible workflows include:
+
+- Subtitle translation with a custom instruction
+- Subtitle formatting cleanup
+- Structured file-renaming suggestions
+- Speech-to-subtitle generation through cloud or offline Whisper paths
+
+## Configure safely
+
+<Steps>
+  <Step title="Choose a provider">
+    Review its privacy policy, pricing, and model support before creating credentials.
+  </Step>
+  <Step title="Add credentials in mpvRx">
+    Store the API key only in the provider setting. Do not embed it in a script, subtitle, filename, or issue report.
+  </Step>
+  <Step title="Test with non-sensitive content">
+    Start with a short file or subtitle and verify language, formatting, and cost behavior.
+  </Step>
+  <Step title="Review every result">
+    Generated text and filenames can be wrong. Keep the original material until the output is verified.
+  </Step>
+</Steps>
+
+:::warning[Data leaves the device]
+Cloud providers receive the text or audio needed for the selected operation. Offline Whisper avoids a cloud transcription request but still requires device resources and model support.
+:::
+
+## Troubleshooting
+
+Provider errors commonly come from an invalid key, unavailable model, unsupported endpoint, quota, rate limiting, or a response format the selected workflow cannot parse. Record the provider and model, but redact keys and private content when asking for support.

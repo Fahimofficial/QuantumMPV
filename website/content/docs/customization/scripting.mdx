@@ -1,0 +1,71 @@
+---
+title: Lua and JavaScript scripting
+description: Load mpv scripts in mpvRx, organize modules, and create custom player buttons.
+---
+
+mpvRx loads standard mpv Lua (`.lua`) and JavaScript (`.js`) scripts from the selected configuration folder. JavaScript runs through mpv's runtime, so ES5-compatible syntax is the safest choice.
+
+## Script layout
+
+<FileTree>
+
+- selected mpv config folder/
+  - scripts/
+    - my-script.lua
+    - my-script.js
+  - script-modules/
+    - helper.lua
+  - script-opts/
+    - my-script.conf
+  - mpv.conf
+  - input.conf
+
+</FileTree>
+
+mpvRx prefers `scripts/` and also supports compatible scripts found at the config root. Lua modules under `script-modules/` are synchronized recursively so scripts can call `require()`.
+
+<Steps>
+  <Step title="Enable scripting">
+    Turn on Lua/JavaScript scripting in Advanced settings and select an mpv configuration folder.
+  </Step>
+  <Step title="Add the file">
+    Place a `.lua` or `.js` file under `scripts/`. Put script options under `script-opts/`.
+  </Step>
+  <Step title="Select the script">
+    Open the scripts panel and enable the file in the discovered catalog.
+  </Step>
+  <Step title="Reload playback">
+    Reopen the video when a newly added or disabled script remains in the current mpv instance.
+  </Step>
+</Steps>
+
+## Minimal smoke tests
+
+<Tabs>
+  <Tab title="Lua">
+
+```lua
+mp.register_event("file-loaded", function()
+    mp.osd_message("Lua script loaded")
+end)
+```
+
+  </Tab>
+  <Tab title="JavaScript">
+
+```javascript
+mp.register_event("file-loaded", function() {
+    mp.osd_message("JavaScript script loaded");
+});
+```
+
+  </Tab>
+</Tabs>
+
+## Custom buttons
+
+The Custom Button editor accepts a title, required tap action, optional long-press action, optional startup action, and a Lua or JavaScript language choice. Paste only the action body. mpvRx generates and loads `custombuttons.lua` or `custombuttons.js` and handles script-message registration.
+
+Generated button instances contain internal lifecycle guards. Do not call `is_active_instance()` or `isActiveInstance()` from normal scripts.
+
+For native app actions such as opening a panel or controlling the Android keyboard, use the [custom command bridge](/docs/customization/custom-commands).

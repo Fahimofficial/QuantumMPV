@@ -1,0 +1,81 @@
+From 7ba4f14aa83a48f4529f0858f57ed07e0021058a Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <riteshp2001@gmail.com>
+Date: Tue, 8 Sep 2026 18:06:20 +0530
+Subject: [PATCH 060/140] build: resolve mpvlib from GitHub releases
+
+---
+ app/build.gradle.kts      |  6 +++---
+ gradle/libs.versions.toml |  4 ++++
+ settings.gradle.kts       | 17 +++++++++++++++++
+ 3 files changed, 24 insertions(+), 3 deletions(-)
+
+diff --git a/app/build.gradle.kts b/app/build.gradle.kts
+index b68c3d50..cb462075 100644
+--- a/app/build.gradle.kts
++++ b/app/build.gradle.kts
+@@ -294,9 +294,9 @@ dependencies {
+   implementation(libs.androidx.profileinstaller)
+   implementation(libs.google.cast.framework)
+ 
+-  "standardImplementation"(files("libs/mpvlib.aar"))
+-  "noVulkanImplementation"(files("libs/mpvlib-no-vulkun.aar"))
+-  "fongmiImplementation"(files("libs/mpvlib-fongmi.aar"))
++  "standardImplementation"(variantOf(libs.mpvlib.standard) { artifactType("aar") })
++  "noVulkanImplementation"(variantOf(libs.mpvlib.no.vulkan) { artifactType("aar") })
++  "fongmiImplementation"(variantOf(libs.mpvlib.fongmi) { artifactType("aar") })
+ 
+   // Network protocol libraries
+   implementation(libs.smbj)
+diff --git a/gradle/libs.versions.toml b/gradle/libs.versions.toml
+index d13cf23e..f23b6432 100644
+--- a/gradle/libs.versions.toml
++++ b/gradle/libs.versions.toml
+@@ -43,6 +43,7 @@ seeker = "2.0.1"
+ markdownRenderer = "0.45.0"
+ kotlinTest = "2.4.10"
+ mediainfo = "v1.0.0-fix"
++mpvlib = "1.0.9"
+ googleCast = "22.3.1"
+ androidxBiometric = "1.4.0-alpha07"
+ leakcanary = "2.14"
+@@ -81,6 +82,9 @@ seeker = { module = "com.github.abdallahmehiz:seeker", version.ref = "seeker" }
+ markdown-renderer-m3 = { module = "com.mikepenz:multiplatform-markdown-renderer-m3", version.ref = "markdownRenderer" }
+ kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlinTest" }
+ mediainfo-lib = { module = "com.github.marlboro-advance:mediainfoAndroid", version.ref = "mediainfo" }
++mpvlib-standard = { module = "app.gyrolet.mpvlib:mpvlib", version.ref = "mpvlib" }
++mpvlib-no-vulkan = { module = "app.gyrolet.mpvlib:mpvlib-no-vulkan", version.ref = "mpvlib" }
++mpvlib-fongmi = { module = "app.gyrolet.mpvlib:mpvlib-fongmi", version.ref = "mpvlib" }
+ 
+ google-material = { module = "com.google.android.material:material", version.ref = "googleMaterial" }
+ androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidxCore" }
+diff --git a/settings.gradle.kts b/settings.gradle.kts
+index d02db3c0..891374a0 100644
+--- a/settings.gradle.kts
++++ b/settings.gradle.kts
+@@ -19,6 +19,23 @@ dependencyResolutionManagement {
+   repositories {
+     google()
+     mavenCentral()
++    exclusiveContent {
++      forRepository {
++        ivy {
++          name = "mpvlibGitHubReleases"
++          url = uri("https://github.com/Riteshp2001/mpvlibAndroid/releases/download")
++          patternLayout {
++            artifact("v[revision]/[artifact]-[revision].[ext]")
++          }
++          metadataSources {
++            artifact()
++          }
++        }
++      }
++      filter {
++        includeGroup("app.gyrolet.mpvlib")
++      }
++    }
+     maven(url = "https://www.jitpack.io") {
+       content {
+         // Only use JitPack for specific dependencies to avoid unnecessary checks
+-- 
+2.25.1
+

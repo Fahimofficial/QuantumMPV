@@ -464,7 +464,7 @@ See the complete [credits and citation information](CITATION.md), including the 
 
 [All QuantumMPV contributors](https://github.com/Fahimofficial/QuantumMPV/graphs/contributors)
 
----
+> Special thanks to [SunnyVishnu3](https://github.com/SunnyVishnu3) for the `yt-dlp` native integration and SDK 29+ bypass logic.
 
 ## Community
 

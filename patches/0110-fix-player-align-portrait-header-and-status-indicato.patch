@@ -1,0 +1,102 @@
+From 72e9022e025e29f6927956e704f110bf80594409 Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <riteshp2001@gmail.com>
+Date: Wed, 16 Sep 2026 14:04:26 +0530
+Subject: [PATCH 110/140] fix(player): align portrait header and status
+ indicators
+
+---
+ .../com/quantummpv/app/ui/player/PlaybackSession.kt | 14 ++------------
+ .../com/quantummpv/app/ui/player/PlayerViewModel.kt |  2 +-
+ .../mpvrx/ui/player/controls/PlayerControls.kt     |  8 ++++++--
+ .../ui/player/controls/PlayerControlsPortrait.kt   |  3 +--
+ 4 files changed, 10 insertions(+), 17 deletions(-)
+
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/PlaybackSession.kt b/app/src/main/java/com/quantummpv/app/ui/player/PlaybackSession.kt
+index fd196695..41b1da6f 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/PlaybackSession.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/PlaybackSession.kt
+@@ -921,20 +921,9 @@ object PlaybackSession : MPVLib.EventObserver {
+   }
+ 
+   fun command(vararg command: String) {
+-    dispatchCommand(command, guardSeekAudio = false)
+-  }
+-
+-  fun commandWithSeekAudioGuard(vararg command: String) {
+-    dispatchCommand(command, guardSeekAudio = true)
+-  }
+-
+-  private fun dispatchCommand(
+-    command: Array<out String>,
+-    guardSeekAudio: Boolean,
+-  ) {
+     if (MpvConfigOverridePolicy.shouldSuppress(command)) return
+     withCore(Unit) {
+-      if (guardSeekAudio && command.firstOrNull() == "seek") beginSeekAudioGuardLocked()
++      if (command.firstOrNull() == "seek") beginSeekAudioGuardLocked()
+       if (handleAmbientShaderCommandLocked(command)) return@withCore
+       MPVLib.command(*command)
+     }
+@@ -948,6 +937,7 @@ object PlaybackSession : MPVLib.EventObserver {
+     nativeLock.withLock {
+       if (!initialized || _state.value.generation != expectedGeneration) return@withLock false
+       if (MpvConfigOverridePolicy.shouldSuppress(command)) return@withLock true
++      if (command.firstOrNull() == "seek") beginSeekAudioGuardLocked()
+       if (!handleAmbientShaderCommandLocked(command)) MPVLib.command(*command)
+       true
+     }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt b/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
+index 557104f2..7dfb2464 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
+@@ -4475,7 +4475,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
+               return
+             }
+         }
+-      PlaybackSession.commandWithSeekAudioGuard("seek", target.toString(), "absolute+keyframes")
++      PlaybackSession.command("seek", target.toString(), "absolute+keyframes")
+       delay(PREVIEW_SEEK_INTERVAL_MS)
+     }
+   }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControls.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControls.kt
+index 9aa9d7fc..c6f98bec 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControls.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControls.kt
+@@ -858,14 +858,18 @@ fun PlayerControls(
+             modifier =
+               Modifier
+                 .then(
+-                  if (showSystemStatusBar) {
++                  if (showSystemStatusBar && (!isPortrait || !controlsShown || areControlsLocked)) {
+                     Modifier.windowInsetsPadding(WindowInsets.statusBars)
+                   } else {
+                     Modifier
+                   },
+                 ).constrainAs(playerUpdates) {
+                   linkTo(parent.start, parent.end)
+-                  top.linkTo(parent.top, if (isPortrait) 104.dp else 64.dp)
++                  if (isPortrait && controlsShown && !areControlsLocked) {
++                    top.linkTo(topLeftControls.bottom, spacing.medium)
++                  } else {
++                    top.linkTo(parent.top, if (isPortrait) 104.dp else 64.dp)
++                  }
+                 },
+           ) {
+             when (currentPlayerUpdate) {
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControlsPortrait.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControlsPortrait.kt
+index be8317cc..6dee3e19 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControlsPortrait.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControlsPortrait.kt
+@@ -75,8 +75,7 @@ fun TopPlayerControlsPortrait(
+       modifier =
+         Modifier
+           .fillMaxWidth()
+-          .padding(top = MaterialTheme.spacing.medium)
+-          .padding(horizontal = MaterialTheme.spacing.medium),
++          .padding(top = MaterialTheme.spacing.medium),
+     ) {
+       Row(
+         verticalAlignment = Alignment.CenterVertically,
+-- 
+2.25.1
+

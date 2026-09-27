@@ -1,0 +1,82 @@
+---
+title: Video, HDR, and shaders
+description: Configure render backends, HDR pipelines, debanding, Anime4K, filters, and thermal-aware playback.
+---
+
+Start with automatic hardware decoding and the default renderer. Advanced processing can improve difficult content, but it also increases GPU load, heat, and battery use.
+
+## Render backend
+
+mpvRx can select between OpenGL and Vulkan paths and between mpv's `gpu` and `gpu-next` output behavior. Driver quality varies by device.
+
+:::tip[Compatibility first]
+If a video fails, stutters, or shows corruption, remove custom shaders and decoder overrides before switching the entire build variant.
+:::
+
+## HDR pipelines
+
+The bundled hdr-toys collection provides 77 GLSL shaders and four high-level modes:
+
+- BT.2100 PQ for HDR10-style sources
+- BT.2100 HLG
+- BT.2020 gamut mapping
+- Linear HDR, including optional SDR-to-HDR boosting
+
+Correct output depends on the source metadata, display capability, Android composition path, and renderer. Compare against the unmodified image before keeping a pipeline enabled globally.
+
+## Anime4K
+
+Seven presets are available: Off, A, B, C, A+, B+, and C+. Device-oriented quality choices provide Fast, Balanced, and High tiers. mpvRx can disable Anime4K for high-resolution content and lower its quality under thermal pressure.
+
+Anime4K is most useful for compatible animated sources at lower resolutions. It is not a universal sharpness switch.
+
+## Debanding and filters
+
+- CPU debanding uses `gradfun`.
+- GPU debanding exposes iterations, threshold, range, and grain.
+- Video filter presets include Vivid, Cinematic, Dramatic, Ghibli Style, Neon Pop, and Deep Black.
+- Ambient GLOW and FRAME_EXTEND modes render around the video with configurable blur, color, warmth, vignette, and noise controls.
+- Automatic cropping can analyze supported videos for encoded black borders.
+
+### Tune GPU debanding
+
+| Control | Effect |
+| --- | --- |
+| Iterations | Repeats the debanding pass; higher values increase GPU cost. |
+| Threshold | Controls how readily subtle gradients are treated as banding. |
+| Range | Expands the neighborhood sampled around each pixel. |
+| Grain | Adds controlled noise to mask remaining quantization steps. |
+
+Begin with one iteration and conservative threshold/range. Too much processing
+can erase intentional texture or add visible noise.
+
+### Ambient modes
+
+**GLOW** extends color and light beyond the picture, while **FRAME_EXTEND**
+uses the frame itself as the surrounding composition. Settings include sample
+count, blur, intensity, saturation, warmth, vignette, and dither/noise.
+
+mpvRx caches compiled shader configurations and reduces the effective sample
+budget under thermal pressure. Adjust one parameter at a time; sample count and
+blur radius usually have the largest performance impact.
+
+### Filter presets
+
+Presets are creative starting points rather than calibration profiles. Preview
+them on representative bright, dark, animated, and skin-tone scenes before
+applying one broadly. Deep Black can crush shadow detail on an already dark
+master; vivid or neon looks can clip saturated colors.
+
+## Automatic crop
+
+Auto Crop samples several frames and looks for persistent encoded borders. It
+is conservative around dark scenes, short files, rotation, and changing aspect
+ratios, then caches a successful result for repeat playback.
+
+Disable it for intentional letterboxing, rapidly changing aspect ratios, or
+content where edge darkness is part of the image. Crop, stretch, pan, zoom, and
+ambient output share the final video geometry.
+
+## Watch thermal behavior
+
+The thermal monitor samples headroom during playback. Shader budgets and Anime4K choices can be reduced before sustained heat becomes dropped frames. Use [Statistics and refresh rate](/docs/playback/statistics-and-refresh-rate) to compare FPS, dropped frames, decoder state, temperature, and power draw after each change.

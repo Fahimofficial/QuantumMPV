@@ -1,0 +1,566 @@
+From 8a9944a71baf25fa79bb559886e18a2817d894f6 Mon Sep 17 00:00:00 2001
+From: Arnab Sadhukhan <arnab@Arnabs-Mac-Mini.local>
+Date: Wed, 2 Sep 2026 20:58:01 +0530
+Subject: [PATCH 003/140] feat(jellyfin): dynamic per-library latest sections
+ and show series grouping
+
+- Fetch latest media per library with GroupItems=true instead of global flat list
+
+- Display dynamic 'Latest <Library>' rows on home screen with direct navigation
+
+- Resolve TV episodes into full series metadata, posters, and season counts
+
+- Deduplicate items in 'Top Picks For You' and Hero sections
+
+- Open series detail screen when clicking show cards and play next unplayed on long press
+---
+ .../mpvrx/data/jellyfin/JellyfinClient.kt     |  16 +-
+ .../mpvrx/domain/jellyfin/JellyfinModels.kt   |   2 +
+ .../mpvrx/repository/JellyfinRepository.kt    |   3 +-
+ .../ui/browser/jellyfin/JellyfinCards.kt      |  33 +++-
+ .../ui/browser/jellyfin/JellyfinContent.kt    |  65 ++++---
+ .../ui/browser/jellyfin/JellyfinViewModel.kt  | 175 ++++++++++++++++--
+ 6 files changed, 245 insertions(+), 49 deletions(-)
+
+diff --git a/app/src/main/java/com/quantummpv/app/data/jellyfin/JellyfinClient.kt b/app/src/main/java/com/quantummpv/app/data/jellyfin/JellyfinClient.kt
+index e3d7a8fb..3d9c6962 100644
+--- a/app/src/main/java/com/quantummpv/app/data/jellyfin/JellyfinClient.kt
++++ b/app/src/main/java/com/quantummpv/app/data/jellyfin/JellyfinClient.kt
+@@ -360,7 +360,7 @@ class JellyfinClient(
+       runCatching {
+         val base = normalizeUrl(serverUrl)
+         val endpoint =
+-          "$base/Users/$userId/Items/Resume?Limit=$limit&Fields=Overview,PrimaryImageAspectRatio,UserData,SeriesName,SeasonName,IndexNumber,ParentIndexNumber,MediaSources,MediaStreams,Genres,OfficialRating,CommunityRating,CriticRating,ProductionYear,Taglines,PremiereDate,Status"
++          "$base/Users/$userId/Items/Resume?Limit=$limit&Fields=Overview,PrimaryImageAspectRatio,UserData,SeriesName,SeriesId,SeriesPrimaryImageTag,SeasonName,IndexNumber,ParentIndexNumber,MediaSources,MediaStreams,Genres,OfficialRating,CommunityRating,CriticRating,ProductionYear,Taglines,PremiereDate,Status"
+         val request =
+           Request
+             .Builder()
+@@ -387,13 +387,15 @@ class JellyfinClient(
+     parentId: String? = null,
+     limit: Int = 16,
+     token: String,
++    groupItems: Boolean = true,
+   ): Result<List<JellyfinItem>> =
+     withContext(Dispatchers.IO) {
+       runCatching {
+         val base = normalizeUrl(serverUrl)
+         val parentParam = if (!parentId.isNullOrBlank()) "&ParentId=$parentId" else ""
++        val groupParam = "&GroupItems=$groupItems"
+         val endpoint =
+-          "$base/Users/$userId/Items/Latest?Limit=$limit$parentParam&Fields=Overview,PrimaryImageAspectRatio,UserData,SeriesName,SeasonName,IndexNumber,ParentIndexNumber,MediaSources,MediaStreams,Genres,OfficialRating,CommunityRating,CriticRating,ProductionYear,Taglines,ChildCount,PremiereDate,Status"
++          "$base/Users/$userId/Items/Latest?Limit=$limit$parentParam$groupParam&Fields=Overview,PrimaryImageAspectRatio,UserData,SeriesName,SeriesId,SeriesPrimaryImageTag,SeasonName,IndexNumber,ParentIndexNumber,MediaSources,MediaStreams,Genres,OfficialRating,CommunityRating,CriticRating,ProductionYear,Taglines,ChildCount,PremiereDate,Status"
+         val request =
+           Request
+             .Builder()
+@@ -429,7 +431,7 @@ class JellyfinClient(
+       runCatching {
+         val base = normalizeUrl(serverUrl)
+         val endpoint =
+-          "$base/Users/$userId/Suggestions?Limit=$limit&Fields=Overview,PrimaryImageAspectRatio,UserData,SeriesName,SeasonName,IndexNumber,ParentIndexNumber,MediaSources,MediaStreams,Genres,OfficialRating,CommunityRating,CriticRating,ProductionYear,Taglines,ChildCount,PremiereDate,Status"
++          "$base/Users/$userId/Suggestions?Limit=$limit&Fields=Overview,PrimaryImageAspectRatio,UserData,SeriesName,SeriesId,SeriesPrimaryImageTag,SeasonName,IndexNumber,ParentIndexNumber,MediaSources,MediaStreams,Genres,OfficialRating,CommunityRating,CriticRating,ProductionYear,Taglines,ChildCount,PremiereDate,Status"
+         val request =
+           Request
+             .Builder()
+@@ -497,7 +499,7 @@ class JellyfinClient(
+       runCatching {
+         val base = normalizeUrl(serverUrl)
+         val endpoint =
+-          "$base/Users/$userId/Items/$itemId?Fields=Overview,PrimaryImageAspectRatio,UserData,SeriesName,SeasonName,IndexNumber,ParentIndexNumber,MediaSources,MediaStreams,Genres,OfficialRating,CommunityRating,CriticRating,ProductionYear,Taglines,ChildCount,PremiereDate,Status,People,RemoteTrailers"
++          "$base/Users/$userId/Items/$itemId?Fields=Overview,PrimaryImageAspectRatio,UserData,SeriesName,SeriesId,SeriesPrimaryImageTag,SeasonName,IndexNumber,ParentIndexNumber,MediaSources,MediaStreams,Genres,OfficialRating,CommunityRating,CriticRating,ProductionYear,Taglines,ChildCount,PremiereDate,Status,People,RemoteTrailers"
+         val request =
+           Request
+             .Builder()
+@@ -538,7 +540,7 @@ class JellyfinClient(
+         val base = normalizeUrl(serverUrl)
+         val urlBuilder =
+           StringBuilder(
+-            "$base/Users/$userId/Items?Fields=Overview,PrimaryImageAspectRatio,UserData,ChildCount,MediaSources,MediaStreams,ProductionYear,CommunityRating,CriticRating,Genres,OfficialRating,Taglines,SeriesName,SeasonName,IndexNumber,ParentIndexNumber,PremiereDate,Status,RemoteTrailers&StartIndex=$startIndex&Limit=$limit&SortBy=${sortBy.apiValue}&SortOrder=${sortOrder.apiValue}",
++            "$base/Users/$userId/Items?Fields=Overview,PrimaryImageAspectRatio,UserData,ChildCount,MediaSources,MediaStreams,ProductionYear,CommunityRating,CriticRating,Genres,OfficialRating,Taglines,SeriesName,SeriesId,SeriesPrimaryImageTag,SeasonName,IndexNumber,ParentIndexNumber,PremiereDate,Status,RemoteTrailers&StartIndex=$startIndex&Limit=$limit&SortBy=${sortBy.apiValue}&SortOrder=${sortOrder.apiValue}",
+           )
+ 
+         if (!parentId.isNullOrBlank()) {
+@@ -988,6 +990,8 @@ class JellyfinClient(
+       ?: obj["Artists"]?.jsonArray?.firstOrNull()?.let { element ->
+         if (element is JsonObject) element["Name"]?.jsonPrimitive?.content else element.jsonPrimitive.content
+       }
++    val seriesId = obj["SeriesId"]?.jsonPrimitive?.content
++    val seriesPrimaryImageTag = obj["SeriesPrimaryImageTag"]?.jsonPrimitive?.content
+     val seasonName = obj["SeasonName"]?.jsonPrimitive?.content
+     val indexNumber = obj["IndexNumber"]?.jsonPrimitive?.intOrNull
+     val parentIndexNumber = obj["ParentIndexNumber"]?.jsonPrimitive?.intOrNull
+@@ -1095,6 +1099,8 @@ class JellyfinClient(
+       isPlayed = isPlayed,
+       isFavorite = isFavorite,
+       seriesName = seriesName,
++      seriesId = seriesId,
++      seriesPrimaryImageTag = seriesPrimaryImageTag,
+       seasonName = seasonName,
+       indexNumber = indexNumber,
+       parentIndexNumber = parentIndexNumber,
+diff --git a/app/src/main/java/com/quantummpv/app/domain/jellyfin/JellyfinModels.kt b/app/src/main/java/com/quantummpv/app/domain/jellyfin/JellyfinModels.kt
+index 700ece8d..590eae35 100644
+--- a/app/src/main/java/com/quantummpv/app/domain/jellyfin/JellyfinModels.kt
++++ b/app/src/main/java/com/quantummpv/app/domain/jellyfin/JellyfinModels.kt
+@@ -72,6 +72,8 @@ data class JellyfinItem(
+   val isPlayed: Boolean = false,
+   val isFavorite: Boolean = false,
+   val seriesName: String? = null,
++  val seriesId: String? = null,
++  val seriesPrimaryImageTag: String? = null,
+   val seasonName: String? = null,
+   val indexNumber: Int? = null, // Episode number
+   val parentIndexNumber: Int? = null, // Season number
+diff --git a/app/src/main/java/com/quantummpv/app/repository/JellyfinRepository.kt b/app/src/main/java/com/quantummpv/app/repository/JellyfinRepository.kt
+index 1f2ec5b6..0a819683 100644
+--- a/app/src/main/java/com/quantummpv/app/repository/JellyfinRepository.kt
++++ b/app/src/main/java/com/quantummpv/app/repository/JellyfinRepository.kt
+@@ -65,8 +65,9 @@ class JellyfinRepository(
+     server: JellyfinServer,
+     parentId: String? = null,
+     limit: Int = 16,
++    groupItems: Boolean = true,
+   ): Result<List<JellyfinItem>> =
+-    client.getLatestMedia(server.serverUrl, server.userId, parentId, limit, server.accessToken)
++    client.getLatestMedia(server.serverUrl, server.userId, parentId, limit, server.accessToken, groupItems)
+ 
+   suspend fun getSuggestions(
+     server: JellyfinServer,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinCards.kt b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinCards.kt
+index 0c81ca95..cffbe6f2 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinCards.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinCards.kt
+@@ -841,12 +841,22 @@ fun JellyfinPosterCard(
+   isSelected: Boolean = false,
+   isDownloaded: Boolean = false,
+ ) {
++  val posterImageTag = if (item.type == "Episode" && !item.seriesPrimaryImageTag.isNullOrBlank()) {
++    item.seriesPrimaryImageTag
++  } else {
++    item.primaryImageTag
++  }
++  val posterItemId = if (item.type == "Episode" && !item.seriesId.isNullOrBlank() && !item.seriesPrimaryImageTag.isNullOrBlank()) {
++    item.seriesId
++  } else {
++    item.id
++  }
+   val imageUrl =
+-    remember(server.serverUrl, item.id, item.primaryImageTag, server.accessToken) {
++    remember(server.serverUrl, posterItemId, posterImageTag, server.accessToken) {
+       JellyfinClient.getImageUrl(
+         serverUrl = server.serverUrl,
+-        itemId = item.id,
+-        imageTag = item.primaryImageTag,
++        itemId = posterItemId,
++        imageTag = posterImageTag,
+         maxWidth = 400,
+         token = server.accessToken,
+       )
+@@ -897,7 +907,7 @@ fun JellyfinPosterCard(
+             when {
+               item.isAudio -> Icons.RoundedFilled.Audiotrack
+               item.isFolder -> Icons.RoundedFilled.Folder
+-              item.isSeries -> Icons.RoundedFilled.Tv
++              item.isSeries || (item.type == "Episode" && !item.seriesName.isNullOrBlank()) -> Icons.RoundedFilled.Tv
+               else -> Icons.RoundedFilled.Movie
+             }
+           Icon(
+@@ -989,8 +999,9 @@ fun JellyfinPosterCard(
+           .padding(top = 6.dp),
+       horizontalAlignment = Alignment.Start,
+     ) {
++      val title = if (item.type == "Episode" && !item.seriesName.isNullOrBlank()) item.seriesName else item.name
+       Text(
+-        text = item.name,
++        text = title,
+         style = MaterialTheme.typography.bodyMedium,
+         fontWeight = FontWeight.SemiBold,
+         maxLines = 1,
+@@ -1003,11 +1014,17 @@ fun JellyfinPosterCard(
+         run {
+           val before = buildList {
+             item.productionYear?.let { add(it.toString()) }
+-              ?: if (item.isSeries && item.childCount != null) {
+-                add("${item.childCount} Seasons")
++            if (item.isSeries && item.childCount != null && item.childCount > 0) {
++              add(if (item.childCount == 1) "1 Season" else "${item.childCount} Seasons")
++            } else if (item.type == "Episode") {
++              if (item.parentIndexNumber != null && item.indexNumber != null) {
++                add("S${item.parentIndexNumber}:E${item.indexNumber}")
+               } else {
+-                add(item.type)
++                add("Episode")
+               }
++            } else if (item.productionYear == null) {
++              add(item.type)
++            }
+           }
+           buildStarSubtitle(before, item.communityRating, item.criticRating)
+         }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinContent.kt b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinContent.kt
+index 750f64b0..a9772b68 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinContent.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinContent.kt
+@@ -581,39 +581,56 @@ fun JellyfinContent(
+                       }
+                     }
+ 
+-                    // 4. Latest Movies Section
+-                    if (uiState.latestMovies.isNotEmpty()) {
+-                      item {
++                    // 4. Per-Library Latest Sections (e.g. Latest Movies, Latest Shows, etc.)
++                    if (uiState.librarySections.isNotEmpty()) {
++                      items(uiState.librarySections, key = { "lib_section_${it.library.id}" }) { section ->
+                         JellyfinHorizontalSection(
+-                          title = "Latest Movies",
+-                          subtitle = "Newly added to server",
+-                          items = uiState.latestMovies,
++                          title = section.title,
++                          subtitle = section.subtitle,
++                          items = section.items,
+                           server = server,
+                           onItemClick = { item -> viewModel.openDetail(item) },
+                           onItemLongClick = { item -> viewModel.playItem(context, item) },
+                           onSeeAll = {
+-                            val movieLib = uiState.libraries.find { it.collectionType?.equals("movies", ignoreCase = true) == true }
+-                            if (movieLib != null) viewModel.navigateToItem(movieLib)
++                            viewModel.navigateToItem(section.library)
+                           },
+                         )
+                       }
+-                    }
++                    } else {
++                      // Fallback: Legacy Latest Movies Section
++                      if (uiState.latestMovies.isNotEmpty()) {
++                        item {
++                          JellyfinHorizontalSection(
++                            title = "Latest Movies",
++                            subtitle = "Newly added to server",
++                            items = uiState.latestMovies,
++                            server = server,
++                            onItemClick = { item -> viewModel.openDetail(item) },
++                            onItemLongClick = { item -> viewModel.playItem(context, item) },
++                            onSeeAll = {
++                              val movieLib = uiState.libraries.find { it.collectionType?.equals("movies", ignoreCase = true) == true }
++                              if (movieLib != null) viewModel.navigateToItem(movieLib)
++                            },
++                          )
++                        }
++                      }
+ 
+-                    // 5. Latest TV Shows Section
+-                    if (uiState.latestShows.isNotEmpty()) {
+-                      item {
+-                        JellyfinHorizontalSection(
+-                          title = "Latest TV Shows",
+-                          subtitle = "Newly updated series",
+-                          items = uiState.latestShows,
+-                          server = server,
+-                          onItemClick = { item -> viewModel.openDetail(item) },
+-                          onItemLongClick = { item -> viewModel.playItem(context, item) },
+-                          onSeeAll = {
+-                            val tvLib = uiState.libraries.find { it.collectionType?.equals("tvshows", ignoreCase = true) == true }
+-                            if (tvLib != null) viewModel.navigateToItem(tvLib)
+-                          },
+-                        )
++                      // Fallback: Legacy Latest TV Shows Section
++                      if (uiState.latestShows.isNotEmpty()) {
++                        item {
++                          JellyfinHorizontalSection(
++                            title = "Latest TV Shows",
++                            subtitle = "Newly updated series",
++                            items = uiState.latestShows,
++                            server = server,
++                            onItemClick = { item -> viewModel.openDetail(item) },
++                            onItemLongClick = { item -> viewModel.playItem(context, item) },
++                            onSeeAll = {
++                              val tvLib = uiState.libraries.find { it.collectionType?.equals("tvshows", ignoreCase = true) == true }
++                              if (tvLib != null) viewModel.navigateToItem(tvLib)
++                            },
++                          )
++                        }
+                       }
+                     }
+ 
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinViewModel.kt b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinViewModel.kt
+index 3fc962a5..11de2061 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinViewModel.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinViewModel.kt
+@@ -39,6 +39,7 @@ import com.quantummpv.app.utils.media.MediaUtils
+ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.Job
+ import kotlinx.coroutines.async
++import kotlinx.coroutines.awaitAll
+ import kotlinx.coroutines.delay
+ import kotlinx.coroutines.flow.MutableStateFlow
+ import kotlinx.coroutines.flow.StateFlow
+@@ -67,10 +68,19 @@ data class JellyfinLibraryView(
+   val isMusic: Boolean = false,
+ )
+ 
++data class JellyfinHomeSection(
++  val library: JellyfinItem,
++  val title: String,
++  val subtitle: String? = null,
++  val items: List<JellyfinItem> = emptyList(),
++  val isShows: Boolean = false,
++)
++
+ data class JellyfinUiState(
+   val servers: List<JellyfinServer> = emptyList(),
+   val activeServer: JellyfinServer? = null,
+   val libraries: List<JellyfinItem> = emptyList(),
++  val librarySections: List<JellyfinHomeSection> = emptyList(),
+   val heroItems: List<JellyfinItem> = emptyList(),
+   val resumeItems: List<JellyfinItem> = emptyList(),
+   val latestMovies: List<JellyfinItem> = emptyList(),
+@@ -172,6 +182,7 @@ class JellyfinViewModel(
+         heroItems = emptyList(),
+         latestMovies = emptyList(),
+         latestShows = emptyList(),
++        librarySections = emptyList(),
+         recommendations = emptyList(),
+         searchQuery = "",
+         detailItem = null,
+@@ -272,13 +283,69 @@ class JellyfinViewModel(
+         }
+ 
+         val resume = resumeRaw.filter { isVideoMedia(it) }
+-        val latestMovies = latestRaw.filter { isVideoMedia(it) && (it.type == "Movie" || it.collectionType?.equals("movies", ignoreCase = true) == true) }
+-        val latestShows = latestRaw.filter { isVideoMedia(it) && (it.type == "Series" || it.type == "Episode" || it.collectionType?.equals("tvshows", ignoreCase = true) == true) }
+ 
+-        // Top Picks For You: Combined API suggestions + top community-rated items (up to 36 items)
+-        val recommendations = (suggestionsRaw + topRatedRaw + latestRaw)
++        // Fetch latest media for each non-music library concurrently
++        val videoLibs = libs.filter { !isMusicLibrary(it) }
++        val librarySectionsDeferred = videoLibs.map { lib ->
++          async {
++            val isShowLib = isSeriesLibrary(lib)
++            val latestItemsResult = jellyfinRepository.getLatestMedia(
++              server = server,
++              parentId = lib.id,
++              limit = 16,
++              groupItems = true,
++            )
++            val rawItems = latestItemsResult.getOrDefault(emptyList()).filter { isVideoMedia(it) }
++            val containsShows = rawItems.any { it.isSeries || it.type == "Episode" || it.seriesName != null }
++            val isShows = isShowLib || containsShows
++
++            val processedItems = if (isShows) {
++              resolveShowsAsSeries(server, rawItems)
++            } else {
++              rawItems
++            }
++
++            if (processedItems.isNotEmpty()) {
++              val title = if (lib.name.startsWith("Latest", ignoreCase = true)) {
++                lib.name
++              } else {
++                "Latest ${lib.name}"
++              }
++              val subtitle = if (isShows) "Newly updated series" else "Newly added to ${lib.name}"
++              JellyfinHomeSection(
++                library = lib,
++                title = title,
++                subtitle = subtitle,
++                items = processedItems,
++                isShows = isShows,
++              )
++            } else {
++              null
++            }
++          }
++        }
++        val librarySections = librarySectionsDeferred.awaitAll().filterNotNull()
++
++        val legacyLatestMovies = latestRaw.filter { isVideoMedia(it) && (it.type == "Movie" || it.collectionType?.equals("movies", ignoreCase = true) == true) }
++        val legacyLatestShows = resolveShowsAsSeries(
++          server,
++          latestRaw.filter { isVideoMedia(it) && (it.type == "Series" || it.type == "Episode" || it.collectionType?.equals("tvshows", ignoreCase = true) == true) },
++        )
++
++        val latestMovies = librarySections.filter { !it.isShows }.flatMap { it.items }.ifEmpty { legacyLatestMovies }
++        val latestShows = librarySections.filter { it.isShows }.flatMap { it.items }.ifEmpty { legacyLatestShows }
++
++        // Top Picks For You: Combined API suggestions + top community-rated items + library sections + latest
++        val rawRecommendationCandidates = (suggestionsRaw + topRatedRaw + librarySections.flatMap { it.items } + latestRaw)
+           .filter { isVideoMedia(it) && (!it.backdropImageTag.isNullOrBlank() || !it.primaryImageTag.isNullOrBlank()) }
+-          .distinctBy { it.id }
++
++        val recommendations = resolveShowsAsSeries(server, rawRecommendationCandidates)
++          .sortedWith(
++            compareByDescending<JellyfinItem> { it.isSeries || it.type == "Series" }
++              .thenByDescending { it.childCount ?: 0 }
++              .thenByDescending { it.communityRating ?: 0.0 }
++          )
++          .distinctBy { mediaDeduplicationKey(it) }
+           .take(36)
+ 
+         val latestMusic = (musicRaw + latestRaw.filter { it.isAudio || it.type == "MusicAlbum" || it.type == "Audio" })
+@@ -293,17 +360,23 @@ class JellyfinViewModel(
+ 
+         val finalHero =
+           if (fetchedHero.isNotEmpty()) {
+-            fetchedHero.take(15)
++            resolveShowsAsSeries(server, fetchedHero)
++              .distinctBy { mediaDeduplicationKey(it) }
++              .take(15)
+           } else {
+-            (latestRaw + suggestionsRaw)
+-              .filter { !it.isPlayed && isVideoMedia(it) && (!it.backdropImageTag.isNullOrBlank() || !it.primaryImageTag.isNullOrBlank()) }
+-              .distinctBy { it.id }
++            resolveShowsAsSeries(
++              server,
++              (librarySections.flatMap { it.items } + recommendations)
++                .filter { !it.isPlayed && isVideoMedia(it) && (!it.backdropImageTag.isNullOrBlank() || !it.primaryImageTag.isNullOrBlank()) },
++            )
++              .distinctBy { mediaDeduplicationKey(it) }
+               .take(15)
+           }
+ 
+         _uiState.update {
+           it.copy(
+             libraries = libs,
++            librarySections = librarySections,
+             resumeItems = resume,
+             latestMovies = latestMovies,
+             latestShows = latestShows,
+@@ -311,12 +384,69 @@ class JellyfinViewModel(
+             recommendations = recommendations,
+             heroItems = finalHero,
+             isLoading = false,
+-            error = if (libs.isEmpty() && latestRaw.isEmpty() && resumeRaw.isEmpty()) libsResult.exceptionOrNull()?.message else null,
++            error = if (libs.isEmpty() && latestRaw.isEmpty() && resumeRaw.isEmpty() && librarySections.isEmpty()) libsResult.exceptionOrNull()?.message else null,
+           )
+         }
+       }
+   }
+ 
++  private fun mediaDeduplicationKey(item: JellyfinItem): String {
++    if (item.isSeries || item.type == "Series" || item.type == "Episode" || !item.seriesName.isNullOrBlank()) {
++      val showName = (item.seriesName ?: item.name).trim().lowercase()
++      return "series_$showName"
++    }
++    val movieName = item.name.trim().lowercase()
++    return "movie_$movieName"
++  }
++
++  private suspend fun resolveShowsAsSeries(
++    server: JellyfinServer,
++    items: List<JellyfinItem>,
++  ): List<JellyfinItem> {
++    if (items.isEmpty()) return emptyList()
++
++    val episodeItems = items.filter { it.type == "Episode" && !it.seriesId.isNullOrBlank() }
++    val seriesMap = if (episodeItems.isNotEmpty()) {
++      val distinctSeriesIds = episodeItems.mapNotNull { it.seriesId }.distinct()
++      distinctSeriesIds.map { seriesId ->
++        viewModelScope.async(Dispatchers.IO) {
++          seriesId to jellyfinRepository.getItem(server, seriesId).getOrNull()
++        }
++      }.awaitAll().toMap()
++    } else {
++      emptyMap()
++    }
++
++    return items.map { item ->
++      if (item.type == "Episode") {
++        val series = item.seriesId?.let { seriesMap[it] }
++        series ?: item.copy(
++          id = item.seriesId ?: item.id,
++          name = item.seriesName ?: item.name,
++          type = "Series",
++          primaryImageTag = item.seriesPrimaryImageTag ?: item.primaryImageTag,
++        )
++      } else {
++        item
++      }
++    }.distinctBy { mediaDeduplicationKey(it) }
++  }
++
++  private fun isSeriesLibrary(lib: JellyfinItem): Boolean {
++    val col = lib.collectionType?.lowercase()?.trim() ?: ""
++    val type = lib.type.lowercase().trim()
++    val name = lib.name.lowercase().trim()
++    return col == "tvshows" || col == "series" || type == "series" ||
++      name.contains("show") || name.contains("series") || name.contains("tv") || name.contains("anime") || name.contains("drama")
++  }
++
++  private fun isMusicLibrary(item: JellyfinItem): Boolean {
++    val col = item.collectionType?.lowercase()?.trim() ?: ""
++    val type = item.type.lowercase().trim()
++    val name = item.name.lowercase().trim()
++    return col == "music" || type == "music" || type == "audio" || (name.contains("music") && !name.contains("video"))
++  }
++
+   private fun sortJellyfinLibraries(libs: List<JellyfinItem>): List<JellyfinItem> {
+     fun libraryRank(item: JellyfinItem): Int {
+       val name = item.name.lowercase().trim()
+@@ -1291,6 +1421,7 @@ class JellyfinViewModel(
+         resumeItems = updateItemInList(state.resumeItems),
+         latestMovies = updateItemInList(state.latestMovies),
+         latestShows = updateItemInList(state.latestShows),
++        librarySections = state.librarySections.map { it.copy(items = updateItemInList(it.items)) },
+         recommendations = updateItemInList(state.recommendations),
+         currentItems = updateItemInList(state.currentItems),
+         detailItem = if (state.detailItem?.id == item.id) state.detailItem.copy(isFavorite = newFavoriteState) else state.detailItem,
+@@ -1409,6 +1540,7 @@ class JellyfinViewModel(
+           heroItems = emptyList(),
+           latestMovies = emptyList(),
+           latestShows = emptyList(),
++          librarySections = emptyList(),
+         )
+       }
+       if (newActive != null) {
+@@ -1427,6 +1559,22 @@ class JellyfinViewModel(
+       val targetItem = if (item.type == "MusicAlbum" || item.type == "MusicArtist" || (item.isFolder && item.collectionType == "music")) {
+         val tracksResult = jellyfinRepository.getItems(server = server, parentId = item.id, includeItemTypes = "Audio").getOrNull()
+         tracksResult?.items?.firstOrNull() ?: item
++      } else if (item.isSeries) {
++        val unplayedEpisode = jellyfinRepository.getItems(
++          server = server,
++          parentId = item.id,
++          includeItemTypes = "Episode",
++          sortBy = JellyfinSortBy.NAME,
++          isPlayed = false,
++          limit = 1,
++        ).getOrNull()?.items?.firstOrNull()
++
++        unplayedEpisode ?: jellyfinRepository.getItems(
++          server = server,
++          parentId = item.id,
++          includeItemTypes = "Episode",
++          limit = 1,
++        ).getOrNull()?.items?.firstOrNull() ?: item
+       } else {
+         item
+       }
+@@ -1789,6 +1937,7 @@ class JellyfinViewModel(
+             heroItems = updateList(state.heroItems),
+             latestMovies = updateList(state.latestMovies),
+             latestShows = updateList(state.latestShows),
++            librarySections = state.librarySections.map { it.copy(items = updateList(it.items)) },
+             detailItem = if (state.detailItem?.id == item.id) state.detailItem.copy(isPlayed = targetPlayed) else state.detailItem,
+           )
+         }
+@@ -1830,13 +1979,17 @@ class JellyfinViewModel(
+           heroItems = updateList(state.heroItems),
+           latestMovies = updateList(state.latestMovies),
+           latestShows = updateList(state.latestShows),
++          librarySections = state.librarySections.map { it.copy(items = updateList(it.items)) },
+         )
+       }
+     }
+   }
+ 
+   fun playRandom(context: Context) {
+-    val items = (_uiState.value.currentItems.ifEmpty { _uiState.value.latestMovies + _uiState.value.latestShows }).filter { it.isVideo }
++    val items = (_uiState.value.currentItems.ifEmpty {
++      val fromSections = _uiState.value.librarySections.flatMap { it.items }
++      if (fromSections.isNotEmpty()) fromSections else _uiState.value.latestMovies + _uiState.value.latestShows
++    }).filter { it.isVideo }
+     if (items.isNotEmpty()) {
+       playItem(context, items.random())
+     }
+-- 
+2.25.1
+

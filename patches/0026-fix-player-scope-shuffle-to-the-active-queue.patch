@@ -1,0 +1,93 @@
+From 9e6f83418c68025538bfa32475f7f5a8c300b6f0 Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <87899750+Riteshp2001@users.noreply.github.com>
+Date: Sun, 6 Sep 2026 09:22:49 +0000
+Subject: [PATCH 026/140] fix(player): scope shuffle to the active queue
+
+Refs #611
+---
+ .../gyrolet/mpvrx/ui/player/PlayerActivity.kt  |  9 +++++++--
+ .../gyrolet/mpvrx/ui/player/PlayerViewModel.kt | 18 ++++++++----------
+ 2 files changed, 15 insertions(+), 12 deletions(-)
+
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt b/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt
+index 53394a7d..87d683db 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt
+@@ -783,8 +783,11 @@ class PlayerActivity :
+       setOrientation()
+     }
+ 
+-    // Apply persisted shuffle state after playlist is loaded
+-    viewModel.applyPersistedShuffleState()
++    if (attachedToCurrentSession) {
++      viewModel.syncShuffleStateFromSession()
++    } else {
++      viewModel.resetShuffleForNewPlayback()
++    }
+ 
+     // Observe selected Lua scripts for runtime loading
+     lifecycleScope.launch {
+@@ -5139,6 +5142,7 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
+         isBackgroundPlaybackSessionActive = false
+         pendingBackgroundTransition = false
+         if (attachToCurrentPlaybackSessionIfRequested(intent)) {
++          viewModel.syncShuffleStateFromSession()
+           PlaybackSession.markForeground()
+           isReady = PlaybackSession.state.value.phase == PlaybackPhase.READY
+           if (isReady) viewModel.onVideoLoadCompleted()
+@@ -5186,6 +5190,7 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
+     val previouslyLoadedTorrentFileIndex = this.intent.getIntExtra("torrent_file_index", -1)
+     val previousItemWasReady = isReady
+ 
++    viewModel.resetShuffleForNewPlayback()
+     setIntent(intent)
+     applyInitialVideoOrientation(intent)
+     applyPlaybackBrightnessPolicy(isAudio = isCurrentMediaKnownAudio())
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt b/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
+index 7a8e4107..f668c56d 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
+@@ -1873,11 +1873,9 @@ val isBrightnessSliderShown = MutableStateFlow(false)
+ 
+     // Track selection is now handled by TrackSelector in PlayerActivity
+ 
+-    // Restore repeat mode and shuffle state from preferences
++    // Repeat mode remains a player preference; shuffle belongs to the active queue only.
+     _repeatMode.value = playerPreferences.repeatMode.get()
+-    _shuffleEnabled.value = playerPreferences.shuffleEnabled.get()
+     PlaybackSession.setRepeatMode(_repeatMode.value)
+-    PlaybackSession.setShuffleEnabled(_shuffleEnabled.value)
+ 
+     // Observe volume boost cap changes to enforce limits dynamically (in PiP)
+     viewModelScope.launch(playbackStateDispatcher) {
+@@ -5748,11 +5746,13 @@ val isBrightnessSliderShown = MutableStateFlow(false)
+ 
+   // ==================== Repeat and Shuffle ====================
+ 
+-  fun applyPersistedShuffleState() {
+-    PlaybackSession.setShuffleEnabled(_shuffleEnabled.value)
+-    if (_shuffleEnabled.value) {
+-      host.onQueueShuffleChanged(true)
+-    }
++  fun syncShuffleStateFromSession() {
++    _shuffleEnabled.value = PlaybackSession.queue.value.shuffleEnabled
++  }
++
++  fun resetShuffleForNewPlayback() {
++    _shuffleEnabled.value = false
++    PlaybackSession.setShuffleEnabled(false)
+   }
+ 
+   fun cycleRepeatMode() {
+@@ -5776,8 +5776,6 @@ val isBrightnessSliderShown = MutableStateFlow(false)
+   fun toggleShuffle() {
+     _shuffleEnabled.value = !_shuffleEnabled.value
+ 
+-    // Persist the shuffle state
+-    playerPreferences.shuffleEnabled.set(_shuffleEnabled.value)
+     PlaybackSession.setShuffleEnabled(_shuffleEnabled.value)
+ 
+     // Notify activity to handle shuffle state change
+-- 
+2.25.1
+

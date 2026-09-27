@@ -1,0 +1,2382 @@
+From 89500a7c7c4959ea4147b8e0d4b79549a9f2b314 Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <riteshp2001@gmail.com>
+Date: Tue, 8 Sep 2026 14:55:03 +0530
+Subject: [PATCH 050/140] feat: improve settings and connection workflows
+
+---
+ .../java/com/quantummpv/app/di/DomainModule.kt |   4 +
+ .../GitHubContributorsRepository.kt           | 160 ++++++++
+ .../ui/browser/dialogs/AddConnectionDialog.kt | 343 ----------------
+ .../browser/dialogs/ConnectionEditorSheet.kt  | 385 ++++++++++++++++++
+ .../ui/browser/dialogs/ConnectionSheets.kt    |  66 +++
+ .../browser/dialogs/EditConnectionDialog.kt   | 369 -----------------
+ .../com/quantummpv/app/ui/player/MPVView.kt    |   4 +-
+ .../gyrolet/mpvrx/ui/player/MpvConfigCache.kt | 117 ++++++
+ .../mpvrx/ui/player/PlaybackSession.kt        |  12 +
+ .../gyrolet/mpvrx/ui/player/PlayerActivity.kt |  39 +-
+ .../preferences/AboutContributorsSection.kt   | 241 +++++++++++
+ .../mpvrx/ui/preferences/AboutScreen.kt       |   2 +
+ .../preferences/AdvancedPreferencesScreen.kt  |  56 +--
+ .../AppearancePreferencesScreen.kt            |   2 +-
+ .../ui/preferences/ConfigEditorScreen.kt      |  41 +-
+ app/src/main/res/values-ar/strings.xml        |  11 +
+ app/src/main/res/values-de/strings.xml        |  11 +
+ app/src/main/res/values-es/strings.xml        |  11 +
+ app/src/main/res/values-fr/strings.xml        |  11 +
+ app/src/main/res/values-hi/strings.xml        |  11 +
+ app/src/main/res/values-ja/strings.xml        |  10 +
+ app/src/main/res/values-pt-rBR/strings.xml    |  11 +
+ app/src/main/res/values-ru/strings.xml        |  13 +
+ app/src/main/res/values-zh-rCN/strings.xml    |  10 +
+ app/src/main/res/values/strings.xml           |  11 +
+ 25 files changed, 1167 insertions(+), 784 deletions(-)
+ create mode 100644 app/src/main/java/com/quantummpv/app/repository/GitHubContributorsRepository.kt
+ delete mode 100644 app/src/main/java/com/quantummpv/app/ui/browser/dialogs/AddConnectionDialog.kt
+ create mode 100644 app/src/main/java/com/quantummpv/app/ui/browser/dialogs/ConnectionEditorSheet.kt
+ create mode 100644 app/src/main/java/com/quantummpv/app/ui/browser/dialogs/ConnectionSheets.kt
+ delete mode 100644 app/src/main/java/com/quantummpv/app/ui/browser/dialogs/EditConnectionDialog.kt
+ create mode 100644 app/src/main/java/com/quantummpv/app/ui/player/MpvConfigCache.kt
+ create mode 100644 app/src/main/java/com/quantummpv/app/ui/preferences/AboutContributorsSection.kt
+
+diff --git a/app/src/main/java/com/quantummpv/app/di/DomainModule.kt b/app/src/main/java/com/quantummpv/app/di/DomainModule.kt
+index 969450d5..8a2a804a 100644
+--- a/app/src/main/java/com/quantummpv/app/di/DomainModule.kt
++++ b/app/src/main/java/com/quantummpv/app/di/DomainModule.kt
+@@ -16,6 +16,7 @@ import com.quantummpv.app.domain.torrent.TorrentStreamingEngine
+ import com.quantummpv.app.network.AndroidCookieJar
+ import com.quantummpv.app.network.SharedHttpClient
+ import com.quantummpv.app.preferences.AiPreferences
++import com.quantummpv.app.repository.GitHubContributorsRepository
+ import com.quantummpv.app.repository.IntroDbRepository
+ import com.quantummpv.app.repository.ai.AiClient
+ import com.quantummpv.app.repository.ai.AiService
+@@ -33,6 +34,7 @@ import com.quantummpv.app.repository.subtitle.OnlineSubtitleFileStore
+ import com.quantummpv.app.repository.subtitle.OnlineSubtitleOrchestrator
+ import com.quantummpv.app.repository.subtitlehub.MpvRxSubtitleHubRepository
+ import com.quantummpv.app.repository.wyzie.WyzieSearchRepository
++import com.quantummpv.app.ui.player.MpvConfigCache
+ import com.quantummpv.app.ui.player.PlaybackSessionShaderRuntime
+ import kotlinx.serialization.json.Json
+ import okhttp3.OkHttpClient
+@@ -52,12 +54,14 @@ val domainModule =
+     }
+     single { Anime4KManager(androidContext()) }
+     single<MpvShaderRuntime> { PlaybackSessionShaderRuntime }
++    single { MpvConfigCache(androidContext(), get()) }
+     single { HdrToysManager(androidContext(), get()) }
+     single { OnlineSubtitleFileStore(androidContext(), get()) }
+     single { WyzieSearchRepository(androidContext(), get(), get(), get(), get()) }
+     single { MpvRxSubtitleHubRepository(get(), get(), get(), get()) }
+     single { OnlineSubtitleOrchestrator(get<WyzieSearchRepository>(), get<MpvRxSubtitleHubRepository>()) }
+     single { IntroDbRepository(get(), get()) }
++    single { GitHubContributorsRepository(get(), get()) }
+     single { OpenCodeClient(get(), get()) }
+     single { GroqClient(get(), get()) }
+     single { OpenAiClient(get(), get()) }
+diff --git a/app/src/main/java/com/quantummpv/app/repository/GitHubContributorsRepository.kt b/app/src/main/java/com/quantummpv/app/repository/GitHubContributorsRepository.kt
+new file mode 100644
+index 00000000..31b76ed3
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/repository/GitHubContributorsRepository.kt
+@@ -0,0 +1,160 @@
++/*
++ * SPDX-License-Identifier: AGPL-3.0-or-later
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Affero General Public License as published
++ * by the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ */
++
++package com.quantummpv.app.repository
++
++import android.os.SystemClock
++import android.util.Patterns
++import com.quantummpv.app.network.awaitResponse
++import kotlinx.coroutines.CancellationException
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.withContext
++import kotlinx.serialization.SerialName
++import kotlinx.serialization.Serializable
++import kotlinx.serialization.builtins.ListSerializer
++import kotlinx.serialization.json.Json
++import okhttp3.HttpUrl.Companion.toHttpUrl
++import okhttp3.OkHttpClient
++import okhttp3.Request
++import java.util.Locale
++
++internal data class GitHubContributor(
++  val displayName: String,
++  val avatarUrl: String?,
++  val profileUrl: String?,
++  val contributions: Int,
++)
++
++internal class GitHubContributorsRepository(
++  private val client: OkHttpClient,
++  private val json: Json,
++) {
++  @Volatile
++  private var cache: ContributorCache? = null
++
++  suspend fun contributors(forceRefresh: Boolean = false): Result<List<GitHubContributor>> =
++    withContext(Dispatchers.IO) {
++      if (!forceRefresh) freshCache()?.let { return@withContext Result.success(it) }
++
++      try {
++        val contributors =
++          fetchContributorResponses()
++            .asSequence()
++            .filterNot { it.type.equals("Bot", ignoreCase = true) }
++            .mapNotNull { contributor ->
++              val displayName =
++                contributor.login?.trim()?.takeIf(String::isNotBlank)
++                  ?: contributor.name
++                    ?.trim()
++                    ?.takeIf(String::isNotBlank)
++                    ?.takeUnless { Patterns.EMAIL_ADDRESS.matcher(it).find() }
++                  ?: return@mapNotNull null
++              GitHubContributor(
++                displayName = displayName,
++                avatarUrl = contributor.avatarUrl?.takeIf { it.startsWith("https://") },
++                profileUrl = contributor.profileUrl?.takeIf { it.startsWith("https://github.com/") },
++                contributions = contributor.contributions.coerceAtLeast(0),
++              )
++            }.distinctBy { it.displayName.lowercase(Locale.ROOT) }
++            .sortedWith(
++              compareByDescending<GitHubContributor> { it.contributions }
++                .thenBy { it.displayName.lowercase(Locale.ROOT) },
++            )
++            .toList()
++        synchronized(this@GitHubContributorsRepository) {
++          cache = ContributorCache(contributors, SystemClock.elapsedRealtime())
++        }
++        Result.success(contributors)
++      } catch (cancellation: CancellationException) {
++        throw cancellation
++      } catch (error: Exception) {
++        freshCache(ignoreAge = true)?.let { return@withContext Result.success(it) }
++        Result.failure(error)
++      }
++    }
++
++  private suspend fun fetchContributorResponses(): List<GitHubContributorResponse> {
++    val contributors = mutableListOf<GitHubContributorResponse>()
++    var pageNumber = 1
++    var hasNextPage: Boolean
++    do {
++      val page = fetchContributorPage(pageNumber)
++      contributors += page.contributors
++      hasNextPage = page.hasNextPage && pageNumber < MAX_CONTRIBUTOR_PAGES
++      pageNumber++
++    } while (hasNextPage)
++    return contributors
++  }
++
++  private suspend fun fetchContributorPage(pageNumber: Int): ContributorPage {
++    val url =
++      API_URL
++        .toHttpUrl()
++        .newBuilder()
++        .addQueryParameter("per_page", CONTRIBUTORS_PER_PAGE.toString())
++        .addQueryParameter("page", pageNumber.toString())
++        .addQueryParameter("anon", "1")
++        .build()
++    val request =
++      Request
++        .Builder()
++        .url(url)
++        .header("Accept", "application/vnd.github+json")
++        .header("X-GitHub-Api-Version", "2022-11-28")
++        .header("User-Agent", "mpvRx-Android")
++        .build()
++
++    return client.newCall(request).awaitResponse().use { response ->
++      if (!response.isSuccessful) {
++        throw IllegalStateException("GitHub contributors request failed with HTTP ${response.code}")
++      }
++      val pageContributors =
++        json.decodeFromString(ListSerializer(GitHubContributorResponse.serializer()), response.body.string())
++      val linkHeader = response.header("Link")
++      ContributorPage(
++        contributors = pageContributors,
++        hasNextPage =
++          linkHeader?.contains("rel=\"next\"") == true ||
++            (linkHeader == null && pageContributors.size == CONTRIBUTORS_PER_PAGE),
++      )
++    }
++  }
++
++  private fun freshCache(ignoreAge: Boolean = false): List<GitHubContributor>? =
++    synchronized(this) {
++      cache?.takeIf { ignoreAge || SystemClock.elapsedRealtime() - it.cachedAtMs < CACHE_TTL_MS }?.contributors
++    }
++
++  private data class ContributorCache(
++    val contributors: List<GitHubContributor>,
++    val cachedAtMs: Long,
++  )
++
++  private data class ContributorPage(
++    val contributors: List<GitHubContributorResponse>,
++    val hasNextPage: Boolean,
++  )
++
++  @Serializable
++  private data class GitHubContributorResponse(
++    val login: String? = null,
++    val name: String? = null,
++    @SerialName("avatar_url") val avatarUrl: String? = null,
++    @SerialName("html_url") val profileUrl: String? = null,
++    val contributions: Int = 0,
++    val type: String? = null,
++  )
++
++  private companion object {
++    const val API_URL = "https://api.github.com/repos/Riteshp2001/mpvRx/contributors"
++    const val CONTRIBUTORS_PER_PAGE = 100
++    const val MAX_CONTRIBUTOR_PAGES = 10
++    const val CACHE_TTL_MS = 30L * 60L * 1_000L
++  }
++}
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/dialogs/AddConnectionDialog.kt b/app/src/main/java/com/quantummpv/app/ui/browser/dialogs/AddConnectionDialog.kt
+deleted file mode 100644
+index a9e95976..00000000
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/dialogs/AddConnectionDialog.kt
++++ /dev/null
+@@ -1,343 +0,0 @@
+-/*
+- * SPDX-License-Identifier: AGPL-3.0-or-later
+- *
+- * This program is free software: you can redistribute it and/or modify
+- * it under the terms of the GNU Affero General Public License as published
+- * by the Free Software Foundation, either version 3 of the License, or
+- * (at your option) any later version.
+- */
+-
+-package com.quantummpv.app.ui.browser.dialogs
+-
+-import androidx.compose.foundation.layout.Arrangement
+-import androidx.compose.foundation.layout.Column
+-import androidx.compose.foundation.layout.Row
+-import androidx.compose.foundation.layout.Spacer
+-import androidx.compose.foundation.layout.fillMaxWidth
+-import androidx.compose.foundation.layout.width
+-import androidx.compose.foundation.layout.widthIn
+-import androidx.compose.foundation.rememberScrollState
+-import androidx.compose.foundation.text.KeyboardOptions
+-import androidx.compose.foundation.verticalScroll
+-import androidx.compose.material3.AlertDialog
+-import androidx.compose.material3.Button
+-import androidx.compose.material3.Checkbox
+-import androidx.compose.material3.DropdownMenuItem
+-import androidx.compose.material3.ExperimentalMaterial3Api
+-import androidx.compose.material3.ExposedDropdownMenu
+-import androidx.compose.material3.ExposedDropdownMenuAnchorType
+-import androidx.compose.material3.ExposedDropdownMenuBox
+-import androidx.compose.material3.ExposedDropdownMenuDefaults
+-import androidx.compose.material3.MaterialTheme
+-import androidx.compose.material3.OutlinedTextField
+-import androidx.compose.material3.Text
+-import androidx.compose.material3.TextButton
+-import androidx.compose.runtime.Composable
+-import androidx.compose.runtime.getValue
+-import androidx.compose.runtime.mutableStateOf
+-import androidx.compose.runtime.remember
+-import androidx.compose.runtime.setValue
+-import androidx.compose.ui.Alignment
+-import androidx.compose.ui.Modifier
+-import androidx.compose.ui.text.font.FontWeight
+-import androidx.compose.ui.text.input.KeyboardType
+-import androidx.compose.ui.text.input.PasswordVisualTransformation
+-import androidx.compose.ui.text.style.TextOverflow
+-import androidx.compose.ui.unit.dp
+-import com.quantummpv.app.domain.network.NetworkConnection
+-import com.quantummpv.app.domain.network.NetworkProtocol
+-
+-@OptIn(ExperimentalMaterial3Api::class)
+-@Composable
+-fun AddConnectionSheet(
+-  isOpen: Boolean,
+-  onDismiss: () -> Unit,
+-  onSave: (NetworkConnection) -> Unit,
+-  modifier: Modifier = Modifier,
+-) {
+-  if (!isOpen) return
+-
+-  var name by remember { mutableStateOf("") }
+-  var protocol by remember { mutableStateOf(NetworkProtocol.SMB) }
+-  var host by remember { mutableStateOf("") }
+-  var port by remember { mutableStateOf(protocol.defaultPort.toString()) }
+-  var username by remember { mutableStateOf("") }
+-  var password by remember { mutableStateOf("") }
+-  var path by remember { mutableStateOf("/") }
+-  var isAnonymous by remember { mutableStateOf(false) }
+-  var useHttps by remember { mutableStateOf(false) }
+-  var protocolMenuExpanded by remember { mutableStateOf(false) }
+-
+-  val handleDismiss = {
+-    onDismiss()
+-  }
+-
+-  val handleSave = {
+-    val connection =
+-      NetworkConnection(
+-        name = name.ifBlank { "${protocol.displayName} - $host" },
+-        protocol = protocol,
+-        host = host.trim(),
+-        port = port.toIntOrNull() ?: protocol.defaultPort,
+-        username = if (isAnonymous) "" else username.trim(),
+-        password = if (isAnonymous) "" else password,
+-        path = path.ifBlank { "/" },
+-        isAnonymous = isAnonymous,
+-        useHttps = useHttps,
+-      )
+-    onSave(connection)
+-  }
+-
+-  AlertDialog(
+-    onDismissRequest = handleDismiss,
+-    modifier = Modifier.widthIn(min = 400.dp, max = 600.dp),
+-    title = {
+-      Text(
+-        text =
+-          androidx.compose.ui.res
+-            .stringResource(com.quantummpv.app.R.string.ui_add_network_connection),
+-        style = MaterialTheme.typography.headlineSmall,
+-        fontWeight = FontWeight.Medium,
+-      )
+-    },
+-    text = {
+-      Column(
+-        modifier =
+-          Modifier
+-            .fillMaxWidth()
+-            .verticalScroll(rememberScrollState()),
+-        verticalArrangement = Arrangement.spacedBy(16.dp),
+-      ) {
+-        // Name and Protocol in one row
+-        Row(
+-          modifier = Modifier.fillMaxWidth(),
+-          horizontalArrangement = Arrangement.spacedBy(8.dp),
+-        ) {
+-          // Connection Name
+-          OutlinedTextField(
+-            value = name,
+-            onValueChange = { name = it },
+-            label = {
+-              Text(
+-                androidx.compose.ui.res
+-                  .stringResource(com.quantummpv.app.R.string.ui_name),
+-                maxLines = 1,
+-                overflow = TextOverflow.Ellipsis,
+-              )
+-            },
+-            modifier = Modifier.weight(0.50f),
+-            singleLine = true,
+-          )
+-
+-          // Protocol Dropdown
+-          ExposedDropdownMenuBox(
+-            expanded = protocolMenuExpanded,
+-            onExpandedChange = { protocolMenuExpanded = it },
+-            modifier = Modifier.weight(0.50f),
+-          ) {
+-            OutlinedTextField(
+-              value = protocol.displayName,
+-              onValueChange = { },
+-              readOnly = true,
+-              label = {
+-                Text(
+-                  androidx.compose.ui.res
+-                    .stringResource(com.quantummpv.app.R.string.ui_protocol),
+-                  maxLines = 1,
+-                  overflow = TextOverflow.Ellipsis,
+-                )
+-              },
+-              trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = protocolMenuExpanded) },
+-              modifier =
+-                Modifier
+-                  .fillMaxWidth()
+-                  .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
+-            )
+-            ExposedDropdownMenu(
+-              expanded = protocolMenuExpanded,
+-              onDismissRequest = { protocolMenuExpanded = false },
+-            ) {
+-              NetworkProtocol.entries.forEach { proto ->
+-                DropdownMenuItem(
+-                  text = { Text(proto.displayName) },
+-                  onClick = {
+-                    protocol = proto
+-                    port = proto.defaultPort.toString()
+-                    protocolMenuExpanded = false
+-                  },
+-                )
+-              }
+-            }
+-          }
+-        }
+-
+-        // Host
+-        OutlinedTextField(
+-          value = host,
+-          onValueChange = { host = it },
+-          label = {
+-            Text(
+-              androidx.compose.ui.res
+-                .stringResource(com.quantummpv.app.R.string.ui_host_ip_address),
+-              maxLines = 1,
+-              overflow = TextOverflow.Ellipsis,
+-            )
+-          },
+-          modifier = Modifier.fillMaxWidth(),
+-          singleLine = true,
+-          placeholder = { Text("192.168.1.100", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+-        )
+-
+-        // Port and Path in one row
+-        Row(
+-          modifier = Modifier.fillMaxWidth(),
+-          horizontalArrangement = Arrangement.spacedBy(8.dp),
+-        ) {
+-          // Port
+-          OutlinedTextField(
+-            value = port,
+-            onValueChange = { port = it },
+-            label = {
+-              Text(
+-                androidx.compose.ui.res
+-                  .stringResource(com.quantummpv.app.R.string.ui_port),
+-                maxLines = 1,
+-                overflow = TextOverflow.Ellipsis,
+-              )
+-            },
+-            modifier = Modifier.weight(0.3f),
+-            singleLine = true,
+-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+-          )
+-
+-          // Path
+-          OutlinedTextField(
+-            value = path,
+-            onValueChange = { path = it },
+-            label = {
+-              Text(
+-                androidx.compose.ui.res
+-                  .stringResource(com.quantummpv.app.R.string.ui_path),
+-                maxLines = 1,
+-                overflow = TextOverflow.Ellipsis,
+-              )
+-            },
+-            modifier = Modifier.weight(0.7f),
+-            singleLine = true,
+-            placeholder = { Text("/", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+-          )
+-        }
+-
+-        // Anonymous and HTTPS checkboxes
+-        Row(
+-          verticalAlignment = Alignment.CenterVertically,
+-          modifier = Modifier.fillMaxWidth(),
+-        ) {
+-          Checkbox(
+-            checked = isAnonymous,
+-            onCheckedChange = { isAnonymous = it },
+-          )
+-          Spacer(modifier = Modifier.width(8.dp))
+-          Text(
+-            androidx.compose.ui.res
+-              .stringResource(com.quantummpv.app.R.string.ui_anonymous_guest_access),
+-          )
+-        }
+-
+-        // HTTPS checkbox (only for WebDAV)
+-        if (protocol == NetworkProtocol.WEBDAV) {
+-          Row(
+-            verticalAlignment = Alignment.CenterVertically,
+-            modifier = Modifier.fillMaxWidth(),
+-          ) {
+-            Checkbox(
+-              checked = useHttps,
+-              onCheckedChange = {
+-                useHttps = it
+-                // Auto-update port when toggling HTTPS
+-                if (it && port == "80") {
+-                  port = "443"
+-                } else if (!it && port == "443") {
+-                  port = "80"
+-                }
+-              },
+-            )
+-            Spacer(modifier = Modifier.width(8.dp))
+-            Text(
+-              androidx.compose.ui.res
+-                .stringResource(com.quantummpv.app.R.string.ui_use_https_secure_connection),
+-            )
+-          }
+-        }
+-
+-        // Username and Password in one row
+-        Row(
+-          modifier = Modifier.fillMaxWidth(),
+-          horizontalArrangement = Arrangement.spacedBy(8.dp),
+-        ) {
+-          // Username
+-          OutlinedTextField(
+-            value = username,
+-            onValueChange = { username = it },
+-            label = {
+-              Text(
+-                androidx.compose.ui.res
+-                  .stringResource(com.quantummpv.app.R.string.ui_username),
+-                maxLines = 1,
+-                overflow = TextOverflow.Ellipsis,
+-              )
+-            },
+-            modifier = Modifier.weight(0.50f),
+-            singleLine = true,
+-            enabled = !isAnonymous,
+-          )
+-
+-          // Password
+-          OutlinedTextField(
+-            value = password,
+-            onValueChange = { password = it },
+-            label = {
+-              Text(
+-                androidx.compose.ui.res
+-                  .stringResource(com.quantummpv.app.R.string.ui_password),
+-                maxLines = 1,
+-                overflow = TextOverflow.Ellipsis,
+-              )
+-            },
+-            modifier = Modifier.weight(0.50f),
+-            singleLine = true,
+-            enabled = !isAnonymous,
+-            visualTransformation = PasswordVisualTransformation(),
+-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+-          )
+-        }
+-      }
+-    },
+-    confirmButton = {
+-      Button(
+-        onClick = handleSave,
+-        enabled = host.isNotBlank() && (isAnonymous || username.isNotBlank()),
+-      ) {
+-        Text(
+-          text =
+-            androidx.compose.ui.res
+-              .stringResource(com.quantummpv.app.R.string.ui_save),
+-          fontWeight = FontWeight.SemiBold,
+-        )
+-      }
+-    },
+-    dismissButton = {
+-      TextButton(onClick = handleDismiss) {
+-        Text(
+-          text =
+-            androidx.compose.ui.res
+-              .stringResource(com.quantummpv.app.R.string.generic_cancel),
+-          fontWeight = FontWeight.Medium,
+-        )
+-      }
+-    },
+-    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+-    tonalElevation = 6.dp,
+-    shape = MaterialTheme.shapes.extraLarge,
+-  )
+-}
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/dialogs/ConnectionEditorSheet.kt b/app/src/main/java/com/quantummpv/app/ui/browser/dialogs/ConnectionEditorSheet.kt
+new file mode 100644
+index 00000000..fbf11b13
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/dialogs/ConnectionEditorSheet.kt
+@@ -0,0 +1,385 @@
++/*
++ * SPDX-License-Identifier: AGPL-3.0-or-later
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Affero General Public License as published
++ * by the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ */
++
++package com.quantummpv.app.ui.browser.dialogs
++
++import androidx.compose.foundation.selection.toggleable
++import androidx.compose.foundation.layout.Arrangement
++import androidx.compose.foundation.layout.Column
++import androidx.compose.foundation.layout.Row
++import androidx.compose.foundation.layout.Spacer
++import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.imePadding
++import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.layout.size
++import androidx.compose.foundation.layout.width
++import androidx.compose.foundation.rememberScrollState
++import androidx.compose.foundation.shape.RoundedCornerShape
++import androidx.compose.foundation.text.KeyboardActions
++import androidx.compose.foundation.text.KeyboardOptions
++import androidx.compose.foundation.verticalScroll
++import androidx.compose.material3.Button
++import androidx.compose.material3.Checkbox
++import androidx.compose.material3.DropdownMenuItem
++import androidx.compose.material3.ExperimentalMaterial3Api
++import androidx.compose.material3.ExposedDropdownMenu
++import androidx.compose.material3.ExposedDropdownMenuAnchorType
++import androidx.compose.material3.ExposedDropdownMenuBox
++import androidx.compose.material3.ExposedDropdownMenuDefaults
++import androidx.compose.material3.IconButton
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.ModalBottomSheet
++import androidx.compose.material3.OutlinedTextField
++import androidx.compose.material3.SheetValue
++import androidx.compose.material3.Text
++import androidx.compose.material3.TextButton
++import androidx.compose.material3.rememberBottomSheetState
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.getValue
++import androidx.compose.runtime.mutableStateOf
++import androidx.compose.runtime.remember
++import androidx.compose.runtime.setValue
++import androidx.compose.ui.Alignment
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.draw.clip
++import androidx.compose.ui.focus.FocusRequester
++import androidx.compose.ui.focus.focusRequester
++import androidx.compose.ui.platform.LocalFocusManager
++import androidx.compose.ui.res.stringResource
++import androidx.compose.ui.semantics.Role
++import androidx.compose.ui.text.font.FontWeight
++import androidx.compose.ui.text.input.ImeAction
++import androidx.compose.ui.text.input.KeyboardType
++import androidx.compose.ui.text.input.PasswordVisualTransformation
++import androidx.compose.ui.text.input.VisualTransformation
++import androidx.compose.ui.text.style.TextOverflow
++import androidx.compose.ui.unit.dp
++import com.quantummpv.app.R
++import com.quantummpv.app.domain.network.NetworkConnection
++import com.quantummpv.app.domain.network.NetworkProtocol
++import com.quantummpv.app.ui.icons.Icon
++import com.quantummpv.app.ui.icons.Icons
++
++@OptIn(ExperimentalMaterial3Api::class)
++@Composable
++internal fun ConnectionEditorSheet(
++  title: String,
++  initialConnection: NetworkConnection,
++  isEditing: Boolean,
++  onDismiss: () -> Unit,
++  onSave: (NetworkConnection, clearPassword: Boolean) -> Unit,
++  modifier: Modifier = Modifier,
++) {
++  var name by remember(initialConnection) { mutableStateOf(initialConnection.name) }
++  var protocol by remember(initialConnection) { mutableStateOf(initialConnection.protocol) }
++  var host by remember(initialConnection) { mutableStateOf(initialConnection.host) }
++  var port by remember(initialConnection) { mutableStateOf(initialConnection.port.toString()) }
++  var path by remember(initialConnection) { mutableStateOf(initialConnection.path) }
++  var isAnonymous by remember(initialConnection) { mutableStateOf(initialConnection.isAnonymous) }
++  var useHttps by remember(initialConnection) { mutableStateOf(initialConnection.useHttps) }
++  var username by remember(initialConnection) { mutableStateOf(initialConnection.username) }
++  var password by remember(initialConnection) { mutableStateOf("") }
++  var passwordVisible by remember(initialConnection) { mutableStateOf(false) }
++  var clearPassword by remember(initialConnection) { mutableStateOf(false) }
++  var protocolMenuExpanded by remember { mutableStateOf(false) }
++
++  val focusManager = LocalFocusManager.current
++  val hostFocusRequester = remember { FocusRequester() }
++  val portFocusRequester = remember { FocusRequester() }
++  val pathFocusRequester = remember { FocusRequester() }
++  val usernameFocusRequester = remember { FocusRequester() }
++  val passwordFocusRequester = remember { FocusRequester() }
++  val sheetState =
++    rememberBottomSheetState(
++      initialValue = SheetValue.Hidden,
++      enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded),
++    )
++  val parsedPort = port.toIntOrNull()
++  val isPortValid = parsedPort != null && parsedPort in MIN_PORT..MAX_PORT
++  val canSave = host.isNotBlank() && isPortValid && (isAnonymous || username.isNotBlank())
++
++  val dismiss = {
++    focusManager.clearFocus()
++    onDismiss()
++  }
++  val save = {
++    if (canSave) {
++      focusManager.clearFocus()
++      onSave(
++        initialConnection.copy(
++          name = name.trim().ifBlank { "${protocol.displayName} - ${host.trim()}" },
++          protocol = protocol,
++          host = host.trim(),
++          port = requireNotNull(parsedPort),
++          username = if (isAnonymous) "" else username.trim(),
++          password = if (isAnonymous) "" else password,
++          path = path.trim().ifBlank { "/" },
++          isAnonymous = isAnonymous,
++          useHttps = protocol == NetworkProtocol.WEBDAV && useHttps,
++        ),
++        isAnonymous || clearPassword,
++      )
++    }
++  }
++
++  ModalBottomSheet(
++    onDismissRequest = dismiss,
++    modifier = modifier,
++    sheetState = sheetState,
++    containerColor = MaterialTheme.colorScheme.surfaceContainer,
++  ) {
++    Column(
++      modifier =
++        Modifier
++          .fillMaxWidth()
++          .imePadding()
++          .verticalScroll(rememberScrollState())
++          .padding(horizontal = 24.dp, vertical = 8.dp),
++      verticalArrangement = Arrangement.spacedBy(12.dp),
++    ) {
++      Text(
++        text = title,
++        style = MaterialTheme.typography.headlineSmall,
++        fontWeight = FontWeight.SemiBold,
++      )
++
++      OutlinedTextField(
++        value = name,
++        onValueChange = { name = it },
++        label = { FieldLabel(R.string.ui_name) },
++        modifier = Modifier.fillMaxWidth(),
++        singleLine = true,
++        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
++        keyboardActions = KeyboardActions(onNext = { hostFocusRequester.requestFocus() }),
++      )
++
++      ExposedDropdownMenuBox(
++        expanded = protocolMenuExpanded,
++        onExpandedChange = { protocolMenuExpanded = it },
++        modifier = Modifier.fillMaxWidth(),
++      ) {
++        OutlinedTextField(
++          value = protocol.displayName,
++          onValueChange = {},
++          readOnly = true,
++          label = { FieldLabel(R.string.ui_protocol) },
++          trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = protocolMenuExpanded) },
++          modifier =
++            Modifier
++              .fillMaxWidth()
++              .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
++        )
++        ExposedDropdownMenu(
++          expanded = protocolMenuExpanded,
++          onDismissRequest = { protocolMenuExpanded = false },
++        ) {
++          NetworkProtocol.entries.forEach { selectedProtocol ->
++            DropdownMenuItem(
++              text = { Text(selectedProtocol.displayName) },
++              onClick = {
++                protocol = selectedProtocol
++                port = selectedProtocol.defaultPort.toString()
++                if (selectedProtocol != NetworkProtocol.WEBDAV) useHttps = false
++                protocolMenuExpanded = false
++              },
++            )
++          }
++        }
++      }
++
++      OutlinedTextField(
++        value = host,
++        onValueChange = { host = it },
++        label = { FieldLabel(R.string.ui_host_ip_address) },
++        modifier = Modifier.fillMaxWidth().focusRequester(hostFocusRequester),
++        singleLine = true,
++        placeholder = { Text("192.168.1.100", maxLines = 1, overflow = TextOverflow.Ellipsis) },
++        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Next),
++        keyboardActions = KeyboardActions(onNext = { portFocusRequester.requestFocus() }),
++      )
++
++      OutlinedTextField(
++        value = port,
++        onValueChange = { port = it.filter(Char::isDigit).take(MAX_PORT_DIGITS) },
++        label = { FieldLabel(R.string.ui_port) },
++        modifier = Modifier.fillMaxWidth().focusRequester(portFocusRequester),
++        singleLine = true,
++        isError = !isPortValid,
++        supportingText =
++          if (!isPortValid) {
++            { Text(stringResource(R.string.network_connection_invalid_port)) }
++          } else {
++            null
++          },
++        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
++        keyboardActions = KeyboardActions(onNext = { pathFocusRequester.requestFocus() }),
++      )
++
++      OutlinedTextField(
++        value = path,
++        onValueChange = { path = it },
++        label = { FieldLabel(R.string.ui_path) },
++        modifier = Modifier.fillMaxWidth().focusRequester(pathFocusRequester),
++        singleLine = true,
++        placeholder = { Text("/", maxLines = 1, overflow = TextOverflow.Ellipsis) },
++        keyboardOptions = KeyboardOptions(imeAction = if (isAnonymous) ImeAction.Done else ImeAction.Next),
++        keyboardActions =
++          KeyboardActions(
++            onNext = { usernameFocusRequester.requestFocus() },
++            onDone = { focusManager.clearFocus() },
++          ),
++      )
++
++      ConnectionToggle(
++        checked = isAnonymous,
++        onCheckedChange = { isAnonymous = it },
++        label = stringResource(R.string.ui_anonymous_guest_access),
++      )
++
++      if (protocol == NetworkProtocol.WEBDAV) {
++        ConnectionToggle(
++          checked = useHttps,
++          onCheckedChange = { enabled ->
++            useHttps = enabled
++            if (enabled && port == "80") {
++              port = "443"
++            } else if (!enabled && port == "443") {
++              port = "80"
++            }
++          },
++          label = stringResource(R.string.ui_use_https_secure_connection),
++        )
++      }
++
++      OutlinedTextField(
++        value = username,
++        onValueChange = { username = it },
++        label = { FieldLabel(R.string.ui_username) },
++        modifier = Modifier.fillMaxWidth().focusRequester(usernameFocusRequester),
++        singleLine = true,
++        enabled = !isAnonymous,
++        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
++        keyboardActions = KeyboardActions(onNext = { passwordFocusRequester.requestFocus() }),
++      )
++
++      OutlinedTextField(
++        value = password,
++        onValueChange = {
++          password = it
++          if (it.isNotEmpty()) clearPassword = false
++        },
++        label = {
++          FieldLabel(if (isEditing) R.string.ui_new_password_keep_existing else R.string.ui_password)
++        },
++        modifier = Modifier.fillMaxWidth().focusRequester(passwordFocusRequester),
++        singleLine = true,
++        enabled = !isAnonymous && !clearPassword,
++        visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
++        trailingIcon = {
++          IconButton(
++            onClick = { passwordVisible = !passwordVisible },
++            enabled = !isAnonymous && !clearPassword,
++          ) {
++            Icon(
++              imageVector =
++                if (passwordVisible) Icons.RoundedFilled.VisibilityOff else Icons.RoundedFilled.Visibility,
++              contentDescription =
++                stringResource(
++                  if (passwordVisible) {
++                    R.string.playlist_xtream_hide_password
++                  } else {
++                    R.string.playlist_xtream_show_password
++                  },
++                ),
++              modifier = Modifier.size(20.dp),
++            )
++          }
++        },
++        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
++        keyboardActions = KeyboardActions(onDone = { save() }),
++      )
++
++      if (isEditing) {
++        ConnectionToggle(
++          checked = clearPassword,
++          onCheckedChange = { clear ->
++            clearPassword = clear
++            if (clear) password = ""
++          },
++          label = stringResource(R.string.ui_clear_saved_password),
++          enabled = !isAnonymous,
++        )
++      }
++
++      Row(
++        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
++        horizontalArrangement = Arrangement.End,
++        verticalAlignment = Alignment.CenterVertically,
++      ) {
++        TextButton(onClick = dismiss) {
++          Text(stringResource(R.string.generic_cancel), fontWeight = FontWeight.Medium)
++        }
++        Button(onClick = save, enabled = canSave) {
++          Text(stringResource(R.string.ui_save), fontWeight = FontWeight.SemiBold)
++        }
++      }
++    }
++  }
++}
++
++@Composable
++private fun FieldLabel(stringId: Int) {
++  Text(
++    text = stringResource(stringId),
++    maxLines = 1,
++    overflow = TextOverflow.Ellipsis,
++  )
++}
++
++@Composable
++private fun ConnectionToggle(
++  checked: Boolean,
++  onCheckedChange: (Boolean) -> Unit,
++  label: String,
++  enabled: Boolean = true,
++) {
++  Row(
++    modifier =
++      Modifier
++        .fillMaxWidth()
++        .clip(RoundedCornerShape(8.dp))
++        .toggleable(
++          value = checked,
++          enabled = enabled,
++          role = Role.Checkbox,
++          onValueChange = onCheckedChange,
++        ).padding(vertical = 4.dp),
++    verticalAlignment = Alignment.CenterVertically,
++  ) {
++    Checkbox(
++      checked = checked,
++      onCheckedChange = null,
++      enabled = enabled,
++    )
++    Spacer(Modifier.width(8.dp))
++    Text(
++      text = label,
++      color =
++        if (enabled) {
++          MaterialTheme.colorScheme.onSurface
++        } else {
++          MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
++        },
++    )
++  }
++}
++
++private const val MIN_PORT = 1
++private const val MAX_PORT = 65_535
++private const val MAX_PORT_DIGITS = 5
+\ No newline at end of file
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/dialogs/ConnectionSheets.kt b/app/src/main/java/com/quantummpv/app/ui/browser/dialogs/ConnectionSheets.kt
+new file mode 100644
+index 00000000..932fba00
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/dialogs/ConnectionSheets.kt
+@@ -0,0 +1,66 @@
++/*
++ * SPDX-License-Identifier: AGPL-3.0-or-later
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Affero General Public License as published
++ * by the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ */
++
++package com.quantummpv.app.ui.browser.dialogs
++
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.remember
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.res.stringResource
++import com.quantummpv.app.R
++import com.quantummpv.app.domain.network.NetworkConnection
++import com.quantummpv.app.domain.network.NetworkProtocol
++
++@Composable
++fun AddConnectionSheet(
++  isOpen: Boolean,
++  onDismiss: () -> Unit,
++  onSave: (NetworkConnection) -> Unit,
++  modifier: Modifier = Modifier,
++) {
++  if (!isOpen) return
++
++  val initialConnection =
++    remember {
++      NetworkConnection(
++        name = "",
++        protocol = NetworkProtocol.SMB,
++        host = "",
++        port = NetworkProtocol.SMB.defaultPort,
++      )
++    }
++  ConnectionEditorSheet(
++    title = stringResource(R.string.ui_add_network_connection),
++    initialConnection = initialConnection,
++    isEditing = false,
++    onDismiss = onDismiss,
++    onSave = { connection, _ -> onSave(connection) },
++    modifier = modifier,
++  )
++}
++
++@Composable
++fun EditConnectionSheet(
++  connection: NetworkConnection,
++  isOpen: Boolean,
++  onDismiss: () -> Unit,
++  onSave: (NetworkConnection, Boolean) -> Unit,
++  modifier: Modifier = Modifier,
++) {
++  if (!isOpen) return
++
++  ConnectionEditorSheet(
++    title = stringResource(R.string.ui_edit_connection),
++    initialConnection = connection,
++    isEditing = true,
++    onDismiss = onDismiss,
++    onSave = onSave,
++    modifier = modifier,
++  )
++}
+\ No newline at end of file
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/dialogs/EditConnectionDialog.kt b/app/src/main/java/com/quantummpv/app/ui/browser/dialogs/EditConnectionDialog.kt
+deleted file mode 100644
+index daf01a66..00000000
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/dialogs/EditConnectionDialog.kt
++++ /dev/null
+@@ -1,369 +0,0 @@
+-/*
+- * SPDX-License-Identifier: AGPL-3.0-or-later
+- *
+- * This program is free software: you can redistribute it and/or modify
+- * it under the terms of the GNU Affero General Public License as published
+- * by the Free Software Foundation, either version 3 of the License, or
+- * (at your option) any later version.
+- */
+-
+-package com.quantummpv.app.ui.browser.dialogs
+-
+-import androidx.compose.foundation.layout.Arrangement
+-import androidx.compose.foundation.layout.Column
+-import androidx.compose.foundation.layout.Row
+-import androidx.compose.foundation.layout.Spacer
+-import androidx.compose.foundation.layout.fillMaxWidth
+-import androidx.compose.foundation.layout.width
+-import androidx.compose.foundation.layout.widthIn
+-import androidx.compose.foundation.rememberScrollState
+-import androidx.compose.foundation.text.KeyboardOptions
+-import androidx.compose.foundation.verticalScroll
+-import androidx.compose.material3.AlertDialog
+-import androidx.compose.material3.Button
+-import androidx.compose.material3.Checkbox
+-import androidx.compose.material3.DropdownMenuItem
+-import androidx.compose.material3.ExperimentalMaterial3Api
+-import androidx.compose.material3.ExposedDropdownMenu
+-import androidx.compose.material3.ExposedDropdownMenuAnchorType
+-import androidx.compose.material3.ExposedDropdownMenuBox
+-import androidx.compose.material3.ExposedDropdownMenuDefaults
+-import androidx.compose.material3.MaterialTheme
+-import androidx.compose.material3.OutlinedTextField
+-import androidx.compose.material3.Text
+-import androidx.compose.material3.TextButton
+-import androidx.compose.runtime.Composable
+-import androidx.compose.runtime.getValue
+-import androidx.compose.runtime.mutableStateOf
+-import androidx.compose.runtime.remember
+-import androidx.compose.runtime.setValue
+-import androidx.compose.ui.Alignment
+-import androidx.compose.ui.Modifier
+-import androidx.compose.ui.text.font.FontWeight
+-import androidx.compose.ui.text.input.KeyboardType
+-import androidx.compose.ui.text.input.PasswordVisualTransformation
+-import androidx.compose.ui.text.style.TextOverflow
+-import androidx.compose.ui.unit.dp
+-import com.quantummpv.app.domain.network.NetworkConnection
+-import com.quantummpv.app.domain.network.NetworkProtocol
+-
+-@OptIn(ExperimentalMaterial3Api::class)
+-@Composable
+-fun EditConnectionSheet(
+-  connection: NetworkConnection,
+-  isOpen: Boolean,
+-  onDismiss: () -> Unit,
+-  onSave: (NetworkConnection, Boolean) -> Unit,
+-  modifier: Modifier = Modifier,
+-) {
+-  if (!isOpen) return
+-
+-  var name by remember(connection.id) { mutableStateOf(connection.name) }
+-  var protocol by remember(connection.id) { mutableStateOf(connection.protocol) }
+-  var host by remember(connection.id) { mutableStateOf(connection.host) }
+-  var port by remember(connection.id) { mutableStateOf(connection.port.toString()) }
+-  var username by remember(connection.id) { mutableStateOf(connection.username) }
+-  var password by remember(connection.id) { mutableStateOf("") }
+-  var clearPassword by remember(connection.id) { mutableStateOf(false) }
+-  var path by remember(connection.id) { mutableStateOf(connection.path) }
+-  var isAnonymous by remember(connection.id) { mutableStateOf(connection.isAnonymous) }
+-  var useHttps by remember(connection.id) { mutableStateOf(connection.useHttps) }
+-  var protocolMenuExpanded by remember { mutableStateOf(false) }
+-
+-  val handleDismiss = {
+-    onDismiss()
+-  }
+-
+-  val handleSave = {
+-    val updatedConnection =
+-      connection.copy(
+-        name = name.trim(),
+-        protocol = protocol,
+-        host = host.trim(),
+-        port = port.toIntOrNull() ?: protocol.defaultPort,
+-        username = if (isAnonymous) "" else username.trim(),
+-        password = if (isAnonymous) "" else password,
+-        path = path.ifBlank { "/" },
+-        isAnonymous = isAnonymous,
+-        useHttps = useHttps,
+-      )
+-    onSave(updatedConnection, isAnonymous || clearPassword)
+-  }
+-
+-  AlertDialog(
+-    onDismissRequest = handleDismiss,
+-    modifier = Modifier.widthIn(min = 400.dp, max = 600.dp),
+-    title = {
+-      Text(
+-        text =
+-          androidx.compose.ui.res
+-            .stringResource(com.quantummpv.app.R.string.ui_edit_connection),
+-        style = MaterialTheme.typography.headlineSmall,
+-        fontWeight = FontWeight.Medium,
+-      )
+-    },
+-    text = {
+-      Column(
+-        modifier =
+-          Modifier
+-            .fillMaxWidth()
+-            .verticalScroll(rememberScrollState()),
+-        verticalArrangement = Arrangement.spacedBy(16.dp),
+-      ) {
+-        // Name and Protocol in one row
+-        Row(
+-          modifier = Modifier.fillMaxWidth(),
+-          horizontalArrangement = Arrangement.spacedBy(8.dp),
+-        ) {
+-          // Connection Name
+-          OutlinedTextField(
+-            value = name,
+-            onValueChange = { name = it },
+-            label = {
+-              Text(
+-                androidx.compose.ui.res
+-                  .stringResource(com.quantummpv.app.R.string.ui_name),
+-                maxLines = 1,
+-                overflow = TextOverflow.Ellipsis,
+-              )
+-            },
+-            modifier = Modifier.weight(0.60f),
+-            singleLine = true,
+-          )
+-
+-          // Protocol Dropdown
+-          ExposedDropdownMenuBox(
+-            expanded = protocolMenuExpanded,
+-            onExpandedChange = { protocolMenuExpanded = it },
+-            modifier = Modifier.weight(0.40f),
+-          ) {
+-            OutlinedTextField(
+-              value = protocol.displayName,
+-              onValueChange = { },
+-              readOnly = true,
+-              label = {
+-                Text(
+-                  androidx.compose.ui.res
+-                    .stringResource(com.quantummpv.app.R.string.ui_protocol),
+-                  maxLines = 1,
+-                  overflow = TextOverflow.Ellipsis,
+-                )
+-              },
+-              trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = protocolMenuExpanded) },
+-              modifier =
+-                Modifier
+-                  .fillMaxWidth()
+-                  .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
+-            )
+-            ExposedDropdownMenu(
+-              expanded = protocolMenuExpanded,
+-              onDismissRequest = { protocolMenuExpanded = false },
+-            ) {
+-              NetworkProtocol.entries.forEach { proto ->
+-                DropdownMenuItem(
+-                  text = { Text(proto.displayName) },
+-                  onClick = {
+-                    protocol = proto
+-                    port = proto.defaultPort.toString()
+-                    protocolMenuExpanded = false
+-                  },
+-                )
+-              }
+-            }
+-          }
+-        }
+-
+-        // Host
+-        OutlinedTextField(
+-          value = host,
+-          onValueChange = { host = it },
+-          label = {
+-            Text(
+-              androidx.compose.ui.res
+-                .stringResource(com.quantummpv.app.R.string.ui_host_ip_address),
+-              maxLines = 1,
+-              overflow = TextOverflow.Ellipsis,
+-            )
+-          },
+-          modifier = Modifier.fillMaxWidth(),
+-          singleLine = true,
+-          placeholder = { Text("192.168.1.100", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+-        )
+-
+-        // Port and Path in one row
+-        Row(
+-          modifier = Modifier.fillMaxWidth(),
+-          horizontalArrangement = Arrangement.spacedBy(8.dp),
+-        ) {
+-          // Port
+-          OutlinedTextField(
+-            value = port,
+-            onValueChange = { port = it },
+-            label = {
+-              Text(
+-                androidx.compose.ui.res
+-                  .stringResource(com.quantummpv.app.R.string.ui_port),
+-                maxLines = 1,
+-                overflow = TextOverflow.Ellipsis,
+-              )
+-            },
+-            modifier = Modifier.weight(0.3f),
+-            singleLine = true,
+-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+-          )
+-
+-          // Path
+-          OutlinedTextField(
+-            value = path,
+-            onValueChange = { path = it },
+-            label = {
+-              Text(
+-                androidx.compose.ui.res
+-                  .stringResource(com.quantummpv.app.R.string.ui_path),
+-                maxLines = 1,
+-                overflow = TextOverflow.Ellipsis,
+-              )
+-            },
+-            modifier = Modifier.weight(0.7f),
+-            singleLine = true,
+-            placeholder = { Text("/", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+-          )
+-        }
+-
+-        // Anonymous checkbox
+-        Row(
+-          verticalAlignment = Alignment.CenterVertically,
+-          modifier = Modifier.fillMaxWidth(),
+-        ) {
+-          Checkbox(
+-            checked = isAnonymous,
+-            onCheckedChange = { isAnonymous = it },
+-          )
+-          Spacer(modifier = Modifier.width(8.dp))
+-          Text(
+-            androidx.compose.ui.res
+-              .stringResource(com.quantummpv.app.R.string.ui_anonymous_guest_access),
+-          )
+-        }
+-
+-        // HTTPS checkbox (only for WebDAV)
+-        if (protocol == NetworkProtocol.WEBDAV) {
+-          Row(
+-            verticalAlignment = Alignment.CenterVertically,
+-            modifier = Modifier.fillMaxWidth(),
+-          ) {
+-            Checkbox(
+-              checked = useHttps,
+-              onCheckedChange = {
+-                useHttps = it
+-                // Auto-update port when toggling HTTPS
+-                if (it && port == "80") {
+-                  port = "443"
+-                } else if (!it && port == "443") {
+-                  port = "80"
+-                }
+-              },
+-            )
+-            Spacer(modifier = Modifier.width(8.dp))
+-            Text(
+-              androidx.compose.ui.res
+-                .stringResource(com.quantummpv.app.R.string.ui_use_https_secure_connection),
+-            )
+-          }
+-        }
+-
+-        // Username and Password in one row
+-        Row(
+-          modifier = Modifier.fillMaxWidth(),
+-          horizontalArrangement = Arrangement.spacedBy(8.dp),
+-        ) {
+-          // Username
+-          OutlinedTextField(
+-            value = username,
+-            onValueChange = { username = it },
+-            label = {
+-              Text(
+-                androidx.compose.ui.res
+-                  .stringResource(com.quantummpv.app.R.string.ui_username),
+-                maxLines = 1,
+-                overflow = TextOverflow.Ellipsis,
+-              )
+-            },
+-            modifier = Modifier.weight(0.50f),
+-            singleLine = true,
+-            enabled = !isAnonymous,
+-          )
+-
+-          // Password
+-          OutlinedTextField(
+-            value = password,
+-            onValueChange = {
+-              password = it
+-              if (it.isNotEmpty()) clearPassword = false
+-            },
+-            label = {
+-              Text(
+-                androidx.compose.ui.res
+-                  .stringResource(
+-                    com.quantummpv.app.R.string.ui_new_password_keep_existing,
+-                  ),
+-                maxLines = 1,
+-                overflow = TextOverflow.Ellipsis,
+-              )
+-            },
+-            modifier = Modifier.weight(0.50f),
+-            singleLine = true,
+-            enabled = !isAnonymous && !clearPassword,
+-            visualTransformation = PasswordVisualTransformation(),
+-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+-          )
+-        }
+-
+-        Row(
+-          verticalAlignment = Alignment.CenterVertically,
+-          modifier = Modifier.fillMaxWidth(),
+-        ) {
+-          Checkbox(
+-            checked = clearPassword,
+-            onCheckedChange = { clear ->
+-              clearPassword = clear
+-              if (clear) password = ""
+-            },
+-            enabled = !isAnonymous,
+-          )
+-          Spacer(modifier = Modifier.width(8.dp))
+-          Text(
+-            androidx.compose.ui.res
+-              .stringResource(com.quantummpv.app.R.string.ui_clear_saved_password),
+-          )
+-        }
+-      }
+-    },
+-    confirmButton = {
+-      Button(
+-        onClick = handleSave,
+-        enabled = host.isNotBlank() && (isAnonymous || username.isNotBlank()),
+-      ) {
+-        Text(
+-          text =
+-            androidx.compose.ui.res
+-              .stringResource(com.quantummpv.app.R.string.ui_save),
+-          fontWeight = FontWeight.SemiBold,
+-        )
+-      }
+-    },
+-    dismissButton = {
+-      TextButton(onClick = handleDismiss) {
+-        Text(
+-          text =
+-            androidx.compose.ui.res
+-              .stringResource(com.quantummpv.app.R.string.generic_cancel),
+-          fontWeight = FontWeight.Medium,
+-        )
+-      }
+-    },
+-    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+-    tonalElevation = 6.dp,
+-    shape = MaterialTheme.shapes.extraLarge,
+-  )
+-}
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/MPVView.kt b/app/src/main/java/com/quantummpv/app/ui/player/MPVView.kt
+index 83d7dd5a..05655e43 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/MPVView.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/MPVView.kt
+@@ -53,6 +53,7 @@ class MPVView(
+   private val playerPreferences: PlayerPreferences by inject()
+   private val decoderPreferences: DecoderPreferences by inject()
+   private val advancedPreferences: AdvancedPreferences by inject()
++  private val mpvConfigCache: MpvConfigCache by inject()
+   private val subtitlesPreferences: SubtitlesPreferences by inject()
+   private val ytdlPreferences: YtdlPreferences by inject()
+   private val anime4kManager: Anime4KManager by inject()
+@@ -78,7 +79,8 @@ class MPVView(
+     MpvConfigOverridePolicy.configure(advancedPreferences.mpvConfOverrides.get())
+     val requestedBackend = selectRenderBackend(ignoreForcedOpenGlFallback = true)
+     val coreConfigurationKey =
+-      "${requestedBackend.configurationKey}|conf=${MpvConfigOverridePolicy.configurationKey()}"
++      "${requestedBackend.configurationKey}|conf=${MpvConfigOverridePolicy.configurationKey()}" +
++        "|mpv=${mpvConfigCache.configurationKey()}"
+     val result =
+       PlaybackSession.initialize(
+         context = context.applicationContext,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/MpvConfigCache.kt b/app/src/main/java/com/quantummpv/app/ui/player/MpvConfigCache.kt
+new file mode 100644
+index 00000000..67d5e2a6
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/ui/player/MpvConfigCache.kt
+@@ -0,0 +1,117 @@
++/*
++ * SPDX-License-Identifier: AGPL-3.0-or-later
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Affero General Public License as published
++ * by the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ */
++
++package com.quantummpv.app.ui.player
++
++import android.content.Context
++import android.util.AtomicFile
++import android.util.Base64
++import android.util.Log
++import com.quantummpv.app.preferences.AdvancedPreferences
++import kotlinx.coroutines.CoroutineScope
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.SupervisorJob
++import kotlinx.coroutines.launch
++import java.io.File
++import java.nio.charset.StandardCharsets
++import java.security.MessageDigest
++
++class MpvConfigCache(
++  context: Context,
++  private val preferences: AdvancedPreferences,
++) {
++  private val lock = Any()
++  private val configFile = File(context.applicationContext.filesDir, FILE_NAME)
++  private val atomicConfigFile = AtomicFile(configFile)
++  private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
++
++  init {
++    scope.launch {
++      preferences.mpvConf.changes().collect {
++        runCatching { ensureCurrent() }
++          .onFailure { error -> Log.e(TAG, "Failed to refresh the mpv.conf cache", error) }
++      }
++    }
++  }
++
++  fun update(content: String): Boolean {
++    val result =
++      synchronized(lock) {
++        updateLocked(content = content, updatePreference = true)
++      }
++    reloadIfNeeded(result)
++    return result.changed
++  }
++
++  fun ensureCurrent(): Boolean {
++    val result =
++      synchronized(lock) {
++        updateLocked(content = preferences.mpvConf.get(), updatePreference = false)
++      }
++    reloadIfNeeded(result)
++    return result.changed
++  }
++
++  fun configurationKey(): String {
++    ensureCurrent()
++    val bytes = synchronized(lock) { atomicConfigFile.readFully() }
++    val digest = MessageDigest.getInstance("SHA-256").digest(bytes)
++    return Base64.encodeToString(digest, Base64.NO_WRAP or Base64.URL_SAFE)
++  }
++
++  private fun readCachedContent(): String? =
++    if (!configFile.isFile) {
++      null
++    } else {
++      runCatching { atomicConfigFile.readFully().toString(StandardCharsets.UTF_8) }.getOrNull()
++    }
++
++  private fun writeCachedContent(content: String) {
++    configFile.parentFile?.mkdirs()
++    val output = atomicConfigFile.startWrite()
++    try {
++      output.write(content.toByteArray(StandardCharsets.UTF_8))
++      atomicConfigFile.finishWrite(output)
++    } catch (error: Throwable) {
++      atomicConfigFile.failWrite(output)
++      throw error
++    }
++  }
++
++  private fun updateLocked(
++    content: String,
++    updatePreference: Boolean,
++  ): CacheUpdate {
++    val cachedContentChanged = readCachedContent() != content
++    if (cachedContentChanged) writeCachedContent(content)
++
++    val preferenceChanged = updatePreference && preferences.mpvConf.get() != content
++    if (preferenceChanged) preferences.mpvConf.set(content)
++    return CacheUpdate(cachedContentChanged, preferenceChanged)
++  }
++
++  private fun reloadIfNeeded(result: CacheUpdate) {
++    if (result.cachedContentChanged) {
++      PlaybackSession.reloadMpvConfig(configFile.absolutePath)
++    }
++  }
++
++  private data class CacheUpdate(
++    val cachedContentChanged: Boolean,
++    val preferenceChanged: Boolean,
++  ) {
++    val changed: Boolean
++      get() = cachedContentChanged || preferenceChanged
++  }
++
++  companion object {
++    const val FILE_NAME = "mpv.conf"
++    private const val TAG = "MpvConfigCache"
++  }
++}
+\ No newline at end of file
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/PlaybackSession.kt b/app/src/main/java/com/quantummpv/app/ui/player/PlaybackSession.kt
+index 8e4b2714..1f8b9d3c 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/PlaybackSession.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/PlaybackSession.kt
+@@ -188,6 +188,18 @@ object PlaybackSession : MPVLib.EventObserver {
+     nativeLock.withLock { activeCoreConfigurationKey = null }
+   }
+ 
++  fun reloadMpvConfig(configPath: String): Boolean =
++    nativeLock.withLock {
++      activeCoreConfigurationKey = null
++      if (!initialized) return@withLock false
++      runCatching {
++        MPVLib.command("load-config-file", configPath)
++        true
++      }.onFailure { error ->
++        Log.e(TAG, "Failed to reload mpv.conf", error)
++      }.getOrDefault(false)
++    }
++
+   val propInt = PlaybackProperty(MPVLib.MpvFormat.MPV_FORMAT_INT64, ::getPropertyInt)
+   val propLong = PlaybackProperty(MPVLib.MpvFormat.MPV_FORMAT_INT64) { property -> getPropertyInt(property)?.toLong() }
+   val propBoolean = PlaybackProperty(MPVLib.MpvFormat.MPV_FORMAT_FLAG, ::getPropertyBoolean)
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt b/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt
+index a2bd4eb1..03ab56bb 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt
+@@ -260,6 +260,8 @@ class PlayerActivity :
+    */
+   private val advancedPreferences: AdvancedPreferences by inject()
+ 
++  private val mpvConfigCache: MpvConfigCache by inject()
++
+   /**
+    * Preferences for browser settings.
+    */
+@@ -2441,6 +2443,7 @@ class PlayerActivity :
+   }
+ 
+   private fun prepareUserMpvAssetsForStartup() {
++    ensureConfigCacheForStartup()
+     val syncPreferences = getSharedPreferences(MPV_ASSET_SYNC_PREFERENCES, MODE_PRIVATE)
+     val currentSelection = currentUserMpvAssetSelection()
+     val storedSelection = syncPreferences.getString(USER_MPV_ASSET_SELECTION, null)
+@@ -2462,6 +2465,11 @@ class PlayerActivity :
+     deferredUserMpvAssetRefreshStarted.set(true)
+   }
+ 
++  private fun ensureConfigCacheForStartup() {
++    mpvConfigCache.ensureCurrent()
++    writeTextFileIfChanged(File(filesDir, "input.conf"), advancedPreferences.inputConf.get())
++  }
++
+   private fun currentUserMpvAssetSelection(): String {
+     val selectedScripts = advancedPreferences.selectedLuaScripts.get().sorted().joinToString("\u0000")
+     val mpvConfig = advancedPreferences.mpvConf.get()
+@@ -2500,8 +2508,7 @@ class PlayerActivity :
+     fileName: String,
+     preferenceContent: String,
+   ): Boolean =
+-    preferenceContent.isBlank() ||
+-      runCatching { File(filesDir, fileName).readText() == preferenceContent }.getOrDefault(false)
++    runCatching { File(filesDir, fileName).readText() == preferenceContent }.getOrDefault(false)
+ 
+   private fun cachedScriptsMatchSelection(): Boolean {
+     val cachedScripts =
+@@ -2589,11 +2596,12 @@ class PlayerActivity :
+         if (configFile != null && configFile.exists() && configFile.canRead()) {
+           contentResolver.openInputStream(configFile.uri)?.use { input ->
+             val content = input.bufferedReader().readText()
+-            writeTextFileIfChanged(File(filesDir, configName), content)
+-            // Cache in preferences for the config editor
+             when (configName) {
+-              "mpv.conf" -> advancedPreferences.mpvConf.set(content)
+-              "input.conf" -> advancedPreferences.inputConf.set(content)
++              "mpv.conf" -> mpvConfigCache.update(content)
++              "input.conf" -> {
++                writeTextFileIfChanged(File(filesDir, configName), content)
++                advancedPreferences.inputConf.set(content)
++              }
+             }
+             Log.d(TAG, "Synced config: $configName (${content.length} chars)")
+           }
+@@ -2605,9 +2613,10 @@ class PlayerActivity :
+               "input.conf" -> advancedPreferences.inputConf.get()
+               else -> ""
+             }
+-          File(filesDir, configName).apply {
+-            if (!exists()) createNewFile()
+-            if (prefContent.isNotBlank()) writeTextFileIfChanged(this, prefContent)
++          if (configName == MpvConfigCache.FILE_NAME) {
++            mpvConfigCache.ensureCurrent()
++          } else {
++            writeTextFileIfChanged(File(filesDir, configName), prefContent)
+           }
+           Log.d(TAG, "Config not found in directory, used preferences: $configName")
+         }
+@@ -3117,16 +3126,8 @@ class PlayerActivity :
+    */
+   private fun copyMPVConfigFromPreferences() {
+     runCatching {
+-      File(filesDir, "mpv.conf").apply {
+-        if (!exists()) createNewFile()
+-        val content = advancedPreferences.mpvConf.get()
+-        if (content.isNotBlank()) writeTextFileIfChanged(this, content)
+-      }
+-      File(filesDir, "input.conf").apply {
+-        if (!exists()) createNewFile()
+-        val content = advancedPreferences.inputConf.get()
+-        if (content.isNotBlank()) writeTextFileIfChanged(this, content)
+-      }
++      mpvConfigCache.ensureCurrent()
++      writeTextFileIfChanged(File(filesDir, "input.conf"), advancedPreferences.inputConf.get())
+       // Ensure scripts directory exists even without user dir
+       File(filesDir, "scripts").mkdirs()
+       File(filesDir, "script-modules").mkdirs()
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/AboutContributorsSection.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/AboutContributorsSection.kt
+new file mode 100644
+index 00000000..85685d28
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/AboutContributorsSection.kt
+@@ -0,0 +1,241 @@
++/*
++ * SPDX-License-Identifier: AGPL-3.0-or-later
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Affero General Public License as published
++ * by the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ */
++
++package com.quantummpv.app.ui.preferences
++
++import androidx.compose.foundation.background
++import androidx.compose.foundation.clickable
++import androidx.compose.foundation.layout.Arrangement
++import androidx.compose.foundation.layout.Box
++import androidx.compose.foundation.layout.Column
++import androidx.compose.foundation.layout.Row
++import androidx.compose.foundation.layout.Spacer
++import androidx.compose.foundation.layout.fillMaxSize
++import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.layout.size
++import androidx.compose.foundation.layout.width
++import androidx.compose.foundation.shape.CircleShape
++import androidx.compose.material3.CircularProgressIndicator
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.Text
++import androidx.compose.material3.TextButton
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.LaunchedEffect
++import androidx.compose.runtime.getValue
++import androidx.compose.runtime.mutableIntStateOf
++import androidx.compose.runtime.mutableStateOf
++import androidx.compose.runtime.remember
++import androidx.compose.runtime.setValue
++import androidx.compose.ui.Alignment
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.draw.clip
++import androidx.compose.ui.layout.ContentScale
++import androidx.compose.ui.platform.LocalUriHandler
++import androidx.compose.ui.res.pluralStringResource
++import androidx.compose.ui.res.stringResource
++import androidx.compose.ui.text.font.FontWeight
++import androidx.compose.ui.text.style.TextOverflow
++import androidx.compose.ui.unit.dp
++import com.quantummpv.app.R
++import com.quantummpv.app.presentation.components.RemoteImage
++import com.quantummpv.app.repository.GitHubContributor
++import com.quantummpv.app.repository.GitHubContributorsRepository
++import com.quantummpv.app.ui.icons.Icon
++import com.quantummpv.app.ui.icons.Icons
++import org.koin.compose.koinInject
++
++@Composable
++internal fun AboutContributorsSection(
++  githubRepoUrl: String,
++  modifier: Modifier = Modifier,
++) {
++  val repository = koinInject<GitHubContributorsRepository>()
++  val uriHandler = LocalUriHandler.current
++  var refreshRequest by remember { mutableIntStateOf(0) }
++  var state by remember { mutableStateOf<ContributorsUiState>(ContributorsUiState.Loading) }
++
++  LaunchedEffect(refreshRequest) {
++    state = ContributorsUiState.Loading
++    repository
++      .contributors(forceRefresh = refreshRequest > 0)
++      .onSuccess { contributors -> state = ContributorsUiState.Loaded(contributors) }
++      .onFailure { state = ContributorsUiState.Error }
++  }
++
++  Column(modifier = modifier) {
++    PreferenceSectionHeader(title = stringResource(R.string.pref_section_contributors))
++    PreferenceCard {
++      when (val currentState = state) {
++        ContributorsUiState.Loading -> ContributorsLoading()
++        ContributorsUiState.Error ->
++          ContributorsError(
++            onRetry = {
++              state = ContributorsUiState.Loading
++              refreshRequest++
++            },
++            onViewAll = {
++              runCatching { uriHandler.openUri("${githubRepoUrl.trimEnd('/')}/graphs/contributors") }
++            },
++          )
++        is ContributorsUiState.Loaded -> {
++          if (currentState.contributors.isEmpty()) {
++            Text(
++              text = stringResource(R.string.contributors_empty),
++              modifier = Modifier.fillMaxWidth().padding(24.dp),
++              style = MaterialTheme.typography.bodyMedium,
++              color = MaterialTheme.colorScheme.onSurfaceVariant,
++            )
++          } else {
++            currentState.contributors.take(MAX_VISIBLE_CONTRIBUTORS).forEachIndexed { index, contributor ->
++              ContributorRow(
++                contributor = contributor,
++                onClick =
++                  contributor.profileUrl?.let { profileUrl ->
++                    { runCatching { uriHandler.openUri(profileUrl) } }
++                  },
++              )
++              if (index < minOf(currentState.contributors.size, MAX_VISIBLE_CONTRIBUTORS) - 1) {
++                PreferenceDivider()
++              }
++            }
++          }
++
++          PreferenceDivider()
++          TextButton(
++            onClick = {
++              runCatching { uriHandler.openUri("${githubRepoUrl.trimEnd('/')}/graphs/contributors") }
++            },
++            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
++          ) {
++            Text(stringResource(R.string.contributors_view_all))
++          }
++        }
++      }
++    }
++  }
++}
++
++@Composable
++private fun ContributorRow(
++  contributor: GitHubContributor,
++  onClick: (() -> Unit)?,
++) {
++  Row(
++    modifier =
++      Modifier
++        .fillMaxWidth()
++        .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
++        .padding(horizontal = 16.dp, vertical = 10.dp),
++    verticalAlignment = Alignment.CenterVertically,
++  ) {
++    Box(
++      modifier =
++        Modifier
++          .size(42.dp)
++          .clip(CircleShape)
++          .background(MaterialTheme.colorScheme.primaryContainer),
++      contentAlignment = Alignment.Center,
++    ) {
++      Icon(
++        imageVector = Icons.RoundedFilled.Person,
++        contentDescription = null,
++        tint = MaterialTheme.colorScheme.onPrimaryContainer,
++        modifier = Modifier.size(22.dp),
++      )
++      contributor.avatarUrl?.let { avatarUrl ->
++        RemoteImage(
++          url = avatarUrl,
++          contentDescription = contributor.displayName,
++          modifier = Modifier.fillMaxSize(),
++          contentScale = ContentScale.Crop,
++        )
++      }
++    }
++
++    Spacer(Modifier.width(12.dp))
++    Column(
++      modifier = Modifier.weight(1f),
++      verticalArrangement = Arrangement.spacedBy(2.dp),
++    ) {
++      Text(
++        text = contributor.displayName,
++        style = MaterialTheme.typography.titleSmall,
++        fontWeight = FontWeight.SemiBold,
++        color = MaterialTheme.colorScheme.onSurface,
++        maxLines = 1,
++        overflow = TextOverflow.Ellipsis,
++      )
++      Text(
++        text =
++          pluralStringResource(
++            R.plurals.contributors_contribution_count,
++            contributor.contributions,
++            contributor.contributions,
++          ),
++        style = MaterialTheme.typography.bodySmall,
++        color = MaterialTheme.colorScheme.onSurfaceVariant,
++      )
++    }
++  }
++}
++
++@Composable
++private fun ContributorsLoading() {
++  Row(
++    modifier = Modifier.fillMaxWidth().padding(24.dp),
++    horizontalArrangement = Arrangement.Center,
++    verticalAlignment = Alignment.CenterVertically,
++  ) {
++    CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
++    Spacer(Modifier.width(12.dp))
++    Text(
++      text = stringResource(R.string.contributors_loading),
++      style = MaterialTheme.typography.bodyMedium,
++      color = MaterialTheme.colorScheme.onSurfaceVariant,
++    )
++  }
++}
++
++@Composable
++private fun ContributorsError(
++  onRetry: () -> Unit,
++  onViewAll: () -> Unit,
++) {
++  Column(
++    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
++    horizontalAlignment = Alignment.CenterHorizontally,
++  ) {
++    Text(
++      text = stringResource(R.string.contributors_load_error),
++      style = MaterialTheme.typography.bodyMedium,
++      color = MaterialTheme.colorScheme.onSurfaceVariant,
++    )
++    Row {
++      TextButton(onClick = onRetry) {
++        Text(stringResource(R.string.contributors_retry))
++      }
++      TextButton(onClick = onViewAll) {
++        Text(stringResource(R.string.contributors_view_all))
++      }
++    }
++  }
++}
++
++private sealed interface ContributorsUiState {
++  data object Loading : ContributorsUiState
++
++  data object Error : ContributorsUiState
++
++  data class Loaded(
++    val contributors: List<GitHubContributor>,
++  ) : ContributorsUiState
++}
++
++private const val MAX_VISIBLE_CONTRIBUTORS = 8
+\ No newline at end of file
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/AboutScreen.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/AboutScreen.kt
+index bdbebe4e..a6f12f46 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/AboutScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/AboutScreen.kt
+@@ -634,6 +634,8 @@ object AboutScreen : Screen {
+           }
+         }
+ 
++        AboutContributorsSection(githubRepoUrl = githubRepoUrl)
++
+         Spacer(Modifier.height(12.dp))
+       }
+     }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/AdvancedPreferencesScreen.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/AdvancedPreferencesScreen.kt
+index 70de558f..41a2812c 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/AdvancedPreferencesScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/AdvancedPreferencesScreen.kt
+@@ -47,7 +47,6 @@ import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.text.AnnotatedString
+ import androidx.compose.ui.text.font.FontWeight
+ import androidx.compose.ui.text.style.TextOverflow
+-import androidx.compose.ui.util.fastJoinToString
+ import androidx.core.net.toUri
+ import androidx.core.os.LocaleListCompat
+ import androidx.documentfile.provider.DocumentFile
+@@ -64,6 +63,7 @@ import com.quantummpv.app.presentation.components.ConfirmDialog
+ import com.quantummpv.app.presentation.crash.CrashActivity
+ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
++import com.quantummpv.app.ui.player.MpvConfigCache
+ import com.quantummpv.app.ui.preferences.components.SwitchPreference
+ import com.quantummpv.app.ui.utils.LocalBackStack
+ import com.quantummpv.app.ui.utils.navigateTo
+@@ -82,9 +82,6 @@ import me.zhanghai.compose.preference.ProvidePreferenceLocals
+ import org.koin.compose.koinInject
+ import java.io.File
+ import java.util.Locale
+-import kotlin.io.path.deleteIfExists
+-import kotlin.io.path.outputStream
+-import kotlin.io.path.readLines
+ 
+ private enum class AppLanguage(
+   val languageTag: String,
+@@ -129,6 +126,7 @@ object AdvancedPreferencesScreen : Screen {
+     val context = LocalContext.current
+     val backStack = LocalBackStack.current
+     val preferences = koinInject<AdvancedPreferences>()
++    val mpvConfigCache = koinInject<MpvConfigCache>()
+     val settingsManager = koinInject<SettingsManager>()
+     val foldersPreferences = koinInject<FoldersPreferences>()
+     val subtitlesPreferences = koinInject<SubtitlesPreferences>()
+@@ -503,38 +501,28 @@ object AdvancedPreferencesScreen : Screen {
+               LaunchedEffect(mpvConfStorageLocation) {
+                 if (mpvConfStorageLocation.isBlank()) return@LaunchedEffect
+                 withContext(Dispatchers.IO) {
+-                  val tempFile = kotlin.io.path.createTempFile()
+-                  runCatching {
+-                    val tree = DocumentFile.fromTreeUri(context, mpvConfStorageLocation.toUri())
+-                    val mpvConfFile = tree?.findFile("mpv.conf")
+-                    if (mpvConfFile != null && mpvConfFile.exists()) {
+-                      context.contentResolver.openInputStream(mpvConfFile.uri)?.copyTo(tempFile.outputStream())
+-                      val content = tempFile.readLines().fastJoinToString("\n")
+-                      preferences.mpvConf.set(content)
+-                      File(context.filesDir, "mpv.conf").writeText(content)
+-                      withContext(Dispatchers.Main) { mpvConf = content }
+-                    }
++                  val tree = runCatching { DocumentFile.fromTreeUri(context, mpvConfStorageLocation.toUri()) }.getOrNull()
++                    ?: return@withContext
++                  fun readConfig(fileName: String): String? =
++                    runCatching {
++                      tree.findFile(fileName)?.takeIf { it.exists() }?.let { configFile ->
++                        context.contentResolver.openInputStream(configFile.uri)?.bufferedReader()?.use { reader ->
++                          reader.readText()
++                        }
++                      }
++                    }.getOrNull()
++
++                  val loadedMpvConf = readConfig("mpv.conf")
++                  val loadedInputConf = readConfig("input.conf")
++                  loadedMpvConf?.let(mpvConfigCache::update)
++                  loadedInputConf?.let { content ->
++                    preferences.inputConf.set(content)
++                    File(context.filesDir, "input.conf").writeText(content)
+                   }
+-                  tempFile.deleteIfExists()
+-                }
+-              }
+-
+-              LaunchedEffect(mpvConfStorageLocation) {
+-                if (mpvConfStorageLocation.isBlank()) return@LaunchedEffect
+-                withContext(Dispatchers.IO) {
+-                  val tempFile = kotlin.io.path.createTempFile()
+-                  runCatching {
+-                    val tree = DocumentFile.fromTreeUri(context, mpvConfStorageLocation.toUri())
+-                    val inputConfFile = tree?.findFile("input.conf")
+-                    if (inputConfFile != null && inputConfFile.exists()) {
+-                      context.contentResolver.openInputStream(inputConfFile.uri)?.copyTo(tempFile.outputStream())
+-                      val content = tempFile.readLines().fastJoinToString("\n")
+-                      preferences.inputConf.set(content)
+-                      File(context.filesDir, "input.conf").writeText(content)
+-                      withContext(Dispatchers.Main) { inputConf = content }
+-                    }
++                  withContext(Dispatchers.Main) {
++                    if (loadedMpvConf != null) mpvConf = loadedMpvConf
++                    if (loadedInputConf != null) inputConf = loadedInputConf
+                   }
+-                  tempFile.deleteIfExists()
+                 }
+               }
+ 
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/AppearancePreferencesScreen.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/AppearancePreferencesScreen.kt
+index e3f0334d..272b5543 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/AppearancePreferencesScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/AppearancePreferencesScreen.kt
+@@ -905,7 +905,7 @@ object AppearancePreferencesScreen : Screen {
+                 title = { Text(stringResource(R.string.pref_anim_screen_nav_style_title)) },
+                 summary = {
+                   Text(
+-                    "${appNavStyle.displayName}\n${stringResource(R.string.pref_anim_screen_nav_style_summary)}",
++                    appNavStyle.displayName,
+                     color = MaterialTheme.colorScheme.outline,
+                   )
+                 },
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/ConfigEditorScreen.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/ConfigEditorScreen.kt
+index a488f8ee..49911336 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/ConfigEditorScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/ConfigEditorScreen.kt
+@@ -44,6 +44,7 @@ import com.quantummpv.app.ui.editor.MpvHelpScreen
+ import com.quantummpv.app.ui.editor.MpvScriptEditor
+ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
++import com.quantummpv.app.ui.player.MpvConfigCache
+ import com.quantummpv.app.ui.utils.LocalBackStack
+ import com.quantummpv.app.ui.utils.navigateTo
+ import com.quantummpv.app.ui.utils.popSafely
+@@ -53,10 +54,6 @@ import kotlinx.coroutines.withContext
+ import kotlinx.serialization.Serializable
+ import org.koin.compose.koinInject
+ import java.io.File
+-import kotlin.io.path.createTempFile
+-import kotlin.io.path.deleteIfExists
+-import kotlin.io.path.outputStream
+-import kotlin.io.path.readLines
+ 
+ @Serializable
+ data class ConfigEditorScreen(
+@@ -73,6 +70,7 @@ data class ConfigEditorScreen(
+     val context = LocalContext.current
+     val backStack = LocalBackStack.current
+     val preferences = koinInject<AdvancedPreferences>()
++    val mpvConfigCache = koinInject<MpvConfigCache>()
+     val scope = rememberCoroutineScope()
+ 
+     val (fileName, initialValue) =
+@@ -99,29 +97,26 @@ data class ConfigEditorScreen(
+     LaunchedEffect(mpvConfStorageLocation) {
+       if (mpvConfStorageLocation.isBlank()) return@LaunchedEffect
+       withContext(Dispatchers.IO) {
+-        val tempFile = createTempFile()
+         runCatching {
+           val tree = DocumentFile.fromTreeUri(context, mpvConfStorageLocation.toUri())
+           val configFile = tree?.findFile(fileName)
+           if (configFile != null && configFile.exists()) {
+-            context.contentResolver.openInputStream(configFile.uri)?.copyTo(tempFile.outputStream())
+-            val content = tempFile.readLines().joinToString("\n")
+-            withContext(Dispatchers.Main) { configText = content }
++            val content =
++              context.contentResolver.openInputStream(configFile.uri)?.bufferedReader()?.use { reader ->
++                reader.readText()
++              }
++            if (content != null) {
++              withContext(Dispatchers.Main) { configText = content }
++            }
+           }
+         }
+-        tempFile.deleteIfExists()
+       }
+     }
+ 
+     fun saveConfig() {
++      val contentToSave = configText
+       scope.launch(Dispatchers.IO) {
+         try {
+-          when (configType) {
+-            ConfigType.MPV_CONF -> preferences.mpvConf.set(configText)
+-            ConfigType.INPUT_CONF -> preferences.inputConf.set(configText)
+-          }
+-          File(context.filesDir, fileName).writeText(configText)
+-
+           if (mpvConfStorageLocation.isNotBlank()) {
+             val tree = DocumentFile.fromTreeUri(context, mpvConfStorageLocation.toUri())
+             if (tree == null) {
+@@ -149,12 +144,24 @@ data class ConfigEditorScreen(
+                 }
+                 return@launch
+               }
+-            context.contentResolver.openOutputStream(uri, "wt")?.use { out ->
+-              out.write(configText.toByteArray())
++            val output =
++              checkNotNull(context.contentResolver.openOutputStream(uri, "wt")) {
++                context.getString(R.string.ui_failed_to_open_output_stream)
++              }
++            output.use { out ->
++              out.write(contentToSave.toByteArray(Charsets.UTF_8))
+               out.flush()
+             }
+           }
+ 
++          when (configType) {
++            ConfigType.MPV_CONF -> mpvConfigCache.update(contentToSave)
++            ConfigType.INPUT_CONF -> {
++              preferences.inputConf.set(contentToSave)
++              File(context.filesDir, fileName).writeText(contentToSave)
++            }
++          }
++
+           withContext(Dispatchers.Main) {
+             hasUnsavedChanges = false
+             Toast.makeText(context, "$fileName saved", Toast.LENGTH_SHORT).show()
+diff --git a/app/src/main/res/values-ar/strings.xml b/app/src/main/res/values-ar/strings.xml
+index 47807f87..85a7296f 100644
+--- a/app/src/main/res/values-ar/strings.xml
++++ b/app/src/main/res/values-ar/strings.xml
+@@ -1032,6 +1032,17 @@
+   <string name="pref_section_support">الدعم</string>
+   <string name="pref_section_updates">التحديثات</string>
+   <string name="pref_section_system">النظام</string>
++  <string name="pref_section_contributors">المساهمون</string>
++  <string name="contributors_loading">جارٍ تحميل المساهمين...</string>
++  <string name="contributors_load_error">تعذر تحميل المساهمين</string>
++  <string name="contributors_empty">لم يتم العثور على مساهمين.</string>
++  <string name="contributors_retry">إعادة المحاولة</string>
++  <string name="contributors_view_all">عرض جميع المساهمين</string>
++  <string name="network_connection_invalid_port">أدخل منفذًا من 1 إلى 65535</string>
++  <plurals name="contributors_contribution_count">
++    <item quantity="one">%1$d مساهمة</item>
++    <item quantity="other">%1$d مساهمة</item>
++  </plurals>
+   <string name="ytdlp_engine_installer">مثبّت المحرك</string>
+   <string name="ytdlp_quality_format">الجودة والتنسيق</string>
+   <string name="ytdlp_video_codec">ترميز الفيديو</string>
+diff --git a/app/src/main/res/values-de/strings.xml b/app/src/main/res/values-de/strings.xml
+index 0b5d0627..6705821d 100644
+--- a/app/src/main/res/values-de/strings.xml
++++ b/app/src/main/res/values-de/strings.xml
+@@ -1032,6 +1032,17 @@ Bitte starten Sie die App neu, damit alle Änderungen wirksam werden.</string>
+   <string name="pref_section_support">Support</string>
+   <string name="pref_section_updates">Updates</string>
+   <string name="pref_section_system">System</string>
++  <string name="pref_section_contributors">Mitwirkende</string>
++  <string name="contributors_loading">Mitwirkende werden geladen...</string>
++  <string name="contributors_load_error">Mitwirkende konnten nicht geladen werden</string>
++  <string name="contributors_empty">Keine Mitwirkenden gefunden.</string>
++  <string name="contributors_retry">Erneut versuchen</string>
++  <string name="contributors_view_all">Alle Mitwirkenden anzeigen</string>
++  <string name="network_connection_invalid_port">Gib einen Port zwischen 1 und 65535 ein</string>
++  <plurals name="contributors_contribution_count">
++    <item quantity="one">%1$d Beitrag</item>
++    <item quantity="other">%1$d Beiträge</item>
++  </plurals>
+   <string name="ytdlp_engine_installer">Engine-Installer</string>
+   <string name="ytdlp_quality_format">Qualität &amp; Format</string>
+   <string name="ytdlp_video_codec">Videocodec</string>
+diff --git a/app/src/main/res/values-es/strings.xml b/app/src/main/res/values-es/strings.xml
+index 0c0deacc..32691bea 100644
+--- a/app/src/main/res/values-es/strings.xml
++++ b/app/src/main/res/values-es/strings.xml
+@@ -1032,6 +1032,17 @@ Reinicia la aplicación para que se apliquen todos los cambios.</string>
+   <string name="pref_section_support">Soporte</string>
+   <string name="pref_section_updates">Actualizaciones</string>
+   <string name="pref_section_system">Sistema</string>
++  <string name="pref_section_contributors">Colaboradores</string>
++  <string name="contributors_loading">Cargando colaboradores...</string>
++  <string name="contributors_load_error">No se pudieron cargar los colaboradores</string>
++  <string name="contributors_empty">No se encontraron colaboradores.</string>
++  <string name="contributors_retry">Reintentar</string>
++  <string name="contributors_view_all">Ver todos los colaboradores</string>
++  <string name="network_connection_invalid_port">Introduce un puerto entre 1 y 65535</string>
++  <plurals name="contributors_contribution_count">
++    <item quantity="one">%1$d contribución</item>
++    <item quantity="other">%1$d contribuciones</item>
++  </plurals>
+   <string name="ytdlp_engine_installer">Instalador del motor</string>
+   <string name="ytdlp_quality_format">Calidad y formato</string>
+   <string name="ytdlp_video_codec">Códec de video</string>
+diff --git a/app/src/main/res/values-fr/strings.xml b/app/src/main/res/values-fr/strings.xml
+index 2a11f711..34ee74c9 100644
+--- a/app/src/main/res/values-fr/strings.xml
++++ b/app/src/main/res/values-fr/strings.xml
+@@ -1032,6 +1032,17 @@ Veuillez redémarrer l’application pour appliquer toutes les modifications.</s
+   <string name="pref_section_support">Assistance</string>
+   <string name="pref_section_updates">Mises à jour</string>
+   <string name="pref_section_system">Système</string>
++  <string name="pref_section_contributors">Contributeurs</string>
++  <string name="contributors_loading">Chargement des contributeurs...</string>
++  <string name="contributors_load_error">Impossible de charger les contributeurs</string>
++  <string name="contributors_empty">Aucun contributeur trouvé.</string>
++  <string name="contributors_retry">Réessayer</string>
++  <string name="contributors_view_all">Voir tous les contributeurs</string>
++  <string name="network_connection_invalid_port">Saisissez un port compris entre 1 et 65535</string>
++  <plurals name="contributors_contribution_count">
++    <item quantity="one">%1$d contribution</item>
++    <item quantity="other">%1$d contributions</item>
++  </plurals>
+   <string name="ytdlp_engine_installer">Programme d’installation du moteur</string>
+   <string name="ytdlp_quality_format">Qualité et format</string>
+   <string name="ytdlp_video_codec">Codec vidéo</string>
+diff --git a/app/src/main/res/values-hi/strings.xml b/app/src/main/res/values-hi/strings.xml
+index aa4a71e3..c0524121 100644
+--- a/app/src/main/res/values-hi/strings.xml
++++ b/app/src/main/res/values-hi/strings.xml
+@@ -964,6 +964,17 @@
+   <string name="pref_section_support">सपोर्ट</string>
+   <string name="pref_section_updates">अपडेट</string>
+   <string name="pref_section_system">सिस्टम</string>
++  <string name="pref_section_contributors">योगदानकर्ता</string>
++  <string name="contributors_loading">योगदानकर्ताओं को लोड किया जा रहा है...</string>
++  <string name="contributors_load_error">योगदानकर्ताओं को लोड नहीं किया जा सका</string>
++  <string name="contributors_empty">कोई योगदानकर्ता नहीं मिला।</string>
++  <string name="contributors_retry">फिर से प्रयास करें</string>
++  <string name="contributors_view_all">सभी योगदानकर्ता देखें</string>
++  <string name="network_connection_invalid_port">1 से 65535 तक का पोर्ट दर्ज करें</string>
++  <plurals name="contributors_contribution_count">
++    <item quantity="one">%1$d योगदान</item>
++    <item quantity="other">%1$d योगदान</item>
++  </plurals>
+   <string name="ytdlp_engine_installer">इंजन इंस्टॉलर</string>
+   <string name="ytdlp_quality_format">क्वालिटी और फॉर्मेट</string>
+   <string name="ytdlp_video_codec">वीडियो कोडेक</string>
+diff --git a/app/src/main/res/values-ja/strings.xml b/app/src/main/res/values-ja/strings.xml
+index 9bbdfb06..4a67142c 100644
+--- a/app/src/main/res/values-ja/strings.xml
++++ b/app/src/main/res/values-ja/strings.xml
+@@ -1032,6 +1032,16 @@
+   <string name="pref_section_support">サポート</string>
+   <string name="pref_section_updates">アップデート</string>
+   <string name="pref_section_system">システム</string>
++  <string name="pref_section_contributors">貢献者</string>
++  <string name="contributors_loading">貢献者を読み込んでいます...</string>
++  <string name="contributors_load_error">貢献者を読み込めませんでした</string>
++  <string name="contributors_empty">貢献者が見つかりません。</string>
++  <string name="contributors_retry">再試行</string>
++  <string name="contributors_view_all">すべての貢献者を表示</string>
++  <string name="network_connection_invalid_port">1～65535 のポート番号を入力してください</string>
++  <plurals name="contributors_contribution_count">
++    <item quantity="other">%1$d 件の貢献</item>
++  </plurals>
+   <string name="ytdlp_engine_installer">エンジンインストーラー</string>
+   <string name="ytdlp_quality_format">画質と形式</string>
+   <string name="ytdlp_video_codec">動画コーデック</string>
+diff --git a/app/src/main/res/values-pt-rBR/strings.xml b/app/src/main/res/values-pt-rBR/strings.xml
+index e48a3864..1581674a 100644
+--- a/app/src/main/res/values-pt-rBR/strings.xml
++++ b/app/src/main/res/values-pt-rBR/strings.xml
+@@ -1032,6 +1032,17 @@ Reinicie o aplicativo para que todas as alterações entrem em vigor.</string>
+   <string name="pref_section_support">Suporte</string>
+   <string name="pref_section_updates">Atualizações</string>
+   <string name="pref_section_system">Sistema</string>
++  <string name="pref_section_contributors">Colaboradores</string>
++  <string name="contributors_loading">Carregando colaboradores...</string>
++  <string name="contributors_load_error">Não foi possível carregar os colaboradores</string>
++  <string name="contributors_empty">Nenhum colaborador encontrado.</string>
++  <string name="contributors_retry">Tentar novamente</string>
++  <string name="contributors_view_all">Ver todos os colaboradores</string>
++  <string name="network_connection_invalid_port">Insira uma porta entre 1 e 65535</string>
++  <plurals name="contributors_contribution_count">
++    <item quantity="one">%1$d contribuição</item>
++    <item quantity="other">%1$d contribuições</item>
++  </plurals>
+   <string name="ytdlp_engine_installer">Instalador do mecanismo</string>
+   <string name="ytdlp_quality_format">Qualidade e formato</string>
+   <string name="ytdlp_video_codec">Codec de vídeo</string>
+diff --git a/app/src/main/res/values-ru/strings.xml b/app/src/main/res/values-ru/strings.xml
+index 74ac4aae..a25e431f 100644
+--- a/app/src/main/res/values-ru/strings.xml
++++ b/app/src/main/res/values-ru/strings.xml
+@@ -1032,6 +1032,19 @@
+   <string name="pref_section_support">Поддержка</string>
+   <string name="pref_section_updates">Обновления</string>
+   <string name="pref_section_system">Система</string>
++  <string name="pref_section_contributors">Участники</string>
++  <string name="contributors_loading">Загрузка списка участников...</string>
++  <string name="contributors_load_error">Не удалось загрузить список участников</string>
++  <string name="contributors_empty">Участники не найдены.</string>
++  <string name="contributors_retry">Повторить</string>
++  <string name="contributors_view_all">Показать всех участников</string>
++  <string name="network_connection_invalid_port">Введите порт от 1 до 65535</string>
++  <plurals name="contributors_contribution_count">
++    <item quantity="one">%1$d вклад</item>
++    <item quantity="few">%1$d вклада</item>
++    <item quantity="many">%1$d вкладов</item>
++    <item quantity="other">%1$d вклада</item>
++  </plurals>
+   <string name="ytdlp_engine_installer">Установщик движка</string>
+   <string name="ytdlp_quality_format">Качество и формат</string>
+   <string name="ytdlp_video_codec">Видеокодек</string>
+diff --git a/app/src/main/res/values-zh-rCN/strings.xml b/app/src/main/res/values-zh-rCN/strings.xml
+index f0d53bef..ed5747ac 100644
+--- a/app/src/main/res/values-zh-rCN/strings.xml
++++ b/app/src/main/res/values-zh-rCN/strings.xml
+@@ -1034,6 +1034,16 @@
+   <string name="pref_section_support">支持</string>
+   <string name="pref_section_updates">更新</string>
+   <string name="pref_section_system">系统</string>
++  <string name="pref_section_contributors">贡献者</string>
++  <string name="contributors_loading">正在加载贡献者...</string>
++  <string name="contributors_load_error">无法加载贡献者</string>
++  <string name="contributors_empty">未找到贡献者。</string>
++  <string name="contributors_retry">重试</string>
++  <string name="contributors_view_all">查看所有贡献者</string>
++  <string name="network_connection_invalid_port">请输入 1 到 65535 之间的端口号</string>
++  <plurals name="contributors_contribution_count">
++    <item quantity="other">%1$d 次贡献</item>
++  </plurals>
+   <string name="ytdlp_engine_installer">引擎安装器</string>
+   <string name="ytdlp_quality_format">质量与格式</string>
+   <string name="ytdlp_video_codec">视频编解码器</string>
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index c31e8956..98197d29 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -1176,6 +1176,17 @@
+   <string name="pref_section_support">Support</string>
+   <string name="pref_section_updates">Updates</string>
+   <string name="pref_section_system">System</string>
++  <string name="pref_section_contributors">Contributors</string>
++  <string name="contributors_loading">Loading contributors...</string>
++  <string name="contributors_load_error">Couldn&apos;t load contributors</string>
++  <string name="contributors_empty">No contributors found.</string>
++  <string name="contributors_retry">Retry</string>
++  <string name="contributors_view_all">View all contributors</string>
++  <string name="network_connection_invalid_port">Enter a port from 1 to 65535</string>
++  <plurals name="contributors_contribution_count">
++    <item quantity="one">%1$d contribution</item>
++    <item quantity="other">%1$d contributions</item>
++  </plurals>
+   <string name="ytdlp_engine_installer">Engine Installer</string>
+   <string name="ytdlp_quality_format">Quality &amp; Format</string>
+   <string name="ytdlp_video_codec">Video Codec</string>
+-- 
+2.25.1
+

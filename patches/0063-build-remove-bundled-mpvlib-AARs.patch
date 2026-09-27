@@ -1,0 +1,40 @@
+From 0786c0ee4ffb059f5529e556e46fcb43f6e0422a Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <riteshp2001@gmail.com>
+Date: Tue, 8 Sep 2026 19:35:28 +0530
+Subject: [PATCH 063/140] build: remove bundled mpvlib AARs
+
+---
+ .gitignore                                                     | 3 ---
+ .../main/java/com/quantummpv/app/ui/preferences/AboutScreen.kt  | 2 +-
+ 2 files changed, 1 insertion(+), 4 deletions(-)
+
+diff --git a/.gitignore b/.gitignore
+index b4f6b9ed..c1df0b87 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -20,9 +20,6 @@ local.properties
+ *.ap_
+ *.aab
+ *.aar
+-!app/libs/mpvlib.aar
+-!app/libs/mpvlib-no-vulkun.aar
+-!app/libs/mpvlib-fongmi.aar
+ 
+ # Release folders
+ app/release/
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/AboutScreen.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/AboutScreen.kt
+index a6f12f46..36b66b74 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/AboutScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/AboutScreen.kt
+@@ -1158,7 +1158,7 @@ private val OPEN_SOURCE_LIBRARIES =
+     ),
+     OpenSourceLibrary(
+       name = "mpvlib Android",
+-      artifact = "mpvlib.aar / mpvlib-no-vulkun.aar / mpvlib-fongmi.aar",
++      artifact = "app.gyrolet.mpvlib: mpvlib / mpvlib-no-vulkan / mpvlib-fongmi",
+       descriptionRes = R.string.oss_mpvlib_android_description,
+       license = "MIT",
+       url = "https://github.com/Riteshp2001/mpvlibAndroid",
+-- 
+2.25.1
+

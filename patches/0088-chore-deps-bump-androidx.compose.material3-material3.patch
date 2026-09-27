@@ -1,0 +1,37 @@
+From 78f4fd86d329062a14d9751dff475c2a99d8424b Mon Sep 17 00:00:00 2001
+From: "dependabot[bot]" <49699333+dependabot[bot]@users.noreply.github.com>
+Date: Mon, 14 Sep 2026 04:38:40 +0000
+Subject: [PATCH 088/140] chore(deps): bump
+ androidx.compose.material3:material3
+
+Bumps androidx.compose.material3:material3 from 1.5.0-alpha27 to 1.5.0-alpha28.
+
+---
+updated-dependencies:
+- dependency-name: androidx.compose.material3:material3
+  dependency-version: 1.5.0-alpha28
+  dependency-type: direct:production
+  update-type: version-update:semver-patch
+...
+
+Signed-off-by: dependabot[bot] <support@github.com>
+---
+ gradle/libs.versions.toml | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/gradle/libs.versions.toml b/gradle/libs.versions.toml
+index 25799b95..c67b9923 100644
+--- a/gradle/libs.versions.toml
++++ b/gradle/libs.versions.toml
+@@ -29,7 +29,7 @@ androidxPreference = "1.2.1"
+ androidxConstraintLayout = "2.2.2"
+ media3 = "1.11.0"
+ soraEditor = "0.24.6"
+-androidxMaterial3 = "1.5.0-alpha27"
++androidxMaterial3 = "1.5.0-alpha28"
+ androidxAppcompat = "1.8.0"
+ composeConstraintLayout = "1.1.2"
+ androidxMedia = "1.8.0"
+-- 
+2.25.1
+

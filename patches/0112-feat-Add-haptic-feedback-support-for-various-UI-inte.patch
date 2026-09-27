@@ -1,0 +1,2292 @@
+From c342ab9f18bbb7794f2f2d7aa89fe5a268aa7afb Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <riteshp2001@gmail.com>
+Date: Wed, 16 Sep 2026 18:09:21 +0530
+Subject: [PATCH 112/140] feat: Add haptic feedback support for various UI
+ interactions
+
+- Implemented haptic feedback for gesture controls in GestureHandler, enhancing user experience during volume and brightness adjustments.
+- Introduced AppHaptics utility class to manage haptic feedback across the application.
+- Added haptic feedback options in GesturePreferencesScreen, allowing users to enable or disable feedback.
+- Integrated haptic feedback into PlaybackSpeedSheet, EqualizerSheet, and PlaylistSheet for improved interaction feedback.
+- Created ReorderFeedback class to provide haptic feedback during drag-and-drop operations in the playlist.
+- Added animated selection indicators in SelectionIndicator.kt to visually enhance item selection.
+- Updated localization files to include new strings for haptic feedback settings.
+---
+ .../mpvrx/preferences/GesturePreferences.kt   |   1 +
+ .../presentation/components/PlayerSheet.kt    |  20 ++-
+ .../presentation/components/SliderItem.kt     |  23 ++-
+ .../components/TintedSliderItem.kt            |   7 +-
+ .../gyrolet/mpvrx/ui/browser/MainScreen.kt    |   4 -
+ .../mpvrx/ui/browser/cards/FolderCard.kt      |  37 ++--
+ .../ui/browser/cards/SelectionIndicator.kt    |  60 +++++++
+ .../mpvrx/ui/browser/cards/VideoCard.kt       |  44 ++---
+ .../ui/browser/components/BrowserTopBar.kt    | 169 +++++++++++++-----
+ .../browser/components/FloatingBottomBar.kt   |  56 ++++--
+ .../filesystem/FileSystemBrowserScreen.kt     |  12 +-
+ .../ui/browser/folderlist/FolderListScreen.kt |   6 +-
+ .../medialibrary/MediaLibraryContent.kt       |   2 +-
+ .../ui/browser/music/MusicLibraryContent.kt   |   8 +-
+ .../browser/playlist/PlaylistDetailScreen.kt  |  19 +-
+ .../ui/browser/playlist/PlaylistScreen.kt     |   2 +-
+ .../recentlyplayed/RecentlyPlayedScreen.kt    |  24 +--
+ .../ui/browser/selection/SelectionManager.kt  |   9 +
+ .../ui/browser/videolist/VideoListScreen.kt   |   6 +-
+ .../mpvrx/ui/player/clip/ClipOverlayView.kt   |   3 +-
+ .../ui/player/controls/AudioPlayerControls.kt |  79 ++++----
+ .../ui/player/controls/GestureHandler.kt      |  18 +-
+ .../ui/player/controls/PlayerControls.kt      |   6 -
+ .../ui/player/controls/components/Seekbar.kt  |  14 ++
+ .../components/sheets/EqualizerSheet.kt       |   4 +
+ .../components/sheets/PlaybackSpeedSheet.kt   |  21 ++-
+ .../components/sheets/PlaylistSheet.kt        |  19 +-
+ .../preferences/GesturePreferencesScreen.kt   |  10 ++
+ .../ui/preferences/SearchablePreference.kt    |   8 +
+ .../preferences/SettingsSearchNavigation.kt   |   1 +
+ .../java/com/quantummpv/app/ui/theme/Motion.kt |  23 ++-
+ .../java/com/quantummpv/app/ui/theme/Theme.kt  |   2 +-
+ .../com/quantummpv/app/ui/utils/AppHaptics.kt  | 115 ++++++++++++
+ .../gyrolet/mpvrx/ui/utils/ReorderFeedback.kt |  67 +++++++
+ app/src/main/res/values-ar/strings.xml        |   2 +
+ app/src/main/res/values-de/strings.xml        |   2 +
+ app/src/main/res/values-es/strings.xml        |   2 +
+ app/src/main/res/values-fr/strings.xml        |   2 +
+ app/src/main/res/values-hi/strings.xml        |   2 +
+ app/src/main/res/values-ja/strings.xml        |   2 +
+ app/src/main/res/values-pt-rBR/strings.xml    |   2 +
+ app/src/main/res/values-ru/strings.xml        |   2 +
+ app/src/main/res/values-zh-rCN/strings.xml    |   2 +
+ app/src/main/res/values/strings.xml           |   2 +
+ 44 files changed, 712 insertions(+), 207 deletions(-)
+ create mode 100644 app/src/main/java/com/quantummpv/app/ui/browser/cards/SelectionIndicator.kt
+ create mode 100644 app/src/main/java/com/quantummpv/app/ui/utils/AppHaptics.kt
+ create mode 100644 app/src/main/java/com/quantummpv/app/ui/utils/ReorderFeedback.kt
+
+diff --git a/app/src/main/java/com/quantummpv/app/preferences/GesturePreferences.kt b/app/src/main/java/com/quantummpv/app/preferences/GesturePreferences.kt
+index 2194cde3..46955da4 100644
+--- a/app/src/main/java/com/quantummpv/app/preferences/GesturePreferences.kt
++++ b/app/src/main/java/com/quantummpv/app/preferences/GesturePreferences.kt
+@@ -16,6 +16,7 @@ import com.quantummpv.app.ui.player.SingleActionGesture
+ class GesturePreferences(
+   preferenceStore: PreferenceStore,
+ ) {
++  val hapticFeedbackEnabled = preferenceStore.getBoolean("haptic_feedback_enabled", true)
+   val doubleTapToSeekDuration = preferenceStore.getInt("double_tap_to_seek_duration", 10)
+   val doubleTapSeekAreaWidth = preferenceStore.getInt("double_tap_seek_area_width", 35)
+   val leftSingleActionGesture = preferenceStore.getEnum("left_double_tap_gesture", SingleActionGesture.Seek)
+diff --git a/app/src/main/java/com/quantummpv/app/presentation/components/PlayerSheet.kt b/app/src/main/java/com/quantummpv/app/presentation/components/PlayerSheet.kt
+index fd469e58..13f7c3ec 100644
+--- a/app/src/main/java/com/quantummpv/app/presentation/components/PlayerSheet.kt
++++ b/app/src/main/java/com/quantummpv/app/presentation/components/PlayerSheet.kt
+@@ -16,6 +16,11 @@ import android.content.res.Configuration.ORIENTATION_LANDSCAPE
+ import android.content.res.Configuration.ORIENTATION_PORTRAIT
+ import androidx.activity.compose.BackHandler
+ import androidx.compose.animation.core.animateFloatAsState
++import androidx.compose.animation.core.AnimationVector
++import androidx.compose.animation.core.FiniteAnimationSpec
++import androidx.compose.animation.core.TwoWayConverter
++import androidx.compose.animation.core.VectorizedFiniteAnimationSpec
++import androidx.compose.animation.core.snap
+ import androidx.compose.animation.rememberSplineBasedDecay
+ import androidx.compose.foundation.background
+ import androidx.compose.foundation.clickable
+@@ -70,8 +75,6 @@ import kotlinx.coroutines.flow.filter
+ import kotlinx.coroutines.launch
+ import kotlin.math.roundToInt
+ 
+-private val sheetAnimationSpec = AppMotion.Spatial.Standard
+-
+ @SuppressLint("ConfigurationScreenWidthHeight")
+ @Composable
+ fun PlayerSheet(
+@@ -86,6 +89,17 @@ fun PlayerSheet(
+   content: @Composable () -> Unit,
+ ) {
+   val scope = rememberCoroutineScope()
++  val reducedMotion = AppMotion.playerReducedMotion()
++  val currentSheetSpec by rememberUpdatedState<FiniteAnimationSpec<Float>>(
++    if (reducedMotion) snap() else AppMotion.Spatial.Expressive,
++  )
++  val sheetAnimationSpec = remember {
++    object : FiniteAnimationSpec<Float> {
++      override fun <Vector : AnimationVector> vectorize(
++        converter: TwoWayConverter<Float, Vector>,
++      ): VectorizedFiniteAnimationSpec<Vector> = currentSheetSpec.vectorize(converter)
++    }
++  }
+   val density = LocalDensity.current
+   val latestOnDismissRequest by rememberUpdatedState(onDismissRequest)
+   val maxWidth =
+@@ -143,7 +157,7 @@ fun PlayerSheet(
+     }
+   val alpha by animateFloatAsState(
+     targetAlpha,
+-    animationSpec = sheetAnimationSpec,
++    animationSpec = if (reducedMotion) snap() else AppMotion.Effect.Alpha,
+     label = "alpha",
+   )
+ 
+diff --git a/app/src/main/java/com/quantummpv/app/presentation/components/SliderItem.kt b/app/src/main/java/com/quantummpv/app/presentation/components/SliderItem.kt
+index 3cbe2ceb..375e4f00 100644
+--- a/app/src/main/java/com/quantummpv/app/presentation/components/SliderItem.kt
++++ b/app/src/main/java/com/quantummpv/app/presentation/components/SliderItem.kt
+@@ -26,14 +26,13 @@ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.graphics.TransformOrigin
+ import androidx.compose.ui.graphics.graphicsLayer
+-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+ import androidx.compose.ui.layout.layout
+-import androidx.compose.ui.platform.LocalHapticFeedback
+ import androidx.compose.ui.tooling.preview.Preview
+ import androidx.compose.ui.unit.Constraints
+ import androidx.compose.ui.unit.dp
+ import com.quantummpv.app.ui.theme.spacing
+ import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
++import com.quantummpv.app.ui.utils.rememberAdjustmentHaptics
+ import kotlin.math.roundToInt
+ 
+ @Composable
+@@ -46,9 +45,12 @@ fun SliderItem(
+   modifier: Modifier = Modifier,
+   min: Int = 0,
+   enabled: Boolean = true,
++  hapticLandmarks: List<Int> = emptyList(),
+   icon: @Composable () -> Unit = {},
+ ) {
+-  val haptic = LocalHapticFeedback.current
++  val haptics = rememberAdjustmentHaptics(
++    min.toFloat(), max.toFloat(), (max - min - 1).coerceAtLeast(0), hapticLandmarks.map(Int::toFloat),
++  )
+ 
+   Row(
+     modifier =
+@@ -87,7 +89,7 @@ fun SliderItem(
+           val newValue = it.roundToInt()
+           if (newValue != value) {
+             onChange(newValue)
+-            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
++            haptics.move(value.toFloat(), newValue.toFloat())
+           }
+         },
+         modifier =
+@@ -113,9 +115,10 @@ fun SliderItem(
+   steps: Int = 0,
+   min: Float = 0f,
+   enabled: Boolean = true,
++  hapticLandmarks: List<Float> = emptyList(),
+   icon: @Composable () -> Unit = {},
+ ) {
+-  val haptic = LocalHapticFeedback.current
++  val haptics = rememberAdjustmentHaptics(min, max, steps, hapticLandmarks)
+ 
+   Row(
+     modifier =
+@@ -154,7 +157,7 @@ fun SliderItem(
+           val newValue = it
+           if (newValue != value) {
+             onChange(newValue)
+-            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
++            haptics.move(value, newValue)
+           }
+         },
+         modifier =
+@@ -180,7 +183,7 @@ fun VerticalSliderItem(
+   min: Int = 0,
+   icon: @Composable () -> Unit = {},
+ ) {
+-  val haptic = LocalHapticFeedback.current
++  val haptics = rememberAdjustmentHaptics(min.toFloat(), max.toFloat())
+ 
+   Column(
+     modifier =
+@@ -199,8 +202,10 @@ fun VerticalSliderItem(
+       min = min,
+       max = max,
+       onValueChange = {
+-        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+-        onChange(it)
++        if (it != value) {
++          onChange(it)
++          haptics.move(value.toFloat(), it.toFloat())
++        }
+       },
+       modifier = Modifier.weight(1f),
+     )
+diff --git a/app/src/main/java/com/quantummpv/app/presentation/components/TintedSliderItem.kt b/app/src/main/java/com/quantummpv/app/presentation/components/TintedSliderItem.kt
+index 21982c16..b700f153 100644
+--- a/app/src/main/java/com/quantummpv/app/presentation/components/TintedSliderItem.kt
++++ b/app/src/main/java/com/quantummpv/app/presentation/components/TintedSliderItem.kt
+@@ -25,12 +25,11 @@ import androidx.compose.runtime.Composable
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.graphics.Color
+-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+-import androidx.compose.ui.platform.LocalHapticFeedback
+ import androidx.compose.ui.tooling.preview.Preview
+ import androidx.compose.ui.unit.dp
+ import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
+ import com.quantummpv.app.ui.theme.spacing
++import com.quantummpv.app.ui.utils.rememberAdjustmentHaptics
+ import kotlin.math.max
+ import kotlin.math.min
+ import kotlin.math.roundToInt
+@@ -48,7 +47,7 @@ fun TintedSliderItem(
+   enabled: Boolean = true,
+   icon: @Composable () -> Unit = {},
+ ) {
+-  val haptic = LocalHapticFeedback.current
++  val haptics = rememberAdjustmentHaptics(min.toFloat(), max.toFloat(), (max - min - 1).coerceAtLeast(0))
+ 
+   Row(
+     modifier =
+@@ -87,7 +86,7 @@ fun TintedSliderItem(
+           val newValue = it.roundToInt()
+           if (newValue != value) {
+             onChange(newValue)
+-            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
++            haptics.move(value.toFloat(), newValue.toFloat())
+           }
+         },
+         modifier = Modifier.fillMaxWidth(),
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/MainScreen.kt b/app/src/main/java/com/quantummpv/app/ui/browser/MainScreen.kt
+index 090c9f64..8c1851ba 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/MainScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/MainScreen.kt
+@@ -73,11 +73,9 @@ import androidx.compose.ui.draw.clip
+ import androidx.compose.ui.draw.clipToBounds
+ import androidx.compose.ui.graphics.Color
+ import androidx.compose.ui.graphics.graphicsLayer
+-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+ import androidx.compose.ui.layout.layout
+ import androidx.compose.ui.layout.onGloballyPositioned
+ import androidx.compose.ui.platform.LocalDensity
+-import androidx.compose.ui.platform.LocalHapticFeedback
+ import androidx.compose.ui.res.painterResource
+ import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.semantics.Role
+@@ -621,7 +619,6 @@ private fun ExpressivePillNavigationBar(
+   pagerState: PagerState? = null,
+ ) {
+   if (visibleTabs.isEmpty()) return
+-  val haptics = LocalHapticFeedback.current
+   val initialFocusRequester = rememberTvInitialFocusRequester(visibleTabs.isNotEmpty())
+ 
+   val position =
+@@ -732,7 +729,6 @@ private fun ExpressivePillNavigationBar(
+                     interactionSource = remember { MutableInteractionSource() },
+                     indication = ripple(bounded = true),
+                   ) {
+-                    if (tab != selectedTab) haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                     onTabSelected(tab)
+                   },
+               contentAlignment = Alignment.Center,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/cards/FolderCard.kt b/app/src/main/java/com/quantummpv/app/ui/browser/cards/FolderCard.kt
+index dc8b8284..da0f5e99 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/cards/FolderCard.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/cards/FolderCard.kt
+@@ -42,6 +42,8 @@ import androidx.compose.ui.graphics.ImageBitmap
+ import androidx.compose.ui.graphics.asImageBitmap
+ import androidx.compose.ui.layout.ContentScale
+ import androidx.compose.ui.layout.onSizeChanged
++import androidx.compose.ui.semantics.selected
++import androidx.compose.ui.semantics.semantics
+ import androidx.compose.ui.text.font.FontWeight
+ import androidx.compose.ui.text.style.TextOverflow
+ import androidx.compose.ui.unit.IntSize
+@@ -128,12 +130,8 @@ fun FolderCard(
+ 
+   val maxLines = if (unlimitedNameLines) Int.MAX_VALUE else 2
+   val selectionInset = 2.dp
+-  val selectionContainerColor =
+-    if (isSelected) {
+-      MaterialTheme.colorScheme.tertiary.copy(alpha = 0.3f)
+-    } else {
+-      Color.Transparent
+-    }
++  val selectionContainerColor = animatedSelectionColor(isSelected)
++  val showSelectionBadge = isSelected || selectionContainerColor.alpha > 0.001f
+ 
+   // Remove the redundant folder name from the path
+   val parentPath = folder.path.substringBeforeLast("/", folder.path)
+@@ -167,6 +165,7 @@ fun FolderCard(
+       modifier
+         .fillMaxWidth()
+         .clip(cardShape)
++        .semantics { selected = isSelected }
+         .tvContextMenu(onLongClick)
+         .combinedClickable(
+           onClick = onClick,
+@@ -176,16 +175,14 @@ fun FolderCard(
+     colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+   ) {
+     Box(modifier = Modifier.fillMaxWidth()) {
+-      if (isSelected) {
+-        Box(
+-          modifier =
+-            Modifier
+-              .matchParentSize()
+-              .padding(selectionInset)
+-              .clip(cardShape)
+-              .background(selectionContainerColor),
+-        )
+-      }
++      Box(
++        modifier =
++          Modifier
++            .matchParentSize()
++            .padding(selectionInset)
++            .clip(cardShape)
++            .background(selectionContainerColor),
++      )
+ 
+       if (isGridMode) {
+         val horizontalAlignment = if (centerGridTitles) Alignment.CenterHorizontally else Alignment.Start
+@@ -238,7 +235,7 @@ fun FolderCard(
+               )
+             }
+ 
+-            if (newVideoCount > 0) {
++            if (newVideoCount > 0 && !showSelectionBadge) {
+               Box(
+                 modifier =
+                   Modifier
+@@ -258,6 +255,8 @@ fun FolderCard(
+               }
+             }
+ 
++            SelectionIndicator(isSelected, Modifier.align(Alignment.TopEnd).padding(6.dp))
++
+             if (isPinned) {
+               PinnedFolderBadge(
+                 modifier =
+@@ -360,7 +359,7 @@ fun FolderCard(
+             }
+ 
+             // Show new video count badge if folder contains new videos
+-            if (newVideoCount > 0) {
++            if (newVideoCount > 0 && !showSelectionBadge) {
+               Box(
+                 modifier =
+                   Modifier
+@@ -380,6 +379,8 @@ fun FolderCard(
+               }
+             }
+ 
++            SelectionIndicator(isSelected, Modifier.align(Alignment.TopEnd).padding(4.dp))
++
+             if (isPinned) {
+               PinnedFolderBadge(
+                 modifier =
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/cards/SelectionIndicator.kt b/app/src/main/java/com/quantummpv/app/ui/browser/cards/SelectionIndicator.kt
+new file mode 100644
+index 00000000..c6074d40
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/cards/SelectionIndicator.kt
+@@ -0,0 +1,60 @@
++package com.quantummpv.app.ui.browser.cards
++
++import androidx.compose.animation.animateColorAsState
++import androidx.compose.animation.core.animateFloatAsState
++import androidx.compose.animation.core.snap
++import androidx.compose.foundation.background
++import androidx.compose.foundation.layout.Box
++import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.layout.size
++import androidx.compose.foundation.shape.CircleShape
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.getValue
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.graphics.Color
++import androidx.compose.ui.graphics.graphicsLayer
++import androidx.compose.ui.semantics.clearAndSetSemantics
++import androidx.compose.ui.unit.dp
++import com.quantummpv.app.ui.icons.Icon
++import com.quantummpv.app.ui.icons.Icons
++import com.quantummpv.app.ui.theme.AppMotion
++
++@Composable
++internal fun animatedSelectionColor(selected: Boolean): Color {
++  val color by animateColorAsState(
++    targetValue = MaterialTheme.colorScheme.tertiary.copy(alpha = if (selected) 0.3f else 0f),
++    animationSpec = AppMotion.spatial(AppMotion.Effect.Color, snap()),
++    label = "selectionTint",
++  )
++  return color
++}
++
++@Composable
++internal fun SelectionIndicator(
++  selected: Boolean,
++  modifier: Modifier = Modifier,
++) {
++  val opacity by animateFloatAsState(
++    targetValue = if (selected) 1f else 0f,
++    animationSpec = AppMotion.spatial(AppMotion.Effect.Alpha, snap()),
++    label = "selectionIndicatorAlpha",
++  )
++  val scale by animateFloatAsState(
++    targetValue = if (selected) 1f else 0.88f,
++    animationSpec = AppMotion.spatial(AppMotion.Spatial.ExpressiveFast, snap()),
++    label = "selectionIndicatorScale",
++  )
++  Box(
++    modifier =
++      modifier.size(24.dp).clearAndSetSemantics { }
++        .graphicsLayer {
++          alpha = opacity
++          scaleX = scale
++          scaleY = scale
++        }.background(MaterialTheme.colorScheme.tertiary, CircleShape)
++        .padding(4.dp),
++  ) {
++    Icon(Icons.RoundedFilled.Check, null, tint = MaterialTheme.colorScheme.onTertiary)
++  }
++}
+\ No newline at end of file
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/cards/VideoCard.kt b/app/src/main/java/com/quantummpv/app/ui/browser/cards/VideoCard.kt
+index c420f37a..bd13b085 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/cards/VideoCard.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/cards/VideoCard.kt
+@@ -40,6 +40,8 @@ import androidx.compose.runtime.remember
+ import androidx.compose.runtime.setValue
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
++import androidx.compose.ui.semantics.selected
++import androidx.compose.ui.semantics.semantics
+ import androidx.compose.ui.draw.clip
+ import androidx.compose.ui.graphics.Color
+ import androidx.compose.ui.graphics.asImageBitmap
+@@ -192,12 +194,8 @@ fun VideoCard(
+     }
+ 
+   val selectionInset = 2.dp
+-  val selectionContainerColor =
+-    if (isSelected) {
+-      MaterialTheme.colorScheme.tertiary.copy(alpha = 0.3f)
+-    } else {
+-      Color.Transparent
+-    }
++  val selectionContainerColor = animatedSelectionColor(isSelected)
++  val showSelectionBadge = isSelected || selectionContainerColor.alpha > 0.001f
+ 
+   // Use override parameters if provided, otherwise use preferences
+   val showSizeChip = overrideShowSizeChip ?: resolvedUiConfig.showSizeChip
+@@ -212,6 +210,7 @@ fun VideoCard(
+           if (isGridMode) Modifier.fillMaxWidth() else Modifier.fillMaxWidth(),
+         ).tvFocusHighlight(cardShape, focusedScale = 1.03f)
+         .clip(cardShape)
++        .semantics { selected = isSelected }
+         .tvContextMenu(onLongClick)
+         .combinedClickable(
+           onClick = onClick,
+@@ -221,16 +220,14 @@ fun VideoCard(
+     colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+   ) {
+     Box(modifier = Modifier.fillMaxWidth()) {
+-      if (isSelected) {
+-        Box(
+-          modifier =
+-            Modifier
+-              .matchParentSize()
+-              .padding(selectionInset)
+-              .clip(cardShape)
+-              .background(selectionContainerColor),
+-        )
+-      }
++      Box(
++        modifier =
++          Modifier
++            .matchParentSize()
++            .padding(selectionInset)
++            .clip(cardShape)
++            .background(selectionContainerColor),
++      )
+ 
+       if (isGridMode) {
+         val centerGridTitles = resolvedUiConfig.centerGridTitles
+@@ -354,7 +351,7 @@ fun VideoCard(
+ 
+             // Show "NEW" label for recently added unplayed videos if enabled (top-left corner)
+             // Like MX Player: show NEW for videos added within threshold days that haven't been played
+-            if (showUnplayedOldVideoLabel && isOldAndUnplayed) {
++            if (showUnplayedOldVideoLabel && isOldAndUnplayed && !showSelectionBadge) {
+               // Check if video is recently modified (within threshold days)
+               val currentTime = System.currentTimeMillis()
+               val videoAge = currentTime - (video.dateModified * 1000) // dateModified is in seconds
+@@ -381,7 +378,12 @@ fun VideoCard(
+               }
+             }
+ 
+-            if (isWatched || (showCodecSupportIndicator && !video.isAudio && video.videoCodec.isNotBlank())) {
++            SelectionIndicator(isSelected, Modifier.align(Alignment.TopEnd).padding(6.dp))
++
++            if (
++              !showSelectionBadge &&
++              (isWatched || (showCodecSupportIndicator && !video.isAudio && video.videoCodec.isNotBlank()))
++            ) {
+               Row(
+                 modifier = Modifier.align(Alignment.TopEnd).padding(6.dp),
+                 horizontalArrangement = Arrangement.spacedBy(4.dp),
+@@ -680,7 +682,7 @@ fun VideoCard(
+ 
+             // Show "NEW" label for recently added unplayed videos if enabled (top-left corner)
+             // Like MX Player: show NEW for videos added within threshold days that haven't been played
+-            if (showUnplayedOldVideoLabel && isOldAndUnplayed) {
++            if (showUnplayedOldVideoLabel && isOldAndUnplayed && !showSelectionBadge) {
+               // Check if video is recently modified (within threshold days)
+               val currentTime = System.currentTimeMillis()
+               val videoAge = currentTime - (video.dateModified * 1000) // dateModified is in seconds
+@@ -707,7 +709,9 @@ fun VideoCard(
+               }
+             }
+ 
+-            if (isWatched) {
++            SelectionIndicator(isSelected, Modifier.align(Alignment.TopEnd).padding(6.dp))
++
++            if (isWatched && !showSelectionBadge) {
+               Icon(
+                 imageVector = Icons.RoundedFilled.Check,
+                 contentDescription = stringResource(R.string.video_label_watched),
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/components/BrowserTopBar.kt b/app/src/main/java/com/quantummpv/app/ui/browser/components/BrowserTopBar.kt
+index 4b9dfce8..e822efe8 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/components/BrowserTopBar.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/components/BrowserTopBar.kt
+@@ -9,10 +9,18 @@
+ 
+ package com.quantummpv.app.ui.browser.components
+ 
++import androidx.compose.animation.AnimatedContent
++import androidx.compose.animation.core.tween
++import androidx.compose.animation.fadeIn
++import androidx.compose.animation.fadeOut
++import androidx.compose.animation.slideInVertically
++import androidx.compose.animation.slideOutVertically
++import androidx.compose.animation.togetherWith
+ import androidx.compose.foundation.clickable
+ import androidx.compose.foundation.gestures.detectTapGestures
+ import androidx.compose.foundation.isSystemInDarkTheme
+ import androidx.compose.foundation.layout.Row
++import androidx.compose.foundation.layout.Box
+ import androidx.compose.foundation.layout.RowScope
+ import androidx.compose.foundation.layout.padding
+ import androidx.compose.foundation.layout.size
+@@ -37,13 +45,17 @@ import androidx.compose.runtime.setValue
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.draw.clip
++import androidx.compose.ui.draw.alpha
+ import androidx.compose.ui.geometry.Offset
+ import androidx.compose.ui.geometry.Rect
+ import androidx.compose.ui.graphics.Color
+ import androidx.compose.ui.input.pointer.pointerInput
++import androidx.compose.ui.input.pointer.PointerEventPass
++import androidx.compose.ui.input.key.onPreviewKeyEvent
+ import androidx.compose.ui.layout.boundsInWindow
+ import androidx.compose.ui.layout.onGloballyPositioned
+ import androidx.compose.ui.res.stringResource
++import androidx.compose.ui.semantics.clearAndSetSemantics
+ import androidx.compose.ui.text.SpanStyle
+ import androidx.compose.ui.text.buildAnnotatedString
+ import androidx.compose.ui.text.style.BaselineShift
+@@ -58,6 +70,8 @@ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
+ import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
+ import com.quantummpv.app.ui.theme.DarkMode
++import com.quantummpv.app.ui.theme.AppMotion
++import com.quantummpv.app.ui.utils.rememberAppHaptics
+ import com.quantummpv.app.ui.theme.LocalThemeTransitionState
+ import com.quantummpv.app.ui.theme.LocalAppWallpaperActive
+ import kotlinx.coroutines.delay
+@@ -106,46 +120,79 @@ fun BrowserTopBar(
+   forceHeadlineSmall: Boolean = false,
+   showBetaBadge: Boolean = false,
+ ) {
+-  if (isInSelectionMode) {
+-    SelectionTopBar(
+-      selectedCount = selectedCount,
+-      totalCount = totalCount,
+-      onCancel = onCancelSelection,
+-      onDelete = onDeleteClick,
+-      onRename = onRenameClick,
+-      isSingleSelection = isSingleSelection,
+-      onInfo = onInfoClick,
+-      onShare = onShareClick,
+-      onPlay = onPlayClick,
+-      onBlacklist = onBlacklistClick,
+-      onSelectAll = onSelectAll,
+-      onInvertSelection = onInvertSelection,
+-      onDeselectAll = onDeselectAll,
+-      onMoveToSecure = onMoveToSecureClick,
+-      onRestore = onRestoreClick,
+-      modifier = modifier,
+-      useRemoveIcon = useRemoveIcon,
+-      colors = colors,
+-      additionalActions = additionalActions,
+-    )
+-  } else {
+-    NormalTopBar(
+-      title = title,
+-      onBackClick = onBackClick,
+-      onSortClick = onSortClick,
+-      onSearchClick = onSearchClick,
+-      onRequestClick = onRequestClick,
+-      onSettingsClick = onSettingsClick,
+-      preSearchActions = preSearchActions,
+-      postSearchActions = postSearchActions,
+-      additionalActions = additionalActions,
+-      modifier = modifier,
+-      onTitleLongPress = onTitleLongPress,
+-      onTitleDoubleTap = onTitleDoubleTap,
+-      colors = colors,
+-      forceHeadlineSmall = forceHeadlineSmall,
+-      showBetaBadge = showBetaBadge,
+-    )
++  val reducedMotion = AppMotion.shouldReduceMotion()
++  val haptics = rememberAppHaptics()
++  AnimatedContent(
++    targetState = isInSelectionMode,
++    modifier = modifier,
++    transitionSpec = {
++      val enter = fadeIn(tween(if (reducedMotion) 0 else 180))
++      val exit = fadeOut(tween(if (reducedMotion) 0 else 100))
++      if (reducedMotion) {
++        (enter togetherWith exit).using(null)
++      } else {
++        ((enter + slideInVertically(tween(180)) { it / 10 }) togetherWith exit).using(null)
++      }
++    },
++    label = "browserToolbarMode",
++  ) { selectionMode ->
++    val outgoing = selectionMode != isInSelectionMode
++    val toolbarModifier =
++      if (outgoing) {
++        Modifier.clearAndSetSemantics { }
++          .onPreviewKeyEvent { true }
++          .pointerInput(Unit) {
++            awaitPointerEventScope {
++              while (true) awaitPointerEvent(PointerEventPass.Initial).changes.forEach { it.consume() }
++            }
++          }
++      } else {
++        Modifier
++      }
++    if (selectionMode) {
++      SelectionTopBar(
++        selectedCount = selectedCount,
++        totalCount = totalCount,
++        onCancel = {
++          onCancelSelection()
++          if (selectedCount > 0) haptics.selection(false)
++        },
++        onDelete = onDeleteClick,
++        onRename = onRenameClick,
++        isSingleSelection = isSingleSelection,
++        onInfo = onInfoClick,
++        onShare = onShareClick,
++        onPlay = onPlayClick,
++        onBlacklist = onBlacklistClick,
++        onSelectAll = onSelectAll,
++        onInvertSelection = onInvertSelection,
++        onDeselectAll = onDeselectAll,
++        onMoveToSecure = onMoveToSecureClick,
++        onRestore = onRestoreClick,
++        modifier = toolbarModifier,
++        useRemoveIcon = useRemoveIcon,
++        colors = colors,
++        additionalActions = additionalActions,
++      )
++    } else {
++      NormalTopBar(
++        title = title,
++        onBackClick = onBackClick,
++        onSortClick = onSortClick,
++        onSearchClick = onSearchClick,
++        onRequestClick = onRequestClick,
++        onSettingsClick = onSettingsClick,
++        preSearchActions = preSearchActions,
++        postSearchActions = postSearchActions,
++        additionalActions = additionalActions,
++        modifier = toolbarModifier,
++        onTitleLongPress = onTitleLongPress,
++        onTitleDoubleTap = onTitleDoubleTap,
++        colors = colors,
++        forceHeadlineSmall = forceHeadlineSmall,
++        showBetaBadge = showBetaBadge,
++      )
++    }
+   }
+ }
+ 
+@@ -409,6 +456,8 @@ private fun SelectionTopBar(
+ ) {
+   var showDropdown by remember { mutableStateOf(false) }
+   val wallpaperActive = LocalAppWallpaperActive.current
++  val haptics = rememberAppHaptics()
++  val reducedMotion = AppMotion.shouldReduceMotion()
+ 
+   TopAppBar(
+     colors =
+@@ -431,13 +480,36 @@ private fun SelectionTopBar(
+             .tvFocusHighlight(RoundedCornerShape(8.dp), focusedScale = 1.02f)
+             .clickable { showDropdown = true },
+       ) {
+-        Text(
+-          stringResource(R.string.selected_items, selectedCount, totalCount),
+-          style = MaterialTheme.typography.titleMedium,
+-          color = MaterialTheme.colorScheme.primary,
+-          maxLines = 1,
+-          overflow = TextOverflow.Ellipsis,
+-        )
++        Box(Modifier.weight(1f, fill = false)) {
++          Text(
++            stringResource(R.string.selected_items, totalCount, totalCount),
++            style = MaterialTheme.typography.titleMedium,
++            maxLines = 1,
++            overflow = TextOverflow.Ellipsis,
++            modifier = Modifier.alpha(0f).clearAndSetSemantics { },
++          )
++          AnimatedContent(
++            targetState = selectedCount,
++            transitionSpec = {
++              if (reducedMotion) {
++                (fadeIn(tween(0)) togetherWith fadeOut(tween(0))).using(null)
++              } else {
++                val direction = if (targetState > initialState) 1 else -1
++                ((fadeIn(tween(160)) + slideInVertically(tween(160)) { it * direction / 3 }) togetherWith
++                  (fadeOut(tween(100)) + slideOutVertically(tween(100)) { -it * direction / 3 })).using(null)
++              }
++            },
++            label = "selectionCount",
++          ) { count ->
++            Text(
++              stringResource(R.string.selected_items, count, totalCount),
++              style = MaterialTheme.typography.titleMedium,
++              color = MaterialTheme.colorScheme.primary,
++              maxLines = 1,
++              overflow = TextOverflow.Ellipsis,
++            )
++          }
++        }
+         Icon(
+           Icons.RoundedFilled.ArrowDropDown,
+           contentDescription = stringResource(R.string.selection_options),
+@@ -454,6 +526,7 @@ private fun SelectionTopBar(
+               text = { Text(stringResource(R.string.select_all)) },
+               onClick = {
+                 onSelectAll()
++                if (selectedCount != totalCount) haptics.selection(true)
+                 showDropdown = false
+               },
+             )
+@@ -463,6 +536,7 @@ private fun SelectionTopBar(
+               text = { Text(stringResource(R.string.invert_selection)) },
+               onClick = {
+                 onInvertSelection()
++                if (totalCount > 0) haptics.confirm()
+                 showDropdown = false
+               },
+             )
+@@ -472,6 +546,7 @@ private fun SelectionTopBar(
+               text = { Text(stringResource(R.string.deselect_all)) },
+               onClick = {
+                 onDeselectAll()
++                if (selectedCount > 0) haptics.selection(false)
+                 showDropdown = false
+               },
+             )
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/components/FloatingBottomBar.kt b/app/src/main/java/com/quantummpv/app/ui/browser/components/FloatingBottomBar.kt
+index 94c7b370..09993392 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/components/FloatingBottomBar.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/components/FloatingBottomBar.kt
+@@ -11,6 +11,8 @@ package com.quantummpv.app.ui.browser.components
+ 
+ import android.content.res.Configuration
+ import androidx.compose.animation.AnimatedVisibility
++import androidx.compose.animation.EnterTransition
++import androidx.compose.animation.ExitTransition
+ import androidx.compose.animation.fadeIn
+ import androidx.compose.animation.fadeOut
+ import androidx.compose.foundation.layout.Arrangement
+@@ -37,11 +39,13 @@ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.graphics.Color
+ import androidx.compose.ui.platform.LocalConfiguration
++import androidx.compose.ui.platform.LocalDensity
+ import androidx.compose.ui.unit.dp
+ import com.quantummpv.app.ui.icons.AppIcon
+ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
+ import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
++import com.quantummpv.app.ui.theme.AppMotion
+ 
+ private data class BarLayoutParams(
+   val buttonSize: androidx.compose.ui.unit.Dp,
+@@ -78,6 +82,9 @@ fun BrowserBottomBar(
+   val configuration = LocalConfiguration.current
+   val isTablet = configuration.smallestScreenWidthDp >= 600
+   val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
++  val reducedMotion = AppMotion.shouldReduceMotion()
++  val haptics = com.quantummpv.app.ui.utils.rememberAppHaptics()
++  val entranceOffset = with(LocalDensity.current) { 12.dp.roundToPx() }
+ 
+   var lastShowCopy by remember { mutableStateOf(showCopy) }
+   var lastShowMove by remember { mutableStateOf(showMove) }
+@@ -118,23 +125,31 @@ fun BrowserBottomBar(
+     visible = isSelectionMode,
+     modifier = modifier,
+     enter =
+-      androidx.compose.animation.slideInVertically(
+-        animationSpec =
+-          androidx.compose.animation.core.spring(
+-            dampingRatio = com.quantummpv.app.ui.theme.AppMotion.Spatial.ExpressiveDp.dampingRatio,
+-            stiffness = com.quantummpv.app.ui.theme.AppMotion.Spatial.ExpressiveDp.stiffness,
+-          ),
+-        initialOffsetY = { fullHeight -> fullHeight * 2 },
+-      ) + fadeIn(),
++      if (reducedMotion) {
++        EnterTransition.None
++      } else {
++        androidx.compose.animation.slideInVertically(
++          animationSpec =
++            androidx.compose.animation.core.spring(
++              dampingRatio = AppMotion.Spatial.ExpressiveDp.dampingRatio,
++              stiffness = AppMotion.Spatial.ExpressiveDp.stiffness,
++            ),
++          initialOffsetY = { entranceOffset },
++        ) + fadeIn(androidx.compose.animation.core.tween(180))
++      },
+     exit =
+-      androidx.compose.animation.slideOutVertically(
+-        animationSpec =
+-          androidx.compose.animation.core.spring(
+-            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioNoBouncy,
+-            stiffness = androidx.compose.animation.core.Spring.StiffnessMedium,
+-          ),
+-        targetOffsetY = { fullHeight -> fullHeight * 2 },
+-      ) + fadeOut(),
++      if (reducedMotion) {
++        ExitTransition.None
++      } else {
++        androidx.compose.animation.slideOutVertically(
++          animationSpec =
++            androidx.compose.animation.core.spring(
++              dampingRatio = androidx.compose.animation.core.Spring.DampingRatioNoBouncy,
++              stiffness = androidx.compose.animation.core.Spring.StiffnessMedium,
++            ),
++          targetOffsetY = { entranceOffset },
++        ) + fadeOut(androidx.compose.animation.core.tween(120))
++      },
+   ) {
+     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+       val availableWidth = maxWidth
+@@ -313,7 +328,14 @@ fun BrowserBottomBar(
+           )
+           BrowserBottomBarButton(
+             effectiveShowPin,
+-            onPinClick ?: {},
++            {
++              if (isSelectionMode) {
++                onPinClick?.let { action ->
++                  action()
++                  haptics.selection(!effectiveUnpinSelected)
++                }
++              }
++            },
+             Icons.RoundedFilled.PushPin,
+             androidx.compose.ui.res.stringResource(
+               if (effectiveUnpinSelected) {
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/filesystem/FileSystemBrowserScreen.kt b/app/src/main/java/com/quantummpv/app/ui/browser/filesystem/FileSystemBrowserScreen.kt
+index 362bbb9d..770fd88b 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/filesystem/FileSystemBrowserScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/filesystem/FileSystemBrowserScreen.kt
+@@ -787,7 +787,7 @@ fun FileSystemBrowserScreen(path: String? = null) {
+                 onRefresh = { viewModel.refresh() },
+                 onFolderClick = { folder ->
+                   if (isInSelectionMode) {
+-                    selectionManager.toggle(folder)
++                    selectionManager.toggleFromUser(folder)
+                   } else {
+                     backstack.navigateTo(FileSystemDirectoryScreen(folder.path))
+                   }
+@@ -798,7 +798,7 @@ fun FileSystemBrowserScreen(path: String? = null) {
+                 onVideoClick = { videoFile ->
+                   val video = videoFile.video
+                   if (isInSelectionMode) {
+-                    selectionManager.toggle(videoFile)
++                    selectionManager.toggleFromUser(videoFile)
+                   } else {
+                     // If playlist mode is enabled, play all videos in current folder starting from clicked one
+                     if (playlistMode) {
+@@ -1453,7 +1453,7 @@ private fun FileSystemBrowserContent(
+                     onLongClick = { onFolderLongClick(folder) },
+                     onThumbClick =
+                       if (tapThumbnailToSelect) {
+-                        { selectionManager.toggle(folder) }
++                        { selectionManager.toggleFromUser(folder) }
+                       } else {
+                         { onFolderClick(folder) }
+                       },
+@@ -1478,7 +1478,7 @@ private fun FileSystemBrowserContent(
+                       onLongClick = { onVideoLongClick(videoFile) },
+                       onThumbClick =
+                         if (tapThumbnailToSelect) {
+-                          { selectionManager.toggle(videoFile) }
++                          { selectionManager.toggleFromUser(videoFile) }
+                         } else {
+                           { onVideoClick(videoFile) }
+                         },
+@@ -1564,7 +1564,7 @@ private fun FileSystemBrowserContent(
+                   onLongClick = { onFolderLongClick(folder) },
+                   onThumbClick =
+                     if (tapThumbnailToSelect) {
+-                      { selectionManager.toggle(folder) }
++                      { selectionManager.toggleFromUser(folder) }
+                     } else {
+                       { onFolderClick(folder) }
+                     },
+@@ -1588,7 +1588,7 @@ private fun FileSystemBrowserContent(
+                     onLongClick = { onVideoLongClick(videoFile) },
+                     onThumbClick =
+                       if (tapThumbnailToSelect) {
+-                        { selectionManager.toggle(videoFile) }
++                        { selectionManager.toggleFromUser(videoFile) }
+                       } else {
+                         { onVideoClick(videoFile) }
+                       },
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/folderlist/FolderListScreen.kt b/app/src/main/java/com/quantummpv/app/ui/browser/folderlist/FolderListScreen.kt
+index babe17e9..c5cf5dad 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/folderlist/FolderListScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/folderlist/FolderListScreen.kt
+@@ -881,7 +881,7 @@ object FolderListScreen : Screen {
+                   onRefresh = { viewModel.refresh() },
+                   onFolderClick = { folder ->
+                     if (selectionManager.isInSelectionMode) {
+-                      selectionManager.toggle(folder)
++                      selectionManager.toggleFromUser(folder)
+                     } else {
+                       if (isDualPaneActive) {
+                         selectedFolderBucketId = folder.bucketId
+@@ -1366,7 +1366,7 @@ private fun GridContent(
+           onLongClick = { onFolderLongClick(folder) },
+           onThumbClick =
+             if (tapThumbnailToSelect) {
+-              { selectionManager.toggle(folder) }
++              { selectionManager.toggleFromUser(folder) }
+             } else {
+               { onFolderClick(folder) }
+             },
+@@ -1457,7 +1457,7 @@ private fun ListContent(
+           onLongClick = { onFolderLongClick(folder) },
+           onThumbClick =
+             if (tapThumbnailToSelect) {
+-              { selectionManager.toggle(folder) }
++              { selectionManager.toggleFromUser(folder) }
+             } else {
+               { onFolderClick(folder) }
+             },
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/medialibrary/MediaLibraryContent.kt b/app/src/main/java/com/quantummpv/app/ui/browser/medialibrary/MediaLibraryContent.kt
+index 7ff80141..a449bb13 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/medialibrary/MediaLibraryContent.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/medialibrary/MediaLibraryContent.kt
+@@ -688,7 +688,7 @@ fun MediaLibraryContent(forceAudio: Boolean = false) {
+               selectionManager = selectionManager,
+               onVideoClick = { video ->
+                 if (selectionManager.isInSelectionMode) {
+-                  selectionManager.toggle(video)
++                  selectionManager.toggleFromUser(video)
+                 } else {
+                   playFromMediaLibrary(video)
+                 }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryContent.kt b/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryContent.kt
+index cd3a308e..ed33c34b 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryContent.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryContent.kt
+@@ -929,7 +929,7 @@ fun MusicLibraryContent(
+                 gridCoverArtSizeDp = gridCoverArtSizeDp,
+                 onSongClick = { song ->
+                   if (songSelectionManager.isInSelectionMode) {
+-                    songSelectionManager.toggle(song)
++                    songSelectionManager.toggleFromUser(song)
+                   } else {
+                     musicViewModel.playSong(context, song, songs)
+                   }
+@@ -949,7 +949,7 @@ fun MusicLibraryContent(
+                 gridCoverArtSizeDp = gridCoverArtSizeDp,
+                 onAlbumClick = { album ->
+                   if (albumSelectionManager.isInSelectionMode) {
+-                    albumSelectionManager.toggle(album)
++                    albumSelectionManager.toggleFromUser(album)
+                   } else {
+                     musicViewModel.selectAlbum(album)
+                   }
+@@ -969,7 +969,7 @@ fun MusicLibraryContent(
+                 gridCoverArtSizeDp = gridCoverArtSizeDp,
+                 onArtistClick = { artist ->
+                   if (artistSelectionManager.isInSelectionMode) {
+-                    artistSelectionManager.toggle(artist)
++                    artistSelectionManager.toggleFromUser(artist)
+                   } else {
+                     musicViewModel.selectArtist(artist)
+                   }
+@@ -990,7 +990,7 @@ fun MusicLibraryContent(
+                 gridCoverArtSizeDp = gridCoverArtSizeDp,
+                 onPlaylistClick = { playlist ->
+                   if (playlistSelectionManager.isInSelectionMode) {
+-                    playlistSelectionManager.toggle(playlist)
++                    playlistSelectionManager.toggleFromUser(playlist)
+                   } else {
+                     backStack.navigateTo(PlaylistDetailScreen(playlistId = playlist.id))
+                   }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/playlist/PlaylistDetailScreen.kt b/app/src/main/java/com/quantummpv/app/ui/browser/playlist/PlaylistDetailScreen.kt
+index b628e5a9..2ec7cd84 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/playlist/PlaylistDetailScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/playlist/PlaylistDetailScreen.kt
+@@ -52,6 +52,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
+ import androidx.compose.runtime.setValue
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
++import androidx.compose.ui.draw.shadow
++import com.quantummpv.app.ui.utils.dragElevation
++import com.quantummpv.app.ui.utils.rememberReorderFeedback
+ import androidx.compose.ui.focus.FocusRequester
+ import androidx.compose.ui.focus.focusRequester
+ import androidx.compose.ui.graphics.graphicsLayer
+@@ -615,7 +618,7 @@ data class PlaylistDetailScreen(
+                 },
+               onVideoItemClick = { item ->
+                 if (selectionManager.isInSelectionMode) {
+-                  selectionManager.toggle(item)
++                  selectionManager.toggleFromUser(item)
+                 } else {
+                   coroutineScope.launch {
+                     viewModel.updatePlayHistory(item.video.path)
+@@ -805,10 +808,12 @@ private fun PlaylistVideoListContent(
+       )
+ 
+       // Reorderable state
++      val reorderFeedback = rememberReorderFeedback()
+       val reorderableLazyListState =
+         rememberReorderableLazyListState(listState) { from, to ->
+           if (isReorderMode) {
+             onReorder(from.index, to.index)
++            reorderFeedback.move(from.index, to.index)
+           }
+         }
+ 
+@@ -822,8 +827,9 @@ private fun PlaylistVideoListContent(
+             count = videoItems.size,
+             key = { index -> videoItems[index].playlistItem.id },
+           ) { index ->
+-            ReorderableItem(reorderableLazyListState, key = videoItems[index].playlistItem.id) {
++            ReorderableItem(reorderableLazyListState, key = videoItems[index].playlistItem.id) { isDragging ->
+               val item = videoItems[index]
++              val elevation = dragElevation(isDragging)
+ 
+               val progressPercentage =
+                 if (item.playlistItem.lastPosition > 0 && item.video.duration > 0) {
+@@ -833,7 +839,7 @@ private fun PlaylistVideoListContent(
+                 }
+ 
+               Row(
+-                modifier = Modifier.fillMaxWidth(),
++                modifier = Modifier.fillMaxWidth().shadow(elevation, MaterialTheme.shapes.medium, clip = false),
+                 verticalAlignment = Alignment.CenterVertically,
+               ) {
+                 if (isM3uPlaylist) {
+@@ -864,7 +870,7 @@ private fun PlaylistVideoListContent(
+                     onLongClick = { onVideoItemLongClick(item) },
+                     onThumbClick =
+                       if (tapThumbnailToSelect) {
+-                        { selectionManager.toggle(item) }
++                        { selectionManager.toggleFromUser(item) }
+                       } else {
+                         { onVideoItemClick(item) }
+                       },
+@@ -882,7 +888,10 @@ private fun PlaylistVideoListContent(
+                     modifier =
+                       Modifier
+                         .size(48.dp)
+-                        .draggableHandle(),
++                        .draggableHandle(
++                          interactionSource = reorderFeedback.interactions,
++                          onDragStarted = { reorderFeedback.start() },
++                        ),
+                   ) {
+                     Icon(
+                       imageVector = Icons.RoundedFilled.DragHandle,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/playlist/PlaylistScreen.kt b/app/src/main/java/com/quantummpv/app/ui/browser/playlist/PlaylistScreen.kt
+index 33df750d..0813e55c 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/playlist/PlaylistScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/playlist/PlaylistScreen.kt
+@@ -308,7 +308,7 @@ object PlaylistScreen : Screen {
+           selectionManager = selectionManager,
+           onPlaylistClick = { playlistWithCount ->
+             if (selectionManager.isInSelectionMode) {
+-              selectionManager.toggle(playlistWithCount)
++              selectionManager.toggleFromUser(playlistWithCount)
+             } else {
+               backStack.navigateTo(PlaylistDetailScreen(playlistWithCount.playlist.id))
+             }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/recentlyplayed/RecentlyPlayedScreen.kt b/app/src/main/java/com/quantummpv/app/ui/browser/recentlyplayed/RecentlyPlayedScreen.kt
+index ca78bd9b..e971d125 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/recentlyplayed/RecentlyPlayedScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/recentlyplayed/RecentlyPlayedScreen.kt
+@@ -827,7 +827,7 @@ private fun RecentItemsContent(
+                   isSelected = selectionManager.isSelected(item),
+                   onClick = {
+                     if (selectionManager.isInSelectionMode) {
+-                      selectionManager.toggle(item)
++                      selectionManager.toggleFromUser(item)
+                     } else {
+                       onVideoClick(item.video)
+                     }
+@@ -835,11 +835,11 @@ private fun RecentItemsContent(
+                   onLongClick = { selectionManager.handleLongClick(item) },
+                   onThumbClick =
+                     if (tapThumbnailToSelect) {
+-                      { selectionManager.toggle(item) }
++                      { selectionManager.toggleFromUser(item) }
+                     } else {
+                       {
+                         if (selectionManager.isInSelectionMode) {
+-                          selectionManager.toggle(item)
++                          selectionManager.toggleFromUser(item)
+                         } else {
+                           onVideoClick(item.video)
+                         }
+@@ -869,7 +869,7 @@ private fun RecentItemsContent(
+                   isRecentlyPlayed = false,
+                   onClick = {
+                     if (selectionManager.isInSelectionMode) {
+-                      selectionManager.toggle(item)
++                      selectionManager.toggleFromUser(item)
+                     } else {
+                       coroutineScope.launch {
+                         onPlaylistClick(item)
+@@ -879,10 +879,10 @@ private fun RecentItemsContent(
+                   onLongClick = { selectionManager.handleLongClick(item) },
+                   onThumbClick = {
+                     if (tapThumbnailToSelect) {
+-                      selectionManager.toggle(item)
++                      selectionManager.toggleFromUser(item)
+                     } else {
+                       if (selectionManager.isInSelectionMode) {
+-                        selectionManager.toggle(item)
++                        selectionManager.toggleFromUser(item)
+                       } else {
+                         coroutineScope.launch {
+                           onPlaylistClick(item)
+@@ -953,7 +953,7 @@ private fun RecentItemsContent(
+                   isSelected = selectionManager.isSelected(item),
+                   onClick = {
+                     if (selectionManager.isInSelectionMode) {
+-                      selectionManager.toggle(item)
++                      selectionManager.toggleFromUser(item)
+                     } else {
+                       onVideoClick(item.video)
+                     }
+@@ -961,11 +961,11 @@ private fun RecentItemsContent(
+                   onLongClick = { selectionManager.handleLongClick(item) },
+                   onThumbClick =
+                     if (tapThumbnailToSelect) {
+-                      { selectionManager.toggle(item) }
++                      { selectionManager.toggleFromUser(item) }
+                     } else {
+                       {
+                         if (selectionManager.isInSelectionMode) {
+-                          selectionManager.toggle(item)
++                          selectionManager.toggleFromUser(item)
+                         } else {
+                           onVideoClick(item.video)
+                         }
+@@ -996,7 +996,7 @@ private fun RecentItemsContent(
+                   isRecentlyPlayed = false,
+                   onClick = {
+                     if (selectionManager.isInSelectionMode) {
+-                      selectionManager.toggle(item)
++                      selectionManager.toggleFromUser(item)
+                     } else {
+                       coroutineScope.launch {
+                         onPlaylistClick(item)
+@@ -1006,10 +1006,10 @@ private fun RecentItemsContent(
+                   onLongClick = { selectionManager.handleLongClick(item) },
+                   onThumbClick = {
+                     if (tapThumbnailToSelect) {
+-                      selectionManager.toggle(item)
++                      selectionManager.toggleFromUser(item)
+                     } else {
+                       if (selectionManager.isInSelectionMode) {
+-                        selectionManager.toggle(item)
++                        selectionManager.toggleFromUser(item)
+                       } else {
+                         coroutineScope.launch {
+                           onPlaylistClick(item)
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/selection/SelectionManager.kt b/app/src/main/java/com/quantummpv/app/ui/browser/selection/SelectionManager.kt
+index a154c6cd..f6a1f321 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/selection/SelectionManager.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/selection/SelectionManager.kt
+@@ -22,6 +22,7 @@ import androidx.compose.runtime.setValue
+ import androidx.compose.ui.platform.LocalContext
+ import com.quantummpv.app.R
+ import com.quantummpv.app.domain.media.model.Video
++import com.quantummpv.app.ui.utils.rememberAppHaptics
+ import com.quantummpv.app.utils.media.MediaUtils
+ import kotlinx.coroutines.CoroutineScope
+ import kotlinx.coroutines.launch
+@@ -38,6 +39,7 @@ class SelectionManager<T, ID>(
+   private val onDeleteItems: suspend (List<T>, Boolean) -> Pair<Int, Int>,
+   private val onRenameItem: (suspend (T, String) -> Result<Unit>)?,
+   private val onOperationComplete: () -> Unit,
++  private val onUserSelection: (Boolean) -> Unit = {},
+ ) {
+   var state by mutableStateOf(SelectionState<ID>())
+     private set
+@@ -58,6 +60,11 @@ class SelectionManager<T, ID>(
+     state = state.toggle(getId(item))
+   }
+ 
++  fun toggleFromUser(item: T) {
++    toggle(item)
++    onUserSelection(isSelected(item))
++  }
++
+   /**
+    * Select an item without toggling it off.
+    */
+@@ -307,6 +314,7 @@ fun <T, ID> rememberSelectionManager(
+ ): SelectionManager<T, ID> {
+   val context = LocalContext.current
+   val scope = rememberCoroutineScope()
++  val haptics by rememberUpdatedState(rememberAppHaptics())
+   val latestItems by rememberUpdatedState(items)
+   val latestGetId by rememberUpdatedState(getId)
+   val latestOnDeleteItems by rememberUpdatedState(onDeleteItems)
+@@ -331,6 +339,7 @@ fun <T, ID> rememberSelectionManager(
+           null
+         },
+       onOperationComplete = { latestOnOperationComplete() },
++      onUserSelection = { selected -> haptics.selection(selected) },
+     )
+   }
+ }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/videolist/VideoListScreen.kt b/app/src/main/java/com/quantummpv/app/ui/browser/videolist/VideoListScreen.kt
+index af463046..6288a050 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/videolist/VideoListScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/videolist/VideoListScreen.kt
+@@ -510,7 +510,7 @@ data class VideoListScreen(
+           selectionManager = selectionManager,
+           onVideoClick = { video ->
+             if (selectionManager.isInSelectionMode) {
+-              selectionManager.toggle(video)
++              selectionManager.toggleFromUser(video)
+             } else {
+               // Always use MediaUtils.playFile which lets PlayerActivity auto-generate playlist
+               // This avoids TransactionTooLargeException from passing large playlists
+@@ -1166,7 +1166,7 @@ internal fun VideoListContent(
+                       onLongClick = { onVideoLongClick(videoWithInfo.video) },
+                       onThumbClick =
+                         if (tapThumbnailToSelect) {
+-                          { selectionManager.toggle(videoWithInfo.video) }
++                          { selectionManager.toggleFromUser(videoWithInfo.video) }
+                         } else {
+                           { onVideoClick(videoWithInfo.video) }
+                         },
+@@ -1233,7 +1233,7 @@ internal fun VideoListContent(
+                       onLongClick = { onVideoLongClick(videoWithInfo.video) },
+                       onThumbClick =
+                         if (tapThumbnailToSelect) {
+-                          { selectionManager.toggle(videoWithInfo.video) }
++                          { selectionManager.toggleFromUser(videoWithInfo.video) }
+                         } else {
+                           { onVideoClick(videoWithInfo.video) }
+                         },
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/clip/ClipOverlayView.kt b/app/src/main/java/com/quantummpv/app/ui/player/clip/ClipOverlayView.kt
+index c77f575b..28ba8956 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/clip/ClipOverlayView.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/clip/ClipOverlayView.kt
+@@ -20,6 +20,7 @@ import android.util.AttributeSet
+ import android.util.TypedValue
+ import android.view.Gravity
+ import android.view.HapticFeedbackConstants
++import com.quantummpv.app.ui.utils.performAppHapticFeedback
+ import android.view.MotionEvent
+ import android.view.View
+ import android.view.ViewGroup
+@@ -1246,7 +1247,7 @@ private class CropSelectionView(
+         dragMode = hitTest(event.x, event.y)
+         if (dragMode == DragMode.NONE) return false
+         activePointerId = event.getPointerId(0)
+-        performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
++        performAppHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+         lastX = event.x
+         lastY = event.y
+         parent?.requestDisallowInterceptTouchEvent(true)
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/AudioPlayerControls.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/AudioPlayerControls.kt
+index 8ee06d3e..07678d1f 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/AudioPlayerControls.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/AudioPlayerControls.kt
+@@ -113,6 +113,9 @@ import com.quantummpv.app.ui.player.controls.components.sheets.PlaylistItem
+ import sh.calvin.reorderable.ReorderableCollectionItemScope
+ import sh.calvin.reorderable.ReorderableItem
+ import sh.calvin.reorderable.rememberReorderableLazyListState
++import com.quantummpv.app.ui.utils.ReorderFeedback
++import com.quantummpv.app.ui.utils.dragElevation
++import com.quantummpv.app.ui.utils.rememberReorderFeedback
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.draw.clip
+@@ -892,6 +895,7 @@ fun AudioPlayerControls(
+   var addToPlaylistDialogOpen by rememberSaveable { mutableStateOf(false) }
+ 
+   val playerPreferences = koinInject<PlayerPreferences>()
++  val actionHaptics = com.quantummpv.app.ui.utils.rememberAppHaptics()
+   val playlistRepository = koinInject<PlaylistRepository>()
+   val jellyfinRepository = koinInject<JellyfinRepository>()
+   val jellyfinServers by jellyfinRepository.allServers.collectAsState(initial = emptyList())
+@@ -1665,6 +1669,7 @@ fun AudioPlayerControls(
+                 coroutineScope.launch {
+                   // Toggle local Room favorite state
+                   playlistRepository.toggleFavorite(filePath = path, fileName = displayTitle, isAudio = true)
++                  actionHaptics.selection(newFavState)
+                   // Toggle Jellyfin server favorite status via API if playing from Jellyfin
+                   if (server != null && !itemId.isNullOrBlank()) {
+                     jellyfinFavoriteOverride = newFavState
+@@ -1842,7 +1847,10 @@ fun AudioPlayerControls(
+               horizontalArrangement = Arrangement.spacedBy(4.dp),
+             ) {
+               ReactiveIconButton(
+-                onClick = viewModel::toggleShuffle,
++                onClick = {
++                  viewModel.toggleShuffle()
++                  actionHaptics.selection(!shuffleEnabled)
++                },
+                 enabled = playlistModeEnabled,
+                 modifier = Modifier.size(40.dp),
+               ) {
+@@ -1853,7 +1861,10 @@ fun AudioPlayerControls(
+                 )
+               }
+               ReactiveIconButton(
+-                onClick = viewModel::cycleRepeatMode,
++                onClick = {
++                  viewModel.cycleRepeatMode()
++                  actionHaptics.confirm()
++                },
+                 modifier = Modifier.size(40.dp),
+               ) {
+                 Icon(
+@@ -1923,7 +1934,10 @@ fun AudioPlayerControls(
+               horizontalArrangement = Arrangement.spacedBy(4.dp),
+             ) {
+               ReactiveIconButton(
+-                onClick = viewModel::toggleShuffle,
++                onClick = {
++                  viewModel.toggleShuffle()
++                  actionHaptics.selection(!shuffleEnabled)
++                },
+                 enabled = playlistModeEnabled,
+                 modifier = Modifier.size(40.dp),
+               ) {
+@@ -1934,7 +1948,10 @@ fun AudioPlayerControls(
+                 )
+               }
+               ReactiveIconButton(
+-                onClick = viewModel::cycleRepeatMode,
++                onClick = {
++                  viewModel.cycleRepeatMode()
++                  actionHaptics.confirm()
++                },
+                 modifier = Modifier.size(40.dp),
+               ) {
+                 Icon(
+@@ -2325,6 +2342,7 @@ private fun UpNextPlaylistContent(
+ 
+   var dragStartIndex by remember { mutableIntStateOf(-1) }
+   var dragEndIndex by remember { mutableIntStateOf(-1) }
++  val reorderFeedback = rememberReorderFeedback()
+ 
+   val reorderableLazyListState = rememberReorderableLazyListState(lazyListState) { from, to ->
+     if (showDragHandle) {
+@@ -2335,6 +2353,7 @@ private fun UpNextPlaylistContent(
+       displayPlaylist = displayPlaylist.toMutableList().apply {
+         add(to.index, removeAt(from.index))
+       }
++      reorderFeedback.move(from.index, to.index)
+     }
+   }
+ 
+@@ -2405,6 +2424,8 @@ private fun UpNextPlaylistContent(
+                 isPlaying = item.isPlaying,
+                 onClick = { viewModel.playPlaylistItem(item.index) },
+                 scope = this,
++                isDragging = isDragging,
++                reorderFeedback = reorderFeedback,
+               )
+             }
+           } else {
+@@ -2427,6 +2448,8 @@ private fun UpNextPlaylistItemRow(
+   isPlaying: Boolean,
+   onClick: () -> Unit,
+   scope: ReorderableCollectionItemScope?,
++  isDragging: Boolean = false,
++  reorderFeedback: ReorderFeedback? = null,
+ ) {
+   val bgColor = if (isPlaying) {
+     MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+@@ -2441,12 +2464,11 @@ private fun UpNextPlaylistItemRow(
+     )
+ 
+   Surface(
+-    modifier = Modifier
+-      .fillMaxWidth()
+-      .clip(RoundedCornerShape(16.dp))
+-      .clickable(onClick = onClick),
++    onClick = onClick,
++    modifier = Modifier.fillMaxWidth(),
+     shape = RoundedCornerShape(16.dp),
+     color = bgColor,
++    shadowElevation = dragElevation(isDragging, com.quantummpv.app.ui.theme.AppMotion.playerReducedMotion()),
+   ) {
+     Row(
+       modifier = Modifier
+@@ -2462,7 +2484,10 @@ private fun UpNextPlaylistItemRow(
+           modifier = with(scope) {
+             Modifier
+               .size(24.dp)
+-              .draggableHandle()
++              .draggableHandle(
++                interactionSource = reorderFeedback?.interactions,
++                onDragStarted = { reorderFeedback?.start() },
++              )
+           },
+         )
+         Spacer(modifier = Modifier.width(8.dp))
+@@ -2580,11 +2605,13 @@ private fun ReactiveIconButton(
+ ) {
+   val interactionSource = remember { MutableInteractionSource() }
+   val isPressed by interactionSource.collectIsPressedAsState()
+-  val haptic = LocalHapticFeedback.current
++  val reducedMotion = com.quantummpv.app.ui.theme.AppMotion.playerReducedMotion()
+ 
+   val scale by animateFloatAsState(
+-    targetValue = if (isPressed) 0.82f else 1f,
+-    animationSpec = spring(dampingRatio = 0.55f, stiffness = 900f),
++    targetValue = if (isPressed && enabled && !reducedMotion) 0.96f else 1f,
++    animationSpec =
++      if (reducedMotion) androidx.compose.animation.core.snap() else
++        com.quantummpv.app.ui.theme.AppMotion.Spatial.ExpressiveFast,
+     label = "reactive_icon_button_scale",
+   )
+ 
+@@ -2602,14 +2629,8 @@ private fun ReactiveIconButton(
+             interactionSource = interactionSource,
+             indication = ripple(bounded = false, radius = 24.dp),
+             enabled = enabled,
+-            onClick = {
+-              haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+-              onClick()
+-            },
+-            onLongClick = {
+-              haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+-              onLongClick()
+-            },
++            onClick = onClick,
++            onLongClick = onLongClick,
+           )
+           .padding(8.dp),
+       contentAlignment = Alignment.Center,
+@@ -2618,10 +2639,7 @@ private fun ReactiveIconButton(
+     }
+   } else {
+     IconButton(
+-      onClick = {
+-        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+-        onClick()
+-      },
++      onClick = onClick,
+       enabled = enabled,
+       interactionSource = interactionSource,
+       modifier =
+@@ -2649,19 +2667,18 @@ private fun ReactiveSurfaceButton(
+ ) {
+   val interactionSource = remember { MutableInteractionSource() }
+   val isPressed by interactionSource.collectIsPressedAsState()
+-  val haptic = LocalHapticFeedback.current
++  val reducedMotion = com.quantummpv.app.ui.theme.AppMotion.playerReducedMotion()
+ 
+   val scale by animateFloatAsState(
+-    targetValue = if (isPressed) 0.88f else 1f,
+-    animationSpec = spring(dampingRatio = 0.55f, stiffness = 900f),
++    targetValue = if (isPressed && enabled && !reducedMotion) 0.95f else 1f,
++    animationSpec =
++      if (reducedMotion) androidx.compose.animation.core.snap() else
++        com.quantummpv.app.ui.theme.AppMotion.Spatial.ExpressiveFast,
+     label = "reactive_surface_button_scale",
+   )
+ 
+   Surface(
+-    onClick = {
+-      haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+-      onClick()
+-    },
++    onClick = onClick,
+     shape = shape,
+     color = color,
+     shadowElevation = shadowElevation,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/GestureHandler.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/GestureHandler.kt
+index 376156b7..a34e9ee0 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/GestureHandler.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/GestureHandler.kt
+@@ -251,6 +251,11 @@ fun GestureHandler(
+   val currentBrightness by viewModel.currentBrightness.collectAsState()
+   val volumeBoostingCap = audioPreferences.volumeBoostCap.get()
+   val haptics = LocalHapticFeedback.current
++  val actionHaptics = com.quantummpv.app.ui.utils.rememberAppHaptics()
++  val volumeHaptics = com.quantummpv.app.ui.utils.rememberAdjustmentHaptics(
++    0f, 100f + volumeBoostingCap, landmarks = listOf(100f),
++  )
++  val brightnessHaptics = com.quantummpv.app.ui.utils.rememberAdjustmentHaptics(0f, 1f)
+   val coroutineScope = rememberCoroutineScope()
+   val density = LocalDensity.current
+   val topStatusBarInsetPx = WindowInsets.statusBars.getTop(density).toFloat()
+@@ -801,7 +806,7 @@ fun GestureHandler(
+                             val newSpeed = speedPresets[newIndex]
+ 
+                             if (abs(lastAppliedSpeed - newSpeed) > 0.01f) {
+-                              haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
++                              actionHaptics.tick()
+                               lastAppliedSpeed = newSpeed
+                               PlaybackSession.setPropertyFloat("speed", newSpeed)
+                               viewModel.playerUpdate.update { PlayerUpdates.DynamicSpeedControl(newSpeed) }
+@@ -860,6 +865,7 @@ fun GestureHandler(
+ 
+                               if (newMPVVolume != lastMPVVolumeValue) {
+                                 viewModel.changeMPVVolumeTo(newMPVVolume)
++                                volumeHaptics.move(lastMPVVolumeValue.toFloat(), newMPVVolume.toFloat())
+                                 lastMPVVolumeValue = newMPVVolume
+                               }
+                             } else {
+@@ -878,6 +884,7 @@ fun GestureHandler(
+ 
+                               if (newVolumePercent != lastVolumePercentValue) {
+                                 viewModel.changeVolumePercentTo(newVolumePercent)
++                                volumeHaptics.move(lastVolumePercentValue.toFloat(), newVolumePercent.toFloat())
+                                 lastVolumePercentValue = newVolumePercent
+                               }
+                             }
+@@ -896,6 +903,10 @@ fun GestureHandler(
+ 
+                             if (abs(newBrightness - lastBrightnessValue) > 0.001f) {
+                               viewModel.changeBrightnessTo(newBrightness)
++                              brightnessHaptics.move(
++                                lastBrightnessValue.coerceIn(0f, 1f),
++                                newBrightness.coerceIn(0f, 1f),
++                              )
+                               lastBrightnessValue = newBrightness
+                             }
+ 
+@@ -1324,7 +1335,10 @@ fun GestureHandler(
+ 
+             // Apply the final seek when gesture ends
+             if (hasStartedSeeking) {
+-              pendingSeekPosition?.let { viewModel.seekTo(it.toInt()) }
++              pendingSeekPosition?.let { target ->
++                viewModel.seekTo(target.toInt())
++                if (target.toInt() != initialVideoPosition.toInt()) actionHaptics.confirm()
++              }
+               coroutineScope.launch {
+                 delay(300)
+                 viewModel.playerUpdate.update { PlayerUpdates.None }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControls.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControls.kt
+index c6f98bec..5ea61ac0 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControls.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControls.kt
+@@ -98,14 +98,12 @@ import androidx.compose.ui.graphics.graphicsLayer
+ import androidx.compose.ui.graphics.Shadow
+ import androidx.compose.ui.graphics.StrokeJoin
+ import androidx.compose.ui.graphics.drawscope.Stroke
+-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+ import androidx.compose.ui.layout.onGloballyPositioned
+ import androidx.compose.ui.layout.onSizeChanged
+ import androidx.compose.ui.layout.positionInParent
+ import androidx.compose.ui.platform.LocalConfiguration
+ import androidx.compose.ui.platform.LocalContext
+ import androidx.compose.ui.platform.LocalDensity
+-import androidx.compose.ui.platform.LocalHapticFeedback
+ import androidx.compose.ui.platform.LocalLayoutDirection
+ import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.text.SpanStyle
+@@ -315,7 +313,6 @@ fun PlayerControls(
+   val showSkipChipAuto by viewModel.showSkipChipAuto.collectAsState()
+   val playlistMode by playerPreferences.playlistMode.collectAsState()
+   val playlistItems by viewModel.playlistItems.collectAsState()
+-  val haptic = LocalHapticFeedback.current
+ 
+   val customButtons by viewModel.customButtons.collectAsState()
+   val showVideoQualitySelector by viewModel.showVideoQualitySelector.collectAsState()
+@@ -1117,7 +1114,6 @@ is PlayerUpdates.FrameInfo -> {
+                             viewModel.callCustomButton(button.id)
+                           },
+                           onLongClick = {
+-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                             resetControlsTimestamp = System.currentTimeMillis()
+                             viewModel.callCustomButtonLongPress(button.id)
+                           },
+@@ -1181,7 +1177,6 @@ is PlayerUpdates.FrameInfo -> {
+                             viewModel.callCustomButton(button.id)
+                           },
+                           onLongClick = {
+-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                             resetControlsTimestamp = System.currentTimeMillis()
+                             viewModel.callCustomButtonLongPress(button.id)
+                           },
+@@ -1246,7 +1241,6 @@ is PlayerUpdates.FrameInfo -> {
+                             viewModel.callCustomButton(button.id)
+                           },
+                           onLongClick = {
+-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                             resetControlsTimestamp = System.currentTimeMillis()
+                             viewModel.callCustomButtonLongPress(button.id)
+                           },
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/Seekbar.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/Seekbar.kt
+index 7b5fc12e..d26fe234 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/Seekbar.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/Seekbar.kt
+@@ -56,6 +56,7 @@ import androidx.compose.runtime.LaunchedEffect
+ import androidx.compose.runtime.getValue
+ import androidx.compose.runtime.mutableFloatStateOf
+ import androidx.compose.runtime.mutableStateOf
++import kotlinx.coroutines.flow.collect
+ import androidx.compose.runtime.remember
+ import androidx.compose.runtime.rememberCoroutineScope
+ import androidx.compose.runtime.setValue
+@@ -487,6 +488,15 @@ private fun SeekbarContent(
+   val touchAreaHeight = if (isPortrait) 64.dp else 52.dp
+   val seekerState = rememberSeekerState()
+   val seekerInteractionSource = remember { MutableInteractionSource() }
++  val seekHaptics = com.quantummpv.app.ui.utils.rememberAppHaptics()
++  var seekStartPosition by remember { mutableStateOf<Float?>(null) }
++  LaunchedEffect(seekerInteractionSource) {
++    seekerInteractionSource.interactions.collect { interaction ->
++      if (interaction is androidx.compose.foundation.interaction.DragInteraction.Cancel) {
++        seekStartPosition = null
++      }
++    }
++  }
+   val isSeekerPressed by seekerInteractionSource.collectIsPressedAsState()
+   val isSeekerDragged by seekerInteractionSource.collectIsDraggedAsState()
+   val isVisuallyInteracting = isUserInteracting || isSeekerPressed || isSeekerDragged
+@@ -752,6 +762,7 @@ private fun SeekbarContent(
+         ),
+       onValueChange = { newPosition ->
+         val targetPosition = newPosition.coerceIn(0f, safeDuration)
++        if (seekStartPosition == null) seekStartPosition = safeCommittedPosition
+         onUserInteractionChange(true)
+         latestInteractionPosition = targetPosition
+         onUserPositionChange(targetPosition)
+@@ -759,10 +770,13 @@ private fun SeekbarContent(
+       },
+       onValueChangeFinished = {
+         val targetPosition = latestInteractionPosition.coerceIn(0f, safeDuration)
++        val initialPosition = seekStartPosition
++        seekStartPosition = null
+         scope.launch {
+           animatedPosition.snapTo(targetPosition)
+           onUserPositionChange(targetPosition)
+           onValueChangeFinished(targetPosition)
++          if (initialPosition != null && initialPosition.toInt() != targetPosition.toInt()) seekHaptics.confirm()
+           onUserInteractionChange(false)
+         }
+       },
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/EqualizerSheet.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/EqualizerSheet.kt
+index 50eaa2ee..8872dbcf 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/EqualizerSheet.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/EqualizerSheet.kt
+@@ -253,9 +253,11 @@ fun EqualizerSheet(
+       Spacer(modifier = Modifier.height(8.dp))
+ 
+       var volumeBoostValue by remember(state.volumeBoostDb) { mutableFloatStateOf(state.volumeBoostDb.toFloat()) }
++      val boostHaptics = com.quantummpv.app.ui.utils.rememberAdjustmentHaptics(0f, 10f)
+       Slider(
+         value = volumeBoostValue,
+         onValueChange = { newValue ->
++          boostHaptics.move(volumeBoostValue, newValue)
+           volumeBoostValue = newValue
+           onVolumeBoostChanged(newValue.roundToInt())
+         },
+@@ -351,6 +353,7 @@ private fun BandColumn(
+   modifier: Modifier = Modifier,
+ ) {
+   var sliderValue by remember(gainDb) { mutableFloatStateOf(gainDb.toFloat()) }
++  val gainHaptics = com.quantummpv.app.ui.utils.rememberAdjustmentHaptics(EQ_MIN_DB.toFloat(), EQ_MAX_DB.toFloat())
+ 
+   Column(
+     modifier = modifier.fillMaxHeight(),
+@@ -373,6 +376,7 @@ private fun BandColumn(
+     Slider(
+       value = sliderValue,
+       onValueChange = { newValue ->
++        gainHaptics.move(sliderValue, newValue)
+         sliderValue = newValue
+         onGainChanged(newValue.roundToInt())
+       },
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/PlaybackSpeedSheet.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/PlaybackSpeedSheet.kt
+index 2c3f02ed..675975d9 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/PlaybackSpeedSheet.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/PlaybackSpeedSheet.kt
+@@ -71,6 +71,14 @@ fun PlaybackSpeedSheet(
+   pitchCorrectionEnabled: Boolean = true,
+   modifier: Modifier = Modifier,
+ ) {
++  val speedHaptics = com.quantummpv.app.ui.utils.rememberAdjustmentHaptics(0.05f, 4f, landmarks = listOf(1f))
++  val actionHaptics = com.quantummpv.app.ui.utils.rememberAppHaptics()
++  val adjustSpeed: (Float) -> Unit = { target ->
++    if (kotlin.math.abs(target - speed) > 0.001f) {
++      onSpeedChange(target)
++      speedHaptics.move(speed, target)
++    }
++  }
+   PlayerSheet(onDismissRequest = onDismissRequest) {
+     Column(
+       modifier
+@@ -106,7 +114,7 @@ fun PlaybackSpeedSheet(
+         horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.small),
+       ) {
+         RepeatingIconButton(
+-          onClick = { onSpeedChange((speed - 0.05f).coerceAtLeast(0.05f)) },
++          onClick = { adjustSpeed((speed - 0.05f).coerceAtLeast(0.05f)) },
+           enabled = speedControlEnabled,
+           modifier = Modifier.size(40.dp),
+         ) {
+@@ -118,7 +126,7 @@ fun PlaybackSpeedSheet(
+           onValueChange = {
+             // Snap to nearest 0.05
+             val snapped = (it * 20).roundToInt() / 20f
+-            onSpeedChange(snapped)
++            adjustSpeed(snapped)
+           },
+           valueRange = 0.1f..4.0f,
+           enabled = speedControlEnabled,
+@@ -129,7 +137,7 @@ fun PlaybackSpeedSheet(
+         )
+ 
+         RepeatingIconButton(
+-          onClick = { onSpeedChange((speed + 0.05f).coerceAtMost(4.0f)) },
++          onClick = { adjustSpeed((speed + 0.05f).coerceAtMost(4.0f)) },
+           enabled = speedControlEnabled,
+           modifier = Modifier.size(40.dp),
+         ) {
+@@ -158,7 +166,12 @@ fun PlaybackSpeedSheet(
+ 
+             FilterChip(
+               selected = kotlin.math.abs(presetSpeed - speed) < 0.01f,
+-              onClick = { onSpeedChange(presetSpeed) },
++              onClick = {
++                if (kotlin.math.abs(presetSpeed - speed) > 0.001f) {
++                  onSpeedChange(presetSpeed)
++                  actionHaptics.selection(true)
++                }
++              },
+               label = { Text("${presetSpeed.toFixed(2)}") },
+               leadingIcon = null,
+               enabled = speedControlEnabled,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/PlaylistSheet.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/PlaylistSheet.kt
+index e9b146f8..4cfa7cf7 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/PlaylistSheet.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/PlaylistSheet.kt
+@@ -51,6 +51,10 @@ import androidx.compose.runtime.remember
+ import androidx.compose.runtime.setValue
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
++import androidx.compose.ui.draw.shadow
++import com.quantummpv.app.ui.utils.ReorderFeedback
++import com.quantummpv.app.ui.utils.dragElevation
++import com.quantummpv.app.ui.utils.rememberReorderFeedback
+ import androidx.compose.ui.draw.clip
+ import androidx.compose.ui.geometry.Offset
+ import androidx.compose.ui.graphics.Brush
+@@ -442,6 +446,7 @@ fun PlaylistSheet(
+ 
+           var dragStartIndex by remember { mutableIntStateOf(-1) }
+           var dragEndIndex by remember { mutableIntStateOf(-1) }
++          val reorderFeedback = rememberReorderFeedback()
+ 
+           val reorderableLazyListState =
+             rememberReorderableLazyListState(lazyListState) { from, to ->
+@@ -453,6 +458,7 @@ fun PlaylistSheet(
+                 displayPlaylist = displayPlaylist.toMutableList().apply {
+                   add(to.index, removeAt(from.index))
+                 }.toImmutableList()
++                reorderFeedback.move(from.index, to.index)
+               }
+             }
+ 
+@@ -479,13 +485,18 @@ fun PlaylistSheet(
+ 
+                   PlaylistTrackListItem(
+                     item = item,
++                    modifier = Modifier.shadow(
++                      dragElevation(isDragging, com.quantummpv.app.ui.theme.AppMotion.playerReducedMotion()),
++                      MaterialTheme.shapes.medium,
++                      clip = false,
++                    ),
+                     thumbnailRepository = thumbnailRepository,
+                     onClick = { onItemClick(item) },
+                     skipThumbnail = false,
+                     accentColor = accentColor,
+                     isAudioOnly = isAudioOnly,
+                     dragHandle = {
+-                      DragHandle(scope = this, isDragging = isDragging)
++                      DragHandle(scope = this, isDragging = isDragging, feedback = reorderFeedback)
+                     },
+                   )
+                 }
+@@ -544,6 +555,7 @@ fun PlaylistSheet(
+ private fun DragHandle(
+   scope: ReorderableCollectionItemScope,
+   isDragging: Boolean,
++  feedback: ReorderFeedback,
+   modifier: Modifier = Modifier,
+ ) {
+   val alpha by animateFloatAsState(
+@@ -561,7 +573,10 @@ private fun DragHandle(
+       with(scope) {
+         modifier
+           .size(40.dp)
+-          .draggableHandle()
++          .draggableHandle(
++            interactionSource = feedback.interactions,
++            onDragStarted = { feedback.start() },
++          )
+       },
+     contentAlignment = Alignment.Center,
+   ) {
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/GesturePreferencesScreen.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/GesturePreferencesScreen.kt
+index 4b0d2eb5..595cdb96 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/GesturePreferencesScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/GesturePreferencesScreen.kt
+@@ -120,6 +120,16 @@ object GesturePreferencesScreen : Screen {
+           }
+           item {
+             PreferenceCard {
++              val hapticFeedbackEnabled by preferences.hapticFeedbackEnabled.collectAsState()
++              SwitchPreference(
++                modifier = Modifier.settingsSearchTarget(R.string.pref_haptic_feedback_title),
++                value = hapticFeedbackEnabled,
++                onValueChange = preferences.hapticFeedbackEnabled::set,
++                title = { Text(stringResource(R.string.pref_haptic_feedback_title)) },
++                summary = { Text(stringResource(R.string.pref_haptic_feedback_summary)) },
++              )
++              PreferenceDivider()
++
+               val brightnessGesture by playerPreferences.brightnessGesture.collectAsState()
+               SwitchPreference(
+                 modifier = Modifier.settingsSearchTarget(R.string.pref_player_gestures_brightness),
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/SearchablePreference.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/SearchablePreference.kt
+index a5186b9b..527765a0 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/SearchablePreference.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/SearchablePreference.kt
+@@ -466,6 +466,14 @@ object SearchablePreferences {
+           screen = PlayerPreferencesScreen,
+         ),
+       )
++      add(
++        SearchablePreference(
++          titleRes = R.string.pref_haptic_feedback_title,
++          keywords = listOf("haptic", "vibration", "feedback", "selection", "drag"),
++          category = "Gestures",
++          screen = GesturePreferencesScreen,
++        ),
++      )
+       add(
+         SearchablePreference(
+           titleRes = R.string.pref_player_gestures_brightness,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/SettingsSearchNavigation.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/SettingsSearchNavigation.kt
+index 988ae7f8..1d7f0dbe 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/SettingsSearchNavigation.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/SettingsSearchNavigation.kt
+@@ -118,6 +118,7 @@ private val settingsSearchListAnchors: Map<Screen, List<SettingsSearchListAnchor
+     GesturePreferencesScreen to
+       listOf(
+         SettingsSearchListAnchor(titleRes = R.string.pref_gesture, itemIndex = 0),
++        SettingsSearchListAnchor(titleRes = R.string.pref_haptic_feedback_title, itemIndex = 1),
+         SettingsSearchListAnchor(titleRes = R.string.pref_player_gestures_brightness, itemIndex = 1),
+         SettingsSearchListAnchor(titleRes = R.string.pref_player_gestures_volume, itemIndex = 1),
+         SettingsSearchListAnchor(titleRes = R.string.pref_player_gestures_pinch_to_zoom, itemIndex = 1),
+diff --git a/app/src/main/java/com/quantummpv/app/ui/theme/Motion.kt b/app/src/main/java/com/quantummpv/app/ui/theme/Motion.kt
+index c9915539..11ede02c 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/theme/Motion.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/theme/Motion.kt
+@@ -15,14 +15,22 @@ import androidx.compose.animation.core.Spring
+ import androidx.compose.animation.core.SpringSpec
+ import androidx.compose.animation.core.spring
+ import androidx.compose.runtime.Composable
++import androidx.compose.runtime.getValue
++import androidx.compose.runtime.mutableStateOf
++import androidx.compose.runtime.remember
++import androidx.compose.runtime.setValue
+ import androidx.compose.runtime.Stable
+ import androidx.compose.runtime.staticCompositionLocalOf
+ import androidx.compose.ui.graphics.Color
+-import androidx.compose.ui.platform.LocalView
++import androidx.lifecycle.Lifecycle
++import androidx.lifecycle.compose.LifecycleEventEffect
+ import androidx.compose.ui.unit.Dp
+ import androidx.compose.ui.unit.IntOffset
+ import androidx.compose.ui.unit.IntSize
+ import androidx.compose.ui.unit.dp
++import com.quantummpv.app.preferences.PlayerPreferences
++import com.quantummpv.app.preferences.preference.collectAsState
++import org.koin.compose.koinInject
+ 
+ /**
+  * mpvRx motion policy — respects system reduce-motion accessibility setting.
+@@ -37,8 +45,11 @@ val LocalMotionPolicy = staticCompositionLocalOf { MotionPolicy() }
+ 
+ @Composable
+ fun rememberMotionPolicy(): MotionPolicy {
+-  LocalView.current
+-  return MotionPolicy(reduceMotion = !ValueAnimator.areAnimatorsEnabled())
++  var animationsDisabled by remember { mutableStateOf(!ValueAnimator.areAnimatorsEnabled()) }
++  LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
++    animationsDisabled = !ValueAnimator.areAnimatorsEnabled()
++  }
++  return MotionPolicy(reduceMotion = animationsDisabled)
+ }
+ 
+ /**
+@@ -58,6 +69,12 @@ object AppMotion {
+   @Composable
+   fun shouldReduceMotion(): Boolean = policy().reduceMotion
+ 
++  @Composable
++  fun playerReducedMotion(): Boolean {
++    val reducedByPlayer by koinInject<PlayerPreferences>().reduceMotion.collectAsState()
++    return shouldReduceMotion() || reducedByPlayer
++  }
++
+   fun <T> noBounce(stiffness: Float): SpringSpec<T> =
+     spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = stiffness)
+ 
+diff --git a/app/src/main/java/com/quantummpv/app/ui/theme/Theme.kt b/app/src/main/java/com/quantummpv/app/ui/theme/Theme.kt
+index 626bff9f..3dbe4e2c 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/theme/Theme.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/theme/Theme.kt
+@@ -335,7 +335,7 @@ fun MpvrxTheme(
+         typography = if (useSystemFont || localeNeedsSystemFont) SystemTypography else AppTypography,
+         shapes = AppShapes,
+         motionScheme = MotionScheme.expressive(),
+-        content = content,
++        content = { com.quantummpv.app.ui.utils.ProvideAppHaptics(content) },
+       )
+     }
+   }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/utils/AppHaptics.kt b/app/src/main/java/com/quantummpv/app/ui/utils/AppHaptics.kt
+new file mode 100644
+index 00000000..cb82c23b
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/ui/utils/AppHaptics.kt
+@@ -0,0 +1,115 @@
++package com.quantummpv.app.ui.utils
++
++import android.os.SystemClock
++import android.view.View
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.CompositionLocalProvider
++import androidx.compose.runtime.Stable
++import androidx.compose.runtime.getValue
++import androidx.compose.runtime.remember
++import androidx.compose.runtime.rememberUpdatedState
++import androidx.compose.ui.hapticfeedback.HapticFeedback
++import androidx.compose.ui.hapticfeedback.HapticFeedbackType
++import androidx.compose.ui.platform.LocalHapticFeedback
++import com.quantummpv.app.preferences.GesturePreferences
++import com.quantummpv.app.preferences.preference.collectAsState
++import org.koin.compose.koinInject
++import org.koin.core.context.GlobalContext
++import kotlin.math.abs
++
++@Composable
++internal fun ProvideAppHaptics(content: @Composable () -> Unit) {
++  val preferences = koinInject<GesturePreferences>()
++  val enabled by preferences.hapticFeedbackEnabled.collectAsState()
++  val currentEnabled by rememberUpdatedState(enabled)
++  val platformFeedback = LocalHapticFeedback.current
++  val feedback =
++    remember(platformFeedback) {
++      object : HapticFeedback {
++        override fun performHapticFeedback(hapticFeedbackType: HapticFeedbackType) {
++          if (currentEnabled) platformFeedback.performHapticFeedback(hapticFeedbackType)
++        }
++      }
++    }
++  CompositionLocalProvider(LocalHapticFeedback provides feedback, content = content)
++}
++
++@Stable
++internal class AppHaptics(private val feedback: HapticFeedback) {
++  private var lastTickAt = Long.MIN_VALUE
++
++  fun selection(selected: Boolean) {
++    feedback.performHapticFeedback(if (selected) HapticFeedbackType.ToggleOn else HapticFeedbackType.ToggleOff)
++  }
++
++  fun pickup() {
++    feedback.performHapticFeedback(HapticFeedbackType.LongPress)
++  }
++
++  fun confirm() {
++    feedback.performHapticFeedback(HapticFeedbackType.Confirm)
++  }
++
++  fun tick() {
++    val now = SystemClock.uptimeMillis()
++    if (lastTickAt != Long.MIN_VALUE && now - lastTickAt < 70L) return
++    lastTickAt = now
++    feedback.performHapticFeedback(HapticFeedbackType.SegmentTick)
++  }
++}
++
++@Composable
++internal fun rememberAppHaptics(): AppHaptics {
++  val feedback = LocalHapticFeedback.current
++  return remember(feedback) { AppHaptics(feedback) }
++}
++
++internal fun View.performAppHapticFeedback(feedback: Int): Boolean {
++  val enabled =
++    runCatching { GlobalContext.get().get<GesturePreferences>().hapticFeedbackEnabled.get() }.getOrDefault(false)
++  return enabled && performHapticFeedback(feedback)
++}
++
++internal class AdjustmentHaptics(
++  private val haptics: AppHaptics,
++  private val markers: List<Float>,
++  private val hysteresis: Float,
++) {
++  private var latchedMarker: Float? = null
++
++  fun move(previous: Float, value: Float) {
++    if (!previous.isFinite() || !value.isFinite() || previous == value) return
++    if (latchedMarker?.let { abs(value - it) > hysteresis } == true) latchedMarker = null
++    val crossed =
++      markers.filter { marker ->
++        (previous < marker && value >= marker) || (previous > marker && value <= marker)
++      }.minByOrNull { abs(value - it) }
++    if (crossed != null && crossed != latchedMarker) {
++      latchedMarker = crossed
++      haptics.tick()
++    }
++  }
++}
++
++@Composable
++internal fun rememberAdjustmentHaptics(
++  min: Float,
++  max: Float,
++  steps: Int = 0,
++  landmarks: List<Float> = emptyList(),
++): AdjustmentHaptics {
++  val haptics = rememberAppHaptics()
++  return remember(haptics, min, max, steps, landmarks) {
++    val markers =
++      buildList {
++        add(min)
++        add(max)
++        if (min < 0f && max > 0f) add(0f)
++        addAll(landmarks.filter { it in min..max })
++        if (steps in 1..20) {
++          repeat(steps) { index -> add(min + (max - min) * (index + 1) / (steps + 1)) }
++        }
++      }.distinct()
++    AdjustmentHaptics(haptics, markers, (max - min) * 0.02f)
++  }
++}
+\ No newline at end of file
+diff --git a/app/src/main/java/com/quantummpv/app/ui/utils/ReorderFeedback.kt b/app/src/main/java/com/quantummpv/app/ui/utils/ReorderFeedback.kt
+new file mode 100644
+index 00000000..d17b2401
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/ui/utils/ReorderFeedback.kt
+@@ -0,0 +1,67 @@
++package com.quantummpv.app.ui.utils
++
++import androidx.compose.animation.core.animateDpAsState
++import androidx.compose.animation.core.snap
++import androidx.compose.foundation.interaction.DragInteraction
++import androidx.compose.foundation.interaction.MutableInteractionSource
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.LaunchedEffect
++import androidx.compose.runtime.Stable
++import androidx.compose.runtime.getValue
++import androidx.compose.runtime.remember
++import androidx.compose.ui.unit.Dp
++import androidx.compose.ui.unit.dp
++import com.quantummpv.app.ui.theme.AppMotion
++import kotlinx.coroutines.flow.collect
++
++@Stable
++internal class ReorderFeedback(private val haptics: AppHaptics) {
++  val interactions = MutableInteractionSource()
++  private var firstIndex: Int? = null
++  private var lastIndex: Int? = null
++
++  fun start() {
++    firstIndex = null
++    lastIndex = null
++    haptics.pickup()
++  }
++
++  fun move(from: Int, to: Int) {
++    if (from == to) return
++    if (firstIndex == null) firstIndex = from
++    lastIndex = to
++    haptics.tick()
++  }
++
++  internal fun finish(cancelled: Boolean) {
++    if (!cancelled && firstIndex != null && firstIndex != lastIndex) haptics.confirm()
++    firstIndex = null
++    lastIndex = null
++  }
++}
++
++@Composable
++internal fun rememberReorderFeedback(): ReorderFeedback {
++  val haptics = rememberAppHaptics()
++  val feedback = remember(haptics) { ReorderFeedback(haptics) }
++  LaunchedEffect(feedback) {
++    feedback.interactions.interactions.collect { interaction ->
++      when (interaction) {
++        is DragInteraction.Stop -> feedback.finish(cancelled = false)
++        is DragInteraction.Cancel -> feedback.finish(cancelled = true)
++        else -> Unit
++      }
++    }
++  }
++  return feedback
++}
++
++@Composable
++internal fun dragElevation(dragging: Boolean, reducedMotion: Boolean = AppMotion.shouldReduceMotion()): Dp {
++  val elevation by animateDpAsState(
++    targetValue = if (dragging && !reducedMotion) 3.dp else 0.dp,
++    animationSpec = if (reducedMotion) snap() else AppMotion.Spatial.ExpressiveDp,
++    label = "dragElevation",
++  )
++  return elevation
++}
+\ No newline at end of file
+diff --git a/app/src/main/res/values-ar/strings.xml b/app/src/main/res/values-ar/strings.xml
+index 613b888d..5c648e77 100644
+--- a/app/src/main/res/values-ar/strings.xml
++++ b/app/src/main/res/values-ar/strings.xml
+@@ -2208,4 +2208,6 @@
+   <string name="pref_appearance_custom_theme_light_secondary">اللون الثانوي الفاتح</string><string name="pref_appearance_custom_theme_dark_secondary">اللون الثانوي الداكن</string><string name="pref_appearance_custom_theme_light_tertiary">اللون الثالث الفاتح</string><string name="pref_appearance_custom_theme_dark_tertiary">اللون الثالث الداكن</string>
+   <string name="pref_appearance_custom_wallpaper_fit">احتواء</string><string name="pref_appearance_custom_wallpaper_fill">ملء</string><string name="pref_appearance_custom_wallpaper_replace_action">استبدال</string><string name="pref_appearance_custom_wallpaper_clear_action">مسح</string>
+   <string name="wallpaper_save_failed">تعذر حفظ الخلفية. يرجى اختيار الصورة مرة أخرى.</string>
++  <string name="pref_haptic_feedback_title">استجابة لمسية</string>
++  <string name="pref_haptic_feedback_summary">استجابة لمسية للتحديد والسحب وضبط عناصر التحكم. تراعي إعدادات النظام.</string>
+ </resources>
+diff --git a/app/src/main/res/values-de/strings.xml b/app/src/main/res/values-de/strings.xml
+index f875f738..04140a82 100644
+--- a/app/src/main/res/values-de/strings.xml
++++ b/app/src/main/res/values-de/strings.xml
+@@ -2194,4 +2194,6 @@ Bitte starten Sie die App neu, damit alle Änderungen wirksam werden.</string>
+   <string name="pref_appearance_custom_theme_light_secondary">Helle Sekundärfarbe</string><string name="pref_appearance_custom_theme_dark_secondary">Dunkle Sekundärfarbe</string><string name="pref_appearance_custom_theme_light_tertiary">Helle Tertiärfarbe</string><string name="pref_appearance_custom_theme_dark_tertiary">Dunkle Tertiärfarbe</string>
+   <string name="pref_appearance_custom_wallpaper_fit">Einpassen</string><string name="pref_appearance_custom_wallpaper_fill">Füllen</string><string name="pref_appearance_custom_wallpaper_replace_action">Ersetzen</string><string name="pref_appearance_custom_wallpaper_clear_action">Löschen</string>
+   <string name="wallpaper_save_failed">Das Hintergrundbild konnte nicht gespeichert werden. Bitte wähle das Bild erneut aus.</string>
++  <string name="pref_haptic_feedback_title">Haptisches Feedback</string>
++  <string name="pref_haptic_feedback_summary">Tastbare Rückmeldung beim Auswählen, Ziehen und Einstellen. Beachtet die Systemeinstellungen.</string>
+ </resources>
+diff --git a/app/src/main/res/values-es/strings.xml b/app/src/main/res/values-es/strings.xml
+index dc1f5ebe..ff5e9b5a 100644
+--- a/app/src/main/res/values-es/strings.xml
++++ b/app/src/main/res/values-es/strings.xml
+@@ -2194,4 +2194,6 @@ Reinicia la aplicación para que se apliquen todos los cambios.</string>
+   <string name="pref_appearance_custom_theme_light_secondary">Color secundario claro</string><string name="pref_appearance_custom_theme_dark_secondary">Color secundario oscuro</string><string name="pref_appearance_custom_theme_light_tertiary">Color terciario claro</string><string name="pref_appearance_custom_theme_dark_tertiary">Color terciario oscuro</string>
+   <string name="pref_appearance_custom_wallpaper_fit">Ajustar</string><string name="pref_appearance_custom_wallpaper_fill">Rellenar</string><string name="pref_appearance_custom_wallpaper_replace_action">Reemplazar</string><string name="pref_appearance_custom_wallpaper_clear_action">Borrar</string>
+   <string name="wallpaper_save_failed">No se pudo guardar el fondo. Vuelve a seleccionar la imagen.</string>
++  <string name="pref_haptic_feedback_title">Respuesta háptica</string>
++  <string name="pref_haptic_feedback_summary">Respuesta táctil al seleccionar, arrastrar y ajustar controles. Respeta los ajustes del sistema.</string>
+ </resources>
+diff --git a/app/src/main/res/values-fr/strings.xml b/app/src/main/res/values-fr/strings.xml
+index 0cb1a7e5..a3530baf 100644
+--- a/app/src/main/res/values-fr/strings.xml
++++ b/app/src/main/res/values-fr/strings.xml
+@@ -2194,4 +2194,6 @@ Veuillez redémarrer l’application pour appliquer toutes les modifications.</s
+   <string name="pref_appearance_custom_theme_light_secondary">Couleur secondaire claire</string><string name="pref_appearance_custom_theme_dark_secondary">Couleur secondaire sombre</string><string name="pref_appearance_custom_theme_light_tertiary">Couleur tertiaire claire</string><string name="pref_appearance_custom_theme_dark_tertiary">Couleur tertiaire sombre</string>
+   <string name="pref_appearance_custom_wallpaper_fit">Ajuster</string><string name="pref_appearance_custom_wallpaper_fill">Remplir</string><string name="pref_appearance_custom_wallpaper_replace_action">Remplacer</string><string name="pref_appearance_custom_wallpaper_clear_action">Effacer</string>
+   <string name="wallpaper_save_failed">Impossible de sauvegarder le fond. Veuillez sélectionner à nouveau l’image.</string>
++  <string name="pref_haptic_feedback_title">Retour haptique</string>
++  <string name="pref_haptic_feedback_summary">Retour tactile lors de la sélection, du déplacement et des réglages. Respecte les paramètres du système.</string>
+ </resources>
+diff --git a/app/src/main/res/values-hi/strings.xml b/app/src/main/res/values-hi/strings.xml
+index d8bb9e7a..9987b35b 100644
+--- a/app/src/main/res/values-hi/strings.xml
++++ b/app/src/main/res/values-hi/strings.xml
+@@ -2098,4 +2098,6 @@
+   <string name="pref_appearance_custom_theme_light_secondary">हल्का द्वितीयक रंग</string><string name="pref_appearance_custom_theme_dark_secondary">गहरा द्वितीयक रंग</string><string name="pref_appearance_custom_theme_light_tertiary">हल्का तृतीयक रंग</string><string name="pref_appearance_custom_theme_dark_tertiary">गहरा तृतीयक रंग</string>
+   <string name="pref_appearance_custom_wallpaper_fit">फिट</string><string name="pref_appearance_custom_wallpaper_fill">भरें</string><string name="pref_appearance_custom_wallpaper_replace_action">बदलें</string><string name="pref_appearance_custom_wallpaper_clear_action">साफ़ करें</string>
+   <string name="wallpaper_save_failed">वॉलपेपर सहेजा नहीं जा सका। कृपया चित्र फिर से चुनें।</string>
++  <string name="pref_haptic_feedback_title">हैप्टिक फ़ीडबैक</string>
++  <string name="pref_haptic_feedback_summary">चयन, खींचने और नियंत्रण समायोजन पर स्पर्श प्रतिक्रिया। सिस्टम सेटिंग का पालन करता है।</string>
+ </resources>
+diff --git a/app/src/main/res/values-ja/strings.xml b/app/src/main/res/values-ja/strings.xml
+index c6710a80..6d44ea69 100644
+--- a/app/src/main/res/values-ja/strings.xml
++++ b/app/src/main/res/values-ja/strings.xml
+@@ -2190,4 +2190,6 @@
+   <string name="pref_appearance_custom_theme_light_secondary">ライトのセカンダリカラー</string><string name="pref_appearance_custom_theme_dark_secondary">ダークのセカンダリカラー</string><string name="pref_appearance_custom_theme_light_tertiary">ライトのターシャリカラー</string><string name="pref_appearance_custom_theme_dark_tertiary">ダークのターシャリカラー</string>
+   <string name="pref_appearance_custom_wallpaper_fit">全体表示</string><string name="pref_appearance_custom_wallpaper_fill">画面を埋める</string><string name="pref_appearance_custom_wallpaper_replace_action">置換</string><string name="pref_appearance_custom_wallpaper_clear_action">クリア</string>
+   <string name="wallpaper_save_failed">壁紙を保存できませんでした。画像を選び直してください。</string>
++  <string name="pref_haptic_feedback_title">触覚フィードバック</string>
++  <string name="pref_haptic_feedback_summary">選択、ドラッグ、コントロールの調整時に触覚で反応します。システム設定に従います。</string>
+ </resources>
+diff --git a/app/src/main/res/values-pt-rBR/strings.xml b/app/src/main/res/values-pt-rBR/strings.xml
+index 5326c972..44f68ce3 100644
+--- a/app/src/main/res/values-pt-rBR/strings.xml
++++ b/app/src/main/res/values-pt-rBR/strings.xml
+@@ -2194,4 +2194,6 @@ Reinicie o aplicativo para que todas as alterações entrem em vigor.</string>
+   <string name="pref_appearance_custom_theme_light_secondary">Cor secundária clara</string><string name="pref_appearance_custom_theme_dark_secondary">Cor secundária escura</string><string name="pref_appearance_custom_theme_light_tertiary">Cor terciária clara</string><string name="pref_appearance_custom_theme_dark_tertiary">Cor terciária escura</string>
+   <string name="pref_appearance_custom_wallpaper_fit">Ajustar</string><string name="pref_appearance_custom_wallpaper_fill">Preencher</string><string name="pref_appearance_custom_wallpaper_replace_action">Substituir</string><string name="pref_appearance_custom_wallpaper_clear_action">Limpar</string>
+   <string name="wallpaper_save_failed">Não foi possível salvar o papel de parede. Selecione a imagem novamente.</string>
++  <string name="pref_haptic_feedback_title">Resposta tátil</string>
++  <string name="pref_haptic_feedback_summary">Resposta tátil ao selecionar, arrastar e ajustar controles. Respeita as configurações do sistema.</string>
+ </resources>
+diff --git a/app/src/main/res/values-ru/strings.xml b/app/src/main/res/values-ru/strings.xml
+index 67d43aa5..a65efa2f 100644
+--- a/app/src/main/res/values-ru/strings.xml
++++ b/app/src/main/res/values-ru/strings.xml
+@@ -2202,4 +2202,6 @@
+   <string name="pref_appearance_custom_theme_light_secondary">Светлый дополнительный цвет</string><string name="pref_appearance_custom_theme_dark_secondary">Тёмный дополнительный цвет</string><string name="pref_appearance_custom_theme_light_tertiary">Светлый третичный цвет</string><string name="pref_appearance_custom_theme_dark_tertiary">Тёмный третичный цвет</string>
+   <string name="pref_appearance_custom_wallpaper_fit">Вписать</string><string name="pref_appearance_custom_wallpaper_fill">Заполнить</string><string name="pref_appearance_custom_wallpaper_replace_action">Заменить</string><string name="pref_appearance_custom_wallpaper_clear_action">Очистить</string>
+   <string name="wallpaper_save_failed">Не удалось сохранить обои. Выберите изображение ещё раз.</string>
++  <string name="pref_haptic_feedback_title">Тактильный отклик</string>
++  <string name="pref_haptic_feedback_summary">Отклик при выборе, перетаскивании и настройке элементов управления. Учитывает настройки системы.</string>
+ </resources>
+diff --git a/app/src/main/res/values-zh-rCN/strings.xml b/app/src/main/res/values-zh-rCN/strings.xml
+index a1253f1c..3e56282d 100644
+--- a/app/src/main/res/values-zh-rCN/strings.xml
++++ b/app/src/main/res/values-zh-rCN/strings.xml
+@@ -2192,4 +2192,6 @@
+   <string name="pref_appearance_custom_theme_light_secondary">浅色辅助色</string><string name="pref_appearance_custom_theme_dark_secondary">深色辅助色</string><string name="pref_appearance_custom_theme_light_tertiary">浅色第三色</string><string name="pref_appearance_custom_theme_dark_tertiary">深色第三色</string>
+   <string name="pref_appearance_custom_wallpaper_fit">适应</string><string name="pref_appearance_custom_wallpaper_fill">填充</string><string name="pref_appearance_custom_wallpaper_replace_action">替换</string><string name="pref_appearance_custom_wallpaper_clear_action">清除</string>
+   <string name="wallpaper_save_failed">无法保存壁纸，请重新选择图片。</string>
++  <string name="pref_haptic_feedback_title">触觉反馈</string>
++  <string name="pref_haptic_feedback_summary">选择、拖动和调整控件时提供触觉反馈。遵循系统设置。</string>
+ </resources>
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index 613ae82b..f2cf1176 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -2270,4 +2270,6 @@
+   <string name="pref_appearance_custom_wallpaper_replace_action">Replace</string>
+   <string name="pref_appearance_custom_wallpaper_clear_action">Clear</string>
+   <string name="wallpaper_save_failed">Could not save the wallpaper. Please choose the image again.</string>
++  <string name="pref_haptic_feedback_title">Haptic feedback</string>
++  <string name="pref_haptic_feedback_summary">Tactile feedback for selection, dragging, and control adjustments. Respects system settings.</string>
+ </resources>
+-- 
+2.25.1
+

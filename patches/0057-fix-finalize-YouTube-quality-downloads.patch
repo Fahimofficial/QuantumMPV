@@ -1,0 +1,982 @@
+From 5636472669a62b2b18cd097a6ff55120cfda2399 Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <riteshp2001@gmail.com>
+Date: Tue, 8 Sep 2026 15:28:20 +0530
+Subject: [PATCH 057/140] fix: finalize YouTube quality downloads
+
+---
+ .../download/LinkDownloadCoordinator.kt       |  14 +-
+ .../domain/download/YtdlpDownloadEngine.kt    | 236 ++++++++++++++++--
+ .../mpvrx/domain/download/YtdlpMediaMerger.kt | 183 ++++++++++++++
+ .../mpvrx/ui/downloads/DownloadsScreen.kt     |   3 +-
+ .../mpvrx/ui/player/PlayerViewModel.kt        |  76 ++++++
+ .../mpvrx/ui/player/controls/PlayerSheets.kt  |  56 +++++
+ .../controls/components/PlayerUpdates.kt      |   4 +
+ .../components/sheets/VideoQualitySheet.kt    |  58 +++--
+ app/src/main/res/values/strings.xml           |   2 +-
+ 9 files changed, 590 insertions(+), 42 deletions(-)
+ create mode 100644 app/src/main/java/com/quantummpv/app/domain/download/YtdlpMediaMerger.kt
+
+diff --git a/app/src/main/java/com/quantummpv/app/domain/download/LinkDownloadCoordinator.kt b/app/src/main/java/com/quantummpv/app/domain/download/LinkDownloadCoordinator.kt
+index 0ea9b54f..ec72394f 100644
+--- a/app/src/main/java/com/quantummpv/app/domain/download/LinkDownloadCoordinator.kt
++++ b/app/src/main/java/com/quantummpv/app/domain/download/LinkDownloadCoordinator.kt
+@@ -11,6 +11,7 @@ package com.quantummpv.app.domain.download
+ 
+ import android.net.Uri
+ import com.quantummpv.app.ui.player.ytdlp.YtdlpManager
++import com.quantummpv.app.utils.media.HttpUtils
+ 
+ /**
+  * Routes a link download to the right engine: plain HTTP(S) files go through the
+@@ -60,13 +61,24 @@ class LinkDownloadCoordinator(
+             ),
+         )
+       }
+-      Route.YTDLP -> ytdlpEngine.enqueue(url = url, title = displayTitle, directory = directory)
++      Route.YTDLP -> {
++        val isYouTube = runCatching { HttpUtils.isYouTubeUrl(Uri.parse(url)) }.getOrDefault(false)
++        ytdlpEngine.enqueue(
++          url = url,
++          title = displayTitle,
++          directory = directory,
++          formatSelector = YOUTUBE_DOWNLOAD_FORMAT.takeIf { isYouTube },
++          mergeSeparateStreams = isYouTube,
++        )
++      }
+       Route.UNSUPPORTED -> {}
+     }
+     return route
+   }
+ 
+   companion object {
++    private const val YOUTUBE_DOWNLOAD_FORMAT =
++      "bestvideo[vcodec^=avc1]/bestvideo,bestaudio[ext=m4a]/bestaudio"
+     private val MEDIA_EXTENSION_REGEX = Regex("""\.[a-z0-9]{2,5}$""", RegexOption.IGNORE_CASE)
+ 
+     fun fileNameFromUrl(url: String): String {
+diff --git a/app/src/main/java/com/quantummpv/app/domain/download/YtdlpDownloadEngine.kt b/app/src/main/java/com/quantummpv/app/domain/download/YtdlpDownloadEngine.kt
+index 05d99c66..c55fbd46 100644
+--- a/app/src/main/java/com/quantummpv/app/domain/download/YtdlpDownloadEngine.kt
++++ b/app/src/main/java/com/quantummpv/app/domain/download/YtdlpDownloadEngine.kt
+@@ -43,11 +43,14 @@ class YtdlpDownloadEngine(
+     val url: String,
+     val title: String,
+     val directory: String,
++    val formatSelector: String? = null,
++    val mergeSeparateStreams: Boolean = false,
+     val state: JobState = JobState.QUEUED,
+     val progressPercent: Float = 0f,
+     val detail: String = "",
+     val error: String? = null,
+     val outputFile: String? = null,
++    val artifactFiles: Set<String> = emptySet(),
+   ) {
+     val isActive: Boolean get() = state == JobState.QUEUED || state == JobState.RUNNING
+   }
+@@ -69,11 +72,22 @@ class YtdlpDownloadEngine(
+     url: String,
+     title: String,
+     directory: File,
++    formatSelector: String? = null,
++    mergeSeparateStreams: Boolean = false,
+   ): Int {
+     val id = nextId.getAndIncrement()
+     if (!directory.exists()) directory.mkdirs()
++    cleanupWorkingDirectory(id)
+     _jobs.update { current ->
+-      current + Job(id = id, url = url, title = title, directory = directory.absolutePath)
++      current +
++        Job(
++          id = id,
++          url = url,
++          title = title,
++          directory = directory.absolutePath,
++          formatSelector = formatSelector?.trim()?.takeIf(String::isNotBlank),
++          mergeSeparateStreams = mergeSeparateStreams,
++        )
+     }
+     YtdlpDownloadService.start(context)
+     return id
+@@ -95,7 +109,7 @@ class YtdlpDownloadEngine(
+     _jobs.update { current ->
+       current.map { job ->
+         if (job.id == id && (job.state == JobState.FAILED || job.state == JobState.CANCELLED)) {
+-          job.copy(state = JobState.QUEUED, progressPercent = 0f, error = null, detail = "")
++          job.copy(state = JobState.QUEUED, progressPercent = 0f, error = null, detail = "", outputFile = null)
+         } else {
+           job
+         }
+@@ -104,9 +118,14 @@ class YtdlpDownloadEngine(
+     YtdlpDownloadService.start(context)
+   }
+ 
+-  fun remove(id: Int) {
++  fun remove(
++    id: Int,
++    deleteFiles: Boolean = false,
++  ) {
+     val job = _jobs.value.firstOrNull { it.id == id } ?: return
+     if (job.isActive) cancel(id)
++    if (deleteFiles || job.state != JobState.SUCCESS) deleteArtifacts(job)
++    if (!job.isActive) cleanupWorkingDirectory(id)
+     _jobs.update { current -> current.filterNot { it.id == id } }
+   }
+ 
+@@ -137,18 +156,41 @@ class YtdlpDownloadEngine(
+       return
+     }
+ 
+-    val outputTemplate = "${job.directory}/${DownloadLocations.sanitizeName(job.title)}.%(ext)s"
+-    val command = buildCommand(job.url, outputTemplate)
++    val temporaryDirectory = workingDirectory(id).apply { mkdirs() }
++    val outputBaseName = DownloadLocations.sanitizeName(job.title)
++    val outputTemplate =
++      if (job.mergeSeparateStreams) {
++        "$outputBaseName.f%(format_id)s.%(ext)s"
++      } else {
++        "$outputBaseName.%(ext)s"
++      }
++    val command =
++      buildCommand(
++        url = job.url,
++        outputTemplate = outputTemplate,
++        outputDirectory = if (job.mergeSeparateStreams) temporaryDirectory.absolutePath else job.directory,
++        temporaryDirectory = temporaryDirectory.absolutePath,
++        formatSelector = job.formatSelector,
++      )
++    val observedArtifacts = linkedSetOf<String>()
++    var destination: String? = null
++    var printedOutput: String? = null
+ 
+     val result =
+       withContext(Dispatchers.IO) {
+         runCatching {
+           val process = startProcess(command)
+           activeProcess = process
+-          var destination: String? = null
+           BufferedReader(InputStreamReader(process.inputStream)).useLines { lines ->
+             lines.forEach { line ->
+-              parseDestination(line)?.let { destination = it }
++              parseDestination(line)?.let { path ->
++                destination = path
++                resolveJobOutput(job, path)?.let { file -> observedArtifacts += file.absolutePath }
++              }
++              parseFinalOutput(line)?.let { path ->
++                printedOutput = path
++                resolveJobOutput(job, path)?.let { file -> observedArtifacts += file.absolutePath }
++              }
+               val progress = parseProgressLine(line)
+               if (progress != null) {
+                 updateJob(id) { it.copy(progressPercent = progress.first, detail = progress.second) }
+@@ -157,7 +199,7 @@ class YtdlpDownloadEngine(
+             }
+           }
+           val exitCode = runInterruptible { process.waitFor() }
+-          Pair(exitCode, destination)
++          exitCode
+         }
+       }
+ 
+@@ -165,24 +207,83 @@ class YtdlpDownloadEngine(
+     activeJobId = -1
+ 
+     result
+-      .onSuccess { (exitCode, destination) ->
++      .onSuccess { exitCode ->
+         when {
+-          cancelRequested -> updateJob(id) { it.copy(state = JobState.CANCELLED, detail = "") }
+-          exitCode == 0 -> {
+-            val resolved = destination ?: findNewestOutput(job)
++          cancelRequested ->
+             updateJob(id) {
+-              it.copy(state = JobState.SUCCESS, progressPercent = 100f, detail = "", outputFile = resolved)
++              it.copy(
++                state = JobState.CANCELLED,
++                detail = "",
++                artifactFiles = it.artifactFiles + observedArtifacts,
++              )
++            }
++          exitCode == 0 -> {
++            val sourceArtifacts =
++              (observedArtifacts.asSequence() + discoverArtifactFiles(job).map(File::getAbsolutePath)).toSet()
++            val resolvedResult =
++              runCatching {
++                if (job.mergeSeparateStreams) {
++                  updateJob(id) { it.copy(progressPercent = 99f, detail = "") }
++                  YtdlpMediaMerger.merge(
++                    context = context,
++                    candidates = discoverSeparateStreamFiles(job).toList(),
++                    outputFile = File(job.directory, "$outputBaseName.mp4"),
++                  )
++                } else {
++                  printedOutput
++                    ?.let { resolveJobOutput(job, it) }
++                    ?.takeIf(File::isFile)
++                    ?: destination
++                      ?.let { resolveJobOutput(job, it) }
++                      ?.takeIf { isFinalOutputCandidate(job, it) }
++                    ?: findNewestOutput(job)?.let(::File)
++                    ?: throw IllegalStateException("yt-dlp finished without a playable output file")
++                }
++              }
++            resolvedResult.onSuccess { resolved ->
++              val artifacts = sourceArtifacts + resolved.absolutePath
++              cleanupIntermediateArtifacts(job, artifacts, resolved)
++              cleanupWorkingDirectory(id)
++              updateJob(id) {
++                it.copy(
++                  state = JobState.SUCCESS,
++                  progressPercent = 100f,
++                  detail = "",
++                  outputFile = resolved.absolutePath,
++                  artifactFiles = it.artifactFiles + artifacts,
++                )
++              }
++            }.onFailure { error ->
++              updateJob(id) {
++                it.copy(
++                  state = JobState.FAILED,
++                  progressPercent = 0f,
++                  detail = "",
++                  error = error.message ?: "Could not finalize downloaded media",
++                  artifactFiles = it.artifactFiles + sourceArtifacts,
++                )
++              }
+             }
+           }
+           else ->
+             updateJob(id) {
+-              it.copy(state = JobState.FAILED, error = "yt-dlp exited with code $exitCode")
++              it.copy(
++                state = JobState.FAILED,
++                error = "yt-dlp exited with code $exitCode",
++                artifactFiles = it.artifactFiles + observedArtifacts,
++              )
+             }
+         }
+       }.onFailure { error ->
+         if (error is CancellationException) throw error
+         Log.e(TAG, "yt-dlp download failed", error)
+-        updateJob(id) { it.copy(state = JobState.FAILED, error = error.message ?: "Unknown error") }
++        updateJob(id) {
++          it.copy(
++            state = JobState.FAILED,
++            error = error.message ?: "Unknown error",
++            artifactFiles = it.artifactFiles + observedArtifacts,
++          )
++        }
+       }
+     currentJob(id)?.let(onJobUpdate)
+   }
+@@ -190,6 +291,9 @@ class YtdlpDownloadEngine(
+   private fun buildCommand(
+     url: String,
+     outputTemplate: String,
++    outputDirectory: String,
++    temporaryDirectory: String,
++    formatSelector: String?,
+   ): List<String> =
+     buildList {
+       add(YtdlpManager.getExecutablePath(context))
+@@ -198,12 +302,23 @@ class YtdlpDownloadEngine(
+       add("--no-playlist")
+       add("--newline")
+       add("--no-warnings")
++      add("--no-colors")
++      add("--progress")
+       add("--retries")
+       add("5")
+       add("--fragment-retries")
+       add("5")
+       add("--concurrent-fragments")
+       add("4")
++      add("--no-keep-video")
++      add("--paths")
++      add("home:$outputDirectory")
++      add("--paths")
++      add("temp:$temporaryDirectory")
++      add("--print")
++      add("after_move:$FINAL_OUTPUT_PREFIX%(filepath)s")
++      add("--format")
++      add(formatSelector ?: DEFAULT_SINGLE_FILE_FORMAT)
+       add("-o")
+       add(outputTemplate)
+ 
+@@ -263,14 +378,91 @@ class YtdlpDownloadEngine(
+   }
+ 
+   private fun findNewestOutput(job: Job): String? {
+-    val prefix = DownloadLocations.sanitizeName(job.title)
+     return File(job.directory)
+       .listFiles()
+-      ?.filter { it.isFile && it.name.startsWith(prefix) && !it.name.endsWith(".part") && !it.name.endsWith(".ytdl") }
++      ?.filter { isFinalOutputCandidate(job, it) }
+       ?.maxByOrNull { it.lastModified() }
+       ?.absolutePath
+   }
+ 
++  private fun isFinalOutputCandidate(
++    job: Job,
++    file: File,
++  ): Boolean {
++    if (!file.isFile || file.extension.lowercase() !in PLAYABLE_EXTENSIONS) return false
++    val prefix = "${DownloadLocations.sanitizeName(job.title)}."
++    if (!file.name.startsWith(prefix)) return false
++    return !file.name.removePrefix(prefix).contains('.')
++  }
++
++  private fun resolveJobOutput(
++    job: Job,
++    path: String,
++  ): File? =
++    runCatching {
++      val rawPath = path.trim().removeSurrounding("\"")
++      val candidate = File(rawPath).let { if (it.isAbsolute) it else File(job.directory, rawPath) }.canonicalFile
++      val outputDirectory = File(job.directory).canonicalFile
++      candidate.takeIf { it.parentFile == outputDirectory }
++    }.getOrNull()
++
++  private fun cleanupIntermediateArtifacts(
++    job: Job,
++    artifacts: Set<String>,
++    finalOutput: File,
++  ) {
++    (artifacts.asSequence().mapNotNull { resolveJobOutput(job, it) } + discoverArtifactFiles(job))
++      .asSequence()
++      .distinctBy(File::getAbsolutePath)
++      .filterNot { it == finalOutput }
++      .forEach { file -> runCatching { file.delete() } }
++  }
++
++  private fun deleteArtifacts(job: Job) {
++    (
++      (job.artifactFiles + listOfNotNull(job.outputFile))
++        .asSequence()
++        .mapNotNull { resolveJobOutput(job, it) } +
++        discoverArtifactFiles(job)
++    )
++      .distinctBy(File::getAbsolutePath)
++      .forEach { file -> runCatching { file.delete() } }
++  }
++
++  private fun discoverArtifactFiles(job: Job): Sequence<File> {
++    val fileNamePrefix = "${DownloadLocations.sanitizeName(job.title)}."
++    return File(job.directory)
++      .listFiles()
++      ?.asSequence()
++      ?.filter { file ->
++        file.isFile &&
++          file.name.startsWith(fileNamePrefix) &&
++          (
++            file.extension.lowercase() in JOB_ARTIFACT_EXTENSIONS ||
++              file.name.endsWith(".part", ignoreCase = true) ||
++              file.name.endsWith(".ytdl", ignoreCase = true)
++          )
++      }.orEmpty()
++  }
++
++  private fun discoverSeparateStreamFiles(job: Job): Sequence<File> {
++    val fileNamePrefix = "${DownloadLocations.sanitizeName(job.title)}.f"
++    return sequenceOf(File(job.directory), workingDirectory(job.id))
++      .filter(File::isDirectory)
++      .flatMap { directory -> directory.walkTopDown().maxDepth(2) }
++      .filter { file ->
++        file.isFile &&
++          file.name.startsWith(fileNamePrefix) &&
++          file.extension.lowercase() in PLAYABLE_EXTENSIONS
++      }.distinctBy(File::getAbsolutePath)
++  }
++
++  private fun workingDirectory(id: Int): File = File(context.cacheDir, "$WORK_DIRECTORY/$id")
++
++  private fun cleanupWorkingDirectory(id: Int) {
++    runCatching { workingDirectory(id).deleteRecursively() }
++  }
++
+   private fun currentJob(id: Int): Job? = _jobs.value.firstOrNull { it.id == id }
+ 
+   private fun updateJob(
+@@ -282,11 +474,18 @@ class YtdlpDownloadEngine(
+ 
+   companion object {
+     private const val TAG = "YtdlpDownloadEngine"
++    private const val WORK_DIRECTORY = "ytdlp_downloads"
++    private const val FINAL_OUTPUT_PREFIX = "MPVRX_FINAL_OUTPUT="
++    private const val DEFAULT_SINGLE_FILE_FORMAT = "best/bestvideo/bestaudio"
+ 
+     // Example: "[download]  42.3% of ~ 123.45MiB at 2.34MiB/s ETA 01:23"
+     private val PROGRESS_REGEX = Regex("""\[download]\s+([0-9.]+)%(.*)""")
+     private val DESTINATION_REGEX = Regex("""\[download] Destination: (.+)""")
+     private val ALREADY_DOWNLOADED_REGEX = Regex("""\[download] (.+) has already been downloaded""")
++    private val PLAYABLE_EXTENSIONS =
++      setOf("mkv", "mp4", "m4v", "webm", "mov", "avi", "ts", "m2ts", "mp3", "m4a", "opus", "ogg", "flac", "wav")
++    private val JOB_ARTIFACT_EXTENSIONS =
++      PLAYABLE_EXTENSIONS + setOf("aac", "vtt", "srt", "ass", "ssa", "lrc", "json", "jpg", "jpeg", "png", "webp")
+ 
+     fun parseProgressLine(line: String): Pair<Float, String>? {
+       val match = PROGRESS_REGEX.find(line.trim()) ?: return null
+@@ -297,5 +496,8 @@ class YtdlpDownloadEngine(
+     fun parseDestination(line: String): String? =
+       DESTINATION_REGEX.find(line.trim())?.groupValues?.get(1)?.trim()
+         ?: ALREADY_DOWNLOADED_REGEX.find(line.trim())?.groupValues?.get(1)?.trim()
++
++    fun parseFinalOutput(line: String): String? =
++      line.trim().takeIf { it.startsWith(FINAL_OUTPUT_PREFIX) }?.removePrefix(FINAL_OUTPUT_PREFIX)?.trim()
+   }
+ }
+diff --git a/app/src/main/java/com/quantummpv/app/domain/download/YtdlpMediaMerger.kt b/app/src/main/java/com/quantummpv/app/domain/download/YtdlpMediaMerger.kt
+new file mode 100644
+index 00000000..8196aed5
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/domain/download/YtdlpMediaMerger.kt
+@@ -0,0 +1,183 @@
++/*
++ * SPDX-License-Identifier: AGPL-3.0-or-later
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Affero General Public License as published
++ * by the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ */
++
++package com.quantummpv.app.domain.download
++
++import android.content.Context
++import android.media.MediaExtractor
++import android.media.MediaFormat
++import android.net.Uri
++import android.os.Handler
++import android.os.Looper
++import androidx.media3.common.MediaItem
++import androidx.media3.common.MimeTypes
++import androidx.media3.common.util.UnstableApi
++import androidx.media3.transformer.Composition
++import androidx.media3.transformer.EditedMediaItem
++import androidx.media3.transformer.EditedMediaItemSequence
++import androidx.media3.transformer.ExportException
++import androidx.media3.transformer.ExportResult
++import androidx.media3.transformer.Transformer
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.CoroutineScope
++import kotlinx.coroutines.launch
++import kotlinx.coroutines.suspendCancellableCoroutine
++import kotlinx.coroutines.withContext
++import java.io.File
++import java.io.IOException
++import java.nio.file.Files
++import java.nio.file.StandardCopyOption
++import kotlin.coroutines.resume
++import kotlin.coroutines.resumeWithException
++
++@UnstableApi
++internal object YtdlpMediaMerger {
++  suspend fun merge(
++    context: Context,
++    candidates: List<File>,
++    outputFile: File,
++  ): File {
++    val inputs = withContext(Dispatchers.IO) { findInputs(candidates) }
++    val stagingFile = File(outputFile.parentFile, "${outputFile.name}.merging")
++
++    return withContext(Dispatchers.Main.immediate) {
++      suspendCancellableCoroutine { continuation ->
++        stagingFile.delete()
++        val videoItem =
++          EditedMediaItem
++            .Builder(MediaItem.fromUri(Uri.fromFile(inputs.video)))
++            .setRemoveAudio(true)
++            .build()
++        val audioItem =
++          EditedMediaItem
++            .Builder(MediaItem.fromUri(Uri.fromFile(inputs.audio)))
++            .setRemoveVideo(true)
++            .build()
++        val composition =
++          Composition
++            .Builder(
++              EditedMediaItemSequence.withVideoFrom(listOf(videoItem)),
++              EditedMediaItemSequence.withAudioFrom(listOf(audioItem)),
++            ).build()
++
++        lateinit var transformer: Transformer
++        transformer =
++          Transformer
++            .Builder(context.applicationContext)
++            .setVideoMimeType(MimeTypes.VIDEO_H264)
++            .setAudioMimeType(MimeTypes.AUDIO_AAC)
++            .addListener(
++              object : Transformer.Listener {
++                override fun onCompleted(
++                  composition: Composition,
++                  exportResult: ExportResult,
++                ) {
++                  CoroutineScope(continuation.context).launch(Dispatchers.IO) {
++                    runCatching { publish(stagingFile, outputFile) }
++                      .onSuccess { published ->
++                        if (continuation.isActive) continuation.resume(published)
++                      }.onFailure { error ->
++                        stagingFile.delete()
++                        if (continuation.isActive) continuation.resumeWithException(error)
++                      }
++                  }
++                }
++
++                override fun onError(
++                  composition: Composition,
++                  exportResult: ExportResult,
++                  exportException: ExportException,
++                ) {
++                  stagingFile.delete()
++                  if (continuation.isActive) continuation.resumeWithException(exportException)
++                }
++              },
++            ).build()
++
++        continuation.invokeOnCancellation {
++          Handler(Looper.getMainLooper()).post {
++            transformer.cancel()
++            stagingFile.delete()
++          }
++        }
++        runCatching { transformer.start(composition, stagingFile.absolutePath) }
++          .onFailure { error ->
++            stagingFile.delete()
++            if (continuation.isActive) continuation.resumeWithException(error)
++          }
++      }
++    }
++  }
++
++  private fun findInputs(candidates: List<File>): MergeInputs {
++    val inspected =
++      candidates
++        .asSequence()
++        .filter { it.isFile && it.length() > 0L }
++        .mapNotNull(::inspect)
++        .toList()
++    val video = inspected.firstOrNull { it.hasVideo && !it.hasAudio } ?: inspected.firstOrNull { it.hasVideo }
++      ?: throw IllegalStateException("Downloaded video stream was not found")
++    val audio =
++      inspected.firstOrNull { it.file != video.file && it.hasAudio && !it.hasVideo }
++        ?: inspected.firstOrNull { it.file != video.file && it.hasAudio }
++        ?: throw IllegalStateException("Downloaded audio stream was not found")
++    return MergeInputs(video.file, audio.file)
++  }
++
++  private fun inspect(file: File): InspectedFile? =
++    runCatching {
++      val extractor = MediaExtractor()
++      try {
++        extractor.setDataSource(file.absolutePath)
++        var hasVideo = false
++        var hasAudio = false
++        repeat(extractor.trackCount) { index ->
++          when {
++            extractor.getTrackFormat(index).getString(MediaFormat.KEY_MIME)?.startsWith("video/") == true -> hasVideo = true
++            extractor.getTrackFormat(index).getString(MediaFormat.KEY_MIME)?.startsWith("audio/") == true -> hasAudio = true
++          }
++        }
++        InspectedFile(file, hasVideo, hasAudio).takeIf { it.hasVideo || it.hasAudio }
++      } finally {
++        extractor.release()
++      }
++    }.getOrNull()
++
++  private fun publish(
++    stagingFile: File,
++    outputFile: File,
++  ): File {
++    check(stagingFile.isFile && stagingFile.length() > 0L) { "Media merge produced no output" }
++    outputFile.parentFile?.mkdirs()
++    try {
++      Files.move(
++        stagingFile.toPath(),
++        outputFile.toPath(),
++        StandardCopyOption.ATOMIC_MOVE,
++        StandardCopyOption.REPLACE_EXISTING,
++      )
++    } catch (_: IOException) {
++      Files.move(stagingFile.toPath(), outputFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
++    }
++    check(outputFile.isFile && outputFile.length() > 0L) { "Could not finalize merged download" }
++    return outputFile
++  }
++
++  private data class InspectedFile(
++    val file: File,
++    val hasVideo: Boolean,
++    val hasAudio: Boolean,
++  )
++
++  private data class MergeInputs(
++    val video: File,
++    val audio: File,
++  )
++}
+diff --git a/app/src/main/java/com/quantummpv/app/ui/downloads/DownloadsScreen.kt b/app/src/main/java/com/quantummpv/app/ui/downloads/DownloadsScreen.kt
+index 61f48edc..02aa01be 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/downloads/DownloadsScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/downloads/DownloadsScreen.kt
+@@ -199,8 +199,7 @@ object DownloadsScreen : Screen {
+                 }
+               },
+               onDelete = {
+-                job.outputFile?.let { path -> runCatching { File(path).delete() } }
+-                ytdlpEngine.remove(job.id)
++                ytdlpEngine.remove(job.id, deleteFiles = true)
+               },
+             )
+           }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt b/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
+index 41d2c756..fb85ae7d 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
+@@ -85,6 +85,7 @@ import com.quantummpv.app.ui.preferences.CustomButton
+ import com.quantummpv.app.ui.preferences.CustomButtonScriptLanguage
+ import com.quantummpv.app.utils.media.AudioEqualizerManager
+ import com.quantummpv.app.utils.media.ChecksumUtils
++import com.quantummpv.app.utils.media.HttpUtils
+ import com.quantummpv.app.utils.media.MediaInfoParser
+ import com.quantummpv.app.utils.media.ParsedMediaInfo
+ import com.quantummpv.app.utils.media.SubtitleHashUtils
+@@ -131,6 +132,7 @@ import java.io.File
+ import java.io.FileOutputStream
+ import java.security.MessageDigest
+ import java.lang.ref.WeakReference
++import java.util.Locale
+ import java.util.concurrent.atomic.AtomicLong
+ import kotlin.math.abs
+ import kotlin.math.roundToInt
+@@ -688,6 +690,42 @@ class PlayerViewModel : ViewModel(),
+       isYtdlpPage || qualityTracks.size > 1
+     }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+ 
++  data class QualityDownloadRequest(
++    val sourceUrl: String,
++    val title: String,
++    val formatSelector: String,
++    val mergeSeparateStreams: Boolean,
++  )
++
++  fun canDownloadCurrentVideoQuality(): Boolean = currentYouTubeSource() != null
++
++  fun qualityDownloadRequest(track: TrackNode): QualityDownloadRequest? {
++    val sourceUrl = currentYouTubeSource() ?: return null
++    val selectedAudio =
++      pairedYtdlTrack(track, TrackNode::isAudio)
++        ?: allTracks.value.firstOrNull { candidate -> candidate.isAudio && candidate.isSelected }
++    val downloadSelection = buildYtdlDownloadSelection(videoTrack = track, audioTrack = selectedAudio) ?: return null
++    val itemTitle = PlaybackSession.state.value.currentItem?.title?.trim()?.takeIf(String::isNotBlank)
++    val fallbackTitle =
++      runCatching { HttpUtils.extractYouTubeVideoId(Uri.parse(sourceUrl)) }
++        .getOrNull()
++        ?.takeIf(String::isNotBlank)
++        ?: "YouTube"
++    val qualityLabel =
++      buildList {
++        videoQualityDimension(track).takeIf { it > 0L }?.let { dimension -> add("${dimension}p") }
++        track.demuxFps?.takeIf { it > 0.0 }?.toInt()?.let { fps -> add("${fps}fps") }
++        track.codec?.trim()?.takeIf(String::isNotBlank)?.uppercase(Locale.ROOT)?.let(::add)
++      }.joinToString(" ")
++    val baseTitle = itemTitle ?: fallbackTitle
++    return QualityDownloadRequest(
++      sourceUrl = sourceUrl,
++      title = if (qualityLabel.isBlank()) baseTitle else "$qualityLabel - $baseTitle",
++      formatSelector = downloadSelection.formatSelector,
++      mergeSeparateStreams = downloadSelection.mergeSeparateStreams,
++    )
++  }
++
+   fun selectVideoQuality(track: TrackNode) {
+     if (currentItemRequiresYtdlp() && !MpvConfigOverridePolicy.isOwnedByMpvConf("ytdl-format")) {
+       val selectedAudio = pairedYtdlTrack(track, TrackNode::isAudio)
+@@ -735,6 +773,16 @@ class PlayerViewModel : ViewModel(),
+       .any(YtdlpManager::requiresYtdlp)
+   }
+ 
++  private fun currentYouTubeSource(): String? {
++    val item = PlaybackSession.state.value.currentItem ?: return null
++    return sequenceOf(item.originalUri, item.playableUri)
++      .map(String::trim)
++      .filter(String::isNotBlank)
++      .firstOrNull { source ->
++        runCatching { HttpUtils.isYouTubeUrl(Uri.parse(source)) }.getOrDefault(false)
++      }
++  }
++
+   private fun pairedYtdlTrack(
+     track: TrackNode,
+     matchesType: (TrackNode) -> Boolean,
+@@ -772,6 +820,29 @@ class PlayerViewModel : ViewModel(),
+     }
+   }
+ 
++  private fun buildYtdlDownloadSelection(
++    videoTrack: TrackNode,
++    audioTrack: TrackNode?,
++  ): YtdlDownloadSelection? {
++    val videoFormatId = ytdlFormatId(videoTrack)
++    val audioFormatId = audioTrack?.let(::ytdlFormatId)
++    val videoSelector =
++      videoFormatId
++        ?: videoQualityDimension(videoTrack)
++          .takeIf { it > 0L }
++          ?.let { dimension -> "bestvideo[height<=?$dimension]" }
++        ?: return null
++    val isMuxedFormat = videoFormatId != null && videoFormatId == audioFormatId
++    return if (isMuxedFormat) {
++      YtdlDownloadSelection(formatSelector = "$videoSelector/best", mergeSeparateStreams = false)
++    } else {
++      YtdlDownloadSelection(
++        formatSelector = "$videoSelector,${audioFormatId ?: "bestaudio"}",
++        mergeSeparateStreams = true,
++      )
++    }
++  }
++
+   private fun ytdlFormatId(track: TrackNode): String? = track.ytdlFormatId
+ 
+   private fun videoQualityDimension(track: TrackNode): Long {
+@@ -788,6 +859,11 @@ class PlayerViewModel : ViewModel(),
+   private fun videoPixelCount(track: TrackNode): Long =
+     (track.demuxW ?: 0L).coerceAtLeast(0L) * (track.demuxH ?: 0L).coerceAtLeast(0L)
+ 
++  private data class YtdlDownloadSelection(
++    val formatSelector: String,
++    val mergeSeparateStreams: Boolean,
++  )
++
+   val isAudioOnly: StateFlow<Boolean> =
+     combine(
+       allTracks,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerSheets.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerSheets.kt
+index 7628f238..5b7f48ef 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerSheets.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerSheets.kt
+@@ -9,7 +9,9 @@
+ 
+ package com.quantummpv.app.ui.player.controls
+ 
++import android.content.Intent
+ import android.net.Uri
++import android.widget.Toast
+ import androidx.activity.compose.rememberLauncherForActivityResult
+ import androidx.activity.result.contract.ActivityResultContracts
+ import androidx.compose.runtime.Composable
+@@ -20,12 +22,16 @@ import androidx.compose.runtime.mutableStateOf
+ import androidx.compose.runtime.remember
+ import androidx.compose.runtime.setValue
+ import androidx.compose.ui.platform.LocalContext
++import com.quantummpv.app.R
++import com.quantummpv.app.domain.download.AppDownloadManager
++import com.quantummpv.app.domain.download.YtdlpDownloadEngine
+ import com.quantummpv.app.preferences.AdvancedPreferences
+ import com.quantummpv.app.preferences.MpvConfigControlledFeatures
+ import com.quantummpv.app.preferences.MpvConfigOverride
+ import com.quantummpv.app.preferences.preference.collectAsState
+ import com.quantummpv.app.ui.player.Decoder
+ import com.quantummpv.app.ui.player.Panels
++import com.quantummpv.app.ui.player.PlayerViewModel
+ import com.quantummpv.app.ui.player.Sheets
+ import com.quantummpv.app.ui.player.TrackNode
+ import com.quantummpv.app.ui.player.controls.components.MpvConfigOwnedSheet
+@@ -91,6 +97,7 @@ fun PlayerSheets(
+   onDismissRequest: () -> Unit,
+ ) {
+   val isTelevision = DeviceFormFactor.isTelevision(LocalContext.current)
++  val qualityDownloadAction = rememberQualityDownloadAction(viewModel)
+   val advancedPreferences = koinInject<AdvancedPreferences>()
+   val storedConfigOverrides by advancedPreferences.mpvConfOverrides.collectAsState()
+   val configOwnedOptions =
+@@ -377,6 +384,7 @@ fun PlayerSheets(
+       VideoQualitySheet(
+         tracks = videoQualityTracks,
+         onSelect = viewModel::selectVideoQuality,
++        onDownload = qualityDownloadAction,
+         onDismissRequest = onDismissRequest,
+       )
+     }
+@@ -603,3 +611,51 @@ fun PlayerSheets(
+     }
+   }
+ }
++
++@Composable
++private fun rememberQualityDownloadAction(viewModel: PlayerViewModel): ((TrackNode) -> Unit)? {
++  val context = LocalContext.current
++  val downloadManager = koinInject<AppDownloadManager>()
++  val ytdlpEngine = koinInject<YtdlpDownloadEngine>()
++  var pendingRequest by remember { mutableStateOf<PlayerViewModel.QualityDownloadRequest?>(null) }
++
++  val enqueueRequest: (PlayerViewModel.QualityDownloadRequest) -> Unit = { request ->
++    ytdlpEngine.enqueue(
++      url = request.sourceUrl,
++      title = request.title,
++      directory = downloadManager.locations.linksDir(),
++      formatSelector = request.formatSelector,
++      mergeSeparateStreams = request.mergeSeparateStreams,
++    )
++    Toast.makeText(context, R.string.downloads_queued, Toast.LENGTH_SHORT).show()
++  }
++  val locationPicker =
++    rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
++      val request = pendingRequest
++      pendingRequest = null
++      if (uri == null || request == null) return@rememberLauncherForActivityResult
++
++      runCatching {
++        context.contentResolver.takePersistableUriPermission(
++          uri,
++          Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
++        )
++      }
++      if (downloadManager.locations.setLocationFromTree(uri) == null) {
++        Toast.makeText(context, R.string.downloads_location_invalid, Toast.LENGTH_LONG).show()
++      } else {
++        enqueueRequest(request)
++      }
++    }
++
++  if (!viewModel.canDownloadCurrentVideoQuality()) return null
++  return download@{ track ->
++    val request = viewModel.qualityDownloadRequest(track) ?: return@download
++    if (downloadManager.locations.isUsingCustomLocation()) {
++      enqueueRequest(request)
++    } else {
++      pendingRequest = request
++      locationPicker.launch(null)
++    }
++  }
++}
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/PlayerUpdates.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/PlayerUpdates.kt
+index ecec16fb..6339c129 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/PlayerUpdates.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/PlayerUpdates.kt
+@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.Row
+ import androidx.compose.foundation.layout.offset
+ import androidx.compose.foundation.layout.padding
+ import androidx.compose.foundation.layout.size
++import androidx.compose.foundation.layout.width
+ import androidx.compose.foundation.shape.RoundedCornerShape
+ import androidx.compose.material3.Icon
+ import androidx.compose.material3.MaterialTheme
+@@ -60,6 +61,7 @@ import com.quantummpv.app.ui.player.PlayerActivity
+ import com.quantummpv.app.ui.player.PlayerViewModel
+ 
+ private val tabularFigures = "tnum"
++private val compactSpeedIndicatorWidth = 44.dp
+ 
+ @Composable
+ private fun rememberPlayerUpdateOffset(): androidx.compose.ui.unit.Dp {
+@@ -162,6 +164,8 @@ fun CompactSpeedIndicator(
+   PlayerUpdate(modifier) {
+     AnimatedContent(
+       targetState = speedString,
++      modifier = Modifier.width(compactSpeedIndicatorWidth),
++      contentAlignment = Alignment.Center,
+       transitionSpec = {
+         (fadeIn(animationSpec = tween(100)) +
+           scaleIn(
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/VideoQualitySheet.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/VideoQualitySheet.kt
+index 0a958f21..12b01d49 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/VideoQualitySheet.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/VideoQualitySheet.kt
+@@ -13,6 +13,7 @@ import androidx.compose.foundation.clickable
+ import androidx.compose.foundation.layout.*
+ import androidx.compose.foundation.lazy.LazyColumn
+ import androidx.compose.foundation.lazy.items
++import androidx.compose.material3.IconButton
+ import androidx.compose.material3.MaterialTheme
+ import androidx.compose.material3.RadioButton
+ import androidx.compose.material3.Text
+@@ -32,6 +33,7 @@ import com.quantummpv.app.ui.player.TrackNode
+ fun VideoQualitySheet(
+   tracks: List<TrackNode>,
+   onSelect: (TrackNode) -> Unit,
++  onDownload: ((TrackNode) -> Unit)? = null,
+   onDismissRequest: () -> Unit,
+ ) {
+   PlayerSheet(onDismissRequest) {
+@@ -67,31 +69,45 @@ fun VideoQualitySheet(
+             modifier =
+               Modifier
+                 .fillMaxWidth()
+-                .clickable {
+-                  onSelect(track)
+-                  onDismissRequest()
+-                }.padding(horizontal = 16.dp, vertical = 10.dp),
++                .padding(horizontal = 16.dp, vertical = 4.dp),
+             verticalAlignment = Alignment.CenterVertically,
+           ) {
+-            RadioButton(
+-              selected = track.isSelected,
+-              onClick = {
+-                onSelect(track)
+-                onDismissRequest()
+-              },
+-            )
+-            Spacer(Modifier.width(12.dp))
+-            Column(modifier = Modifier.weight(1f)) {
+-              Text(
+-                text = qualityLabel(track),
+-                style = MaterialTheme.typography.bodyLarge,
+-                fontWeight = if (track.isSelected) FontWeight.Bold else FontWeight.Medium,
++            Row(
++              modifier =
++                Modifier
++                  .weight(1f)
++                  .clickable {
++                    onSelect(track)
++                    onDismissRequest()
++                  }.padding(vertical = 6.dp),
++              verticalAlignment = Alignment.CenterVertically,
++            ) {
++              RadioButton(
++                selected = track.isSelected,
++                onClick = null,
+               )
+-              qualityDetails(track)?.let { details ->
++              Spacer(Modifier.width(12.dp))
++              Column(modifier = Modifier.weight(1f)) {
+                 Text(
+-                  text = details,
+-                  style = MaterialTheme.typography.bodySmall,
+-                  color = MaterialTheme.colorScheme.onSurfaceVariant,
++                  text = qualityLabel(track),
++                  style = MaterialTheme.typography.bodyLarge,
++                  fontWeight = if (track.isSelected) FontWeight.Bold else FontWeight.Medium,
++                )
++                qualityDetails(track)?.let { details ->
++                  Text(
++                    text = details,
++                    style = MaterialTheme.typography.bodySmall,
++                    color = MaterialTheme.colorScheme.onSurfaceVariant,
++                  )
++                }
++              }
++            }
++            if (onDownload != null) {
++              IconButton(onClick = { onDownload(track) }) {
++                Icon(
++                  imageVector = Icons.RoundedFilled.Download,
++                  contentDescription = stringResource(R.string.downloads_download),
++                  tint = MaterialTheme.colorScheme.primary,
+                 )
+               }
+             }
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index 98197d29..3a4266e1 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -1178,7 +1178,7 @@
+   <string name="pref_section_system">System</string>
+   <string name="pref_section_contributors">Contributors</string>
+   <string name="contributors_loading">Loading contributors...</string>
+-  <string name="contributors_load_error">Couldn&apos;t load contributors</string>
++  <string name="contributors_load_error">Couldn\'t load contributors</string>
+   <string name="contributors_empty">No contributors found.</string>
+   <string name="contributors_retry">Retry</string>
+   <string name="contributors_view_all">View all contributors</string>
+-- 
+2.25.1
+

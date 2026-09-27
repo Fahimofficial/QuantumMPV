@@ -1,0 +1,24 @@
+From d3746348a18a1d72f2b478fccfb32cf70261db9b Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <riteshp2001@gmail.com>
+Date: Tue, 15 Sep 2026 11:36:38 +0530
+Subject: [PATCH 097/140] fix(ui): flatten folder icons and pass custom theme
+
+---
+ app/src/main/java/com/quantummpv/app/ui/theme/Theme.kt | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/app/src/main/java/com/quantummpv/app/ui/theme/Theme.kt b/app/src/main/java/com/quantummpv/app/ui/theme/Theme.kt
+index d07161fe..69d4fa6a 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/theme/Theme.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/theme/Theme.kt
+@@ -309,6 +309,7 @@ fun MpvrxTheme(
+       resolveAppColorScheme(
+         context = context,
+         appTheme = appTheme,
++          customTheme = customTheme,
+         useDarkTheme = false,
+         amoledMode = amoledMode,
+       )
+-- 
+2.25.1
+

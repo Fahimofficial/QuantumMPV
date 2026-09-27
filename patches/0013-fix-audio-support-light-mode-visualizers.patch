@@ -1,0 +1,1872 @@
+From 2520f96a381db9c841056d65a80aba2701e7f342 Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <riteshp2001@gmail.com>
+Date: Fri, 4 Sep 2026 14:17:39 +0530
+Subject: [PATCH 013/140] fix(audio): support light-mode visualizers
+
+Use transparent GL surfaces and contrast-aware Material and artwork tones for visualizers and the seekbar ribbon. Expand the visualizer stage, retain background-free bottom fades, and fix the Scopes sheet composable title call.
+---
+ .../visualizer/blob/composite_fragment.glsl   |   3 +-
+ .../visualizer/galaxy/galaxy_fragment.glsl    |   4 +-
+ .../visualizer/galaxy/galaxy_vertex.glsl      |   2 +
+ .../particle/particle_comp_fragment.glsl      |   3 +-
+ .../gyrolet/mpvrx/preferences/PlayerButton.kt |   2 +-
+ .../java/com/quantummpv/app/ui/icons/Icons.kt  |   2 +
+ .../ui/player/controls/AudioPlayerControls.kt | 151 +++++-----
+ .../player/controls/components/LyricsView.kt  | 123 ++++++--
+ .../controls/components/MediaScopesOverlay.kt | 283 ++++++++++++++----
+ .../ui/player/controls/components/Seekbar.kt  |   5 -
+ .../controls/components/sheets/ScopesSheet.kt |   7 +-
+ .../ui/player/scopes/VideoScopeAnalyzer.kt    | 167 ++++++-----
+ .../ui/player/visualizer/BlobComposable.kt    |  71 +----
+ .../ui/player/visualizer/BlobRenderer.kt      |  31 +-
+ .../player/visualizer/BlobVisualizerView.kt   |   6 +-
+ .../ui/player/visualizer/CuboidComposable.kt  |   5 -
+ .../player/visualizer/GalaxyVisualizerView.kt |   6 +-
+ .../player/visualizer/OneUiWaveVisualizer.kt  |  59 +---
+ .../visualizer/ParticleVisualizerView.kt      |   7 +-
+ app/src/main/res/values-ar/strings.xml        |   1 +
+ app/src/main/res/values-de/strings.xml        |   1 +
+ app/src/main/res/values-es/strings.xml        |   1 +
+ app/src/main/res/values-fr/strings.xml        |   1 +
+ app/src/main/res/values-hi/strings.xml        |   1 +
+ app/src/main/res/values-ja/strings.xml        |   1 +
+ app/src/main/res/values-pt-rBR/strings.xml    |   1 +
+ app/src/main/res/values-ru/strings.xml        |   1 +
+ app/src/main/res/values-zh-rCN/strings.xml    |   1 +
+ app/src/main/res/values/strings.xml           |   1 +
+ 29 files changed, 557 insertions(+), 390 deletions(-)
+
+diff --git a/app/src/main/assets/shaders/visualizer/blob/composite_fragment.glsl b/app/src/main/assets/shaders/visualizer/blob/composite_fragment.glsl
+index 073fbc4f..22676609 100644
+--- a/app/src/main/assets/shaders/visualizer/blob/composite_fragment.glsl
++++ b/app/src/main/assets/shaders/visualizer/blob/composite_fragment.glsl
+@@ -15,5 +15,6 @@ void main() {
+     vec3 mapped = vec3(1.0) - exp(-hdr * uExposure);
+     mapped = pow(mapped, vec3(1.0 / 2.2));
+     float visualCoverage = clamp(max(max(hdr.r, hdr.g), hdr.b) * 1.8, 0.0, 1.0);
+-    fragColor = vec4(mapped, visualCoverage);
++    float bottomFade = smoothstep(0.0, 0.22, vUv.y);
++    fragColor = vec4(mapped, visualCoverage * bottomFade);
+ }
+diff --git a/app/src/main/assets/shaders/visualizer/galaxy/galaxy_fragment.glsl b/app/src/main/assets/shaders/visualizer/galaxy/galaxy_fragment.glsl
+index 74d2b358..00173d93 100644
+--- a/app/src/main/assets/shaders/visualizer/galaxy/galaxy_fragment.glsl
++++ b/app/src/main/assets/shaders/visualizer/galaxy/galaxy_fragment.glsl
+@@ -7,6 +7,7 @@ uniform vec3 uTertiaryColor;
+ 
+ in vec3 vStarColorWeights;
+ in float vBrightness;
++in float vVerticalPosition;
+ out vec4 fragColor;
+ 
+ void main() {
+@@ -28,6 +29,7 @@ void main() {
+ 
+     vec3 color = mix(themeColor * 0.85, uTertiaryColor, halo * 0.25);
+     color = mix(color, vec3(1.0), hotCore * 0.55);
+-    float alpha = softEdge * clamp(vBrightness * (0.85 + halo * 0.28), 0.0, 1.5);
++    float bottomFade = smoothstep(0.0, 0.22, vVerticalPosition);
++    float alpha = softEdge * clamp(vBrightness * (0.85 + halo * 0.28), 0.0, 1.5) * bottomFade;
+     fragColor = vec4(color * vBrightness, alpha);
+ }
+diff --git a/app/src/main/assets/shaders/visualizer/galaxy/galaxy_vertex.glsl b/app/src/main/assets/shaders/visualizer/galaxy/galaxy_vertex.glsl
+index 76fc021c..fb665067 100644
+--- a/app/src/main/assets/shaders/visualizer/galaxy/galaxy_vertex.glsl
++++ b/app/src/main/assets/shaders/visualizer/galaxy/galaxy_vertex.glsl
+@@ -20,6 +20,7 @@ uniform float uReducedMotion;
+ 
+ out vec3 vStarColorWeights;
+ out float vBrightness;
++out float vVerticalPosition;
+ 
+ void main() {
+     float baseSize = aStarData.x;
+@@ -40,6 +41,7 @@ void main() {
+ 
+     vec4 clipPosition = uMvp * vec4(position, 1.0);
+     gl_Position = clipPosition;
++    vVerticalPosition = clamp(clipPosition.y / max(clipPosition.w, 0.0001) * 0.5 + 0.5, 0.0, 1.0);
+ 
+     float transient = uTreble * 0.55 + uBeat * 0.85 + uFlux * 0.50;
+     float twinkle = 0.5 + 0.5 * sin(uTime * motion * 3.8 + phase);
+diff --git a/app/src/main/assets/shaders/visualizer/particle/particle_comp_fragment.glsl b/app/src/main/assets/shaders/visualizer/particle/particle_comp_fragment.glsl
+index 9c203563..c26a2de9 100644
+--- a/app/src/main/assets/shaders/visualizer/particle/particle_comp_fragment.glsl
++++ b/app/src/main/assets/shaders/visualizer/particle/particle_comp_fragment.glsl
+@@ -40,7 +40,8 @@ void main(){
+ 
+   // Calculate particle alpha based on brightness (0.0 = completely transparent background)
+   float lum = dot(col, vec3(0.299, 0.587, 0.114));
+-  float alpha = clamp(lum * 3.5, 0.0, 1.0);
++  float bottomFade = smoothstep(0.0, 0.22, vUv.y);
++  float alpha = clamp(lum * 3.5, 0.0, 1.0) * bottomFade;
+ 
+   if (alpha < 0.005) {
+     // 100% transparent background everywhere there are no particles
+diff --git a/app/src/main/java/com/quantummpv/app/preferences/PlayerButton.kt b/app/src/main/java/com/quantummpv/app/preferences/PlayerButton.kt
+index 59e57605..384eb643 100644
+--- a/app/src/main/java/com/quantummpv/app/preferences/PlayerButton.kt
++++ b/app/src/main/java/com/quantummpv/app/preferences/PlayerButton.kt
+@@ -51,7 +51,7 @@ enum class PlayerButton(
+   AMBIENT_MODE(Icons.RoundedFilled.BlurOff),
+   TIME_NETWORK(Icons.RoundedFilled.AccessTime),
+   EQUALIZER(Icons.RoundedFilled.Equalizer),
+-  SCOPES(Icons.RoundedFilled.Tune),
++  SCOPES(Icons.RoundedFilled.Mystery),
+   NONE(Icons.RoundedFilled.Bookmarks),
+ }
+ 
+diff --git a/app/src/main/java/com/quantummpv/app/ui/icons/Icons.kt b/app/src/main/java/com/quantummpv/app/ui/icons/Icons.kt
+index aa144331..b83ad748 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/icons/Icons.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/icons/Icons.kt
+@@ -166,6 +166,7 @@ object Icons {
+     val MoreTime by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.More_time) }
+     val MoreVert by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.More_vert) }
+     val Movie by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Movie) }
++    val Mystery by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Mystery) }
+     val Notifications by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Notifications) }
+     val NotInterested by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Block) }
+     val Opacity by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Opacity) }
+@@ -388,6 +389,7 @@ object Icons {
+     val MoreTime get() = Shared.MoreTime
+     val MoreVert get() = Shared.MoreVert
+     val Movie get() = Shared.Movie
++    val Mystery get() = Shared.Mystery
+     val Notifications get() = Shared.Notifications
+     val NotInterested get() = Shared.NotInterested
+     val Opacity get() = Shared.Opacity
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/AudioPlayerControls.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/AudioPlayerControls.kt
+index 862fa257..1eed8731 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/AudioPlayerControls.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/AudioPlayerControls.kt
+@@ -113,14 +113,14 @@ import sh.calvin.reorderable.ReorderableItem
+ import sh.calvin.reorderable.rememberReorderableLazyListState
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+-import androidx.compose.ui.draw.BlurredEdgeTreatment
+-import androidx.compose.ui.draw.blur
+ import androidx.compose.ui.draw.clip
+ import androidx.compose.ui.draw.clipToBounds
+ import androidx.compose.ui.draw.drawWithCache
+ import androidx.compose.ui.geometry.Offset
++import androidx.compose.ui.graphics.BlendMode
+ import androidx.compose.ui.graphics.Brush
+ import androidx.compose.ui.graphics.Color
++import androidx.compose.ui.graphics.CompositingStrategy
+ import androidx.compose.ui.graphics.Shape
+ import androidx.compose.ui.graphics.asImageBitmap
+ import androidx.compose.ui.graphics.graphicsLayer
+@@ -322,40 +322,52 @@ private fun rememberAudioAlbumArt(
+   artworkUri: String? = null,
+ ): Bitmap? = rememberAudioPresentationMetadata(pathOrUri, artworkUri)?.artwork
+ 
+-private fun ribbonPaletteFromAccent(
+-  materialPalette: VisualizerPalette,
+-  accentArgb: Int,
+-): VisualizerPalette {
++private fun contrastingVisualizerTone(
++  colorArgb: Int,
++  backgroundArgb: Int,
++  isDarkTheme: Boolean,
++): Int {
+   val hsv = FloatArray(3)
+-  AndroidColor.colorToHSV(accentArgb, hsv)
+-  val saturation = hsv[1].coerceAtLeast(0.24f)
+-
+-  fun shade(
+-    saturationScale: Float,
+-    value: Float,
+-  ): Int =
+-    AndroidColor.HSVToColor(
+-      floatArrayOf(
+-        hsv[0],
+-        (saturation * saturationScale).coerceIn(0f, 1f),
+-        value.coerceIn(0f, 1f),
+-      ),
+-    )
++  AndroidColor.colorToHSV(colorArgb, hsv)
++  hsv[1] = hsv[1].coerceAtLeast(if (isDarkTheme) 0.42f else 0.52f)
++  hsv[2] =
++    if (isDarkTheme) {
++      hsv[2].coerceIn(0.72f, 0.98f)
++    } else {
++      hsv[2].coerceIn(0.28f, 0.56f)
++    }
++  val base = AndroidColor.HSVToColor(hsv)
++  val contrastTarget = if (isDarkTheme) AndroidColor.WHITE else AndroidColor.BLACK
++  val minimumContrast = if (isDarkTheme) 2.4 else 3.2
++  if (ColorUtils.calculateContrast(base, backgroundArgb) >= minimumContrast) return base
++
++  for (step in 1..9) {
++    val adjusted = ColorUtils.blendARGB(base, contrastTarget, step * 0.08f)
++    if (ColorUtils.calculateContrast(adjusted, backgroundArgb) >= minimumContrast) return adjusted
++  }
++  return ColorUtils.blendARGB(base, contrastTarget, 0.72f)
++}
+ 
+-  return materialPalette.copy(
+-    secondary =
+-      shade(
+-        saturationScale = 1.05f,
+-        value = (hsv[2] * 0.72f).coerceIn(0.24f, 0.68f),
+-      ),
+-    tertiary =
+-      shade(
+-        saturationScale = 0.88f,
+-        value = (hsv[2] + (1f - hsv[2]) * 0.18f).coerceIn(0.48f, 0.88f),
+-      ),
++private fun VisualizerPalette.withThemeContrast(): VisualizerPalette {
++  val isDarkTheme = ColorUtils.calculateLuminance(background) < 0.5
++  return copy(
++    primary = contrastingVisualizerTone(primary, background, isDarkTheme),
++    secondary = contrastingVisualizerTone(secondary, background, isDarkTheme),
++    tertiary = contrastingVisualizerTone(tertiary, background, isDarkTheme),
+   )
+ }
+ 
++private fun visualizerPaletteFromAccent(
++  materialPalette: VisualizerPalette,
++  accentArgb: Int,
++): VisualizerPalette =
++  materialPalette.copy(
++    primary = ColorUtils.blendARGB(materialPalette.primary, accentArgb, 0.56f),
++    secondary = ColorUtils.blendARGB(materialPalette.secondary, accentArgb, 0.36f),
++    tertiary = ColorUtils.blendARGB(materialPalette.tertiary, accentArgb, 0.28f),
++  )
++    .withThemeContrast()
++
+ private fun artworkVisualizerPalette(
+   bitmap: Bitmap,
+   materialPalette: VisualizerPalette,
+@@ -372,13 +384,7 @@ private fun artworkVisualizerPalette(
+         swatch.hsl[1] * 0.58f + population * 0.27f + centeredLightness * 0.15f
+       }?.rgb
+       ?: materialPalette.primary
+-  val artworkTones = ribbonPaletteFromAccent(materialPalette, accent)
+-  return VisualizerPalette(
+-    background = ColorUtils.blendARGB(materialPalette.background, accent, 0.12f),
+-    primary = ColorUtils.blendARGB(materialPalette.primary, accent, 0.48f),
+-    secondary = ColorUtils.blendARGB(materialPalette.secondary, artworkTones.secondary, 0.62f),
+-    tertiary = ColorUtils.blendARGB(materialPalette.tertiary, artworkTones.tertiary, 0.58f),
+-  )
++  return visualizerPaletteFromAccent(materialPalette, accent)
+ }
+ 
+ @Composable
+@@ -387,13 +393,12 @@ private fun AudioVisualizerViewport(
+   palette: VisualizerPalette,
+   isPlaying: Boolean,
+   isSheetOpen: Boolean,
+-  volumeScale: Float,
+   features: AudioFeatures,
+   onClick: () -> Unit,
+   onLongClick: () -> Unit,
+   modifier: Modifier = Modifier,
+ ) {
+-  BoxWithConstraints(
++  Box(
+     modifier =
+       modifier
+         .combinedClickable(
+@@ -404,20 +409,37 @@ private fun AudioVisualizerViewport(
+         ),
+     contentAlignment = Alignment.Center,
+   ) {
+-    val surfaceColor = MaterialTheme.colorScheme.surface
+     val rendererModifier =
+-      Modifier.fillMaxSize()
+-        .graphicsLayer {
+-          scaleX = 1.03f
+-          scaleY = 1.03f
+-        }
++      Modifier
++        .fillMaxSize()
++        .then(
++          if (style == AudioVisualizerStyle.Cuboid) {
++            Modifier
++              .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
++              .drawWithCache {
++                val bottomFade =
++                  Brush.verticalGradient(
++                    0f to Color.White,
++                    0.78f to Color.White,
++                    1f to Color.Transparent,
++                    startY = 0f,
++                    endY = size.height,
++                  )
++                onDrawWithContent {
++                  drawContent()
++                  drawRect(brush = bottomFade, blendMode = BlendMode.DstIn)
++                }
++              }
++          } else {
++            Modifier
++          },
++        )
+ 
+     when (style) {
+       AudioVisualizerStyle.Galaxy ->
+         GalaxyOverlay(
+           palette = palette,
+           isSheetOpen = isSheetOpen,
+-          volumeScale = volumeScale,
+           features = features,
+           modifier = rendererModifier,
+         )
+@@ -425,7 +447,6 @@ private fun AudioVisualizerViewport(
+         BlobOverlay(
+           palette = palette,
+           isSheetOpen = isSheetOpen,
+-          volumeScale = volumeScale,
+           features = features,
+           modifier = rendererModifier,
+         )
+@@ -434,7 +455,6 @@ private fun AudioVisualizerViewport(
+           isPlaying = isPlaying,
+           palette = palette,
+           isSheetOpen = isSheetOpen,
+-          volumeScale = volumeScale,
+           features = features,
+           modifier = rendererModifier,
+         )
+@@ -442,34 +462,17 @@ private fun AudioVisualizerViewport(
+         ParticleOverlay(
+           palette = palette,
+           isSheetOpen = isSheetOpen,
+-          volumeScale = volumeScale,
+           features = features,
+           modifier = rendererModifier,
+         )
+     }
+ 
+-    Box(
+-      modifier =
+-        Modifier
+-          .align(Alignment.BottomCenter)
+-          .fillMaxWidth()
+-          .height(maxHeight * 0.28f)
+-          .blur(32.dp, BlurredEdgeTreatment.Unbounded)
+-          .background(
+-            Brush.verticalGradient(
+-              0f to Color.Transparent,
+-              0.34f to surfaceColor.copy(alpha = 0.24f),
+-              0.72f to surfaceColor.copy(alpha = 0.82f),
+-              1f to surfaceColor,
+-            ),
+-          ),
+-    )
+   }
+ }
+ 
+-/** Compose Canvas visualizers need scoped spectrum capture outside VisualizerOverlay. */
++/** One capture owner feeds the main visualizer and seekbar ribbon. */
+ @Composable
+-private fun CanvasSpectrumCaptureEffect(
++private fun AudioSpectrumCaptureEffect(
+   enabled: Boolean,
+   features: AudioFeatures,
+ ) {
+@@ -754,7 +757,7 @@ fun AudioPlayerControls(
+         primary = colorScheme.primary.toArgb(),
+         secondary = colorScheme.secondary.toArgb(),
+         tertiary = colorScheme.tertiary.toArgb(),
+-      )
++      ).withThemeContrast()
+     }
+   val visualizerPalette by produceState(
+     initialValue = palette,
+@@ -795,12 +798,12 @@ fun AudioPlayerControls(
+   val sheetShown by viewModel.sheetShown.collectAsState()
+   val isSheetOpen = sheetShown != Sheets.None
+ 
+-  CanvasSpectrumCaptureEffect(
++  AudioSpectrumCaptureEffect(
+     enabled =
+-      showVisualizer &&
+-        !showInPlaceLyrics &&
++      isPlaying &&
+         !isSheetOpen &&
+-        audioVisualizerStyle == AudioVisualizerStyle.Cuboid,
++        ((showVisualizer && !showInPlaceLyrics) ||
++          (audioWavySeekbar && !isLyricsFullscreen)),
+     features = visualizerFeatures,
+   )
+ 
+@@ -1173,7 +1176,6 @@ fun AudioPlayerControls(
+               palette = visualizerPalette,
+               isPlaying = isPlaying,
+               isSheetOpen = isSheetOpen,
+-              volumeScale = volumeScale,
+               features = visualizerFeatures,
+               onClick = viewModel::toggleAudioVisualizer,
+               onLongClick = { onOpenSheet(Sheets.VisualizerStyle) },
+@@ -1566,7 +1568,6 @@ fun AudioPlayerControls(
+         showWavyVisualizer = audioWavySeekbar,
+         waveFeatures = if (audioWavySeekbar) visualizerFeatures else null,
+         wavePalette = visualizerPalette,
+-        waveVolumeScale = volumeScale,
+         waveSheetOpen = isSheetOpen,
+         loopStart = abLoopA?.toFloat(),
+         loopEnd = abLoopB?.toFloat(),
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/LyricsView.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/LyricsView.kt
+index eb4d7230..bc841aa8 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/LyricsView.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/LyricsView.kt
+@@ -52,6 +52,7 @@ import androidx.compose.runtime.mutableIntStateOf
+ import androidx.compose.runtime.mutableLongStateOf
+ import androidx.compose.runtime.mutableStateOf
+ import androidx.compose.runtime.remember
++import androidx.compose.runtime.rememberUpdatedState
+ import androidx.compose.runtime.setValue
+ import androidx.compose.runtime.withFrameNanos
+ import com.quantummpv.app.preferences.preference.collectAsState
+@@ -90,7 +91,13 @@ import com.quantummpv.app.ui.icons.Icons
+ import com.quantummpv.app.ui.player.PlayerViewModel
+ import com.quantummpv.app.ui.player.controls.components.sheets.LyricsTranslateDialog
+ import com.quantummpv.app.ui.theme.fontFamilyForText
++import kotlinx.coroutines.CancellationException
++import kotlinx.coroutines.isActive
+ import org.koin.compose.koinInject
++import kotlin.math.abs
++import kotlin.math.exp
++import kotlin.math.roundToInt
++import kotlin.math.roundToLong
+ 
+ @OptIn(ExperimentalLayoutApi::class)
+ @Composable
+@@ -119,27 +126,33 @@ fun LyricsView(
+   val smoothPositionMs = rememberSmoothedPositionMs(currentPosMs, paused == false, playbackSpeed ?: 1f)
+ 
+   // Keep the active lyric centered without snapping as playback advances.
+-  LaunchedEffect(state.activeLineIndex, isLyricsFullscreen, lyricsViewportPx) {
++  LaunchedEffect(state.activeLineIndex, isLyricsFullscreen, lyricsViewportPx, state.lyrics) {
+     val target = state.activeLineIndex
+-    if (target < 0 || lyricsViewportPx <= 0) return@LaunchedEffect
+-    runCatching {
++    val syncedLineCount = state.lyrics?.synced?.size ?: 0
++    if (target !in 0 until syncedLineCount || lyricsViewportPx <= 0) return@LaunchedEffect
++    try {
+       withFrameNanos {}
+       var item = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == target }
+       if (item == null) {
++        val layoutInfo = listState.layoutInfo
++        val viewportCenter =
++          (layoutInfo.viewportStartOffset + layoutInfo.viewportEndOffset) / 2f
+         val estimatedItemHeight =
+-          listState.layoutInfo.visibleItemsInfo
++          layoutInfo.visibleItemsInfo
+             .map { it.size }
+             .average()
+             .takeIf(Double::isFinite)
+             ?.toInt()
+             ?: with(density) { 48.dp.roundToPx() }
+-        val centeredOffset = -((lyricsViewportPx - estimatedItemHeight) / 2).coerceAtLeast(0)
++        val centeredOffset = (estimatedItemHeight / 2f - viewportCenter).roundToInt()
+         listState.animateScrollToItem(target, scrollOffset = centeredOffset)
+         item = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == target }
+       }
+ 
+       item?.let { targetItem ->
+-        val viewportCenter = listState.layoutInfo.viewportSize.height / 2f
++        val layoutInfo = listState.layoutInfo
++        val viewportCenter =
++          (layoutInfo.viewportStartOffset + layoutInfo.viewportEndOffset) / 2f
+         val itemCenter = targetItem.offset + targetItem.size / 2f
+         val centerDelta = itemCenter - viewportCenter
+         if (kotlin.math.abs(centerDelta) > 0.5f) {
+@@ -149,6 +162,10 @@ fun LyricsView(
+           )
+         }
+       }
++    } catch (cancellation: CancellationException) {
++      throw cancellation
++    } catch (_: Exception) {
++      // Lyrics can be replaced while a target line is being laid out.
+     }
+   }
+ 
+@@ -344,14 +361,14 @@ fun LyricsView(
+                       isActiveLine || state.activeLineIndex < 0 -> 0.dp
+                       distanceFromActive == 1 -> 0.6.dp
+                       distanceFromActive == 2 -> 1.0.dp
+-                      else -> 1.4.dp
++                      else -> 0.dp
+                     },
+                   animationSpec = tween(durationMillis = 420, easing = FastOutSlowInEasing),
+                   label = "LineBlur",
+                 )
+ 
+-                val activeColor = Color.White
+-                val inactiveColor = Color.White.copy(alpha = 0.55f)
++                val activeColor = MaterialTheme.colorScheme.onSurface
++                val inactiveColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.62f)
+ 
+                 val lineColor by animateColorAsState(
+                   targetValue = if (isActiveLine) activeColor else inactiveColor,
+@@ -362,7 +379,16 @@ fun LyricsView(
+                 Column(
+                   modifier = Modifier
+                     .fillMaxWidth()
+-                    .blur(lineBlur, edgeTreatment = BlurredEdgeTreatment.Unbounded)
++                    .then(
++                      if (lineBlur > 0.dp) {
++                        Modifier.blur(
++                          lineBlur,
++                          edgeTreatment = BlurredEdgeTreatment(RoundedCornerShape(8.dp)),
++                        )
++                      } else {
++                        Modifier
++                      },
++                    )
+                     .graphicsLayer {
+                       alpha = lineAlpha
+                       scaleX = lineScale
+@@ -387,11 +413,14 @@ fun LyricsView(
+                       verticalArrangement = Arrangement.Center,
+                     ) {
+                       line.words.forEachIndexed { wordIndex, word ->
++                        val wordStartMs = word.time.toLong()
+                         val wordEndMs =
+                           line.words.getOrNull(wordIndex + 1)?.time?.toLong()
++                            ?.takeIf { it > wordStartMs }
+                             ?: activeLyrics.synced.getOrNull(index + 1)?.time?.toLong()
+                               ?.coerceAtMost(line.time.toLong() + 8_000L)
+-                            ?: (word.time + 600).toLong()
++                              ?.takeIf { it > wordStartMs }
++                            ?: (wordStartMs + 600L)
+                         AnimatedLyricWord(
+                           word = word,
+                           endTimeMs = wordEndMs,
+@@ -638,21 +667,62 @@ private fun rememberSmoothedPositionMs(
+   speed: Float,
+ ): State<Long> {
+   val smoothed = remember { mutableLongStateOf(rawPositionMs) }
+-  LaunchedEffect(rawPositionMs, isPlaying, speed) {
+-    smoothed.longValue =
+-      if (rawPositionMs < smoothed.longValue || rawPositionMs > smoothed.longValue + 1_000L) {
+-        rawPositionMs
++  val latestRawPositionMs by rememberUpdatedState(rawPositionMs)
++
++  LaunchedEffect(rawPositionMs, isPlaying) {
++    if (!isPlaying) smoothed.longValue = rawPositionMs
++  }
++
++  LaunchedEffect(isPlaying, speed) {
++    val playbackRate = speed.coerceIn(0.1f, 8f).toDouble()
++    if (!isPlaying) {
++      smoothed.longValue = latestRawPositionMs
++      return@LaunchedEffect
++    }
++
++    var observedRawMs = latestRawPositionMs
++    var anchorRawMs = observedRawMs.toDouble()
++    var renderedMs =
++      if (abs(smoothed.longValue - observedRawMs) > 400L) {
++        observedRawMs.toDouble()
+       } else {
+-        maxOf(smoothed.longValue, rawPositionMs)
++        maxOf(smoothed.longValue.toDouble(), observedRawMs.toDouble())
+       }
+-    if (!isPlaying) return@LaunchedEffect
+-    val anchorMs = smoothed.longValue
+-    var anchorFrameNanos = -1L
+-    while (true) {
++    var anchorFrameNanos = 0L
++    var previousFrameNanos = 0L
++
++    while (isActive) {
+       withFrameNanos { frameNanos ->
+-        if (anchorFrameNanos < 0L) anchorFrameNanos = frameNanos
+-        val elapsedMs = (frameNanos - anchorFrameNanos) / 1_000_000f
+-        smoothed.longValue = anchorMs + (elapsedMs * speed.coerceIn(0.1f, 8f)).toLong().coerceAtMost(800L)
++        if (previousFrameNanos == 0L) {
++          anchorFrameNanos = frameNanos
++          previousFrameNanos = frameNanos
++          smoothed.longValue = renderedMs.roundToLong()
++          return@withFrameNanos
++        }
++
++        val rawMs = latestRawPositionMs
++        var snappedToPoll = false
++        if (rawMs != observedRawMs) {
++          val anchorElapsedMs = (frameNanos - anchorFrameNanos) / 1_000_000.0
++          val expectedRawMs = anchorRawMs + (anchorElapsedMs * playbackRate).coerceAtMost(800.0)
++          if (rawMs < observedRawMs || abs(rawMs - expectedRawMs) > 400.0) {
++            renderedMs = rawMs.toDouble()
++            snappedToPoll = true
++          }
++          observedRawMs = rawMs
++          anchorRawMs = rawMs.toDouble()
++          anchorFrameNanos = frameNanos
++        }
++
++        val elapsedFromAnchorMs = (frameNanos - anchorFrameNanos) / 1_000_000.0
++        val targetMs = anchorRawMs + (elapsedFromAnchorMs * playbackRate).coerceAtMost(800.0)
++        val frameDeltaMs = ((frameNanos - previousFrameNanos) / 1_000_000.0).coerceIn(0.0, 50.0)
++        val predictedMs = renderedMs + frameDeltaMs * playbackRate
++        val correction = 1.0 - exp(-frameDeltaMs / 120.0)
++        val correctedMs = predictedMs + (targetMs - predictedMs) * correction
++        renderedMs = if (snappedToPoll) targetMs else maxOf(renderedMs, correctedMs)
++        smoothed.longValue = renderedMs.roundToLong()
++        previousFrameNanos = frameNanos
+       }
+     }
+   }
+@@ -683,13 +753,11 @@ private fun AnimatedLyricWord(
+ 
+   val startTimeMs = word.time.toLong()
+   val durationMs = (endTimeMs - startTimeMs).coerceAtLeast(1L)
+-  val currentPositionMs by positionMs
+-  val fillProgress = ((currentPositionMs - startTimeMs).toFloat() / durationMs).coerceIn(0f, 1f)
+   val activeStyle =
+     textStyle.copy(
+       shadow =
+         Shadow(
+-          color = activeColor.copy(alpha = if (fillProgress in 0.001f..0.999f) 0.55f else 0.24f),
++          color = activeColor.copy(alpha = 0.42f),
+           offset = Offset.Zero,
+           blurRadius = 10f,
+         ),
+@@ -703,6 +771,9 @@ private fun AnimatedLyricWord(
+       style = activeStyle,
+       modifier =
+         Modifier.drawWithContent {
++          val fillProgress =
++            ((positionMs.value - startTimeMs).toFloat() / durationMs)
++              .coerceIn(0f, 1f)
+           clipRect(right = size.width * fillProgress) {
+             this@drawWithContent.drawContent()
+           }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/MediaScopesOverlay.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/MediaScopesOverlay.kt
+index d516bf69..ee43069b 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/MediaScopesOverlay.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/MediaScopesOverlay.kt
+@@ -13,17 +13,20 @@ import android.content.res.Configuration
+ import android.graphics.Bitmap
+ import androidx.compose.foundation.Canvas
+ import androidx.compose.foundation.Image
+-import androidx.compose.foundation.background
++import androidx.compose.foundation.gestures.detectDragGestures
+ import androidx.compose.foundation.gestures.detectTapGestures
+ import androidx.compose.foundation.layout.Arrangement
+ import androidx.compose.foundation.layout.Box
++import androidx.compose.foundation.layout.BoxWithConstraints
+ import androidx.compose.foundation.layout.Column
+ import androidx.compose.foundation.layout.Row
+-import androidx.compose.foundation.layout.fillMaxHeight
++import androidx.compose.foundation.layout.Spacer
+ import androidx.compose.foundation.layout.fillMaxSize
+ import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.offset
+ import androidx.compose.foundation.layout.padding
+ import androidx.compose.foundation.layout.size
++import androidx.compose.foundation.layout.width
+ import androidx.compose.foundation.shape.RoundedCornerShape
+ import androidx.compose.material3.CircularProgressIndicator
+ import androidx.compose.material3.Icon
+@@ -36,8 +39,11 @@ import androidx.compose.runtime.DisposableEffect
+ import androidx.compose.runtime.LaunchedEffect
+ import androidx.compose.runtime.collectAsState
+ import androidx.compose.runtime.getValue
++import androidx.compose.runtime.mutableFloatStateOf
+ import androidx.compose.runtime.mutableStateOf
+ import androidx.compose.runtime.remember
++import androidx.compose.runtime.saveable.rememberSaveable
++import androidx.compose.runtime.rememberUpdatedState
+ import androidx.compose.runtime.setValue
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+@@ -51,9 +57,14 @@ import androidx.compose.ui.input.pointer.pointerInput
+ import androidx.compose.ui.layout.ContentScale
+ import androidx.compose.ui.platform.LocalConfiguration
+ import androidx.compose.ui.platform.LocalContext
++import androidx.compose.ui.platform.LocalDensity
+ import androidx.compose.ui.res.stringResource
++import androidx.compose.ui.semantics.contentDescription
++import androidx.compose.ui.semantics.semantics
+ import androidx.compose.ui.text.font.FontWeight
+ import androidx.compose.ui.text.style.TextAlign
++import androidx.compose.ui.text.style.TextOverflow
++import androidx.compose.ui.unit.IntOffset
+ import androidx.compose.ui.unit.dp
+ import com.quantummpv.app.R
+ import com.quantummpv.app.ui.icons.Icon
+@@ -77,6 +88,7 @@ import kotlinx.coroutines.isActive
+ import kotlinx.coroutines.withContext
+ import java.util.concurrent.atomic.AtomicReference
+ import kotlin.math.max
++import kotlin.math.roundToInt
+ 
+ private sealed interface AudioWaveformLoadState {
+   data object Loading : AudioWaveformLoadState
+@@ -94,76 +106,229 @@ fun MediaScopesOverlay(
+   modifier: Modifier = Modifier,
+ ) {
+   val state by viewModel.mediaScopesUiState.collectAsState()
+-  if (!state.overlayVisible) return
+-
+   val configuration = LocalConfiguration.current
+   val isPortrait = configuration.orientation == Configuration.ORIENTATION_PORTRAIT
++  val resizeDescription = stringResource(R.string.scopes_resize)
++  var requestedWidthDp by rememberSaveable(isPortrait) { mutableFloatStateOf(-1f) }
++  var requestedHeightDp by rememberSaveable(isPortrait) { mutableFloatStateOf(-1f) }
++  var requestedOffsetX by rememberSaveable(isPortrait) { mutableFloatStateOf(-1f) }
++  var requestedOffsetY by rememberSaveable(isPortrait) { mutableFloatStateOf(-1f) }
++
++  if (!state.overlayVisible) return
++
++  BoxWithConstraints(modifier = modifier.fillMaxSize()) {
++    val density = LocalDensity.current
++    val edgeInset = 8.dp
++    val availableWidth = (maxWidth - edgeInset * 2).coerceAtLeast(1.dp)
++    val availableHeight = (maxHeight - edgeInset * 2).coerceAtLeast(1.dp)
++    val minimumWidth = minOf(240.dp, availableWidth)
++    val minimumHeight = minOf(180.dp, availableHeight)
++    val defaultWidth =
++      if (isPortrait) {
++        (maxWidth * 0.92f).coerceIn(minimumWidth, availableWidth)
++      } else {
++        (maxWidth * 0.44f).coerceIn(minimumWidth, availableWidth)
++      }
++    val defaultHeight =
++      if (isPortrait) {
++        (maxHeight * 0.42f).coerceIn(minimumHeight, availableHeight)
++      } else {
++        (maxHeight * 0.74f).coerceIn(minimumHeight, availableHeight)
++      }
++    val panelWidth =
++      (if (requestedWidthDp > 0f) requestedWidthDp.dp else defaultWidth)
++        .coerceIn(minimumWidth, availableWidth)
++    val panelHeight =
++      (if (requestedHeightDp > 0f) requestedHeightDp.dp else defaultHeight)
++        .coerceIn(minimumHeight, availableHeight)
++
++    val parentWidthPx = constraints.maxWidth.toFloat()
++    val parentHeightPx = constraints.maxHeight.toFloat()
++    val insetPx = with(density) { edgeInset.toPx() }
++    val panelWidthPx = with(density) { panelWidth.toPx() }
++    val panelHeightPx = with(density) { panelHeight.toPx() }
++    val latestPanelWidthPx by rememberUpdatedState(panelWidthPx)
++    val latestPanelHeightPx by rememberUpdatedState(panelHeightPx)
++    val minimumWidthPx = with(density) { minimumWidth.toPx() }
++    val minimumHeightPx = with(density) { minimumHeight.toPx() }
++    val maxOffsetX = (parentWidthPx - panelWidthPx - insetPx).coerceAtLeast(insetPx)
++    val maxOffsetY = (parentHeightPx - panelHeightPx - insetPx).coerceAtLeast(insetPx)
++    val defaultOffsetX =
++      if (isPortrait) {
++        ((parentWidthPx - panelWidthPx) / 2f).coerceIn(insetPx, maxOffsetX)
++      } else {
++        maxOffsetX
++      }
++    val defaultOffsetY =
++      if (isPortrait) {
++        (parentHeightPx - panelHeightPx - with(density) { 88.dp.toPx() })
++          .coerceIn(insetPx, maxOffsetY)
++      } else {
++        ((parentHeightPx - panelHeightPx) / 2f).coerceIn(insetPx, maxOffsetY)
++      }
++    val panelOffsetX =
++      (if (requestedOffsetX >= 0f) requestedOffsetX else defaultOffsetX)
++        .coerceIn(insetPx, maxOffsetX)
++    val panelOffsetY =
++      (if (requestedOffsetY >= 0f) requestedOffsetY else defaultOffsetY)
++        .coerceIn(insetPx, maxOffsetY)
++
++    val moveModifier =
++      if (state.expanded) {
++        Modifier
++      } else {
++        Modifier.pointerInput(parentWidthPx, parentHeightPx, panelWidthPx, panelHeightPx) {
++          var dragX = panelOffsetX
++          var dragY = panelOffsetY
++          detectDragGestures(
++            onDragStart = {
++              dragX =
++                (if (requestedOffsetX >= 0f) requestedOffsetX else defaultOffsetX)
++                  .coerceIn(insetPx, maxOffsetX)
++              dragY =
++                (if (requestedOffsetY >= 0f) requestedOffsetY else defaultOffsetY)
++                  .coerceIn(insetPx, maxOffsetY)
++            },
++          ) { change, dragAmount ->
++            change.consume()
++            dragX = (dragX + dragAmount.x).coerceIn(insetPx, maxOffsetX)
++            dragY = (dragY + dragAmount.y).coerceIn(insetPx, maxOffsetY)
++            requestedOffsetX = dragX
++            requestedOffsetY = dragY
++          }
++        }
++      }
+ 
+-  Box(modifier = modifier.fillMaxSize()) {
+     val panelModifier =
+-      when {
+-        state.expanded ->
+-          Modifier
+-            .fillMaxSize()
+-            .padding(12.dp)
+-        isPortrait ->
+-          Modifier
+-            .align(Alignment.BottomCenter)
+-            .fillMaxWidth()
+-            .fillMaxHeight(0.42f)
+-            .padding(start = 10.dp, end = 10.dp, bottom = 96.dp)
+-        else ->
+-          Modifier
+-            .align(Alignment.CenterEnd)
+-            .fillMaxWidth(0.44f)
+-            .fillMaxHeight(0.74f)
+-            .padding(end = 14.dp)
++      if (state.expanded) {
++        Modifier
++          .fillMaxSize()
++          .padding(12.dp)
++      } else {
++        Modifier
++          .offset { IntOffset(panelOffsetX.roundToInt(), panelOffsetY.roundToInt()) }
++          .size(panelWidth, panelHeight)
+       }
+     Surface(
+       modifier = panelModifier,
+       shape = RoundedCornerShape(8.dp),
+-      color = Color.Black.copy(alpha = if (state.expanded) 0.96f else 0.82f),
++      color = Color.Black.copy(alpha = if (state.expanded) 0.92f else 0.76f),
+       contentColor = Color.White,
+       tonalElevation = 0.dp,
+       shadowElevation = 8.dp,
+     ) {
+-      Column(modifier = Modifier.fillMaxSize()) {
+-        Row(
+-          modifier = Modifier.fillMaxWidth().padding(start = 12.dp, top = 4.dp, end = 4.dp),
+-          verticalAlignment = Alignment.CenterVertically,
+-        ) {
+-          Text(
+-            text =
+-              stringResource(
+-                if (state.tab == MediaScopeTab.Audio) R.string.scopes_audio_waveform else R.string.scopes_video,
+-              ),
+-            style = MaterialTheme.typography.labelLarge,
+-            fontWeight = FontWeight.Bold,
+-            modifier = Modifier.weight(1f),
+-          )
+-          IconButton(onClick = viewModel::toggleMediaScopesExpanded) {
+-            Icon(Icons.RoundedFilled.ZoomOutMap, stringResource(R.string.scopes_expand))
++      Box(modifier = Modifier.fillMaxSize()) {
++        Column(modifier = Modifier.fillMaxSize()) {
++          Row(
++            modifier = Modifier.fillMaxWidth().padding(start = 6.dp, top = 4.dp, end = 4.dp),
++            verticalAlignment = Alignment.CenterVertically,
++          ) {
++            Row(
++              modifier = Modifier.weight(1f).then(moveModifier).padding(start = 4.dp),
++              verticalAlignment = Alignment.CenterVertically,
++            ) {
++              if (!state.expanded) {
++                Icon(
++                  imageVector = Icons.RoundedFilled.DragHandle,
++                  contentDescription = null,
++                  tint = Color.White.copy(alpha = 0.68f),
++                  modifier = Modifier.size(20.dp),
++                )
++                Spacer(modifier = Modifier.width(6.dp))
++              }
++              Text(
++                text =
++                  stringResource(
++                    if (state.tab == MediaScopeTab.Audio) R.string.scopes_audio_waveform else R.string.scopes_video,
++                  ),
++                style = MaterialTheme.typography.labelLarge,
++                fontWeight = FontWeight.Bold,
++                maxLines = 1,
++                overflow = TextOverflow.Ellipsis,
++                modifier = Modifier.weight(1f),
++              )
++            }
++            IconButton(onClick = viewModel::toggleMediaScopesExpanded) {
++              Icon(Icons.RoundedFilled.ZoomOutMap, stringResource(R.string.scopes_expand))
++            }
++            IconButton(onClick = { viewModel.setMediaScopesOverlayVisible(false) }) {
++              Icon(Icons.RoundedFilled.Close, stringResource(R.string.ui_close))
++            }
+           }
+-          IconButton(onClick = { viewModel.setMediaScopesOverlayVisible(false) }) {
+-            Icon(Icons.RoundedFilled.Close, stringResource(R.string.ui_close))
++
++          when (state.tab) {
++            MediaScopeTab.Audio ->
++              AudioWaveformScope(
++                viewModel = viewModel,
++                audioTracks = audioTracks,
++                durationSeconds = durationSeconds,
++                modifier = Modifier.fillMaxSize(),
++              )
++            MediaScopeTab.Video ->
++              VideoScope(
++                mode = state.videoMode,
++                resolution = state.analysisResolution,
++                frameRate = state.frameRate,
++                modifier = Modifier.fillMaxSize(),
++              )
+           }
+         }
+ 
+-        when (state.tab) {
+-          MediaScopeTab.Audio ->
+-            AudioWaveformScope(
+-              viewModel = viewModel,
+-              audioTracks = audioTracks,
+-              durationSeconds = durationSeconds,
+-              modifier = Modifier.fillMaxSize(),
+-            )
+-          MediaScopeTab.Video ->
+-            VideoScope(
+-              mode = state.videoMode,
+-              resolution = state.analysisResolution,
+-              frameRate = state.frameRate,
+-              modifier = Modifier.fillMaxSize(),
+-            )
++        if (!state.expanded) {
++          Box(
++            modifier =
++              Modifier
++                .align(Alignment.BottomEnd)
++                .size(48.dp)
++                .semantics { contentDescription = resizeDescription }
++                .pointerInput(parentWidthPx, parentHeightPx, minimumWidthPx, minimumHeightPx) {
++                  var resizeWidthPx = latestPanelWidthPx
++                  var resizeHeightPx = latestPanelHeightPx
++                  var resizeOriginX = panelOffsetX
++                  var resizeOriginY = panelOffsetY
++                  detectDragGestures(
++                    onDragStart = {
++                      resizeOriginX =
++                        (if (requestedOffsetX >= 0f) requestedOffsetX else defaultOffsetX)
++                          .coerceIn(insetPx, maxOffsetX)
++                      resizeOriginY =
++                        (if (requestedOffsetY >= 0f) requestedOffsetY else defaultOffsetY)
++                          .coerceIn(insetPx, maxOffsetY)
++                      resizeWidthPx = latestPanelWidthPx
++                      resizeHeightPx = latestPanelHeightPx
++                      requestedOffsetX = resizeOriginX
++                      requestedOffsetY = resizeOriginY
++                    },
++                  ) { change, dragAmount ->
++                    change.consume()
++                    val maximumResizeWidth =
++                      (parentWidthPx - resizeOriginX - insetPx).coerceAtLeast(minimumWidthPx)
++                    val maximumResizeHeight =
++                      (parentHeightPx - resizeOriginY - insetPx).coerceAtLeast(minimumHeightPx)
++                    resizeWidthPx =
++                      (resizeWidthPx + dragAmount.x).coerceIn(minimumWidthPx, maximumResizeWidth)
++                    resizeHeightPx =
++                      (resizeHeightPx + dragAmount.y).coerceIn(minimumHeightPx, maximumResizeHeight)
++                    requestedWidthDp = with(density) { resizeWidthPx.toDp().value }
++                    requestedHeightDp = with(density) { resizeHeightPx.toDp().value }
++                  }
++                },
++            contentAlignment = Alignment.BottomEnd,
++          ) {
++            Canvas(modifier = Modifier.padding(end = 7.dp, bottom = 7.dp).size(18.dp)) {
++              val gripColor = Color.White.copy(alpha = 0.62f)
++              val strokeWidth = 1.5.dp.toPx()
++              for (length in listOf(6.dp, 11.dp, 16.dp)) {
++                val lengthPx = length.toPx()
++                drawLine(
++                  color = gripColor,
++                  start = Offset(size.width - lengthPx, size.height),
++                  end = Offset(size.width, size.height - lengthPx),
++                  strokeWidth = strokeWidth,
++                )
++              }
++            }
++          }
+         }
+       }
+     }
+@@ -377,14 +542,16 @@ private fun VideoScope(
+         }
+         if (paused == true) break
+         val elapsedMs = (System.nanoTime() - startedAt) / 1_000_000L
+-        delay((frameIntervalMs - elapsedMs).coerceAtLeast(1L))
++        val cadenceDelayMs = (frameIntervalMs - elapsedMs).coerceAtLeast(1L)
++        val processingBackoffMs = (elapsedMs / 3L).coerceAtLeast(1L)
++        delay(maxOf(cadenceDelayMs, processingBackoffMs))
+       } while (isActive)
+     } finally {
+       pendingFrame.getAndSet(null)?.takeUnless(Bitmap::isRecycled)?.recycle()
+     }
+   }
+ 
+-  Box(modifier = modifier.background(Color.Black), contentAlignment = Alignment.Center) {
++  Box(modifier = modifier, contentAlignment = Alignment.Center) {
+     val bitmap = scopeBitmap
+     if (bitmap != null && !bitmap.isRecycled) {
+       DisposableEffect(bitmap) {
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/Seekbar.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/Seekbar.kt
+index 6939a171..81e253da 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/Seekbar.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/Seekbar.kt
+@@ -296,7 +296,6 @@ internal fun SeekbarWithTimers(
+   showWavyVisualizer: Boolean = false,
+   waveFeatures: AudioFeatures? = null,
+   wavePalette: VisualizerPalette? = null,
+-  waveVolumeScale: Float = 1f,
+   waveSheetOpen: Boolean = false,
+   loopStart: Float? = null,
+   loopEnd: Float? = null,
+@@ -353,7 +352,6 @@ internal fun SeekbarWithTimers(
+         showWavyVisualizer = showWavyVisualizer,
+         waveFeatures = waveFeatures,
+         wavePalette = wavePalette,
+-        waveVolumeScale = waveVolumeScale,
+         waveSheetOpen = waveSheetOpen,
+         loopStart = loopStart,
+         loopEnd = loopEnd,
+@@ -424,7 +422,6 @@ internal fun SeekbarWithTimers(
+         showWavyVisualizer = showWavyVisualizer,
+         waveFeatures = waveFeatures,
+         wavePalette = wavePalette,
+-        waveVolumeScale = waveVolumeScale,
+         waveSheetOpen = waveSheetOpen,
+         loopStart = loopStart,
+         loopEnd = loopEnd,
+@@ -467,7 +464,6 @@ private fun SeekbarContent(
+   showWavyVisualizer: Boolean = false,
+   waveFeatures: AudioFeatures? = null,
+   wavePalette: VisualizerPalette? = null,
+-  waveVolumeScale: Float = 1f,
+   waveSheetOpen: Boolean = false,
+   loopStart: Float?,
+   loopEnd: Float?,
+@@ -567,7 +563,6 @@ private fun SeekbarContent(
+       WaveVisualizerOverlay(
+         palette = wavePalette!!,
+         isSheetOpen = waveSheetOpen,
+-        volumeScale = waveVolumeScale,
+         features = waveFeatures!!,
+         isPlaying = !paused && !isVisuallyInteracting,
+         progressProvider = {
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/ScopesSheet.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/ScopesSheet.kt
+index a78e02af..5c7236b0 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/ScopesSheet.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/ScopesSheet.kt
+@@ -133,7 +133,12 @@ fun ScopesSheet(
+         MediaScopeTab.Audio -> {
+           val selectedTrack = audioTracks.firstOrNull(TrackNode::isSelected)
+           Text(
+-            text = selectedTrack?.let(::getTrackTitle) ?: stringResource(R.string.scopes_no_audio_track),
++            text =
++              if (selectedTrack != null) {
++                getTrackTitle(selectedTrack)
++              } else {
++                stringResource(R.string.scopes_no_audio_track)
++              },
+             style = MaterialTheme.typography.titleMedium,
+             color = MaterialTheme.colorScheme.primary,
+           )
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/scopes/VideoScopeAnalyzer.kt b/app/src/main/java/com/quantummpv/app/ui/player/scopes/VideoScopeAnalyzer.kt
+index 371e1f7f..163333b8 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/scopes/VideoScopeAnalyzer.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/scopes/VideoScopeAnalyzer.kt
+@@ -19,54 +19,82 @@ internal object VideoScopeAnalyzer {
+   private const val OUTPUT_WIDTH = 320
+   private const val OUTPUT_HEIGHT = 180
+   private const val VECTOR_SIZE = 220
++  private const val PARADE_GAP = 2
++  private const val PARADE_CHANNEL_WIDTH = (OUTPUT_WIDTH - PARADE_GAP * 3) / 4
++
++  private val analysisLock = Any()
++  private var sourcePixels = IntArray(0)
++  private val waveformBins = IntArray(OUTPUT_WIDTH * OUTPUT_HEIGHT)
++  private val waveformSumRed = LongArray(waveformBins.size)
++  private val waveformSumGreen = LongArray(waveformBins.size)
++  private val waveformSumBlue = LongArray(waveformBins.size)
++  private val waveformOutput = IntArray(waveformBins.size)
++  private val paradeBins = Array(4) { IntArray(PARADE_CHANNEL_WIDTH * OUTPUT_HEIGHT) }
++  private val paradeOutput = IntArray(OUTPUT_WIDTH * OUTPUT_HEIGHT)
++  private val vectorBins = IntArray(VECTOR_SIZE * VECTOR_SIZE)
++  private val vectorSumRed = LongArray(vectorBins.size)
++  private val vectorSumGreen = LongArray(vectorBins.size)
++  private val vectorSumBlue = LongArray(vectorBins.size)
++  private val vectorOutput = IntArray(vectorBins.size)
++  private val paradeColors =
++    intArrayOf(
++      Color.rgb(255, 45, 45),
++      Color.rgb(45, 255, 70),
++      Color.rgb(65, 95, 255),
++      Color.rgb(225, 225, 225),
++    )
+ 
+   fun analyze(source: Bitmap, mode: VideoScopeMode): Bitmap =
+-    when (mode) {
+-      VideoScopeMode.LumaWaveform -> lumaWaveform(source)
+-      VideoScopeMode.RgbyParade -> rgbyParade(source)
+-      VideoScopeMode.Vectorscope -> vectorscope(source)
++    synchronized(analysisLock) {
++      val sourcePixelCount = source.width * source.height
++      if (sourcePixels.size < sourcePixelCount) sourcePixels = IntArray(sourcePixelCount)
++      source.getPixels(sourcePixels, 0, source.width, 0, 0, source.width, source.height)
++      when (mode) {
++        VideoScopeMode.LumaWaveform -> lumaWaveform(source.width, source.height)
++        VideoScopeMode.RgbyParade -> rgbyParade(source.width, source.height)
++        VideoScopeMode.Vectorscope -> vectorscope(sourcePixelCount)
++      }
+     }
+ 
+-  private fun lumaWaveform(source: Bitmap): Bitmap {
+-    val sourcePixels = source.readPixels()
+-    val bins = IntArray(OUTPUT_WIDTH * OUTPUT_HEIGHT)
+-    val sumRed = LongArray(bins.size)
+-    val sumGreen = LongArray(bins.size)
+-    val sumBlue = LongArray(bins.size)
++  private fun lumaWaveform(sourceWidth: Int, sourceHeight: Int): Bitmap {
++    waveformBins.fill(0)
++    waveformSumRed.fill(0)
++    waveformSumGreen.fill(0)
++    waveformSumBlue.fill(0)
++    waveformOutput.fill(0)
+ 
+-    for (y in 0 until source.height) {
+-      val row = y * source.width
+-      for (x in 0 until source.width) {
++    for (y in 0 until sourceHeight) {
++      val row = y * sourceWidth
++      for (x in 0 until sourceWidth) {
+         val color = sourcePixels[row + x]
+         val red = Color.red(color)
+         val green = Color.green(color)
+         val blue = Color.blue(color)
+         val luma = (red * 0.2126f + green * 0.7152f + blue * 0.0722f) / 255f
+-        val column = x * OUTPUT_WIDTH / source.width
++        val column = x * OUTPUT_WIDTH / sourceWidth
+         val level = (luma * (OUTPUT_HEIGHT - 1)).toInt().coerceIn(0, OUTPUT_HEIGHT - 1)
+         val index = column * OUTPUT_HEIGHT + level
+-        bins[index]++
+-        sumRed[index] += red
+-        sumGreen[index] += green
+-        sumBlue[index] += blue
++        waveformBins[index]++
++        waveformSumRed[index] += red
++        waveformSumGreen[index] += green
++        waveformSumBlue[index] += blue
+       }
+     }
+ 
+-    val maximum = bins.maxOrNull()?.coerceAtLeast(1) ?: 1
++    val maximum = waveformBins.maxOrNull()?.coerceAtLeast(1) ?: 1
+     val logMaximum = ln(1f + maximum)
+-    val output = IntArray(OUTPUT_WIDTH * OUTPUT_HEIGHT)
+     for (column in 0 until OUTPUT_WIDTH) {
+       for (level in 0 until OUTPUT_HEIGHT) {
+         val sourceIndex = column * OUTPUT_HEIGHT + level
+-        val count = bins[sourceIndex]
++        val count = waveformBins[sourceIndex]
+         if (count == 0) continue
+         val intensity = (ln(1f + count) / logMaximum * 2.4f).coerceIn(0f, 1f)
+-        val averageRed = sumRed[sourceIndex].toFloat() / count
+-        val averageGreen = sumGreen[sourceIndex].toFloat() / count
+-        val averageBlue = sumBlue[sourceIndex].toFloat() / count
++        val averageRed = waveformSumRed[sourceIndex].toFloat() / count
++        val averageGreen = waveformSumGreen[sourceIndex].toFloat() / count
++        val averageBlue = waveformSumBlue[sourceIndex].toFloat() / count
+         val colorMax = max(averageRed, max(averageGreen, averageBlue)).coerceAtLeast(1f)
+         val outputIndex = (OUTPUT_HEIGHT - 1 - level) * OUTPUT_WIDTH + column
+-        output[outputIndex] = Color.argb(
++        waveformOutput[outputIndex] = Color.argb(
+           (intensity * 255).toInt(),
+           (averageRed / colorMax * 255).toInt(),
+           (averageGreen / colorMax * 255).toInt(),
+@@ -74,47 +102,43 @@ internal object VideoScopeAnalyzer {
+         )
+       }
+     }
+-    return output.toBitmap(OUTPUT_WIDTH, OUTPUT_HEIGHT)
++    return waveformOutput.toBitmap(OUTPUT_WIDTH, OUTPUT_HEIGHT)
+   }
+ 
+-  private fun rgbyParade(source: Bitmap): Bitmap {
+-    val sourcePixels = source.readPixels()
+-    val gap = 2
+-    val channelWidth = (OUTPUT_WIDTH - gap * 3) / 4
+-    val bins = Array(4) { IntArray(channelWidth * OUTPUT_HEIGHT) }
++  private fun rgbyParade(sourceWidth: Int, sourceHeight: Int): Bitmap {
++    paradeBins.forEach { it.fill(0) }
++    paradeOutput.fill(0)
+ 
+-    for (y in 0 until source.height) {
+-      val row = y * source.width
+-      for (x in 0 until source.width) {
++    for (y in 0 until sourceHeight) {
++      val row = y * sourceWidth
++      for (x in 0 until sourceWidth) {
+         val color = sourcePixels[row + x]
+         val red = Color.red(color)
+         val green = Color.green(color)
+         val blue = Color.blue(color)
+-        val column = x * channelWidth / source.width
++        val column = x * PARADE_CHANNEL_WIDTH / sourceWidth
+         val columnOffset = column * OUTPUT_HEIGHT
+-        bins[0][columnOffset + red * (OUTPUT_HEIGHT - 1) / 255]++
+-        bins[1][columnOffset + green * (OUTPUT_HEIGHT - 1) / 255]++
+-        bins[2][columnOffset + blue * (OUTPUT_HEIGHT - 1) / 255]++
++        paradeBins[0][columnOffset + red * (OUTPUT_HEIGHT - 1) / 255]++
++        paradeBins[1][columnOffset + green * (OUTPUT_HEIGHT - 1) / 255]++
++        paradeBins[2][columnOffset + blue * (OUTPUT_HEIGHT - 1) / 255]++
+         val lumaLevel =
+           ((red * 0.2126f + green * 0.7152f + blue * 0.0722f) * (OUTPUT_HEIGHT - 1) / 255f)
+             .toInt()
+             .coerceIn(0, OUTPUT_HEIGHT - 1)
+-        bins[3][columnOffset + lumaLevel]++
++        paradeBins[3][columnOffset + lumaLevel]++
+       }
+     }
+ 
+-    val maximum = bins.maxOf { it.maxOrNull() ?: 0 }.coerceAtLeast(1)
+-    val colors = intArrayOf(Color.rgb(255, 45, 45), Color.rgb(45, 255, 70), Color.rgb(65, 95, 255), Color.rgb(225, 225, 225))
+-    val output = IntArray(OUTPUT_WIDTH * OUTPUT_HEIGHT)
+-    for (channel in bins.indices) {
+-      val xOffset = channel * (channelWidth + gap)
+-      for (column in 0 until channelWidth) {
++    val maximum = paradeBins.maxOf { it.maxOrNull() ?: 0 }.coerceAtLeast(1)
++    for (channel in paradeBins.indices) {
++      val xOffset = channel * (PARADE_CHANNEL_WIDTH + PARADE_GAP)
++      for (column in 0 until PARADE_CHANNEL_WIDTH) {
+         for (level in 0 until OUTPUT_HEIGHT) {
+-          val count = bins[channel][column * OUTPUT_HEIGHT + level]
++          val count = paradeBins[channel][column * OUTPUT_HEIGHT + level]
+           if (count == 0) continue
+           val intensity = (count.toFloat() / (maximum * 0.22f)).coerceIn(0f, 1f)
+-          val tint = colors[channel]
+-          output[(OUTPUT_HEIGHT - 1 - level) * OUTPUT_WIDTH + xOffset + column] = Color.argb(
++          val tint = paradeColors[channel]
++          paradeOutput[(OUTPUT_HEIGHT - 1 - level) * OUTPUT_WIDTH + xOffset + column] = Color.argb(
+             255,
+             (Color.red(tint) * intensity).toInt(),
+             (Color.green(tint) * intensity).toInt(),
+@@ -123,19 +147,20 @@ internal object VideoScopeAnalyzer {
+         }
+       }
+     }
+-    return output.toBitmap(OUTPUT_WIDTH, OUTPUT_HEIGHT)
++    return paradeOutput.toBitmap(OUTPUT_WIDTH, OUTPUT_HEIGHT)
+   }
+ 
+-  private fun vectorscope(source: Bitmap): Bitmap {
+-    val sourcePixels = source.readPixels()
+-    val bins = IntArray(VECTOR_SIZE * VECTOR_SIZE)
+-    val sumRed = LongArray(bins.size)
+-    val sumGreen = LongArray(bins.size)
+-    val sumBlue = LongArray(bins.size)
++  private fun vectorscope(sourcePixelCount: Int): Bitmap {
++    vectorBins.fill(0)
++    vectorSumRed.fill(0)
++    vectorSumGreen.fill(0)
++    vectorSumBlue.fill(0)
++    vectorOutput.fill(0)
+     val half = VECTOR_SIZE / 2f
+     val scale = half * 0.9f
+ 
+-    for (color in sourcePixels) {
++    for (sourceIndex in 0 until sourcePixelCount) {
++      val color = sourcePixels[sourceIndex]
+       val red = Color.red(color) / 255f
+       val green = Color.green(color) / 255f
+       val blue = Color.blue(color) / 255f
+@@ -145,38 +170,32 @@ internal object VideoScopeAnalyzer {
+       val y = (half - cr * scale * 2f).toInt()
+       if (x !in 0 until VECTOR_SIZE || y !in 0 until VECTOR_SIZE) continue
+       val index = y * VECTOR_SIZE + x
+-      bins[index]++
+-      sumRed[index] += Color.red(color)
+-      sumGreen[index] += Color.green(color)
+-      sumBlue[index] += Color.blue(color)
++      vectorBins[index]++
++      vectorSumRed[index] += Color.red(color)
++      vectorSumGreen[index] += Color.green(color)
++      vectorSumBlue[index] += Color.blue(color)
+     }
+ 
+-    val maximum = bins.maxOrNull()?.coerceAtLeast(1) ?: 1
++    val maximum = vectorBins.maxOrNull()?.coerceAtLeast(1) ?: 1
+     val logMaximum = ln(1f + maximum)
+-    val output = IntArray(VECTOR_SIZE * VECTOR_SIZE)
+-    for (index in bins.indices) {
+-      val count = bins[index]
++    for (index in vectorBins.indices) {
++      val count = vectorBins[index]
+       if (count == 0) continue
+       val intensity = (ln(1f + count) / logMaximum * 2.8f).coerceIn(0f, 1f)
+-      val averageRed = sumRed[index].toFloat() / count
+-      val averageGreen = sumGreen[index].toFloat() / count
+-      val averageBlue = sumBlue[index].toFloat() / count
++      val averageRed = vectorSumRed[index].toFloat() / count
++      val averageGreen = vectorSumGreen[index].toFloat() / count
++      val averageBlue = vectorSumBlue[index].toFloat() / count
+       val colorMax = max(averageRed, max(averageGreen, averageBlue)).coerceAtLeast(1f)
+-      output[index] = Color.argb(
++      vectorOutput[index] = Color.argb(
+         (intensity * 255).toInt(),
+         (averageRed / colorMax * 255).toInt(),
+         (averageGreen / colorMax * 255).toInt(),
+         (averageBlue / colorMax * 255).toInt(),
+       )
+     }
+-    return output.toBitmap(VECTOR_SIZE, VECTOR_SIZE)
++    return vectorOutput.toBitmap(VECTOR_SIZE, VECTOR_SIZE)
+   }
+ 
+-  private fun Bitmap.readPixels(): IntArray =
+-    IntArray(width * height).also { pixels ->
+-      getPixels(pixels, 0, width, 0, 0, width, height)
+-    }
+-
+   private fun IntArray.toBitmap(width: Int, height: Int): Bitmap =
+     Bitmap.createBitmap(this, width, height, Bitmap.Config.ARGB_8888)
+ }
+\ No newline at end of file
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/visualizer/BlobComposable.kt b/app/src/main/java/com/quantummpv/app/ui/player/visualizer/BlobComposable.kt
+index c0166aba..2d67853c 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/visualizer/BlobComposable.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/visualizer/BlobComposable.kt
+@@ -9,29 +9,20 @@
+ 
+ package com.quantummpv.app.ui.player.visualizer
+ 
+-import android.Manifest
+-import android.content.pm.PackageManager
+ import android.opengl.GLSurfaceView
++import android.view.View
+ import android.view.ViewGroup
+-import androidx.activity.compose.rememberLauncherForActivityResult
+-import androidx.activity.result.contract.ActivityResultContracts
+ import androidx.compose.runtime.Composable
+ import androidx.compose.runtime.DisposableEffect
+ import androidx.compose.runtime.LaunchedEffect
+-import androidx.compose.runtime.getValue
+-import androidx.compose.runtime.mutableStateOf
+ import androidx.compose.runtime.remember
+ import androidx.compose.runtime.rememberCoroutineScope
+-import androidx.compose.runtime.setValue
+ import androidx.compose.ui.Modifier
+-import androidx.compose.ui.platform.LocalContext
+ import androidx.compose.ui.viewinterop.AndroidView
+-import androidx.core.content.ContextCompat
+ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.delay
+ import kotlinx.coroutines.isActive
+ import kotlinx.coroutines.launch
+-import java.util.concurrent.atomic.AtomicBoolean
+ import kotlin.math.sin
+ 
+ @Composable
+@@ -39,13 +30,11 @@ internal fun BlobOverlay(
+   modifier: Modifier = Modifier,
+   palette: VisualizerPalette,
+   isSheetOpen: Boolean = false,
+-  volumeScale: Float = 1f,
+   features: AudioFeatures,
+ ) = VisualizerOverlay(
+   modifier = modifier,
+   palette = palette,
+   isSheetOpen = isSheetOpen,
+-  volumeScale = volumeScale,
+   features = features,
+   factory = { ctx, features, p -> BlobVisualizerView(ctx, features, p) },
+ )
+@@ -55,13 +44,11 @@ internal fun GalaxyOverlay(
+   modifier: Modifier = Modifier,
+   palette: VisualizerPalette,
+   isSheetOpen: Boolean = false,
+-  volumeScale: Float = 1f,
+   features: AudioFeatures,
+ ) = VisualizerOverlay(
+   modifier = modifier,
+   palette = palette,
+   isSheetOpen = isSheetOpen,
+-  volumeScale = volumeScale,
+   features = features,
+   factory = { ctx, features, p -> GalaxyVisualizerView(ctx, features, p) },
+ )
+@@ -71,13 +58,11 @@ internal fun ParticleOverlay(
+   modifier: Modifier = Modifier,
+   palette: VisualizerPalette,
+   isSheetOpen: Boolean = false,
+-  volumeScale: Float = 1f,
+   features: AudioFeatures,
+ ) = VisualizerOverlay(
+   modifier = modifier,
+   palette = palette,
+   isSheetOpen = isSheetOpen,
+-  volumeScale = volumeScale,
+   features = features,
+   factory = { ctx, features, p -> ParticleVisualizerView(ctx, features, p) },
+ )
+@@ -91,55 +76,9 @@ private fun <T> VisualizerOverlay(
+   modifier: Modifier = Modifier,
+   palette: VisualizerPalette,
+   isSheetOpen: Boolean = false,
+-  volumeScale: Float = 1f,
+   features: AudioFeatures,
+   factory: (android.content.Context, AudioFeatures, VisualizerPalette) -> T,
+ ) where T : GLSurfaceView, T : PaletteConsumer {
+-  val context = LocalContext.current
+-  val scope = rememberCoroutineScope()
+-  val realAnalyzerActive = remember(features) { AtomicBoolean(false) }
+-  var hasRecordPermission by remember {
+-    mutableStateOf(
+-      ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
+-        PackageManager.PERMISSION_GRANTED,
+-    )
+-  }
+-  val recordPermissionLauncher =
+-    rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+-      hasRecordPermission = granted
+-    }
+-
+-  LaunchedEffect(volumeScale) {
+-    features.volumeScale = volumeScale
+-  }
+-  LaunchedEffect(hasRecordPermission) {
+-    if (!hasRecordPermission) recordPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+-  }
+-
+-  // The overlay itself is only composed while a visualizer is visible. Keep Android's audio
+-  // capture pipeline scoped to this lifecycle so album-art-only playback does not hold a Visualizer
+-  // effect, poll capture freshness, or repeatedly retry the audio session in the background.
+-  // A modal sheet covers the renderer, so suspend capture there too and let the UI consume zero
+-  // analyzer work until the visualizer is visible again.
+-  DisposableEffect(hasRecordPermission, features, isSheetOpen) {
+-    val analyzer = if (hasRecordPermission && !isSheetOpen) AudioSpectrumAnalyzer(features) else null
+-    val job =
+-      scope.launch(Dispatchers.Default) {
+-        while (isActive && analyzer != null) {
+-          val captureFresh = features.active && features.hasRecentCapture(1_500_000_000L)
+-          if (!realAnalyzerActive.get() || !captureFresh) {
+-            realAnalyzerActive.set(analyzer.start(0).isSuccess)
+-          }
+-          delay(if (realAnalyzerActive.get()) 1_500L else 400L)
+-        }
+-      }
+-    onDispose {
+-      job.cancel()
+-      realAnalyzerActive.set(false)
+-      analyzer?.stop(resetFeatures = false)
+-    }
+-  }
+-
+   AndroidView(
+     factory = { ctx ->
+       factory(ctx, features, palette).apply {
+@@ -153,14 +92,12 @@ private fun <T> VisualizerOverlay(
+     modifier = modifier,
+     update = { view ->
+       view.updatePalette(palette)
+-      view.setZOrderOnTop(false)
+-      view.setZOrderMediaOverlay(true)
+       if (isSheetOpen) {
+-        // A sheet fully covers the expensive GLSurfaceView. Keep the last frame but stop the
+-        // continuous render loop (particle/galaxy renderers otherwise burn GPU underneath it).
++        // Translucent GL surfaces sit above the app window, so hide them while a sheet is open.
++        view.visibility = View.INVISIBLE
+         view.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
+-        view.requestRender()
+       } else {
++        view.visibility = View.VISIBLE
+         view.renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY
+       }
+     },
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/visualizer/BlobRenderer.kt b/app/src/main/java/com/quantummpv/app/ui/player/visualizer/BlobRenderer.kt
+index 8cf73768..c39809fd 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/visualizer/BlobRenderer.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/visualizer/BlobRenderer.kt
+@@ -13,6 +13,8 @@ import android.content.Context
+ import android.opengl.GLES30
+ import android.opengl.GLSurfaceView
+ import android.opengl.Matrix
++import java.nio.ByteBuffer
++import java.nio.ByteOrder
+ import java.nio.FloatBuffer
+ import java.nio.IntBuffer
+ import javax.microedition.khronos.egl.EGLConfig
+@@ -113,6 +115,11 @@ internal class BlobRenderer(
+   private var bloomB = RenderTarget.EMPTY
+ 
+   private var spectrumTexture = 0
++  private val spectrumUploadBuffer =
++    ByteBuffer
++      .allocateDirect(512 * Float.SIZE_BYTES)
++      .order(ByteOrder.nativeOrder())
++      .asFloatBuffer()
+ 
+   private var surfaceWidth = 1
+   private var surfaceHeight = 1
+@@ -392,15 +399,19 @@ internal class BlobRenderer(
+     GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, 0)
+   }
+ 
+-   private fun updateSpectrumTexture(
+-     spectrum: FloatArray,
+-     volumeScale: Float,
+-   ) {
+-     val data = java.nio.FloatBuffer.wrap(spectrum.copyOf(512).also { scaled ->
+-       for (i in scaled.indices) {
+-         scaled[i] *= volumeScale
+-       }
+-     })
++  private fun updateSpectrumTexture(
++    spectrum: FloatArray,
++    volumeScale: Float,
++  ) {
++    spectrumUploadBuffer.clear()
++    val populatedBins = min(spectrum.size, 512)
++    for (index in 0 until populatedBins) {
++      spectrumUploadBuffer.put(spectrum[index] * volumeScale)
++    }
++    for (index in populatedBins until 512) {
++      spectrumUploadBuffer.put(0f)
++    }
++    spectrumUploadBuffer.flip()
+     GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, spectrumTexture)
+     GLES30.glTexSubImage2D(
+       GLES30.GL_TEXTURE_2D,
+@@ -411,7 +422,7 @@ internal class BlobRenderer(
+       1,
+       GLES30.GL_RED,
+       GLES30.GL_FLOAT,
+-      data,
++      spectrumUploadBuffer,
+     )
+     GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, 0)
+   }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/visualizer/BlobVisualizerView.kt b/app/src/main/java/com/quantummpv/app/ui/player/visualizer/BlobVisualizerView.kt
+index 1dead39c..db921b78 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/visualizer/BlobVisualizerView.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/visualizer/BlobVisualizerView.kt
+@@ -10,6 +10,7 @@
+ package com.quantummpv.app.ui.player.visualizer
+ 
+ import android.content.Context
++import android.graphics.Color
+ import android.graphics.PixelFormat
+ import android.opengl.GLSurfaceView
+ import android.view.MotionEvent
+@@ -35,10 +36,11 @@ internal class BlobVisualizerView(
+     setEGLContextClientVersion(3)
+     setEGLConfigChooser(8, 8, 8, 8, 16, 0)
+     holder.setFormat(PixelFormat.TRANSLUCENT)
+-    setZOrderMediaOverlay(true)
++    setBackgroundColor(Color.TRANSPARENT)
++    setZOrderOnTop(true)
+     preserveEGLContextOnPause = true
+     setRenderer(blobRenderer)
+-    renderMode = RENDERMODE_CONTINUOUSLY
++    renderMode = RENDERMODE_WHEN_DIRTY
+   }
+ 
+   override fun onTouchEvent(event: MotionEvent): Boolean {
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/visualizer/CuboidComposable.kt b/app/src/main/java/com/quantummpv/app/ui/player/visualizer/CuboidComposable.kt
+index d22e4153..1a7787eb 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/visualizer/CuboidComposable.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/visualizer/CuboidComposable.kt
+@@ -200,17 +200,12 @@ internal fun CuboidOverlay(
+   isPlaying: Boolean = false,
+   palette: VisualizerPalette,
+   isSheetOpen: Boolean = false,
+-  volumeScale: Float = 1f,
+   features: AudioFeatures,
+ ) {
+   val state = remember { CuboidTunnelState() }
+   val tones = remember(palette) { palette.toCuboidTones() }
+   var frameTick by remember { mutableLongStateOf(0L) }
+ 
+-  LaunchedEffect(volumeScale) {
+-    features.volumeScale = volumeScale.coerceIn(0f, 1f)
+-  }
+-
+   LaunchedEffect(isSheetOpen) {
+     if (isSheetOpen) return@LaunchedEffect
+     var lastFrameNanos = 0L
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/visualizer/GalaxyVisualizerView.kt b/app/src/main/java/com/quantummpv/app/ui/player/visualizer/GalaxyVisualizerView.kt
+index 6e561b0a..155e33db 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/visualizer/GalaxyVisualizerView.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/visualizer/GalaxyVisualizerView.kt
+@@ -10,6 +10,7 @@
+ package com.quantummpv.app.ui.player.visualizer
+ 
+ import android.content.Context
++import android.graphics.Color
+ import android.graphics.PixelFormat
+ import android.opengl.GLSurfaceView
+ import android.view.MotionEvent
+@@ -36,10 +37,11 @@ internal class GalaxyVisualizerView(
+     setEGLContextClientVersion(3)
+     setEGLConfigChooser(8, 8, 8, 8, 16, 0)
+     holder.setFormat(PixelFormat.TRANSLUCENT)
+-    setZOrderMediaOverlay(true)
++    setBackgroundColor(Color.TRANSPARENT)
++    setZOrderOnTop(true)
+     preserveEGLContextOnPause = true
+     setRenderer(galaxyRenderer)
+-    renderMode = RENDERMODE_CONTINUOUSLY
++    renderMode = RENDERMODE_WHEN_DIRTY
+     isClickable = true
+   }
+ 
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/visualizer/OneUiWaveVisualizer.kt b/app/src/main/java/com/quantummpv/app/ui/player/visualizer/OneUiWaveVisualizer.kt
+index af610d43..a6ec8c49 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/visualizer/OneUiWaveVisualizer.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/visualizer/OneUiWaveVisualizer.kt
+@@ -9,37 +9,23 @@
+ 
+ package com.quantummpv.app.ui.player.visualizer
+ 
+-import android.Manifest
+-import android.content.pm.PackageManager
+-import androidx.activity.compose.rememberLauncherForActivityResult
+-import androidx.activity.result.contract.ActivityResultContracts
+ import androidx.compose.animation.core.Spring
+ import androidx.compose.animation.core.animateFloatAsState
+ import androidx.compose.animation.core.spring
+ import androidx.compose.foundation.Canvas
+ import androidx.compose.runtime.Composable
+-import androidx.compose.runtime.DisposableEffect
+ import androidx.compose.runtime.LaunchedEffect
+ import androidx.compose.runtime.getValue
+ import androidx.compose.runtime.mutableFloatStateOf
+ import androidx.compose.runtime.mutableLongStateOf
+-import androidx.compose.runtime.mutableStateOf
+ import androidx.compose.runtime.remember
+-import androidx.compose.runtime.rememberCoroutineScope
+ import androidx.compose.runtime.setValue
+ import androidx.compose.runtime.withFrameNanos
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.graphics.Color
+ import androidx.compose.ui.graphics.Path
+-import androidx.compose.ui.platform.LocalContext
+ import androidx.compose.ui.unit.Dp
+ import androidx.compose.ui.unit.dp
+-import androidx.core.content.ContextCompat
+-import kotlinx.coroutines.Dispatchers
+-import kotlinx.coroutines.delay
+-import kotlinx.coroutines.isActive
+-import kotlinx.coroutines.launch
+-import java.util.concurrent.atomic.AtomicBoolean
+ import kotlin.math.PI
+ import kotlin.math.exp
+ import kotlin.math.min
+@@ -85,55 +71,12 @@ internal fun ribbonLiftScale(
+ internal fun WaveVisualizerOverlay(
+   palette: VisualizerPalette,
+   isSheetOpen: Boolean,
+-  volumeScale: Float,
+   features: AudioFeatures,
+   isPlaying: Boolean,
+   progressProvider: () -> Float,
+   trackHeight: Dp,
+   modifier: Modifier = Modifier,
+ ) {
+-  val context = LocalContext.current
+-  val scope = rememberCoroutineScope()
+-  val realAnalyzerActive = remember(features) { AtomicBoolean(false) }
+-  var hasRecordPermission by remember {
+-    mutableStateOf(
+-      ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
+-        PackageManager.PERMISSION_GRANTED,
+-    )
+-  }
+-  val recordPermissionLauncher =
+-    rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+-      hasRecordPermission = granted
+-    }
+-
+-  LaunchedEffect(volumeScale) {
+-    features.volumeScale = volumeScale.coerceIn(0f, 1f)
+-  }
+-  LaunchedEffect(hasRecordPermission) {
+-    if (!hasRecordPermission) recordPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+-  }
+-
+-  // Audio capture stays scoped to the visible visualizer so album-art-only playback
+-  // never holds the Visualizer effect or polls capture freshness in the background.
+-  DisposableEffect(hasRecordPermission, features, isSheetOpen) {
+-    val analyzer = if (hasRecordPermission && !isSheetOpen) AudioSpectrumAnalyzer(features) else null
+-    val job =
+-      scope.launch(Dispatchers.Default) {
+-        while (isActive && analyzer != null) {
+-          val captureFresh = features.active && features.hasRecentCapture(1_500_000_000L)
+-          if (!realAnalyzerActive.get() || !captureFresh) {
+-            realAnalyzerActive.set(analyzer.start(0).isSuccess)
+-          }
+-          delay(if (realAnalyzerActive.get()) 1_500L else 400L)
+-        }
+-      }
+-    onDispose {
+-      job.cancel()
+-      realAnalyzerActive.set(false)
+-      analyzer?.stop(resetFeatures = false)
+-    }
+-  }
+-
+   // Each ribbon owns a frequency-band envelope; system volume remains a separate live gain.
+   var frameNanos by remember { mutableLongStateOf(0L) }
+   var lowPhase by remember { mutableFloatStateOf(0f) }
+@@ -143,7 +86,7 @@ internal fun WaveVisualizerOverlay(
+   var midLevel by remember { mutableFloatStateOf(0f) }
+   var highLevel by remember { mutableFloatStateOf(0f) }
+   var loudness by remember { mutableFloatStateOf(0f) }
+-  var outputVolume by remember { mutableFloatStateOf(volumeScale.coerceIn(0f, 1f)) }
++  var outputVolume by remember { mutableFloatStateOf(features.volumeScale.coerceIn(0f, 1f)) }
+   var beatPulse by remember { mutableFloatStateOf(0f) }
+   LaunchedEffect(isPlaying, isSheetOpen) {
+     if (!isPlaying || isSheetOpen) {
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/visualizer/ParticleVisualizerView.kt b/app/src/main/java/com/quantummpv/app/ui/player/visualizer/ParticleVisualizerView.kt
+index 2ee444dd..072ca285 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/visualizer/ParticleVisualizerView.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/visualizer/ParticleVisualizerView.kt
+@@ -10,6 +10,7 @@
+ package com.quantummpv.app.ui.player.visualizer
+ 
+ import android.content.Context
++import android.graphics.Color
+ import android.graphics.PixelFormat
+ import android.opengl.GLSurfaceView
+ import android.view.MotionEvent
+@@ -31,11 +32,11 @@ internal class ParticleVisualizerView(
+     setEGLContextClientVersion(3)
+     setEGLConfigChooser(8, 8, 8, 8, 16, 0)
+     holder.setFormat(PixelFormat.TRANSLUCENT)
+-    setZOrderOnTop(false)
+-    setZOrderMediaOverlay(true)
++    setBackgroundColor(Color.TRANSPARENT)
++    setZOrderOnTop(true)
+     preserveEGLContextOnPause = true
+     setRenderer(renderer)
+-    renderMode = RENDERMODE_CONTINUOUSLY
++    renderMode = RENDERMODE_WHEN_DIRTY
+     isClickable = true
+   }
+ 
+diff --git a/app/src/main/res/values-ar/strings.xml b/app/src/main/res/values-ar/strings.xml
+index 75b2bae2..70ae3472 100644
+--- a/app/src/main/res/values-ar/strings.xml
++++ b/app/src/main/res/values-ar/strings.xml
+@@ -2012,6 +2012,7 @@
+   <string name="btn_label_scopes">النطاقات</string>
+   <string name="scopes_title">النطاقات</string>
+   <string name="scopes_expand">توسيع النطاقات</string>
++  <string name="scopes_resize">تغيير حجم النطاقات</string>
+   <string name="scopes_show_overlay">إظهار التراكب</string>
+   <string name="scopes_no_audio_track">لم يتم تحديد مسار صوتي</string>
+   <string name="scopes_channel_count">القنوات: %1$d</string>
+diff --git a/app/src/main/res/values-de/strings.xml b/app/src/main/res/values-de/strings.xml
+index 59eab01d..8efc602b 100644
+--- a/app/src/main/res/values-de/strings.xml
++++ b/app/src/main/res/values-de/strings.xml
+@@ -2010,6 +2010,7 @@ Bitte starten Sie die App neu, damit alle Änderungen wirksam werden.</string>
+   <string name="btn_label_scopes">Scopes</string>
+   <string name="scopes_title">Scopes</string>
+   <string name="scopes_expand">Scopes erweitern</string>
++  <string name="scopes_resize">Scopes skalieren</string>
+   <string name="scopes_show_overlay">Overlay anzeigen</string>
+   <string name="scopes_no_audio_track">Keine Audiospur ausgewählt</string>
+   <string name="scopes_channel_count">Kanäle: %1$d</string>
+diff --git a/app/src/main/res/values-es/strings.xml b/app/src/main/res/values-es/strings.xml
+index c50634b3..c21399d7 100644
+--- a/app/src/main/res/values-es/strings.xml
++++ b/app/src/main/res/values-es/strings.xml
+@@ -2010,6 +2010,7 @@ Reinicia la aplicación para que se apliquen todos los cambios.</string>
+   <string name="btn_label_scopes">Monitores</string>
+   <string name="scopes_title">Monitores</string>
+   <string name="scopes_expand">Ampliar monitores</string>
++  <string name="scopes_resize">Cambiar tamaño de los monitores</string>
+   <string name="scopes_show_overlay">Mostrar superposición</string>
+   <string name="scopes_no_audio_track">No hay ninguna pista de audio seleccionada</string>
+   <string name="scopes_channel_count">Canales: %1$d</string>
+diff --git a/app/src/main/res/values-fr/strings.xml b/app/src/main/res/values-fr/strings.xml
+index 65f5db17..c71d8343 100644
+--- a/app/src/main/res/values-fr/strings.xml
++++ b/app/src/main/res/values-fr/strings.xml
+@@ -2010,6 +2010,7 @@ Veuillez redémarrer l’application pour appliquer toutes les modifications.</s
+   <string name="btn_label_scopes">Scopes</string>
+   <string name="scopes_title">Scopes</string>
+   <string name="scopes_expand">Agrandir les scopes</string>
++  <string name="scopes_resize">Redimensionner les scopes</string>
+   <string name="scopes_show_overlay">Afficher la superposition</string>
+   <string name="scopes_no_audio_track">Aucune piste audio sélectionnée</string>
+   <string name="scopes_channel_count">Canaux : %1$d</string>
+diff --git a/app/src/main/res/values-hi/strings.xml b/app/src/main/res/values-hi/strings.xml
+index 99104132..566fc11d 100644
+--- a/app/src/main/res/values-hi/strings.xml
++++ b/app/src/main/res/values-hi/strings.xml
+@@ -1914,6 +1914,7 @@
+   <string name="btn_label_scopes">स्कोप</string>
+   <string name="scopes_title">स्कोप</string>
+   <string name="scopes_expand">स्कोप बड़ा करें</string>
++  <string name="scopes_resize">स्कोप का आकार बदलें</string>
+   <string name="scopes_show_overlay">ओवरले दिखाएँ</string>
+   <string name="scopes_no_audio_track">कोई ऑडियो ट्रैक नहीं चुना गया</string>
+   <string name="scopes_channel_count">चैनल: %1$d</string>
+diff --git a/app/src/main/res/values-ja/strings.xml b/app/src/main/res/values-ja/strings.xml
+index 675eaf98..705b03c0 100644
+--- a/app/src/main/res/values-ja/strings.xml
++++ b/app/src/main/res/values-ja/strings.xml
+@@ -2010,6 +2010,7 @@
+   <string name="btn_label_scopes">スコープ</string>
+   <string name="scopes_title">スコープ</string>
+   <string name="scopes_expand">スコープを拡大</string>
++  <string name="scopes_resize">スコープのサイズを変更</string>
+   <string name="scopes_show_overlay">オーバーレイを表示</string>
+   <string name="scopes_no_audio_track">音声トラックが選択されていません</string>
+   <string name="scopes_channel_count">チャンネル：%1$d</string>
+diff --git a/app/src/main/res/values-pt-rBR/strings.xml b/app/src/main/res/values-pt-rBR/strings.xml
+index 2996df9d..ce06c9b1 100644
+--- a/app/src/main/res/values-pt-rBR/strings.xml
++++ b/app/src/main/res/values-pt-rBR/strings.xml
+@@ -2010,6 +2010,7 @@ Reinicie o aplicativo para que todas as alterações entrem em vigor.</string>
+   <string name="btn_label_scopes">Escopos</string>
+   <string name="scopes_title">Escopos</string>
+   <string name="scopes_expand">Expandir escopos</string>
++  <string name="scopes_resize">Redimensionar escopos</string>
+   <string name="scopes_show_overlay">Mostrar sobreposição</string>
+   <string name="scopes_no_audio_track">Nenhuma faixa de áudio selecionada</string>
+   <string name="scopes_channel_count">Canais: %1$d</string>
+diff --git a/app/src/main/res/values-ru/strings.xml b/app/src/main/res/values-ru/strings.xml
+index eaa7dc41..0e8329b6 100644
+--- a/app/src/main/res/values-ru/strings.xml
++++ b/app/src/main/res/values-ru/strings.xml
+@@ -2010,6 +2010,7 @@
+   <string name="btn_label_scopes">Скопы</string>
+   <string name="scopes_title">Скопы</string>
+   <string name="scopes_expand">Развернуть скопы</string>
++  <string name="scopes_resize">Изменить размер скопов</string>
+   <string name="scopes_show_overlay">Показывать наложение</string>
+   <string name="scopes_no_audio_track">Аудиодорожка не выбрана</string>
+   <string name="scopes_channel_count">Каналы: %1$d</string>
+diff --git a/app/src/main/res/values-zh-rCN/strings.xml b/app/src/main/res/values-zh-rCN/strings.xml
+index 34dd4f22..2865a58b 100644
+--- a/app/src/main/res/values-zh-rCN/strings.xml
++++ b/app/src/main/res/values-zh-rCN/strings.xml
+@@ -2012,6 +2012,7 @@
+   <string name="btn_label_scopes">示波器</string>
+   <string name="scopes_title">示波器</string>
+   <string name="scopes_expand">展开示波器</string>
++  <string name="scopes_resize">调整示波器大小</string>
+   <string name="scopes_show_overlay">显示叠加层</string>
+   <string name="scopes_no_audio_track">未选择音轨</string>
+   <string name="scopes_channel_count">声道：%1$d</string>
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index f3cebaf6..1212cab6 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -1244,6 +1244,7 @@
+   <string name="btn_label_none">None</string>
+   <string name="scopes_title">Scopes</string>
+   <string name="scopes_expand">Expand scopes</string>
++  <string name="scopes_resize">Resize scopes</string>
+   <string name="scopes_show_overlay">Show overlay</string>
+   <string name="scopes_no_audio_track">No audio track selected</string>
+   <string name="scopes_channel_count">Channels: %1$d</string>
+-- 
+2.25.1
+

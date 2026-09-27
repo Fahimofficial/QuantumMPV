@@ -1,0 +1,350 @@
+From 68b80a5a8abe5a3e1976444af27966c9cbb68b3d Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <riteshp2001@gmail.com>
+Date: Tue, 15 Sep 2026 11:44:09 +0530
+Subject: [PATCH 098/140] feat(settings): organize network configuration and
+ flatten folders
+
+---
+ .../mpvrx/ui/browser/cards/FolderCard.kt      |   4 +-
+ .../ui/browser/cards/NetworkFolderCard.kt     |   8 +-
+ .../preferences/AdvancedPreferencesScreen.kt  |  74 ------------
+ .../NetworkConfigurationPreferencesScreen.kt  | 112 ++++++++++++++++++
+ .../mpvrx/ui/preferences/PreferencesScreen.kt |   8 +-
+ .../ui/preferences/SearchablePreference.kt    |   6 +-
+ .../preferences/SettingsSearchNavigation.kt   |   6 +
+ 7 files changed, 132 insertions(+), 86 deletions(-)
+ create mode 100644 app/src/main/java/com/quantummpv/app/ui/preferences/NetworkConfigurationPreferencesScreen.kt
+
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/cards/FolderCard.kt b/app/src/main/java/com/quantummpv/app/ui/browser/cards/FolderCard.kt
+index 1a1078d2..fda369b9 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/cards/FolderCard.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/cards/FolderCard.kt
+@@ -279,7 +279,6 @@ fun FolderCard(
+                 }
+               ).clip(AppShapeScale.medium)
+                 .tvFocusHighlight(AppShapeScale.medium, focusedScale = 1.03f)
+-                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                 .combinedClickable(
+                   onClick = onThumbClick,
+                   onLongClick = onLongClick,
+@@ -399,9 +398,8 @@ fun FolderCard(
+             modifier =
+               Modifier
+                 .size(64.dp)
+-                .tvFocusHighlight(AppShapeScale.medium, focusedScale = 1.03f)
+                 .clip(AppShapeScale.medium)
+-                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
++                .tvFocusHighlight(AppShapeScale.medium, focusedScale = 1.03f)
+                 .combinedClickable(
+                   onClick = onThumbClick,
+                   onLongClick = onLongClick,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/cards/NetworkFolderCard.kt b/app/src/main/java/com/quantummpv/app/ui/browser/cards/NetworkFolderCard.kt
+index 11bfa9e2..5515fb0e 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/cards/NetworkFolderCard.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/cards/NetworkFolderCard.kt
+@@ -37,8 +37,8 @@ import com.quantummpv.app.domain.network.NetworkFile
+ import com.quantummpv.app.preferences.AppearancePreferences
+ import com.quantummpv.app.preferences.preference.collectAsState
+ import com.quantummpv.app.ui.icons.Icon
+-import com.quantummpv.app.ui.icons.Icons
+ import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
++import com.quantummpv.app.ui.icons.Icons
+ import com.quantummpv.app.ui.theme.AppShapeScale
+ import org.koin.compose.koinInject
+ 
+@@ -100,8 +100,7 @@ fun NetworkFolderCard(
+             Modifier
+               .fillMaxWidth()
+               .aspectRatio(1f)
+-              .clip(AppShapeScale.medium)
+-              .background(MaterialTheme.colorScheme.surfaceContainerHigh),
++                .clip(AppShapeScale.medium),
+           contentAlignment = Alignment.Center,
+         ) {
+           Icon(
+@@ -136,8 +135,7 @@ fun NetworkFolderCard(
+           modifier =
+             Modifier
+               .size(64.dp)
+-              .clip(AppShapeScale.medium)
+-              .background(MaterialTheme.colorScheme.surfaceContainerHigh),
++                .clip(AppShapeScale.medium),
+           contentAlignment = Alignment.Center,
+         ) {
+           Icon(
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/AdvancedPreferencesScreen.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/AdvancedPreferencesScreen.kt
+index 41a2812c..409d0e58 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/AdvancedPreferencesScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/AdvancedPreferencesScreen.kt
+@@ -569,45 +569,6 @@ object AdvancedPreferencesScreen : Screen {
+             }
+           }
+ 
+-          item {
+-            PreferenceSectionHeader(title = stringResource(R.string.pref_section_p2p_streaming))
+-          }
+-
+-          item {
+-            PreferenceCard {
+-              val enableP2pStreaming by preferences.enableP2pStreaming.collectAsState()
+-              val enableHlsProxy by preferences.enableHlsProxy.collectAsState()
+-
+-              SwitchPreference(
+-                modifier = Modifier.settingsSearchTarget(R.string.pref_enable_p2p_streaming_title),
+-                value = enableP2pStreaming,
+-                onValueChange = preferences.enableP2pStreaming::set,
+-                title = { Text(stringResource(R.string.pref_enable_p2p_streaming_title)) },
+-                summary = {
+-                  Text(
+-                    stringResource(R.string.pref_enable_p2p_streaming_summary),
+-                    color = MaterialTheme.colorScheme.outline,
+-                  )
+-                },
+-              )
+-
+-              PreferenceDivider()
+-
+-              SwitchPreference(
+-                modifier = Modifier.settingsSearchTarget(R.string.pref_enable_hls_proxy_title),
+-                value = enableHlsProxy,
+-                onValueChange = preferences.enableHlsProxy::set,
+-                title = { Text(stringResource(R.string.pref_enable_hls_proxy_title)) },
+-                summary = {
+-                  Text(
+-                    stringResource(R.string.pref_enable_hls_proxy_summary),
+-                    color = MaterialTheme.colorScheme.outline,
+-                  )
+-                },
+-              )
+-            }
+-          }
+-
+           // Scripts Section
+           item {
+             PreferenceSectionHeader(title = stringResource(R.string.pref_section_scripts))
+@@ -683,41 +644,6 @@ object AdvancedPreferencesScreen : Screen {
+             }
+           }
+ 
+-          item {
+-            PreferenceSectionHeader(title = stringResource(R.string.ui_network))
+-          }
+-
+-          item {
+-            PreferenceCard {
+-              Preference(
+-                title = {
+-                  Text(
+-                    androidx.compose.ui.res
+-                      .stringResource(com.quantummpv.app.R.string.ui_yt_dlp_manager),
+-                  )
+-                },
+-                summary = {
+-                  Text(
+-                    androidx.compose.ui.res.stringResource(
+-                      com.quantummpv.app.R.string.ui_install_and_update_yt_dlp_for_streaming_support,
+-                    ),
+-                    color = MaterialTheme.colorScheme.outline,
+-                  )
+-                },
+-                icon = {
+-                  Icon(
+-                    Icons.RoundedFilled.CloudDownload,
+-                    contentDescription = null,
+-                    tint = MaterialTheme.colorScheme.primary,
+-                  )
+-                },
+-                onClick = {
+-                  backStack.navigateTo(YtdlpSettingsScreen)
+-                },
+-              )
+-            }
+-          }
+-
+           // Data & Cache Section
+           item {
+             PreferenceSectionHeader(title = stringResource(R.string.pref_section_data_cache))
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/NetworkConfigurationPreferencesScreen.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/NetworkConfigurationPreferencesScreen.kt
+new file mode 100644
+index 00000000..4bfc9f2d
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/NetworkConfigurationPreferencesScreen.kt
+@@ -0,0 +1,112 @@
++/*
++ * SPDX-License-Identifier: AGPL-3.0-or-later
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Affero General Public License as published
++ * by the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ */
++
++package com.quantummpv.app.ui.preferences
++
++import androidx.compose.foundation.layout.fillMaxSize
++import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.lazy.LazyColumn
++import androidx.compose.material3.ExperimentalMaterial3Api
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.Text
++import androidx.compose.material3.TopAppBar
++import androidx.compose.material3.Scaffold
++import androidx.compose.material3.IconButton
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.getValue
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.res.stringResource
++import com.quantummpv.app.R
++import com.quantummpv.app.preferences.AdvancedPreferences
++import com.quantummpv.app.preferences.preference.collectAsState
++import com.quantummpv.app.presentation.Screen
++import com.quantummpv.app.ui.icons.Icon
++import com.quantummpv.app.ui.icons.Icons
++import com.quantummpv.app.ui.preferences.components.SwitchPreference
++import com.quantummpv.app.ui.utils.LocalBackStack
++import com.quantummpv.app.ui.utils.LocalShowSettingsBackArrow
++import com.quantummpv.app.ui.utils.navigateTo
++import com.quantummpv.app.ui.utils.popSafely
++import kotlinx.serialization.Serializable
++import me.zhanghai.compose.preference.Preference
++import me.zhanghai.compose.preference.ProvidePreferenceLocals
++import org.koin.compose.koinInject
++
++@Serializable
++object NetworkConfigurationPreferencesScreen : Screen {
++  @OptIn(ExperimentalMaterial3Api::class)
++  @Composable
++  override fun Content() {
++    val backStack = LocalBackStack.current
++    val preferences = koinInject<AdvancedPreferences>()
++    val enableP2pStreaming by preferences.enableP2pStreaming.collectAsState()
++    val enableHlsProxy by preferences.enableHlsProxy.collectAsState()
++
++    Scaffold(
++      topBar = {
++        TopAppBar(
++          title = { Text(stringResource(R.string.ui_network)) },
++          navigationIcon = {
++            if (LocalShowSettingsBackArrow.current) {
++              IconButton(onClick = { backStack.popSafely() }) {
++                Icon(Icons.RoundedFilled.ArrowBack, contentDescription = null)
++              }
++            }
++          },
++        )
++      },
++    ) { padding ->
++      ProvidePreferenceLocals {
++        val (settingsListState, settingsHighlight) =
++          rememberSettingsSearchList(NetworkConfigurationPreferencesScreen, MaterialTheme.colorScheme.primary)
++        LazyColumn(
++          state = settingsListState,
++          modifier = Modifier.fillMaxSize().padding(padding).then(settingsHighlight),
++        ) {
++          item {
++            PreferenceSectionHeader(title = stringResource(R.string.pref_section_p2p_streaming))
++          }
++          item {
++            PreferenceCard {
++              SwitchPreference(
++                modifier = Modifier.settingsSearchTarget(R.string.pref_enable_p2p_streaming_title),
++                value = enableP2pStreaming,
++                onValueChange = preferences.enableP2pStreaming::set,
++                title = { Text(stringResource(R.string.pref_enable_p2p_streaming_title)) },
++                summary = { Text(stringResource(R.string.pref_enable_p2p_streaming_summary), color = MaterialTheme.colorScheme.outline) },
++              )
++              PreferenceDivider()
++              SwitchPreference(
++                modifier = Modifier.settingsSearchTarget(R.string.pref_enable_hls_proxy_title),
++                value = enableHlsProxy,
++                onValueChange = preferences.enableHlsProxy::set,
++                title = { Text(stringResource(R.string.pref_enable_hls_proxy_title)) },
++                summary = { Text(stringResource(R.string.pref_enable_hls_proxy_summary), color = MaterialTheme.colorScheme.outline) },
++              )
++            }
++          }
++          item {
++            PreferenceSectionHeader(title = stringResource(R.string.ui_yt_dlp_manager))
++          }
++          item {
++            PreferenceCard {
++              Preference(
++                modifier = Modifier.settingsSearchTarget(R.string.ui_yt_dlp_manager),
++                title = { Text(stringResource(R.string.ui_yt_dlp_manager)) },
++                summary = { Text(stringResource(R.string.ui_install_and_update_yt_dlp_for_streaming_support), color = MaterialTheme.colorScheme.outline) },
++                icon = { Icon(Icons.RoundedFilled.CloudDownload, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
++                onClick = { backStack.navigateTo(YtdlpSettingsScreen) },
++              )
++            }
++          }
++        }
++      }
++    }
++  }
++}
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/PreferencesScreen.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/PreferencesScreen.kt
+index 16f19ce2..f96d5a3b 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/PreferencesScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/PreferencesScreen.kt
+@@ -304,10 +304,16 @@ object PreferencesScreen : Screen {
+           ),
+       ),
+       SettingsSection(
+-        title = stringResource(R.string.pref_section_media_servers),
++        title = stringResource(R.string.ui_network),
+         tint = colorScheme.onSurfaceVariant,
+         items =
+           listOf(
++            SettingsDestination(
++              title = stringResource(R.string.ui_network),
++              summary = stringResource(R.string.pref_section_p2p_streaming),
++              icon = Icons.RoundedFilled.SettingsEthernet,
++              screen = NetworkConfigurationPreferencesScreen,
++            ),
+             SettingsDestination(
+               title = stringResource(R.string.pref_media_servers_title),
+               summary = stringResource(R.string.pref_media_servers_summary),
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/SearchablePreference.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/SearchablePreference.kt
+index fc786169..a5186b9b 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/SearchablePreference.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/SearchablePreference.kt
+@@ -1081,7 +1081,7 @@ object SearchablePreferences {
+           summaryRes = R.string.ui_install_and_update_yt_dlp_for_streaming_support,
+           keywords = listOf("yt-dlp", "online", "streaming", "extractor", "network", "download"),
+           category = "Network",
+-          screen = YtdlpSettingsScreen,
++          screen = NetworkConfigurationPreferencesScreen,
+         ),
+       )
+       add(
+@@ -1546,8 +1546,8 @@ object SearchablePreferences {
+       )
+       addSearchEntries(
+         category = "Network",
+-        screen = AdvancedPreferencesScreen,
+-        anchorItemIndex = 9,
++        screen = NetworkConfigurationPreferencesScreen,
++        anchorItemIndex = 1,
+         SearchEntrySpec(R.string.pref_enable_p2p_streaming_title, listOf("p2p", "torrent", "streaming", "enable")),
+         SearchEntrySpec(R.string.pref_enable_hls_proxy_title, listOf("hls", "proxy", "streaming", "network")),
+       )
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/SettingsSearchNavigation.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/SettingsSearchNavigation.kt
+index 5e7cd666..988ae7f8 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/SettingsSearchNavigation.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/SettingsSearchNavigation.kt
+@@ -210,6 +210,12 @@ private val settingsSearchListAnchors: Map<Screen, List<SettingsSearchListAnchor
+         SettingsSearchListAnchor(titleRes = R.string.pref_jellyfin_server_management, itemIndex = 1),
+         SettingsSearchListAnchor(titleRes = R.string.pref_seerr_server_management, itemIndex = 2),
+       ),
++    NetworkConfigurationPreferencesScreen to
++      listOf(
++        SettingsSearchListAnchor(titleRes = R.string.pref_section_p2p_streaming, itemIndex = 0),
++        SettingsSearchListAnchor(titleRes = R.string.pref_enable_p2p_streaming_title, itemIndex = 1),
++        SettingsSearchListAnchor(titleRes = R.string.ui_yt_dlp_manager, itemIndex = 3),
++      ),
+   )
+ 
+ object SettingsSearchNavigation {
+-- 
+2.25.1
+

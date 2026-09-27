@@ -1,0 +1,1482 @@
+From 4e838115206649f0bb0afa2fa3c0e755c38f40c6 Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <riteshp2001@gmail.com>
+Date: Wed, 16 Sep 2026 15:34:46 +0530
+Subject: [PATCH 111/140] feat: integrate CrashX for enhanced crash reporting
+ and recovery
+
+- Removed GlobalExceptionHandler and replaced it with CrashX integration.
+- Added CrashReportStore for capturing and storing crash reports.
+- Introduced DebugLogsActivity for displaying debug logs.
+- Updated AboutScreen to include CrashX in open source libraries.
+- Enhanced crash screen strings across multiple languages for better user experience.
+- Added new strings for crash report preparation and failure messages.
+- Updated libs.versions.toml to include CrashX dependency.
+---
+ app/build.gradle.kts                          |   1 +
+ app/src/main/AndroidManifest.xml              |  27 +-
+ app/src/main/java/com/quantummpv/app/App.kt    |  41 +-
+ .../mpvrx/presentation/crash/CrashActivity.kt | 522 ++++++++++--------
+ .../presentation/crash/CrashReportProvider.kt |   5 +
+ .../presentation/crash/CrashReportStore.kt    | 219 ++++++++
+ .../presentation/crash/DebugLogsActivity.kt   |  19 +
+ .../crash/GlobalExceptionHandler.kt           |  31 --
+ .../mpvrx/ui/preferences/AboutScreen.kt       |   7 +
+ app/src/main/res/values-ar/strings.xml        |  11 +-
+ app/src/main/res/values-de/strings.xml        |  11 +-
+ app/src/main/res/values-es/strings.xml        |  11 +-
+ app/src/main/res/values-fr/strings.xml        |  11 +-
+ app/src/main/res/values-hi/strings.xml        |  11 +-
+ app/src/main/res/values-ja/strings.xml        |  11 +-
+ app/src/main/res/values-pt-rBR/strings.xml    |  11 +-
+ app/src/main/res/values-ru/strings.xml        |  11 +-
+ app/src/main/res/values-zh-rCN/strings.xml    |  11 +-
+ app/src/main/res/values/strings.xml           |  11 +-
+ app/src/main/res/xml/crash_report_paths.xml   |   6 +
+ gradle/libs.versions.toml                     |   2 +
+ 21 files changed, 711 insertions(+), 279 deletions(-)
+ create mode 100644 app/src/main/java/com/quantummpv/app/presentation/crash/CrashReportProvider.kt
+ create mode 100644 app/src/main/java/com/quantummpv/app/presentation/crash/CrashReportStore.kt
+ create mode 100644 app/src/main/java/com/quantummpv/app/presentation/crash/DebugLogsActivity.kt
+ delete mode 100644 app/src/main/java/com/quantummpv/app/presentation/crash/GlobalExceptionHandler.kt
+ create mode 100644 app/src/main/res/xml/crash_report_paths.xml
+
+diff --git a/app/build.gradle.kts b/app/build.gradle.kts
+index cb462075..59acad79 100644
+--- a/app/build.gradle.kts
++++ b/app/build.gradle.kts
+@@ -251,6 +251,7 @@ dependencies {
+   implementation(libs.bundles.compose.navigation3)
+   implementation(libs.androidx.appcompat)
+   implementation(libs.androidx.core.ktx)
++  implementation(libs.crashx)
+   implementation(libs.androidx.compose.constraintlayout)
+   implementation(libs.androidx.preference.ktx)
+   implementation(libs.androidx.constraintlayout)
+diff --git a/app/src/main/AndroidManifest.xml b/app/src/main/AndroidManifest.xml
+index 602be953..ac1799f5 100644
+--- a/app/src/main/AndroidManifest.xml
++++ b/app/src/main/AndroidManifest.xml
+@@ -454,7 +454,32 @@
+             android:exported="false"
+             android:launchMode="singleTask"
+             android:theme="@style/Theme.mpvrx" />
+-        <activity android:name=".presentation.crash.CrashActivity" />
++        <activity
++            android:name=".presentation.crash.CrashActivity"
++            android:process=":crash"
++            android:exported="false"
++            android:excludeFromRecents="true"
++            android:launchMode="singleTask"
++            android:theme="@style/Theme.mpvrx">
++            <intent-filter>
++                <action android:name="com.developer.crashx.ERROR" />
++                <category android:name="android.intent.category.DEFAULT" />
++            </intent-filter>
++        </activity>
++        <activity
++            android:name=".presentation.crash.DebugLogsActivity"
++            android:exported="false"
++            android:theme="@style/Theme.mpvrx" />
++        <provider
++            android:name=".presentation.crash.CrashReportProvider"
++            android:authorities="${applicationId}.crash-reports"
++            android:exported="false"
++            android:grantUriPermissions="true"
++            android:process=":crash">
++            <meta-data
++                android:name="android.support.FILE_PROVIDER_PATHS"
++                android:resource="@xml/crash_report_paths" />
++        </provider>
+ 
+         <activity
+             android:name=".ui.mediainfo.MediaInfoActivity"
+diff --git a/app/src/main/java/com/quantummpv/app/App.kt b/app/src/main/java/com/quantummpv/app/App.kt
+index 43d9fc52..1845e2a9 100644
+--- a/app/src/main/java/com/quantummpv/app/App.kt
++++ b/app/src/main/java/com/quantummpv/app/App.kt
+@@ -10,11 +10,13 @@
+ package com.quantummpv.app
+ 
+ import android.app.Activity
++import android.app.ActivityManager
+ import android.app.Application
+ import android.content.ComponentName
+ import android.content.pm.PackageManager
+ import android.os.Build
+ import android.os.Bundle
++import android.os.Process
+ import android.os.StrictMode
+ import android.util.Log
+ import android.view.View
+@@ -28,12 +30,13 @@ import com.quantummpv.app.preferences.AudioPreferences
+ import com.quantummpv.app.preferences.DecoderPreferences
+ import com.quantummpv.app.preferences.PlayerPreferences
+ import com.quantummpv.app.presentation.crash.CrashActivity
+-import com.quantummpv.app.presentation.crash.GlobalExceptionHandler
++import com.quantummpv.app.presentation.crash.CrashReportStore
+ import com.quantummpv.app.repository.NetworkRepository
+ import com.quantummpv.app.ui.player.PlaybackPerformanceTrace
+ import com.quantummpv.app.ui.player.PlaybackPhase
+ import com.quantummpv.app.ui.player.PlaybackSession
+ import com.quantummpv.app.ui.player.PlayerActivity
++import com.developer.crashx.config.CrashConfig
+ import `is`.xyz.mpv.FastThumbnails
+ import kotlinx.coroutines.CancellationException
+ import kotlinx.coroutines.CoroutineScope
+@@ -69,6 +72,41 @@ class App :
+   override fun onCreate() {
+     super.onCreate()
+ 
++    val processName =
++      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
++        Application.getProcessName()
++      } else {
++        getSystemService(ActivityManager::class.java).runningAppProcesses
++          ?.firstOrNull { it.pid == Process.myPid() }?.processName
++      }
++    if (processName == "$packageName:crash" || processName == "$packageName:crashx_error") {
++      startKoin {
++        androidContext(this@App)
++        modules(PreferencesModule)
++      }
++      return
++    }
++
++    CrashConfig.Builder.create()
++      .enabled(true)
++      .errorActivity(CrashActivity::class.java)
++      .restartActivity(MainActivity::class.java)
++      .backgroundMode(CrashConfig.BACKGROUND_MODE_SHOW_CUSTOM)
++      .minTimeBetweenCrashesMs(5_000)
++      .maxStackTraceSize(96 * 1024)
++      .trackActivities(true)
++      .maxActivityLogEntries(32)
++      .showErrorDetails(true)
++      .showReportButton(true)
++      .showCloseButton(true)
++      .logErrorOnRestart(false)
++      .includeStackTrace(true)
++      .includeBuildDate(false)
++      .crashIdPrefix("MPVRX")
++      .additionalReportInfo("mpvRx ${BuildConfig.VERSION_NAME} (${BuildConfig.GIT_SHA})")
++      .apply()
++    CrashReportStore.install(this)
++
+     configureDebugStrictMode()
+ 
+     // Initialize Koin
+@@ -88,7 +126,6 @@ class App :
+     registerActivityLifecycleCallbacks(this)
+     PlaybackSession.addObserver(PlaybackPerformanceTrace)
+     startPlaybackPerformanceTracing()
+-    Thread.setDefaultUncaughtExceptionHandler(GlobalExceptionHandler(applicationContext, CrashActivity::class.java))
+     startIdleMpvCoreReaper()
+ 
+     applicationScope.launch {
+diff --git a/app/src/main/java/com/quantummpv/app/presentation/crash/CrashActivity.kt b/app/src/main/java/com/quantummpv/app/presentation/crash/CrashActivity.kt
+index 962d7029..356f8373 100644
+--- a/app/src/main/java/com/quantummpv/app/presentation/crash/CrashActivity.kt
++++ b/app/src/main/java/com/quantummpv/app/presentation/crash/CrashActivity.kt
+@@ -11,167 +11,153 @@ package com.quantummpv.app.presentation.crash
+ 
+ import android.app.Activity
+ import android.content.ClipData
++import android.content.ClipboardManager
+ import android.content.Intent
+ import android.os.Build
+ import android.os.Bundle
++import android.widget.Toast
+ import androidx.activity.SystemBarStyle
++import androidx.activity.addCallback
+ import androidx.activity.compose.setContent
+ import androidx.activity.enableEdgeToEdge
+ import androidx.appcompat.app.AppCompatActivity
+-import androidx.compose.foundation.background
+-import androidx.compose.foundation.isSystemInDarkTheme
+ import androidx.compose.foundation.layout.Arrangement
++import androidx.compose.foundation.layout.Box
+ import androidx.compose.foundation.layout.Column
++import androidx.compose.foundation.layout.PaddingValues
+ import androidx.compose.foundation.layout.Row
+ import androidx.compose.foundation.layout.Spacer
+ import androidx.compose.foundation.layout.fillMaxSize
+ import androidx.compose.foundation.layout.fillMaxWidth
+-import androidx.compose.foundation.layout.height
++import androidx.compose.foundation.layout.heightIn
+ import androidx.compose.foundation.layout.padding
+ import androidx.compose.foundation.layout.size
+-import androidx.compose.foundation.layout.windowInsetsPadding
+-import androidx.compose.foundation.lazy.LazyRow
++import androidx.compose.foundation.layout.width
++import androidx.compose.foundation.layout.widthIn
++import androidx.compose.foundation.lazy.LazyColumn
++import androidx.compose.foundation.lazy.items
+ import androidx.compose.foundation.rememberScrollState
+-import androidx.compose.foundation.shape.RoundedCornerShape
+ import androidx.compose.foundation.text.selection.SelectionContainer
+ import androidx.compose.foundation.verticalScroll
++import androidx.compose.material3.AlertDialog
+ import androidx.compose.material3.Button
+-import androidx.compose.material3.FilledIconButton
+ import androidx.compose.material3.Icon
++import androidx.compose.material3.IconButton
++import androidx.compose.material3.LinearProgressIndicator
+ import androidx.compose.material3.MaterialTheme
+-import androidx.compose.material3.NavigationBarDefaults
+ import androidx.compose.material3.OutlinedButton
+ import androidx.compose.material3.Scaffold
++import androidx.compose.material3.Surface
+ import androidx.compose.material3.Text
++import androidx.compose.material3.TextButton
++import androidx.compose.material3.TopAppBar
+ import androidx.compose.runtime.Composable
++import androidx.compose.runtime.LaunchedEffect
++import androidx.compose.runtime.SideEffect
+ import androidx.compose.runtime.getValue
+ import androidx.compose.runtime.mutableStateOf
+ import androidx.compose.runtime.remember
+ import androidx.compose.runtime.rememberCoroutineScope
+ import androidx.compose.runtime.setValue
++import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+-import androidx.compose.ui.draw.clip
+-import androidx.compose.ui.draw.drawBehind
+-import androidx.compose.ui.geometry.Offset
+ import androidx.compose.ui.graphics.Color
++import androidx.compose.ui.graphics.luminance
+ import androidx.compose.ui.graphics.toArgb
++import androidx.compose.ui.res.painterResource
+ import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.text.font.FontFamily
+-import androidx.compose.ui.unit.Dp
+ import androidx.compose.ui.unit.dp
++import androidx.compose.ui.window.Dialog
++import androidx.compose.ui.window.DialogProperties
+ import androidx.core.content.FileProvider
+ import androidx.lifecycle.coroutineScope
+ import com.quantummpv.app.BuildConfig
+-import com.quantummpv.app.MainActivity
+ import com.quantummpv.app.R
+-import com.quantummpv.app.preferences.AppearancePreferences
+-import com.quantummpv.app.preferences.preference.collectAsState
+ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
+-import com.quantummpv.app.ui.theme.DarkMode
+ import com.quantummpv.app.ui.theme.MpvrxTheme
+-import com.quantummpv.app.ui.theme.spacing
+-import com.quantummpv.app.utils.clipboard.SafeClipboard
++import com.developer.crashx.CrashActivity as CrashX
+ import `is`.xyz.mpv.Utils
++import kotlinx.coroutines.CancellationException
+ import kotlinx.coroutines.Dispatchers
+-import kotlinx.coroutines.NonCancellable
+ import kotlinx.coroutines.launch
+ import kotlinx.coroutines.withContext
+-import org.koin.android.ext.android.inject
+-import java.io.BufferedReader
+ import java.io.File
+-import java.io.InputStreamReader
+ 
+ class CrashActivity : AppCompatActivity() {
+-  private var logcat: String = ""
+-  private val appearancePreferences: AppearancePreferences by inject()
++  private var reportFile by mutableStateOf<File?>(null)
++  private var preparingReport by mutableStateOf(false)
++  private var reportFailed by mutableStateOf(false)
++  private val crashConfig by lazy { CrashX.getConfigFromIntent(intent) }
+ 
+   override fun onCreate(savedInstanceState: Bundle?) {
+     super.onCreate(savedInstanceState)
+-    val debugLogsMode = intent.getBooleanExtra(EXTRA_DEBUG_LOGS_MODE, false)
+-    if (!debugLogsMode) {
+-      lifecycle.coroutineScope.launch {
+-        logcat = collectLogcat()
+-      }
++    onBackPressedDispatcher.addCallback(this) {
++      CrashX.closeApplication(this@CrashActivity, crashConfig)
+     }
++    prepareReport()
+     setContent {
+-      val dark by appearancePreferences.darkMode.collectAsState()
+-      val isSystemInDarkTheme = isSystemInDarkTheme()
+-      val isDarkMode = dark == DarkMode.Dark || (dark == DarkMode.System && isSystemInDarkTheme)
+-      enableEdgeToEdge(
+-        SystemBarStyle.auto(
+-          lightScrim = Color.White.toArgb(),
+-          darkScrim = Color.Transparent.toArgb(),
+-        ) { isDarkMode },
+-      )
+       MpvrxTheme {
+-        if (debugLogsMode) {
+-          DebugLogsScreen(onNavigateBack = ::finish)
+-        } else {
+-          CrashScreen(intent.getStringExtra("exception") ?: "")
++        val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
++        SideEffect {
++          val bars = SystemBarStyle.auto(Color.Transparent.toArgb(), Color.Transparent.toArgb()) { dark }
++          enableEdgeToEdge(statusBarStyle = bars, navigationBarStyle = bars)
+         }
++        CrashScreen()
+       }
+     }
+   }
+ 
+-  override fun onDestroy() {
+-    try {
+-      super.onDestroy()
+-    } catch (_: Exception) {
+-      // Silently handle exceptions during destruction
++  private fun prepareReport() {
++    if (preparingReport) return
++    preparingReport = true
++    reportFailed = false
++    lifecycle.coroutineScope.launch {
++      try {
++        reportFile = withContext(Dispatchers.IO) { CrashReportStore.complete(applicationContext, intent) }
++      } catch (cancellation: CancellationException) {
++        throw cancellation
++      } catch (_: Exception) {
++        reportFailed = true
++      } finally {
++        preparingReport = false
++      }
+     }
+   }
+ 
+   private fun deleteDatabase(): Boolean =
+-    try {
+-      val dbFile = getDatabasePath("mpvrx.db")
+-      val dbWalFile = File(dbFile.parent, "mpvrx.db-wal")
+-      val dbShmFile = File(dbFile.parent, "mpvrx.db-shm")
++    runCatching { deleteDatabase("mpvrx.db") }.getOrDefault(false)
+ 
+-      var deleted = false
+-      if (dbFile.exists()) {
+-        deleted = dbFile.delete() || deleted
+-      }
+-      if (dbWalFile.exists()) {
+-        deleted = dbWalFile.delete() || deleted
+-      }
+-      if (dbShmFile.exists()) {
+-        deleted = dbShmFile.delete() || deleted
++  private fun copyReport() {
++    val report = reportFile ?: return
++    lifecycle.coroutineScope.launch {
++      try {
++        if (report.length() > 256 * 1024) {
++          Toast.makeText(this@CrashActivity, R.string.crash_screen_copy_failed, Toast.LENGTH_LONG).show()
++          return@launch
++        }
++        val text = withContext(Dispatchers.IO) { report.readText() }
++        getSystemService(ClipboardManager::class.java)
++          .setPrimaryClip(ClipData.newPlainText("mpvRx crash report", text))
++      } catch (cancellation: CancellationException) {
++        throw cancellation
++      } catch (_: Exception) {
++        Toast.makeText(this@CrashActivity, R.string.crash_screen_copy_failed, Toast.LENGTH_LONG).show()
+       }
+-      deleted
+-    } catch (_: Exception) {
+-      false
+     }
++  }
+ 
+-  private fun isDatabaseCrash(
+-    exceptionString: String,
+-    logcat: String,
+-  ): Boolean {
+-    val databaseKeywords =
+-      listOf(
+-        "database",
+-        "sqlite",
+-        "room",
+-        "mpvrx.db",
+-        "mpvrxDatabase",
+-        "android.database",
+-        "androidx.room",
+-        "SQLiteException",
+-        "DatabaseException",
+-        "android.database.sqlite",
+-        "migration",
+-        "FOREIGN KEY constraint failed",
+-        "no such table",
+-        "no such column",
+-      )
+-
+-    val combinedLogs = "$exceptionString\n$logcat".lowercase()
+-    return databaseKeywords.any { keyword -> combinedLogs.contains(keyword.lowercase()) }
++  private fun shareReport() {
++    val report = reportFile ?: return
++    try {
++      shareReportFile(this, report, "$packageName.crash-reports")
++    } catch (_: Exception) {
++      Toast.makeText(this, R.string.crash_screen_report_failed, Toast.LENGTH_LONG).show()
++    }
+   }
+ 
+   companion object {
+-    private const val EXTRA_DEBUG_LOGS_MODE = "debug_logs_mode"
+-
+     suspend fun shareLogs(
+       deviceInfo: String,
+       exceptionString: String? = null,
+@@ -184,27 +170,31 @@ class CrashActivity : AppCompatActivity() {
+       if (exceptionString == null) {
+         withContext(Dispatchers.Main) {
+           activity.startActivity(
+-            Intent(activity, CrashActivity::class.java).putExtra(EXTRA_DEBUG_LOGS_MODE, true),
++            Intent(activity, DebugLogsActivity::class.java),
+           )
+         }
+         return
+       }
+ 
+-      withContext(NonCancellable) {
+-        val file = File(activity.cacheDir, "mpvrx_logs.txt")
+-        if (file.exists()) file.delete()
+-        file.createNewFile()
+-        file.appendText(concatLogs(deviceInfo, exceptionString, logcat))
+-        val uri = FileProvider.getUriForFile(activity, "${activity.packageName}.provider", file)
+-        val intent = Intent(Intent.ACTION_SEND)
+-        intent.putExtra(Intent.EXTRA_STREAM, uri)
+-        intent.clipData = ClipData.newRawUri(null, uri)
+-        intent.type = "text/plain"
+-        intent.flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
+-        activity.startActivity(
+-          Intent.createChooser(intent, activity.getString(R.string.crash_screen_share)),
+-        )
++      val file = withContext(Dispatchers.IO) {
++        File(activity.cacheDir, "mpvrx_logs.txt").apply { writeText(concatLogs(deviceInfo, exceptionString, logcat)) }
+       }
++      withContext(Dispatchers.Main) { shareReportFile(activity, file) }
++    }
++
++    private fun shareReportFile(
++      activity: Activity,
++      file: File,
++      authority: String = "${activity.packageName}.provider",
++    ) {
++      val uri = FileProvider.getUriForFile(activity, authority, file)
++      val sendIntent = Intent(Intent.ACTION_SEND).apply {
++        type = "text/plain"
++        putExtra(Intent.EXTRA_STREAM, uri)
++        clipData = ClipData.newRawUri("mpvRx crash report", uri)
++        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
++      }
++      activity.startActivity(Intent.createChooser(sendIntent, activity.getString(R.string.crash_screen_share)))
+     }
+ 
+     fun concatLogs(
+@@ -226,12 +216,12 @@ class CrashActivity : AppCompatActivity() {
+         }.toString()
+ 
+     fun collectLogcat(): String {
+-      val process = Runtime.getRuntime()
+-      val reader = BufferedReader(InputStreamReader(process.exec("logcat -d").inputStream))
+-      val logcat = StringBuilder()
+-      // reader.lines() looks much nicer so why not use it on devices that support it?
+-      reader.lines().forEach(logcat::appendLine)
+-      return logcat.toString()
++      val process = ProcessBuilder("logcat", "-d", "-v", "threadtime").redirectErrorStream(true).start()
++      return try {
++        process.inputStream.bufferedReader().use { it.readText() }
++      } finally {
++        process.destroy()
++      }
+     }
+ 
+     fun collectDeviceInfo(): String =
+@@ -248,161 +238,223 @@ class CrashActivity : AppCompatActivity() {
+   }
+ 
+   @Composable
+-  fun CrashScreen(
+-    exceptionString: String,
+-    modifier: Modifier = Modifier,
+-  ) {
++  private fun CrashScreen() {
+     val scope = rememberCoroutineScope()
+     var databaseDeleted by remember { mutableStateOf(false) }
++    var resetFailed by remember { mutableStateOf(false) }
++    var resetting by remember { mutableStateOf(false) }
++    var confirmReset by remember { mutableStateOf(false) }
++    var showDetails by remember { mutableStateOf(false) }
++    val exceptionString = remember { CrashX.getStackTraceFromIntent(intent).orEmpty() }
+     val isDatabaseRelated =
+-      remember(exceptionString, logcat) {
+-        isDatabaseCrash(exceptionString, logcat)
++      remember(exceptionString) {
++        listOf("android.database.sqlite", "androidx.room", "mpvrx.db").any { it in exceptionString }
+       }
+ 
+     Scaffold(
+-      modifier = modifier.fillMaxSize(),
+-      bottomBar = {
+-        val borderColor = MaterialTheme.colorScheme.outline
++      modifier = Modifier.fillMaxSize(),
++      topBar = {
++        TopAppBar(title = { Text(stringResource(R.string.app_name)) })
++      },
++    ) { paddingValues ->
++      Box(Modifier.fillMaxSize().padding(paddingValues), contentAlignment = Alignment.TopCenter) {
+         Column(
+-          Modifier
+-            .windowInsetsPadding(NavigationBarDefaults.windowInsets)
+-            .drawBehind {
+-              drawLine(
+-                borderColor,
+-                Offset.Zero,
+-                Offset(size.width, 0f),
+-                strokeWidth = Dp.Hairline.value,
+-              )
+-            }.padding(vertical = MaterialTheme.spacing.smaller, horizontal = MaterialTheme.spacing.medium),
+-          verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.extraSmall),
++          modifier =
++            Modifier.widthIn(max = 640.dp).fillMaxSize()
++              .verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 16.dp),
++          verticalArrangement = Arrangement.spacedBy(16.dp),
+         ) {
+-          if (isDatabaseRelated && !databaseDeleted) {
++          Surface(
++            shape = MaterialTheme.shapes.extraLarge,
++            color = MaterialTheme.colorScheme.tertiaryContainer,
++            modifier = Modifier.size(72.dp),
++          ) {
++            Icon(
++              painter = painterResource(R.drawable.ic_launcher_monochrome),
++              contentDescription = null,
++              tint = MaterialTheme.colorScheme.onTertiaryContainer,
++              modifier = Modifier.padding(16.dp),
++            )
++          }
++          Text(stringResource(R.string.crash_screen_title), style = MaterialTheme.typography.headlineMedium)
++          Text(
++            stringResource(R.string.crash_screen_subtitle, stringResource(R.string.app_name)),
++            color = MaterialTheme.colorScheme.onSurfaceVariant,
++          )
++          SelectionContainer {
++            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
++              Text(CrashX.getThrowableClassFromIntent(intent), style = MaterialTheme.typography.titleSmall)
++              Text(
++                stringResource(R.string.crash_screen_report_id, CrashX.getCrashIdFromIntent(intent)),
++                style = MaterialTheme.typography.labelMedium,
++                color = MaterialTheme.colorScheme.onSurfaceVariant,
++              )
++            }
++          }
++          Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+             Button(
+-              onClick = {
+-                scope.launch(Dispatchers.IO) {
+-                  val deleted = deleteDatabase()
+-                  withContext(Dispatchers.Main) {
+-                    databaseDeleted = deleted
+-                  }
+-                }
+-              },
+-              modifier = Modifier.fillMaxWidth(),
++              onClick = { CrashX.restartApplication(this@CrashActivity, crashConfig) },
++              modifier = Modifier.weight(1f).heightIn(min = 56.dp),
++              enabled = !resetting,
+             ) {
+-              Text(stringResource(R.string.crash_screen_fix_crash))
++              Icon(Icons.RoundedFilled.Refresh, null, modifier = Modifier.size(20.dp))
++              Spacer(Modifier.width(8.dp))
++              Text(stringResource(R.string.crash_screen_restart))
++            }
++            OutlinedButton(
++              onClick = { CrashX.closeApplication(this@CrashActivity, crashConfig) },
++              modifier = Modifier.weight(1f).heightIn(min = 56.dp),
++              enabled = !resetting,
++            ) {
++              Icon(Icons.RoundedFilled.Close, null, modifier = Modifier.size(20.dp))
++              Spacer(Modifier.width(8.dp))
++              Text(stringResource(R.string.ui_close))
+             }
+           }
+-
+-          if (databaseDeleted) {
++          if (preparingReport) {
++            LinearProgressIndicator(Modifier.fillMaxWidth())
+             Text(
+-              text = stringResource(R.string.crash_screen_database_deleted),
+-              style = MaterialTheme.typography.bodyMedium,
+-              color = MaterialTheme.colorScheme.primary,
+-              modifier = Modifier.padding(vertical = MaterialTheme.spacing.extraSmall),
++              stringResource(R.string.crash_screen_report_preparing),
++              style = MaterialTheme.typography.bodySmall,
+             )
+           }
+-
+-          Row(
+-            horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.smaller),
+-          ) {
+-            Button(
+-              onClick = {
+-                scope.launch(Dispatchers.IO) {
+-                  shareLogs(collectDeviceInfo(), exceptionString, logcat, this@CrashActivity)
+-                }
+-              },
+-              modifier = Modifier.weight(1f),
+-            ) { Text(stringResource(R.string.crash_screen_share)) }
+-            FilledIconButton(
+-              onClick = {
+-                SafeClipboard.copyPlainText(
+-                  context = this@CrashActivity,
+-                  label = "mpvrx_crash_logs",
+-                  text = concatLogs(collectDeviceInfo(), exceptionString, logcat),
+-                )
+-              },
+-            ) {
+-              Icon(Icons.RoundedFilled.ContentCopy, null)
+-            }
++          if (reportFailed) {
++            Text(stringResource(R.string.crash_screen_report_failed), color = MaterialTheme.colorScheme.error)
++            TextButton(onClick = ::prepareReport) { Text(stringResource(R.string.contributors_retry)) }
+           }
+           OutlinedButton(
+-            onClick = {
+-              finish()
+-              startActivity(Intent(this@CrashActivity, MainActivity::class.java))
+-            },
+-            modifier = Modifier.fillMaxWidth(),
++            onClick = ::shareReport,
++            enabled = reportFile != null,
++            modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+           ) {
+-            Text(stringResource(R.string.crash_screen_restart))
++            Icon(Icons.RoundedFilled.Share, null, modifier = Modifier.size(20.dp))
++            Spacer(Modifier.width(8.dp))
++            Text(stringResource(R.string.crash_screen_share))
++          }
++          Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
++            TextButton(onClick = { showDetails = true }, enabled = reportFile != null, modifier = Modifier.weight(1f)) {
++              Icon(Icons.RoundedFilled.BugReport, null, modifier = Modifier.size(20.dp))
++              Spacer(Modifier.width(8.dp))
++              Text(stringResource(R.string.crash_screen_details))
++            }
++            TextButton(onClick = ::copyReport, enabled = reportFile != null) {
++              Icon(Icons.RoundedFilled.ContentCopy, null, modifier = Modifier.size(20.dp))
++              Spacer(Modifier.width(8.dp))
++              Text(stringResource(R.string.ui_copy_all))
++            }
+           }
+-        }
+-      },
+-    ) { paddingValues ->
+-      Column(
+-        modifier =
+-          Modifier
+-            .padding(paddingValues)
+-            .padding(horizontal = MaterialTheme.spacing.medium)
+-            .verticalScroll(rememberScrollState()),
+-        verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.medium),
+-      ) {
+-        Spacer(Modifier.height(paddingValues.calculateTopPadding()))
+-        Icon(
+-          Icons.RoundedFilled.BugReport,
+-          null,
+-          modifier = Modifier.size(48.dp),
+-          tint = MaterialTheme.colorScheme.primary,
+-        )
+-        Text(
+-          stringResource(R.string.crash_screen_title),
+-          style = MaterialTheme.typography.headlineLarge,
+-        )
+-        Text(
+-          stringResource(R.string.crash_screen_subtitle, stringResource(R.string.app_name)),
+-          color = MaterialTheme.colorScheme.onSurfaceVariant,
+-        )
+-
+-        if (isDatabaseRelated) {
+           Text(
+-            stringResource(R.string.crash_screen_database_hint),
+-            color = MaterialTheme.colorScheme.error,
+-            style = MaterialTheme.typography.bodyMedium,
++            stringResource(R.string.crash_screen_report_privacy),
++            style = MaterialTheme.typography.bodySmall,
++            color = MaterialTheme.colorScheme.onSurfaceVariant,
+           )
++          if (isDatabaseRelated && !databaseDeleted) {
++            TextButton(
++              onClick = { confirmReset = true },
++              enabled = !resetting,
++            ) {
++              Text(stringResource(R.string.crash_screen_fix_crash), color = MaterialTheme.colorScheme.error)
++            }
++          }
++          if (databaseDeleted) {
++            Text(stringResource(R.string.crash_screen_database_deleted), color = MaterialTheme.colorScheme.primary)
++          }
++          if (resetFailed) {
++            Text(stringResource(R.string.crash_screen_reset_failed), color = MaterialTheme.colorScheme.error)
++          }
+         }
+-
+-        Text(
+-          stringResource(R.string.crash_screen_logs_title),
+-          style = MaterialTheme.typography.headlineSmall,
+-        )
+-        LogsContainer(exceptionString)
+-        Text(
+-          androidx.compose.ui.res
+-            .stringResource(com.quantummpv.app.R.string.ui_logcat),
+-          style = MaterialTheme.typography.headlineSmall,
+-        )
+-        LogsContainer(logcat)
+-        Spacer(Modifier.height(8.dp))
+       }
+     }
++    if (confirmReset) {
++      AlertDialog(
++        onDismissRequest = { confirmReset = false },
++        icon = { Icon(Icons.RoundedFilled.Warning, null) },
++        title = { Text(stringResource(R.string.crash_screen_fix_crash)) },
++        text = { Text(stringResource(R.string.crash_screen_reset_confirm)) },
++        confirmButton = {
++          TextButton(
++            onClick = {
++              confirmReset = false
++              resetting = true
++              scope.launch {
++                try {
++                  databaseDeleted = withContext(Dispatchers.IO) { deleteDatabase() }
++                  resetFailed = !databaseDeleted
++                } finally {
++                  resetting = false
++                }
++              }
++            },
++          ) { Text(stringResource(R.string.generic_confirm)) }
++        },
++        dismissButton = {
++          TextButton(onClick = { confirmReset = false }) { Text(stringResource(R.string.generic_cancel)) }
++        },
++      )
++    }
++    val report = reportFile
++    if (showDetails && report != null) {
++      CrashDetails(report = report, onDismiss = { showDetails = false })
++    }
+   }
+ 
+   @Composable
+-  fun LogsContainer(
+-    logs: String,
+-    modifier: Modifier = Modifier,
++  private fun CrashDetails(
++    report: File,
++    onDismiss: () -> Unit,
+   ) {
+-    LazyRow(
+-      modifier =
+-        modifier
+-          .clip(RoundedCornerShape(16.dp))
+-          .background(MaterialTheme.colorScheme.surfaceVariant),
++    var lines by remember(report) { mutableStateOf<List<String>?>(null) }
++    var failed by remember(report) { mutableStateOf(false) }
++    LaunchedEffect(report) {
++      try {
++        lines = withContext(Dispatchers.IO) { report.readLines() }
++      } catch (cancellation: CancellationException) {
++        throw cancellation
++      } catch (_: Exception) {
++        failed = true
++      }
++    }
++    Dialog(
++      onDismissRequest = onDismiss,
++      properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
+     ) {
+-      item {
+-        SelectionContainer {
+-          Text(
+-            text = logs,
+-            fontFamily = FontFamily.Monospace,
+-            style = MaterialTheme.typography.labelMedium,
+-            modifier = Modifier.padding(MaterialTheme.spacing.smaller),
++      Scaffold(
++        topBar = {
++          TopAppBar(
++            title = { Text(stringResource(R.string.crash_screen_details)) },
++            navigationIcon = {
++              IconButton(onClick = onDismiss) {
++                Icon(Icons.RoundedFilled.ArrowBack, stringResource(R.string.ui_close))
++              }
++            },
++            actions = {
++              IconButton(onClick = ::copyReport) {
++                Icon(Icons.RoundedFilled.ContentCopy, stringResource(R.string.ui_copy_all))
++              }
++              IconButton(onClick = ::shareReport) {
++                Icon(Icons.RoundedFilled.Share, stringResource(R.string.crash_screen_share))
++              }
++            },
+           )
++        },
++      ) { padding ->
++        val reportLines = lines
++        if (failed) {
++          Text(stringResource(R.string.crash_screen_report_failed), modifier = Modifier.padding(padding).padding(16.dp))
++        } else if (reportLines == null) {
++          LinearProgressIndicator(Modifier.fillMaxWidth().padding(padding))
++        } else {
++          SelectionContainer(Modifier.fillMaxSize().padding(padding)) {
++            LazyColumn(contentPadding = PaddingValues(16.dp), modifier = Modifier.fillMaxSize()) {
++              items(reportLines) { line ->
++                Text(
++                  text = line.ifEmpty { " " },
++                  fontFamily = FontFamily.Monospace,
++                  style = MaterialTheme.typography.bodySmall,
++                )
++              }
++            }
++          }
+         }
+       }
+     }
+diff --git a/app/src/main/java/com/quantummpv/app/presentation/crash/CrashReportProvider.kt b/app/src/main/java/com/quantummpv/app/presentation/crash/CrashReportProvider.kt
+new file mode 100644
+index 00000000..757429d2
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/presentation/crash/CrashReportProvider.kt
+@@ -0,0 +1,5 @@
++package com.quantummpv.app.presentation.crash
++
++import androidx.core.content.FileProvider
++
++class CrashReportProvider : FileProvider()
+\ No newline at end of file
+diff --git a/app/src/main/java/com/quantummpv/app/presentation/crash/CrashReportStore.kt b/app/src/main/java/com/quantummpv/app/presentation/crash/CrashReportStore.kt
+new file mode 100644
+index 00000000..99b2a665
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/presentation/crash/CrashReportStore.kt
+@@ -0,0 +1,219 @@
++package com.quantummpv.app.presentation.crash
++
++import android.content.Context
++import android.content.Intent
++import android.os.Build
++import android.os.Process
++import android.os.SystemClock
++import android.util.AtomicFile
++import android.util.Log
++import com.quantummpv.app.BuildConfig
++import com.developer.crashx.CrashActivity as CrashX
++import org.json.JSONObject
++import java.io.BufferedWriter
++import java.io.File
++import java.text.SimpleDateFormat
++import java.util.Date
++import java.util.IdentityHashMap
++import java.util.Locale
++import java.util.UUID
++import java.util.concurrent.atomic.AtomicBoolean
++
++internal object CrashReportStore {
++  private const val TAG = "CrashReportStore"
++  private val handlingCrash = AtomicBoolean(false)
++
++  fun install(context: Context) {
++    val application = context.applicationContext
++    val crashHandler = Thread.getDefaultUncaughtExceptionHandler() ?: return
++    Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
++      if (handlingCrash.compareAndSet(false, true)) {
++        try {
++          capture(application, thread, throwable)
++        } catch (captureError: Throwable) {
++          Log.e(TAG, "Unable to save the full crash report", captureError)
++        } finally {
++          crashHandler.uncaughtException(thread, throwable)
++        }
++      }
++    }
++  }
++
++  private fun capture(
++    context: Context,
++    thread: Thread,
++    throwable: Throwable,
++  ) {
++    val directory = reportDirectory(context)
++    val metadata = AtomicFile(File(directory, "metadata.json"))
++    metadata.delete()
++    val reportId = UUID.randomUUID().toString()
++    writeAtomically(File(directory, "exception.txt")) { writer ->
++      writer.appendLine("mpvRx crash report")
++      writer.appendLine("Report ID: $reportId")
++      writer.appendLine("Captured: ${SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", Locale.ROOT).format(Date())}")
++      writer.appendLine("Process ID: ${Process.myPid()}")
++      writer.appendLine("Device uptime: ${SystemClock.elapsedRealtime()} ms since boot")
++      writer.appendLine("Crash thread: ${thread.name} (id=${thread.id}, state=${thread.state})")
++      writer.appendLine()
++      writer.appendLine(deviceInfo())
++      writer.appendLine()
++      writer.appendLine("=== Full exception, causes and suppressed exceptions ===")
++      writeThrowable(writer, throwable)
++      writer.appendLine()
++      writer.appendLine("=== All thread stacks at crash ===")
++      try {
++        Thread.getAllStackTraces().entries.sortedBy { it.key.name }.forEach { (currentThread, stack) ->
++          writer.appendLine(
++            "${currentThread.name} (id=${currentThread.id}, state=${currentThread.state}, " +
++              "daemon=${currentThread.isDaemon}, priority=${currentThread.priority})",
++          )
++          stack.forEach { writer.appendLine("    at $it") }
++          writer.appendLine()
++        }
++      } catch (error: Exception) {
++        writer.appendLine("Thread snapshot unavailable: $error")
++      }
++    }
++    writeMetadata(
++      directory,
++      JSONObject()
++        .put("reportId", reportId)
++        .put("processId", Process.myPid())
++        .put("throwableClass", throwable.javaClass.name)
++        .put("completed", false),
++    )
++  }
++
++  private fun writeThrowable(
++    writer: BufferedWriter,
++    throwable: Throwable,
++  ) {
++    val visited = IdentityHashMap<Throwable, Boolean>()
++    val pending = ArrayDeque<Pair<String, Throwable>>()
++    pending.addLast("Exception" to throwable)
++    while (pending.isNotEmpty()) {
++      val (relationship, current) = pending.removeLast()
++      writer.appendLine("$relationship: $current")
++      if (visited.put(current, true) != null) {
++        writer.appendLine("    Circular or previously printed exception reference")
++        continue
++      }
++      current.stackTrace.forEach { writer.appendLine("    at $it") }
++      current.cause?.let { pending.addLast("Caused by" to it) }
++      current.suppressed.reversed().forEach { pending.addLast("Suppressed by ${current.javaClass.name}" to it) }
++    }
++  }
++
++  @Synchronized
++  fun complete(
++    context: Context,
++    intent: Intent,
++  ): File {
++    val directory = reportDirectory(context)
++    val crashId = CrashX.getCrashIdFromIntent(intent)
++    val metadata =
++      runCatching {
++        AtomicFile(File(directory, "metadata.json")).openRead().bufferedReader().use { JSONObject(it.readText()) }
++      }.getOrNull()
++    val reportId =
++      runCatching { UUID.fromString(metadata?.optString("reportId")) }.getOrNull() ?: UUID.randomUUID()
++    val report = File(directory, "mpvrx-crash-$reportId.txt")
++    if (
++      metadata != null && metadata.optString("crashId") == crashId &&
++      metadata.optBoolean("completed") && report.isFile
++    ) {
++      return report
++    }
++    val hasFullException =
++      metadata != null && !metadata.optBoolean("completed") &&
++        metadata.optString("throwableClass") == CrashX.getThrowableClassFromIntent(intent) &&
++        File(directory, "exception.txt").isFile
++    writeAtomically(report) { writer ->
++      if (hasFullException) {
++        AtomicFile(File(directory, "exception.txt")).openRead().bufferedReader().use { it.copyTo(writer) }
++      } else {
++        writer.appendLine("Full on-disk exception capture was unavailable. CrashX fallback details follow.")
++        writer.appendLine(CrashX.getAllErrorDetailsFromIntent(context, intent))
++      }
++      writer.appendLine()
++      writer.appendLine("=== Recovery metadata ===")
++      writer.appendLine("CrashX ID: $crashId")
++      writer.appendLine("Crash date: ${CrashX.getCrashDateFromIntent(intent)}")
++      writer.appendLine("Crash thread: ${CrashX.getThreadNameFromIntent(intent)}")
++      writer.appendLine()
++      writer.appendLine("=== Recent activity lifecycle ===")
++      writer.appendLine(CrashX.getActivityLogFromIntent(intent).orEmpty())
++      writer.appendLine()
++      writer.appendLine("=== Available logcat buffers ===")
++      val crashedProcessId = metadata?.optInt("processId", -1)?.takeIf { hasFullException && it > 0 }
++      val arguments =
++        mutableListOf("logcat", "-b", "main", "-b", "system", "-b", "crash", "-d", "-v", "threadtime")
++      if (crashedProcessId != null) arguments += "--pid=$crashedProcessId"
++      try {
++        val process = ProcessBuilder(arguments).redirectErrorStream(true).start()
++        try {
++          process.inputStream.bufferedReader().use { it.copyTo(writer) }
++          val exitCode = process.waitFor()
++          if (exitCode != 0) writer.appendLine("Logcat exited with status $exitCode")
++        } finally {
++          process.destroy()
++        }
++      } catch (error: Exception) {
++        writer.appendLine("Logcat unavailable: $error")
++      }
++    }
++    writeMetadata(
++      directory,
++      (metadata ?: JSONObject()).put("reportId", reportId.toString()).put("crashId", crashId).put("completed", true),
++    )
++    directory.listFiles { file -> file.name.startsWith("mpvrx-crash-") && file.extension == "txt" }
++      ?.sortedByDescending(File::lastModified)?.drop(5)?.forEach { it.delete() }
++    return report
++  }
++
++  fun deviceInfo(): String =
++    buildString {
++      appendLine("App version: ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE}, ${BuildConfig.GIT_SHA})")
++      appendLine("Package: ${BuildConfig.APPLICATION_ID}")
++      appendLine("Build type: ${BuildConfig.BUILD_TYPE}")
++      appendLine("Android: ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
++      appendLine("Security patch: ${Build.VERSION.SECURITY_PATCH}")
++      appendLine("Device: ${Build.MANUFACTURER} ${Build.MODEL} (${Build.DEVICE})")
++      appendLine("Brand: ${Build.BRAND}")
++      appendLine("Hardware: ${Build.HARDWARE}")
++      appendLine("ABIs: ${Build.SUPPORTED_ABIS.joinToString()}")
++      appendLine("Build fingerprint: ${Build.FINGERPRINT}")
++      appendLine("Locale: ${Locale.getDefault().toLanguageTag()}")
++      val runtime = Runtime.getRuntime()
++      appendLine("Heap bytes: used=${runtime.totalMemory() - runtime.freeMemory()}, max=${runtime.maxMemory()}")
++      appendLine("Native heap bytes: ${android.os.Debug.getNativeHeapAllocatedSize()}")
++    }
++
++  private fun reportDirectory(context: Context): File =
++    File(context.noBackupFilesDir, "crash-reports").apply {
++      check(isDirectory || mkdirs()) { "Unable to create crash report directory" }
++    }
++
++  private fun writeMetadata(
++    directory: File,
++    metadata: JSONObject,
++  ) = writeAtomically(File(directory, "metadata.json")) { it.write(metadata.toString()) }
++
++  private fun writeAtomically(
++    file: File,
++    write: (BufferedWriter) -> Unit,
++  ) {
++    val atomicFile = AtomicFile(file)
++    val output = atomicFile.startWrite()
++    try {
++      val writer = output.bufferedWriter(Charsets.UTF_8)
++      write(writer)
++      writer.flush()
++      atomicFile.finishWrite(output)
++    } catch (error: Throwable) {
++      atomicFile.failWrite(output)
++      throw error
++    }
++  }
++}
+\ No newline at end of file
+diff --git a/app/src/main/java/com/quantummpv/app/presentation/crash/DebugLogsActivity.kt b/app/src/main/java/com/quantummpv/app/presentation/crash/DebugLogsActivity.kt
+new file mode 100644
+index 00000000..6321880b
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/presentation/crash/DebugLogsActivity.kt
+@@ -0,0 +1,19 @@
++package com.quantummpv.app.presentation.crash
++
++import android.os.Bundle
++import androidx.activity.compose.setContent
++import androidx.activity.enableEdgeToEdge
++import androidx.appcompat.app.AppCompatActivity
++import com.quantummpv.app.ui.theme.MpvrxTheme
++
++class DebugLogsActivity : AppCompatActivity() {
++  override fun onCreate(savedInstanceState: Bundle?) {
++    super.onCreate(savedInstanceState)
++    enableEdgeToEdge()
++    setContent {
++      MpvrxTheme {
++        DebugLogsScreen(onNavigateBack = ::finish)
++      }
++    }
++  }
++}
+\ No newline at end of file
+diff --git a/app/src/main/java/com/quantummpv/app/presentation/crash/GlobalExceptionHandler.kt b/app/src/main/java/com/quantummpv/app/presentation/crash/GlobalExceptionHandler.kt
+deleted file mode 100644
+index 2cd7e19f..00000000
+--- a/app/src/main/java/com/quantummpv/app/presentation/crash/GlobalExceptionHandler.kt
++++ /dev/null
+@@ -1,31 +0,0 @@
+-/*
+- * SPDX-License-Identifier: AGPL-3.0-or-later
+- *
+- * This program is free software: you can redistribute it and/or modify
+- * it under the terms of the GNU Affero General Public License as published
+- * by the Free Software Foundation, either version 3 of the License, or
+- * (at your option) any later version.
+- */
+-
+-package com.quantummpv.app.presentation.crash
+-
+-import android.content.Context
+-import android.content.Intent
+-import kotlin.system.exitProcess
+-
+-class GlobalExceptionHandler(
+-  private val context: Context,
+-  private val activity: Class<*>,
+-) : Thread.UncaughtExceptionHandler {
+-  override fun uncaughtException(
+-    t: Thread,
+-    e: Throwable,
+-  ) {
+-    val intent = Intent(context, activity)
+-    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+-    intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK)
+-    intent.putExtra("exception", e.stackTraceToString())
+-    context.startActivity(intent)
+-    exitProcess(0)
+-  }
+-}
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/AboutScreen.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/AboutScreen.kt
+index 36b66b74..f60f4275 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/AboutScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/AboutScreen.kt
+@@ -876,6 +876,13 @@ private val OPEN_SOURCE_LIBRARIES =
+       license = "Apache-2.0",
+       url = "https://developer.android.com/jetpack/androidx/releases/compose-material3",
+     ),
++    OpenSourceLibrary(
++      name = "CrashX",
++      artifact = "io.github.tutorialsandroid:crashx",
++      descriptionRes = R.string.oss_crashx_description,
++      license = "Apache-2.0",
++      url = "https://github.com/TutorialsAndroid/crashx",
++    ),
+     OpenSourceLibrary(
+       name = "Navigation 3",
+       artifact = "androidx.navigation3:navigation3-runtime",
+diff --git a/app/src/main/res/values-ar/strings.xml b/app/src/main/res/values-ar/strings.xml
+index 2d2e6666..613b888d 100644
+--- a/app/src/main/res/values-ar/strings.xml
++++ b/app/src/main/res/values-ar/strings.xml
+@@ -456,7 +456,7 @@
+   <string name="player_aspect_fit">ملاءمة الشاشة</string>
+   <string name="player_aspect_crop">اقتصاص</string>
+   <string name="player_aspect_stretch">تمديد</string>
+-  <string name="crash_screen_title">عذرًا</string>
++  <string name="crash_screen_title">خطأ غير متوقع</string>
+   <string name="crash_screen_subtitle">يبدو أن %s واجه خطأ غير متوقع. فكّر في مشاركة سجلات التعطل ضمن مشكلة على GitHub.</string>
+   <string name="crash_screen_logs_title">سجلات التعطل:</string>
+   <string name="crash_screen_share">مشاركة سجلات التعطل</string>
+@@ -464,6 +464,15 @@
+   <string name="crash_screen_fix_crash">إصلاح التعطل (حذف قاعدة البيانات)</string>
+   <string name="crash_screen_database_deleted">تم حذف قاعدة البيانات بنجاح. يرجى إعادة تشغيل التطبيق.</string>
+   <string name="crash_screen_database_hint">يبدو أن هذا التعطل مرتبط بقاعدة البيانات. جرّب حذف قاعدة البيانات لإصلاحه.</string>
++  <string name="crash_screen_report_preparing">جارٍ إعداد تقرير التعطل الكامل...</string>
++  <string name="crash_screen_report_failed">تعذر إعداد التقرير أو مشاركته. يرجى المحاولة مجددًا.</string>
++  <string name="crash_screen_report_privacy">قد تتضمن التقارير مسارات الملفات ومعلومات خاصة أخرى. راجع التفاصيل قبل المشاركة.</string>
++  <string name="crash_screen_details">التفاصيل التقنية</string>
++  <string name="crash_screen_copy_failed">تعذر نسخ التقرير الكامل. شارك ملف التقرير الكامل بدلًا من ذلك.</string>
++  <string name="crash_screen_report_id">معرّف التعطل: %1$s</string>
++  <string name="crash_screen_reset_confirm">سيؤدي هذا إلى حذف قاعدة بيانات التطبيق نهائيًا، بما فيها سجل التشغيل وقوائم التشغيل وإعدادات المكتبة. لن تُحذف ملفات الوسائط. قد لا تؤدي إعادة الضبط إلى إصلاح التعطل.</string>
++  <string name="crash_screen_reset_failed">تعذرت إعادة ضبط قاعدة البيانات. لم تتم محاولة إعادة التشغيل.</string>
++  <string name="oss_crashx_description">استعادة التطبيق بعد التعطل من TutorialsAndroid، استنادًا إلى CustomActivityOnCrash من Eduard Ereza Martínez.</string>
+   <string name="timer_picker_enter_timer">أدخل الوقت</string>
+   <string name="timer_picker_pick_time">اختر الوقت</string>
+   <string name="timer_title">مؤقت النوم</string>
+diff --git a/app/src/main/res/values-de/strings.xml b/app/src/main/res/values-de/strings.xml
+index 33e3253b..f875f738 100644
+--- a/app/src/main/res/values-de/strings.xml
++++ b/app/src/main/res/values-de/strings.xml
+@@ -456,7 +456,7 @@ Weiter: NEXT</string>
+   <string name="player_aspect_fit">An Bildschirm anpassen</string>
+   <string name="player_aspect_crop">Zuschneiden</string>
+   <string name="player_aspect_stretch">Strecken</string>
+-  <string name="crash_screen_title">Hoppla</string>
++  <string name="crash_screen_title">Unerwarteter Fehler</string>
+   <string name="crash_screen_subtitle">Bei %s ist offenbar ein unerwarteter Fehler aufgetreten. Teilen Sie die Absturzprotokolle gegebenenfalls in einem GitHub-Issue.</string>
+   <string name="crash_screen_logs_title">Absturzprotokolle:</string>
+   <string name="crash_screen_share">Absturzprotokolle teilen</string>
+@@ -464,6 +464,15 @@ Weiter: NEXT</string>
+   <string name="crash_screen_fix_crash">Absturz beheben (Datenbank löschen)</string>
+   <string name="crash_screen_database_deleted">Datenbank erfolgreich gelöscht. Bitte starten Sie die App neu.</string>
+   <string name="crash_screen_database_hint">Dieser Absturz scheint mit der Datenbank zusammenzuhängen. Löschen Sie die Datenbank, um ihn zu beheben.</string>
++  <string name="crash_screen_report_preparing">Vollständiger Absturzbericht wird vorbereitet...</string>
++  <string name="crash_screen_report_failed">Der Bericht konnte nicht erstellt oder geteilt werden. Bitte erneut versuchen.</string>
++  <string name="crash_screen_report_privacy">Berichte können Dateipfade und andere private Informationen enthalten. Prüfen Sie die Details vor dem Teilen.</string>
++  <string name="crash_screen_details">Technische Details</string>
++  <string name="crash_screen_copy_failed">Der vollständige Bericht konnte nicht kopiert werden. Teilen Sie stattdessen die vollständige Berichtsdatei.</string>
++  <string name="crash_screen_report_id">Absturz-ID: %1$s</string>
++  <string name="crash_screen_reset_confirm">Die App-Datenbank wird dauerhaft gelöscht, einschließlich Wiedergabeverlauf, Wiedergabelisten und Bibliothekseinstellungen. Mediendateien werden nicht gelöscht. Das Zurücksetzen behebt den Absturz möglicherweise nicht.</string>
++  <string name="crash_screen_reset_failed">Die Datenbank konnte nicht zurückgesetzt werden. Es wurde kein Neustart versucht.</string>
++  <string name="oss_crashx_description">Absturzwiederherstellung von TutorialsAndroid, basierend auf CustomActivityOnCrash von Eduard Ereza Martínez.</string>
+   <string name="timer_picker_enter_timer">Zeit eingeben</string>
+   <string name="timer_picker_pick_time">Zeit auswählen</string>
+   <string name="timer_title">Schlaftimer</string>
+diff --git a/app/src/main/res/values-es/strings.xml b/app/src/main/res/values-es/strings.xml
+index 0ebce29d..dc1f5ebe 100644
+--- a/app/src/main/res/values-es/strings.xml
++++ b/app/src/main/res/values-es/strings.xml
+@@ -456,7 +456,7 @@ Siguiente: NEXT</string>
+   <string name="player_aspect_fit">Ajustar a pantalla</string>
+   <string name="player_aspect_crop">Recortar</string>
+   <string name="player_aspect_stretch">Estirar</string>
+-  <string name="crash_screen_title">Vaya</string>
++  <string name="crash_screen_title">Error inesperado</string>
+   <string name="crash_screen_subtitle">Parece que %s sufrió un error inesperado. Considera compartir los registros del fallo en una incidencia de GitHub.</string>
+   <string name="crash_screen_logs_title">Registros del fallo:</string>
+   <string name="crash_screen_share">Compartir registros del fallo</string>
+@@ -464,6 +464,15 @@ Siguiente: NEXT</string>
+   <string name="crash_screen_fix_crash">Corregir fallo (eliminar base de datos)</string>
+   <string name="crash_screen_database_deleted">Base de datos eliminada correctamente. Reinicia la aplicación.</string>
+   <string name="crash_screen_database_hint">Este fallo parece estar relacionado con la base de datos. Prueba a eliminarla para corregirlo.</string>
++  <string name="crash_screen_report_preparing">Preparando el informe completo del fallo...</string>
++  <string name="crash_screen_report_failed">No se pudo preparar o compartir el informe. Inténtalo de nuevo.</string>
++  <string name="crash_screen_report_privacy">Los informes pueden contener rutas de archivos y otra información privada. Revisa los detalles antes de compartirlos.</string>
++  <string name="crash_screen_details">Detalles técnicos</string>
++  <string name="crash_screen_copy_failed">No se pudo copiar el informe completo. Comparte el archivo completo del informe.</string>
++  <string name="crash_screen_report_id">ID del fallo: %1$s</string>
++  <string name="crash_screen_reset_confirm">Esto elimina permanentemente la base de datos de la aplicación, incluidos el historial de reproducción, las listas y los ajustes de la biblioteca. No elimina los archivos multimedia. El restablecimiento podría no corregir el fallo.</string>
++  <string name="crash_screen_reset_failed">No se pudo restablecer la base de datos. No se intentó reiniciar.</string>
++  <string name="oss_crashx_description">Recuperación de fallos de TutorialsAndroid, basada en CustomActivityOnCrash de Eduard Ereza Martínez.</string>
+   <string name="timer_picker_enter_timer">Introducir hora</string>
+   <string name="timer_picker_pick_time">Elegir hora</string>
+   <string name="timer_title">Temporizador de apagado</string>
+diff --git a/app/src/main/res/values-fr/strings.xml b/app/src/main/res/values-fr/strings.xml
+index e98ae579..0cb1a7e5 100644
+--- a/app/src/main/res/values-fr/strings.xml
++++ b/app/src/main/res/values-fr/strings.xml
+@@ -456,7 +456,7 @@ Suivant : NEXT</string>
+   <string name="player_aspect_fit">Adapter à l’écran</string>
+   <string name="player_aspect_crop">Rogner</string>
+   <string name="player_aspect_stretch">Étirer</string>
+-  <string name="crash_screen_title">Oups</string>
++  <string name="crash_screen_title">Erreur inattendue</string>
+   <string name="crash_screen_subtitle">Il semble que %s ait rencontré une erreur inattendue. Pensez à partager les journaux de plantage dans un ticket GitHub.</string>
+   <string name="crash_screen_logs_title">Journaux de plantage :</string>
+   <string name="crash_screen_share">Partager les journaux de plantage</string>
+@@ -464,6 +464,15 @@ Suivant : NEXT</string>
+   <string name="crash_screen_fix_crash">Corriger le plantage (supprimer la base de données)</string>
+   <string name="crash_screen_database_deleted">Base de données supprimée. Veuillez redémarrer l’application.</string>
+   <string name="crash_screen_database_hint">Ce plantage semble lié à la base de données. Essayez de supprimer la base de données pour le corriger.</string>
++  <string name="crash_screen_report_preparing">Préparation du rapport de plantage complet...</string>
++  <string name="crash_screen_report_failed">Impossible de préparer ou de partager le rapport. Veuillez réessayer.</string>
++  <string name="crash_screen_report_privacy">Les rapports peuvent contenir des chemins de fichiers et des informations privées. Vérifiez les détails avant de les partager.</string>
++  <string name="crash_screen_details">Détails techniques</string>
++  <string name="crash_screen_copy_failed">Impossible de copier le rapport complet. Partagez plutôt le fichier du rapport complet.</string>
++  <string name="crash_screen_report_id">Identifiant du plantage : %1$s</string>
++  <string name="crash_screen_reset_confirm">Cette action supprime définitivement la base de données de l’application, notamment l’historique de lecture, les listes de lecture et les paramètres de la bibliothèque. Les fichiers multimédias ne sont pas supprimés. La réinitialisation peut ne pas résoudre le plantage.</string>
++  <string name="crash_screen_reset_failed">Impossible de réinitialiser la base de données. Aucun redémarrage n’a été tenté.</string>
++  <string name="oss_crashx_description">Récupération après plantage par TutorialsAndroid, basée sur CustomActivityOnCrash d’Eduard Ereza Martínez.</string>
+   <string name="timer_picker_enter_timer">Saisir l’heure</string>
+   <string name="timer_picker_pick_time">Choisir l’heure</string>
+   <string name="timer_title">Minuteur de veille</string>
+diff --git a/app/src/main/res/values-hi/strings.xml b/app/src/main/res/values-hi/strings.xml
+index 7b580c72..d8bb9e7a 100644
+--- a/app/src/main/res/values-hi/strings.xml
++++ b/app/src/main/res/values-hi/strings.xml
+@@ -454,7 +454,7 @@
+   <string name="player_aspect_fit">फिट स्क्रीन</string>
+   <string name="player_aspect_crop">क्रॉप</string>
+   <string name="player_aspect_stretch">स्ट्रेच</string>
+-  <string name="crash_screen_title">ओह</string>
++  <string name="crash_screen_title">अप्रत्याशित त्रुटि</string>
+   <string name="crash_screen_subtitle">लगता है %s में कोई अनजान गड़बड़ी हुई है। GitHub इश्यू में क्रैश लॉग शेयर करने पर विचार करें।</string>
+   <string name="crash_screen_logs_title">क्रैश लॉग:</string>
+   <string name="crash_screen_share">क्रैश लॉग शेयर करें</string>
+@@ -462,6 +462,15 @@
+   <string name="crash_screen_fix_crash">क्रैश ठीक करें (डेटाबेस डिलीट करें)</string>
+   <string name="crash_screen_database_deleted">डेटाबेस सफलतापूर्वक डिलीट हो गया। कृपया ऐप रीस्टार्ट करें।</string>
+   <string name="crash_screen_database_hint">यह क्रैश डेटाबेस से जुड़ा लगता है। इसे ठीक करने के लिए डेटाबेस डिलीट करने की कोशिश करें।</string>
++  <string name="crash_screen_report_preparing">पूरी क्रैश रिपोर्ट तैयार हो रही है...</string>
++  <string name="crash_screen_report_failed">रिपोर्ट तैयार या साझा नहीं की जा सकी। कृपया दोबारा कोशिश करें।</string>
++  <string name="crash_screen_report_privacy">रिपोर्ट में फ़ाइल पथ और अन्य निजी जानकारी हो सकती है। साझा करने से पहले विवरण जाँचें।</string>
++  <string name="crash_screen_details">तकनीकी विवरण</string>
++  <string name="crash_screen_copy_failed">पूरी रिपोर्ट कॉपी नहीं की जा सकी। इसके बजाय पूरी रिपोर्ट की फ़ाइल साझा करें।</string>
++  <string name="crash_screen_report_id">क्रैश आईडी: %1$s</string>
++  <string name="crash_screen_reset_confirm">इससे ऐप का डेटाबेस स्थायी रूप से मिट जाएगा, जिसमें प्लेबैक इतिहास, प्लेलिस्ट और लाइब्रेरी सेटिंग शामिल हैं। मीडिया फ़ाइलें नहीं मिटेंगी। रीसेट करने से क्रैश ठीक हो यह ज़रूरी नहीं है।</string>
++  <string name="crash_screen_reset_failed">डेटाबेस रीसेट नहीं हो सका। ऐप को दोबारा शुरू करने की कोशिश नहीं की गई।</string>
++  <string name="oss_crashx_description">TutorialsAndroid की क्रैश रिकवरी, Eduard Ereza Martínez के CustomActivityOnCrash पर आधारित है।</string>
+   <string name="timer_picker_enter_timer">समय डालें</string>
+   <string name="timer_picker_pick_time">समय चुनें</string>
+   <string name="timer_title">स्लीप टाइमर</string>
+diff --git a/app/src/main/res/values-ja/strings.xml b/app/src/main/res/values-ja/strings.xml
+index 84e4e548..c6710a80 100644
+--- a/app/src/main/res/values-ja/strings.xml
++++ b/app/src/main/res/values-ja/strings.xml
+@@ -456,7 +456,7 @@
+   <string name="player_aspect_fit">画面に合わせる</string>
+   <string name="player_aspect_crop">切り抜き</string>
+   <string name="player_aspect_stretch">引き伸ばす</string>
+-  <string name="crash_screen_title">問題が発生しました</string>
++  <string name="crash_screen_title">予期しないエラー</string>
+   <string name="crash_screen_subtitle">%sで予期しないエラーが発生したようです。GitHubのIssueでクラッシュログを共有することをご検討ください。</string>
+   <string name="crash_screen_logs_title">クラッシュログ：</string>
+   <string name="crash_screen_share">クラッシュログを共有</string>
+@@ -464,6 +464,15 @@
+   <string name="crash_screen_fix_crash">クラッシュを修復（データベースを削除）</string>
+   <string name="crash_screen_database_deleted">データベースを削除しました。アプリを再起動してください。</string>
+   <string name="crash_screen_database_hint">このクラッシュはデータベースに関連しているようです。データベースを削除して修復してください。</string>
++  <string name="crash_screen_report_preparing">完全なクラッシュレポートを準備しています...</string>
++  <string name="crash_screen_report_failed">レポートを準備または共有できませんでした。もう一度お試しください。</string>
++  <string name="crash_screen_report_privacy">レポートにはファイルのパスなどの個人情報が含まれる場合があります。共有する前に内容を確認してください。</string>
++  <string name="crash_screen_details">技術情報</string>
++  <string name="crash_screen_copy_failed">レポート全体をコピーできませんでした。代わりに完全なレポートファイルを共有してください。</string>
++  <string name="crash_screen_report_id">クラッシュID: %1$s</string>
++  <string name="crash_screen_reset_confirm">再生履歴、プレイリスト、ライブラリ設定など、アプリのデータベースが完全に削除されます。メディアファイルは削除されません。リセットしてもクラッシュが解決しない場合があります。</string>
++  <string name="crash_screen_reset_failed">データベースをリセットできませんでした。再起動は行っていません。</string>
++  <string name="oss_crashx_description">TutorialsAndroidによるクラッシュ復旧機能。Eduard Ereza MartínezのCustomActivityOnCrashを基にしています。</string>
+   <string name="timer_picker_enter_timer">時間を入力</string>
+   <string name="timer_picker_pick_time">時間を選択</string>
+   <string name="timer_title">スリープタイマー</string>
+diff --git a/app/src/main/res/values-pt-rBR/strings.xml b/app/src/main/res/values-pt-rBR/strings.xml
+index d54133e8..5326c972 100644
+--- a/app/src/main/res/values-pt-rBR/strings.xml
++++ b/app/src/main/res/values-pt-rBR/strings.xml
+@@ -456,7 +456,7 @@ Próximo: NEXT</string>
+   <string name="player_aspect_fit">Ajustar à tela</string>
+   <string name="player_aspect_crop">Cortar</string>
+   <string name="player_aspect_stretch">Esticar</string>
+-  <string name="crash_screen_title">Ops</string>
++  <string name="crash_screen_title">Erro inesperado</string>
+   <string name="crash_screen_subtitle">Parece que %s encontrou um erro inesperado. Considere compartilhar os logs de falha em uma issue do GitHub.</string>
+   <string name="crash_screen_logs_title">Logs de falha:</string>
+   <string name="crash_screen_share">Compartilhar logs de falha</string>
+@@ -464,6 +464,15 @@ Próximo: NEXT</string>
+   <string name="crash_screen_fix_crash">Corrigir falha (excluir banco de dados)</string>
+   <string name="crash_screen_database_deleted">Banco de dados excluído com sucesso. Reinicie o aplicativo.</string>
+   <string name="crash_screen_database_hint">Esta falha parece estar relacionada ao banco de dados. Tente excluí-lo para corrigir.</string>
++  <string name="crash_screen_report_preparing">Preparando o relatório completo da falha...</string>
++  <string name="crash_screen_report_failed">Não foi possível preparar ou compartilhar o relatório. Tente novamente.</string>
++  <string name="crash_screen_report_privacy">Os relatórios podem conter caminhos de arquivos e outras informações privadas. Confira os detalhes antes de compartilhar.</string>
++  <string name="crash_screen_details">Detalhes técnicos</string>
++  <string name="crash_screen_copy_failed">Não foi possível copiar o relatório completo. Compartilhe o arquivo completo do relatório.</string>
++  <string name="crash_screen_report_id">ID da falha: %1$s</string>
++  <string name="crash_screen_reset_confirm">Isso exclui permanentemente o banco de dados do aplicativo, incluindo histórico de reprodução, playlists e configurações da biblioteca. Os arquivos de mídia não são excluídos. A redefinição pode não corrigir a falha.</string>
++  <string name="crash_screen_reset_failed">Não foi possível redefinir o banco de dados. Nenhuma reinicialização foi tentada.</string>
++  <string name="oss_crashx_description">Recuperação de falhas por TutorialsAndroid, baseada em CustomActivityOnCrash de Eduard Ereza Martínez.</string>
+   <string name="timer_picker_enter_timer">Inserir horário</string>
+   <string name="timer_picker_pick_time">Escolher horário</string>
+   <string name="timer_title">Temporizador de suspensão</string>
+diff --git a/app/src/main/res/values-ru/strings.xml b/app/src/main/res/values-ru/strings.xml
+index 95ec1584..67d43aa5 100644
+--- a/app/src/main/res/values-ru/strings.xml
++++ b/app/src/main/res/values-ru/strings.xml
+@@ -456,7 +456,7 @@
+   <string name="player_aspect_fit">По размеру экрана</string>
+   <string name="player_aspect_crop">Обрезать</string>
+   <string name="player_aspect_stretch">Растянуть</string>
+-  <string name="crash_screen_title">Упс</string>
++  <string name="crash_screen_title">Непредвиденная ошибка</string>
+   <string name="crash_screen_subtitle">Похоже, в %s произошла непредвиденная ошибка. Попробуйте поделиться журналами сбоя в задаче GitHub.</string>
+   <string name="crash_screen_logs_title">Журналы сбоя:</string>
+   <string name="crash_screen_share">Поделиться журналами сбоя</string>
+@@ -464,6 +464,15 @@
+   <string name="crash_screen_fix_crash">Исправить сбой (удалить базу данных)</string>
+   <string name="crash_screen_database_deleted">База данных успешно удалена. Перезапустите приложение.</string>
+   <string name="crash_screen_database_hint">Этот сбой, вероятно, связан с базой данных. Попробуйте удалить её.</string>
++  <string name="crash_screen_report_preparing">Подготовка полного отчёта о сбое...</string>
++  <string name="crash_screen_report_failed">Не удалось подготовить или отправить отчёт. Повторите попытку.</string>
++  <string name="crash_screen_report_privacy">Отчёты могут содержать пути к файлам и другие личные данные. Просмотрите подробности перед отправкой.</string>
++  <string name="crash_screen_details">Технические сведения</string>
++  <string name="crash_screen_copy_failed">Не удалось скопировать полный отчёт. Вместо этого отправьте полный файл отчёта.</string>
++  <string name="crash_screen_report_id">ID сбоя: %1$s</string>
++  <string name="crash_screen_reset_confirm">База данных приложения будет удалена безвозвратно, включая историю воспроизведения, плейлисты и настройки библиотеки. Медиафайлы не удаляются. Сброс может не устранить сбой.</string>
++  <string name="crash_screen_reset_failed">Не удалось сбросить базу данных. Перезапуск не выполнялся.</string>
++  <string name="oss_crashx_description">Восстановление после сбоев от TutorialsAndroid на основе CustomActivityOnCrash, созданного Eduard Ereza Martínez.</string>
+   <string name="timer_picker_enter_timer">Введите время</string>
+   <string name="timer_picker_pick_time">Выберите время</string>
+   <string name="timer_title">Таймер сна</string>
+diff --git a/app/src/main/res/values-zh-rCN/strings.xml b/app/src/main/res/values-zh-rCN/strings.xml
+index 90af93e1..a1253f1c 100644
+--- a/app/src/main/res/values-zh-rCN/strings.xml
++++ b/app/src/main/res/values-zh-rCN/strings.xml
+@@ -456,7 +456,7 @@
+   <string name="player_aspect_fit">适应屏幕</string>
+   <string name="player_aspect_crop">裁剪</string>
+   <string name="player_aspect_stretch">拉伸</string>
+-  <string name="crash_screen_title">糟糕</string>
++  <string name="crash_screen_title">意外错误</string>
+   <string name="crash_screen_subtitle">%s 似乎遇到了意外错误。建议在 GitHub Issue 中分享崩溃日志。</string>
+   <string name="crash_screen_logs_title">崩溃日志：</string>
+   <string name="crash_screen_share">分享崩溃日志</string>
+@@ -464,6 +464,15 @@
+   <string name="crash_screen_fix_crash">修复崩溃（删除数据库）</string>
+   <string name="crash_screen_database_deleted">数据库已成功删除。请重启应用。</string>
+   <string name="crash_screen_database_hint">此次崩溃似乎与数据库有关。请尝试删除数据库进行修复。</string>
++  <string name="crash_screen_report_preparing">正在准备完整的崩溃报告...</string>
++  <string name="crash_screen_report_failed">无法准备或分享报告，请重试。</string>
++  <string name="crash_screen_report_privacy">报告可能包含文件路径及其他私人信息。分享前请查看详情。</string>
++  <string name="crash_screen_details">技术详情</string>
++  <string name="crash_screen_copy_failed">无法复制完整报告，请改为分享完整的报告文件。</string>
++  <string name="crash_screen_report_id">崩溃 ID：%1$s</string>
++  <string name="crash_screen_reset_confirm">这将永久删除应用数据库，包括播放历史、播放列表和媒体库设置。不会删除媒体文件。重置不一定能解决崩溃问题。</string>
++  <string name="crash_screen_reset_failed">无法重置数据库，未尝试重新启动。</string>
++  <string name="oss_crashx_description">由 TutorialsAndroid 提供的崩溃恢复功能，基于 Eduard Ereza Martínez 的 CustomActivityOnCrash。</string>
+   <string name="timer_picker_enter_timer">输入时间</string>
+   <string name="timer_picker_pick_time">选择时间</string>
+   <string name="timer_title">睡眠定时器</string>
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index 9107b903..613ae82b 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -537,7 +537,7 @@
+   <string name="player_aspect_fit">Fit Screen</string>
+   <string name="player_aspect_crop">Crop</string>
+   <string name="player_aspect_stretch">Stretch</string>
+-  <string name="crash_screen_title">Oops</string>
++  <string name="crash_screen_title">Unexpected error</string>
+   <string name="crash_screen_subtitle">Looks like %s experienced an unexpected error. Consider sharing the crash logs in a GitHub issue.</string>
+   <string name="crash_screen_logs_title">Crash logs:</string>
+   <string name="crash_screen_share">Share crash logs</string>
+@@ -545,6 +545,15 @@
+   <string name="crash_screen_fix_crash">Fix Crash (Delete Database)</string>
+   <string name="crash_screen_database_deleted">Database deleted successfully. Please restart the app.</string>
+   <string name="crash_screen_database_hint">This crash appears to be database-related. Try deleting the database to fix it.</string>
++  <string name="crash_screen_report_preparing">Preparing the full crash report...</string>
++  <string name="crash_screen_report_failed">The report could not be prepared or shared. Please try again.</string>
++  <string name="crash_screen_report_privacy">Reports may contain file paths and other private information. Review the details before sharing.</string>
++  <string name="crash_screen_details">Technical details</string>
++  <string name="crash_screen_copy_failed">The full report could not be copied. Share the complete report file instead.</string>
++  <string name="crash_screen_report_id">Crash ID: %1$s</string>
++  <string name="crash_screen_reset_confirm">This permanently deletes the app database, including playback history, playlists, and library settings. Media files are not deleted. Resetting may not fix the crash.</string>
++  <string name="crash_screen_reset_failed">The database could not be reset. No restart was attempted.</string>
++  <string name="oss_crashx_description">Crash recovery by TutorialsAndroid, based on CustomActivityOnCrash by Eduard Ereza Martínez.</string>
+   <string name="timer_picker_enter_timer">Enter time</string>
+   <string name="timer_picker_pick_time">Pick time</string>
+   <string name="timer_title">Sleep timer</string>
+diff --git a/app/src/main/res/xml/crash_report_paths.xml b/app/src/main/res/xml/crash_report_paths.xml
+new file mode 100644
+index 00000000..16544cc8
+--- /dev/null
++++ b/app/src/main/res/xml/crash_report_paths.xml
+@@ -0,0 +1,6 @@
++<?xml version="1.0" encoding="utf-8"?>
++<paths>
++    <files-path
++        name="crash_reports"
++        path="../no_backup/crash-reports/" />
++</paths>
+\ No newline at end of file
+diff --git a/gradle/libs.versions.toml b/gradle/libs.versions.toml
+index 92324a8b..56d3f50f 100644
+--- a/gradle/libs.versions.toml
++++ b/gradle/libs.versions.toml
+@@ -47,6 +47,7 @@ mpvlib = "1.0.9"
+ googleCast = "22.3.1"
+ androidxBiometric = "1.4.0-alpha07"
+ leakcanary = "2.14"
++crashx = "7.0.1"
+ libtorrent4j = "2.1.0-39"
+ libarchiveAndroid = "1.1.6"
+ ktlint = "14.2.0"
+@@ -124,6 +125,7 @@ jsoup = { module = "org.jsoup:jsoup", version.ref = "jsoup" }
+ reorderable = { module = "sh.calvin.reorderable:reorderable", version.ref = "reorderable" }
+ androidx-biometric = { module = "androidx.biometric:biometric", version.ref = "androidxBiometric" }
+ leakcanary-android = { module = "com.squareup.leakcanary:leakcanary-android", version.ref = "leakcanary" }
++crashx = { module = "io.github.tutorialsandroid:crashx", version.ref = "crashx" }
+ libtorrent4j = { module = "org.libtorrent4j:libtorrent4j", version.ref = "libtorrent4j" }
+ libtorrent4j-android-arm64 = { module = "org.libtorrent4j:libtorrent4j-android-arm64", version.ref = "libtorrent4j" }
+ libtorrent4j-android-arm = { module = "org.libtorrent4j:libtorrent4j-android-arm", version.ref = "libtorrent4j" }
+-- 
+2.25.1
+

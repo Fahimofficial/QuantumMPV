@@ -1,0 +1,432 @@
+From 31b8f1ca30b172b5d22d125325e92ed0c17fd489 Mon Sep 17 00:00:00 2001
+From: Arnab Sadhukhan <arnab@Arnabs-Mac-Mini.local>
+Date: Wed, 9 Sep 2026 20:35:21 +0530
+Subject: [PATCH 072/140] feat(music): display playlist duration and show
+ initial track duration immediately
+
+---
+ .../mpvrx/data/jellyfin/JellyfinClient.kt     |  4 ++--
+ .../components/PlaybackQueueActions.kt        |  1 +
+ .../browser/jellyfin/JellyfinDetailSheet.kt   |  7 ++++++-
+ .../ui/browser/jellyfin/JellyfinMusicView.kt  | 19 ++++++++++++++++---
+ .../ui/browser/jellyfin/JellyfinViewModel.kt  |  9 +++++++++
+ .../medialibrary/MediaLibraryContent.kt       |  1 +
+ .../ui/browser/music/MusicLibraryViewModel.kt |  2 ++
+ .../browser/navidrome/NavidromeDetailSheet.kt |  9 ++++++++-
+ .../browser/navidrome/NavidromeMusicView.kt   | 14 ++++++++++----
+ .../browser/navidrome/NavidromeViewModel.kt   |  1 +
+ .../ui/player/controls/AudioPlayerControls.kt | 16 +++++++++++++---
+ .../ui/player/controls/PlayerControls.kt      | 18 +++++++++++++++---
+ .../gyrolet/mpvrx/utils/media/MediaUtils.kt   |  9 ++++++++-
+ 13 files changed, 92 insertions(+), 18 deletions(-)
+
+diff --git a/app/src/main/java/com/quantummpv/app/data/jellyfin/JellyfinClient.kt b/app/src/main/java/com/quantummpv/app/data/jellyfin/JellyfinClient.kt
+index 50fc7e78..5817b757 100644
+--- a/app/src/main/java/com/quantummpv/app/data/jellyfin/JellyfinClient.kt
++++ b/app/src/main/java/com/quantummpv/app/data/jellyfin/JellyfinClient.kt
+@@ -520,7 +520,7 @@ class JellyfinClient(
+         val base = normalizeUrl(serverUrl)
+         val urlBuilder =
+           StringBuilder(
+-            "$base/Users/$userId/Items?Fields=Overview,PrimaryImageAspectRatio,UserData,ChildCount,MediaSources,MediaStreams,ProductionYear,CommunityRating,CriticRating,Genres,OfficialRating,Taglines,SeriesName,SeriesId,SeriesPrimaryImageTag,SeasonName,IndexNumber,ParentIndexNumber,PremiereDate,Status,RemoteTrailers&StartIndex=$startIndex&Limit=$limit&SortBy=${sortBy.apiValue}&SortOrder=${sortOrder.apiValue}",
++            "$base/Users/$userId/Items?Fields=Overview,PrimaryImageAspectRatio,UserData,ChildCount,CumulativeRunTimeTicks,MediaSources,MediaStreams,ProductionYear,CommunityRating,CriticRating,Genres,OfficialRating,Taglines,SeriesName,SeriesId,SeriesPrimaryImageTag,SeasonName,IndexNumber,ParentIndexNumber,PremiereDate,Status,RemoteTrailers&StartIndex=$startIndex&Limit=$limit&SortBy=${sortBy.apiValue}&SortOrder=${sortOrder.apiValue}",
+           )
+ 
+         if (!parentId.isNullOrBlank()) {
+@@ -953,7 +953,7 @@ class JellyfinClient(
+     val type = obj["Type"]?.jsonPrimitive?.content ?: obj["CollectionType"]?.jsonPrimitive?.content ?: "Folder"
+     val collectionType = obj["CollectionType"]?.jsonPrimitive?.content
+     val overview = obj["Overview"]?.jsonPrimitive?.content
+-    val runTimeTicks = obj["RunTimeTicks"]?.jsonPrimitive?.longOrNull
++    val runTimeTicks = obj["RunTimeTicks"]?.jsonPrimitive?.longOrNull ?: obj["CumulativeRunTimeTicks"]?.jsonPrimitive?.longOrNull
+     val isFolder = obj["IsFolder"]?.jsonPrimitive?.booleanOrNull ?: (type == "CollectionFolder" || type == "Folder" || type == "Series" || type == "Season")
+     val productionYear = obj["ProductionYear"]?.jsonPrimitive?.intOrNull
+     val communityRating = obj["CommunityRating"]?.jsonPrimitive?.content?.toDoubleOrNull()
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/components/PlaybackQueueActions.kt b/app/src/main/java/com/quantummpv/app/ui/browser/components/PlaybackQueueActions.kt
+index 74673f3c..02b6382f 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/components/PlaybackQueueActions.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/components/PlaybackQueueActions.kt
+@@ -39,6 +39,7 @@ fun addVideosToPlaybackQueue(
+             ?.let(PlaybackIdentity::forLocalPath),
+         title = video.displayName.ifBlank { video.title },
+         mimeType = video.mimeType,
++        durationSeconds = (video.duration / 1000L).toInt().takeIf { it > 0 },
+       )
+     }
+   val added =
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinDetailSheet.kt b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinDetailSheet.kt
+index b31d90c6..e3448684 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinDetailSheet.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinDetailSheet.kt
+@@ -86,6 +86,7 @@ import androidx.compose.ui.unit.dp
+ import androidx.compose.ui.unit.sp
+ import android.content.Intent
+ import android.net.Uri
++import android.text.format.DateUtils
+ import androidx.compose.ui.platform.LocalContext
+ import androidx.compose.ui.res.stringResource
+ import com.quantummpv.app.R
+@@ -162,7 +163,11 @@ fun JellyfinDetailSheet(
+         }
+         val isArtist = item.type == "MusicArtist" || item.type == "Artist" || item.type == "AlbumArtist"
+         val subtitle = if (isArtist) null else (item.seriesName ?: item.overview)?.takeIf { it.isNotBlank() }
+-        val itemCountText = if (isArtist) null else "${episodes.size} ${if (item.type == "Playlist") "Items" else "Tracks"}"
++        val totalSec = item.durationSeconds.takeIf { it > 0 }
++          ?: episodes.sumOf { it.durationSeconds }.takeIf { it > 0 }
++        val durationFormatted = totalSec?.let { DateUtils.formatElapsedTime(it) }
++        val countText = if (isArtist) null else "${episodes.size} ${if (item.type == "Playlist") "Items" else "Tracks"}"
++        val itemCountText = listOfNotNull(countText, durationFormatted).joinToString(" • ").takeIf { it.isNotBlank() }
+ 
+         SharedMusicDetailHeader(
+           title = item.name,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinMusicView.kt b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinMusicView.kt
+index bf7a2eb6..559d35ac 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinMusicView.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinMusicView.kt
+@@ -438,7 +438,7 @@ fun JellyfinMusicView(
+                   }
+                   SharedMusicGridCard(
+                     title = playlist.name,
+-                    subtitle = playlist.childCount?.let { if (it == 1) "1 track" else "$it tracks" } ?: "",
++                    subtitle = formatJellyfinPlaylistSubtitle(playlist),
+                     artworkUrl = imageUrl,
+                     fallbackIcon = if (playlist.id == "virtual_favorites_playlist" || playlist.id == "favorites") Icons.RoundedFilled.Favorite else Icons.RoundedFilled.QueueMusic,
+                     onClick = { onItemClick(playlist) },
+@@ -466,6 +466,7 @@ fun JellyfinMusicView(
+                   SharedMusicTrackListItem(
+                     title = playlist.name,
+                     subtitle = playlist.childCount?.let { if (it == 1) "1 track" else "$it tracks" },
++                    durationSeconds = playlist.durationSeconds.takeIf { it > 0 },
+                     artworkUrl = imageUrl,
+                     fallbackIcon = if (playlist.id == "virtual_favorites_playlist" || playlist.id == "favorites") Icons.RoundedFilled.Favorite else Icons.RoundedFilled.QueueMusic,
+                     coverArtSizeDp = coverArtSizeDp,
+@@ -596,7 +597,7 @@ fun JellyfinPlaylistsRowSection(
+     items = playlists,
+     getId = { it.id },
+     getTitle = { it.name },
+-    getSubtitle = { it.seriesName ?: it.overview ?: "" },
++    getSubtitle = { formatJellyfinPlaylistSubtitle(it) },
+     getArtworkUrl = { playlist ->
+       if (!playlist.primaryImageTag.isNullOrBlank()) {
+         JellyfinClient.getImageUrl(
+@@ -706,7 +707,11 @@ fun JellyfinMusicCard(
+     )
+   }
+   val isArtist = item.type == "MusicArtist" || item.type == "Artist" || item.type == "AlbumArtist"
+-  val subtitle = if (isArtist) "" else (item.seriesName ?: item.overview ?: "")
++  val subtitle = when {
++    isArtist -> ""
++    item.type == "Playlist" -> formatJellyfinPlaylistSubtitle(item)
++    else -> item.seriesName ?: item.overview ?: ""
++  }
+ 
+   SharedMusicGridCard(
+     title = item.name,
+@@ -725,3 +730,11 @@ fun JellyfinMusicCard(
+     modifier = modifier,
+   )
+ }
++
++private fun formatJellyfinPlaylistSubtitle(playlist: JellyfinItem): String {
++  val countStr = playlist.childCount?.let { if (it == 1) "1 track" else "$it tracks" }
++  val durationStr = playlist.durationSeconds.takeIf { it > 0 }?.let { DateUtils.formatElapsedTime(it) }
++  val parts = listOfNotNull(countStr, durationStr)
++  return if (parts.isNotEmpty()) parts.joinToString(" • ") else (playlist.seriesName ?: playlist.overview ?: "")
++}
++
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinViewModel.kt b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinViewModel.kt
+index d734b9d9..714a339c 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinViewModel.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinViewModel.kt
+@@ -1792,6 +1792,7 @@ class JellyfinViewModel(
+       val externalSubs = subsDeferred.await()
+ 
+       var playlistArtists: List<String> = emptyList()
++      var playlistDurations: List<Int> = emptyList()
+       val playlistData =
+         if (isAudio) {
+           val audioSource =
+@@ -1833,6 +1834,7 @@ class JellyfinViewModel(
+             val titles = ArrayList<String>(audioSource.size)
+             val artworks = ArrayList<String>(audioSource.size)
+             playlistArtists = audioSource.map { track -> track.seriesName ?: targetItem.seriesName ?: "" }
++            playlistDurations = audioSource.map { it.durationSeconds.toInt() }
+             var targetIdx = 0
+             audioSource.forEachIndexed { idx, track ->
+               if (track.id == targetItem.id) targetIdx = idx
+@@ -1855,6 +1857,7 @@ class JellyfinViewModel(
+           if (episodesSource.size > 1) {
+             val uris = ArrayList<Uri>(episodesSource.size)
+             val titles = ArrayList<String>(episodesSource.size)
++            playlistDurations = episodesSource.map { it.durationSeconds.toInt() }
+             var targetIdx = 0
+             episodesSource.forEachIndexed { index, ep ->
+               if (ep.id == targetItem.id) targetIdx = index
+@@ -1878,6 +1881,10 @@ class JellyfinViewModel(
+       val (playlistUris, playlistTitles, playlistIndex) = playlistData.first
+       val playlistArtworkUrls = playlistData.second
+ 
++      if (playlistDurations.isEmpty()) {
++        playlistDurations = listOf(targetItem.durationSeconds.toInt())
++      }
++
+       val headers =
+         mapOf(
+           "X-Emby-Token" to server.accessToken,
+@@ -1901,6 +1908,7 @@ class JellyfinViewModel(
+           playlistArtists = playlistArtists,
+           playlistArtworkUrls = playlistArtworkUrls,
+           isAudio = isAudio,
++          playlistDurationsSeconds = playlistDurations,
+         )
+       }
+     }
+@@ -2005,6 +2013,7 @@ class JellyfinViewModel(
+           playlistArtists = if (isAudio) playable.map { it.seriesName.orEmpty() } else emptyList(),
+           playlistArtworkUrls = playlistArtworks,
+           isAudio = isAudio,
++          playlistDurationsSeconds = playable.map { it.durationSeconds.toInt() },
+         )
+       }
+     }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/medialibrary/MediaLibraryContent.kt b/app/src/main/java/com/quantummpv/app/ui/browser/medialibrary/MediaLibraryContent.kt
+index 49c03b39..dc3e65b3 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/medialibrary/MediaLibraryContent.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/medialibrary/MediaLibraryContent.kt
+@@ -338,6 +338,7 @@ fun MediaLibraryContent(forceAudio: Boolean = false) {
+         stableId = PlaybackIdentity.forLocalPath(item.path),
+         title = item.displayName,
+         mimeType = item.mimeType,
++        durationSeconds = (item.duration / 1000L).toInt().takeIf { it > 0 },
+       )
+     }
+     val launchToken = PreparedPlaybackLaunchStore.stage(
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryViewModel.kt b/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryViewModel.kt
+index 278ddcc8..35345d12 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryViewModel.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryViewModel.kt
+@@ -325,6 +325,7 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
+         artist = item.artist,
+         mimeType = "audio/*",
+         artworkUri = item.albumArtUri?.toString(),
++        durationSeconds = (item.durationMs / 1000L).toInt().takeIf { it > 0 },
+       )
+     }
+     val launchToken = PreparedPlaybackLaunchStore.stage(
+@@ -360,6 +361,7 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
+         artist = item.artist,
+         mimeType = "audio/*",
+         artworkUri = item.albumArtUri?.toString(),
++        durationSeconds = (item.durationMs / 1000L).toInt().takeIf { it > 0 },
+       )
+     }
+     val launchToken = PreparedPlaybackLaunchStore.stage(
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/navidrome/NavidromeDetailSheet.kt b/app/src/main/java/com/quantummpv/app/ui/browser/navidrome/NavidromeDetailSheet.kt
+index 9e55da32..a56b57ff 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/navidrome/NavidromeDetailSheet.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/navidrome/NavidromeDetailSheet.kt
+@@ -9,6 +9,7 @@
+ 
+ package com.quantummpv.app.ui.browser.navidrome
+ 
++import android.text.format.DateUtils
+ import androidx.compose.foundation.background
+ import androidx.compose.foundation.clickable
+ import androidx.compose.foundation.layout.Arrangement
+@@ -180,10 +181,16 @@ fun NavidromeDetailSheet(
+               .fillMaxWidth()
+               .padding(horizontal = 16.dp, vertical = 8.dp),
+           ) {
++            val playlistDuration = playlist.durationSeconds.takeIf { it > 0 }
++              ?: playlist.songs.sumOf { it.durationSeconds }.takeIf { it > 0 }
++            val playlistDurationFormatted = playlistDuration?.let { DateUtils.formatElapsedTime(it.toLong()) }
++            val countText = if (playlist.songCount == 1) "1 track" else "${playlist.songCount.coerceAtLeast(playlist.songs.size)} tracks"
++            val itemCountText = listOfNotNull(countText, playlistDurationFormatted).joinToString(" • ")
++
+             SharedMusicDetailHeader(
+               title = playlist.name,
+               subtitle = null,
+-              itemCountText = "${playlist.songCount} tracks",
++              itemCountText = itemCountText,
+               artworkUrl = navidromeRepository.getCoverArtUrl(server, playlist.coverArtId, size = 300),
+               fallbackIcon = if (playlist.id == "virtual_favorites_playlist" || playlist.id == "favorites") Icons.RoundedFilled.Favorite else Icons.RoundedFilled.QueueMusic,
+               onPlayAll = { viewModel.playAll(context, playlist.songs, 0) },
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/navidrome/NavidromeMusicView.kt b/app/src/main/java/com/quantummpv/app/ui/browser/navidrome/NavidromeMusicView.kt
+index cdd39839..df140084 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/navidrome/NavidromeMusicView.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/navidrome/NavidromeMusicView.kt
+@@ -330,7 +330,7 @@ fun NavidromeMusicView(
+                 items(sortedPlaylists, key = { it.id }) { playlist ->
+                   SharedMusicGridCard(
+                     title = playlist.name,
+-                    subtitle = "${playlist.songCount} tracks",
++                    subtitle = formatNavidromePlaylistSubtitle(playlist),
+                     artworkUrl = navidromeRepository.getCoverArtUrl(server, playlist.coverArtId),
+                     fallbackIcon = if (playlist.id == "virtual_favorites_playlist" || playlist.id == "favorites") Icons.RoundedFilled.Favorite else Icons.RoundedFilled.QueueMusic,
+                     onClick = { onPlaylistClick(playlist) },
+@@ -345,8 +345,8 @@ fun NavidromeMusicView(
+                 items(sortedPlaylists, key = { it.id }) { playlist ->
+                   SharedMusicTrackListItem(
+                     title = playlist.name,
+-                    subtitle = "${playlist.songCount} tracks",
+-                    durationSeconds = playlist.durationSeconds.toLong(),
++                    subtitle = if (playlist.songCount == 1) "1 track" else "${playlist.songCount} tracks",
++                    durationSeconds = playlist.durationSeconds.takeIf { it > 0 }?.toLong(),
+                     artworkUrl = navidromeRepository.getCoverArtUrl(server, playlist.coverArtId),
+                     fallbackIcon = if (playlist.id == "virtual_favorites_playlist" || playlist.id == "favorites") Icons.RoundedFilled.Favorite else Icons.RoundedFilled.QueueMusic,
+                     coverArtSizeDp = coverArtSizeDp,
+@@ -403,7 +403,7 @@ private fun NavidromeHomeContent(
+           items = uiState.playlists,
+           getId = { it.id },
+           getTitle = { it.name },
+-          getSubtitle = { "${it.songCount} tracks" },
++          getSubtitle = { formatNavidromePlaylistSubtitle(it) },
+           getArtworkUrl = { navidromeRepository.getCoverArtUrl(server, it.coverArtId) },
+           fallbackIcon = Icons.RoundedFilled.QueueMusic,
+           getFallbackIcon = { if (it.id == "virtual_favorites_playlist" || it.id == "favorites") Icons.RoundedFilled.Favorite else Icons.RoundedFilled.QueueMusic },
+@@ -451,3 +451,9 @@ private fun NavidromeHomeContent(
+     }
+   }
+ }
++
++private fun formatNavidromePlaylistSubtitle(playlist: NavidromePlaylist): String {
++  val countStr = if (playlist.songCount == 1) "1 track" else "${playlist.songCount} tracks"
++  val durationStr = playlist.durationSeconds.takeIf { it > 0 }?.let { DateUtils.formatElapsedTime(it.toLong()) }
++  return listOfNotNull(countStr, durationStr).joinToString(" • ")
++}
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/navidrome/NavidromeViewModel.kt b/app/src/main/java/com/quantummpv/app/ui/browser/navidrome/NavidromeViewModel.kt
+index 030b43d4..65698ccf 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/navidrome/NavidromeViewModel.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/navidrome/NavidromeViewModel.kt
+@@ -322,6 +322,7 @@ class NavidromeViewModel(
+       playlistArtists = playlistArtists,
+       playlistArtworkUrls = playlistArtworkUrls,
+       isAudio = true,
++      playlistDurationsSeconds = songs.map { it.durationSeconds },
+     )
+   }
+ 
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/AudioPlayerControls.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/AudioPlayerControls.kt
+index 7bbd1874..ffc87be9 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/AudioPlayerControls.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/AudioPlayerControls.kt
+@@ -779,7 +779,14 @@ fun AudioPlayerControls(
+   }
+ 
+    val isPlaying = paused == false
+-   val currentDurSec = if (preciseDuration > 0f) preciseDuration else duration?.toFloat() ?: 0f
++   val currentDurSec =
++     if (preciseDuration > 0f) {
++       preciseDuration
++     } else if ((duration ?: 0) > 0) {
++       duration!!.toFloat()
++     } else {
++       currentItem?.durationSeconds?.takeIf { it > 0 }?.toFloat() ?: 0f
++     }
+    val currentVolumePercent by viewModel.currentVolumePercent.collectAsState()
+    val volumeScale = currentVolumePercent / 100f
+    val visualizerFeatures = rememberAudioVisualizerFeatures(isPlaying, volumeScale)
+@@ -1610,12 +1617,15 @@ fun AudioPlayerControls(
+       val precisePosition by viewModel.precisePosition.collectAsStateWithLifecycle()
+       val currentPosSec = if (precisePosition > 0f) precisePosition else position?.toFloat() ?: 0f
+       val isPaused = paused ?: false
++      val effectiveRemaining =
++        (remaining ?: 0f).takeIf { it > 0f }
++          ?: (currentDurSec - currentPosSec).coerceAtLeast(0f)
+ 
+       SeekbarWithTimers(
+         position = currentPosSec,
+         committedPosition = currentPosSec,
+         duration = currentDurSec.coerceAtLeast(1f),
+-        remaining = remaining ?: 0f,
++        remaining = effectiveRemaining,
+         onValueChange = { value -> viewModel.seekPreviewTo(value) },
+         onValueChangeFinished = { targetPosition -> viewModel.seekTo(targetPosition.toInt(), fast = false) },
+         timersInverted = Pair(false, invertDuration),
+@@ -2055,7 +2065,7 @@ fun AudioPlayerControls(
+             displayName = displayTitle,
+             path = mediaPath,
+             uri = Uri.parse(mediaPath),
+-            duration = duration?.toLong() ?: 0L,
++            duration = duration?.toLong() ?: currentItem?.durationSeconds?.toLong() ?: 0L,
+             durationFormatted = "",
+             size = 0L,
+             sizeFormatted = "",
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControls.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControls.kt
+index 4fc20742..2048831b 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControls.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControls.kt
+@@ -230,9 +230,17 @@ fun PlayerControls(
+   val preciseDuration by viewModel.preciseDuration.collectAsState()
+   val scopeAudioTracks by viewModel.audioTracks.collectAsState(persistentListOf())
+   val mediaScopesState by viewModel.mediaScopesUiState.collectAsState()
++  val currentQueueItem = playbackSessionState.currentItem ?: playbackQueue.currentItem
+   val demuxerCacheTime by PlaybackSession.propDouble["demuxer-cache-time"].collectAsState()
+   val playbackSpeed by PlaybackSession.propFloat["speed"].collectAsState()
+-  val seekbarDuration = if (preciseDuration > 0) preciseDuration else duration?.toFloat() ?: 0f
++  val seekbarDuration =
++    if (preciseDuration > 0) {
++      preciseDuration
++    } else if ((duration ?: 0) > 0) {
++      duration!!.toFloat()
++    } else {
++      currentQueueItem?.durationSeconds?.takeIf { it > 0 }?.toFloat() ?: 0f
++    }
+   val seekState by viewModel.seekState.collectAsState()
+   val brightness by viewModel.currentBrightness.collectAsState()
+   val doubleTapSeekAmount = seekState.amount
+@@ -1704,11 +1712,15 @@ is PlayerUpdates.FrameInfo -> {
+               }
+             val skipSegmentsImmutable = remember(skipSegments) { skipSegments.toImmutableList() }
+ 
++            val effectiveRemaining =
++              (remaining ?: 0f).takeIf { it > 0f }
++                ?: (seekbarDuration - displayedSeekbarPosition).coerceAtLeast(0f)
++
+             SeekbarWithTimers(
+               position = displayedSeekbarPosition,
+               committedPosition = precisePosition,
+-              duration = if (preciseDuration > 0) preciseDuration else duration?.toFloat() ?: 0f,
+-              remaining = remaining ?: 0f,
++              duration = seekbarDuration,
++              remaining = effectiveRemaining,
+               onValueChange = {
+                 isSeeking = true
+                 resetControlsTimestamp = System.currentTimeMillis()
+diff --git a/app/src/main/java/com/quantummpv/app/utils/media/MediaUtils.kt b/app/src/main/java/com/quantummpv/app/utils/media/MediaUtils.kt
+index 103bec22..1f1d568f 100644
+--- a/app/src/main/java/com/quantummpv/app/utils/media/MediaUtils.kt
++++ b/app/src/main/java/com/quantummpv/app/utils/media/MediaUtils.kt
+@@ -80,6 +80,7 @@ object MediaUtils {
+           stableId = video.path.takeIf(String::isNotBlank)?.let(PlaybackIdentity::forLocalPath),
+           title = video.displayName,
+           mimeType = video.mimeType,
++          durationSeconds = (video.duration / 1000L).toInt().takeIf { it > 0 },
+         )
+       }
+     val launchToken =
+@@ -211,7 +212,9 @@ object MediaUtils {
+             playlistArtists = playlistArtists,
+             playlistArtworkUrls = playlistArtworkUrls,
+             isAudio = isAudio,
+-            playlistDurationsSeconds = playlistDurationsSeconds,
++            playlistDurationsSeconds = playlistDurationsSeconds.ifEmpty {
++              listOf((source.duration / 1000L).toInt().takeIf { it > 0 } ?: 0)
++            },
+           )
+           PlaybackPerformanceTrace.mark("OPEN_REQUEST", "source=${launchSource ?: "library"} kind=video")
+           context.startActivity(intent)
+@@ -398,6 +401,10 @@ object MediaUtils {
+       intent.putExtra("playlistIndex", selectedIndex)
+       intent.putExtra("playlist_index", selectedIndex)
+     }
++    val selectedDuration = playlistDurationsSeconds.getOrNull(if (playlist.isNotEmpty()) playlistIndex else 0)?.takeIf { it > 0 }
++    if (selectedDuration != null) {
++      intent.putExtra("duration", selectedDuration)
++    }
+     launchSource?.let { intent.putExtra("launch_source", it) }
+     title?.let {
+       intent.putExtra("title", it)
+-- 
+2.25.1
+

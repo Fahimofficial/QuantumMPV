@@ -1,0 +1,55 @@
+From 772356a461706fb73572c7f62ada8ee0d2015536 Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <riteshp2001@gmail.com>
+Date: Mon, 7 Sep 2026 12:53:23 +0530
+Subject: [PATCH 040/140] fix(player): restore configured speed after gesture
+
+Use the user-defined default speed when unlocking the hold-speed gesture. Restore missing Compose imports for tinted sliders and the browser action bar.
+---
+ .../gyrolet/mpvrx/presentation/components/TintedSliderItem.kt  | 3 ++-
+ .../gyrolet/mpvrx/ui/browser/components/FloatingBottomBar.kt   | 1 +
+ .../com/quantummpv/app/ui/player/controls/GestureHandler.kt     | 2 +-
+ 3 files changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/app/src/main/java/com/quantummpv/app/presentation/components/TintedSliderItem.kt b/app/src/main/java/com/quantummpv/app/presentation/components/TintedSliderItem.kt
+index f156d3db..21982c16 100644
+--- a/app/src/main/java/com/quantummpv/app/presentation/components/TintedSliderItem.kt
++++ b/app/src/main/java/com/quantummpv/app/presentation/components/TintedSliderItem.kt
+@@ -28,8 +28,9 @@ import androidx.compose.ui.graphics.Color
+ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+ import androidx.compose.ui.platform.LocalHapticFeedback
+ import androidx.compose.ui.tooling.preview.Preview
+-import com.quantummpv.app.ui.theme.spacing
++import androidx.compose.ui.unit.dp
+ import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
++import com.quantummpv.app.ui.theme.spacing
+ import kotlin.math.max
+ import kotlin.math.min
+ import kotlin.math.roundToInt
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/components/FloatingBottomBar.kt b/app/src/main/java/com/quantummpv/app/ui/browser/components/FloatingBottomBar.kt
+index 3bf58406..1351e03c 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/components/FloatingBottomBar.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/components/FloatingBottomBar.kt
+@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.padding
+ import androidx.compose.foundation.layout.size
+ import androidx.compose.foundation.layout.systemBars
+ import androidx.compose.foundation.layout.windowInsetsPadding
++import androidx.compose.foundation.shape.CircleShape
+ import androidx.compose.foundation.shape.RoundedCornerShape
+ import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+ import androidx.compose.material3.IconButton
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/GestureHandler.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/GestureHandler.kt
+index 9e311a4b..c2144637 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/GestureHandler.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/GestureHandler.kt
+@@ -763,7 +763,7 @@ fun GestureHandler(
+                           } else if (deltaY > speedLockThreshold && isSpeedLocked) {
+                             isSpeedLocked = false
+                             isDynamicSpeedControlActive = false
+-                            originalSpeed = 1f
++                            originalSpeed = playerPreferences.defaultSpeed.get()
+                             PlaybackSession.setPropertyFloat("speed", originalSpeed)
+                             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                             viewModel.playerUpdate.update {
+-- 
+2.25.1
+

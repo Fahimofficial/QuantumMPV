@@ -15,8 +15,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -36,6 +34,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -53,6 +52,7 @@ data class AspectRatio(
   val isCustom: Boolean = false,
 )
 
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun AspectRatioSheet(
   currentRatio: Double?,
@@ -80,12 +80,13 @@ fun AspectRatioSheet(
       AspectRatio("2.39:1", 2.39),
     )
 
-  PlayerSheet(onDismissRequest) {
+  PlayerSheet(onDismissRequest, title = androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.ui_aspect_ratio)) {
     Column(
       modifier =
         modifier
+          .fillMaxWidth()
           .verticalScroll(rememberScrollState())
-          .padding(vertical = MaterialTheme.spacing.medium),
+          .padding(bottom = 8.dp),
     ) {
       Text(
         text =
@@ -93,9 +94,10 @@ fun AspectRatioSheet(
             .stringResource(com.quantummpv.app.R.string.ui_aspect_ratio),
         style = MaterialTheme.typography.headlineSmall,
         modifier =
-          Modifier
-            .padding(horizontal = MaterialTheme.spacing.medium)
-            .padding(bottom = MaterialTheme.spacing.small),
+          Modifier.clickable(enabled = autoCropControlEnabled) {
+            onAutoCropChanged(!autoCropEnabled)
+          },
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
       )
 
       val autoCropSummary =
@@ -139,16 +141,15 @@ fun AspectRatioSheet(
             .padding(top = MaterialTheme.spacing.small),
       )
 
-      LazyRow(
-        modifier = Modifier.padding(horizontal = MaterialTheme.spacing.medium),
-        horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.extraSmall),
+      androidx.compose.foundation.layout.FlowRow(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
       ) {
-        items(presetRatios, key = { it.label }) { ratio ->
+        presetRatios.forEach { ratio ->
           InputChip(
             selected = currentRatio?.let { abs(it - ratio.ratio) < 0.01 } ?: (ratio.ratio == -1.0),
             onClick = { onSelectRatio(ratio.ratio) },
             label = { Text(ratio.label) },
-            modifier = Modifier.animateItem(),
             leadingIcon = null,
           )
         }
@@ -167,11 +168,11 @@ fun AspectRatioSheet(
               .padding(top = MaterialTheme.spacing.medium),
         )
 
-        LazyRow(
-          modifier = Modifier.padding(horizontal = MaterialTheme.spacing.medium),
-          horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.extraSmall),
+        androidx.compose.foundation.layout.FlowRow(
+          modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+          horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-          items(customRatios, key = { it.label }) { ratio ->
+          customRatios.forEach { ratio ->
             InputChip(
               selected = currentRatio?.let { abs(it - ratio.ratio) < 0.01 } ?: false,
               onClick = { onSelectRatio(ratio.ratio) },
@@ -184,7 +185,6 @@ fun AspectRatioSheet(
                   modifier = Modifier.clickable { onDeleteCustomRatio(ratio) },
                 )
               },
-              modifier = Modifier.animateItem(),
             )
           }
         }

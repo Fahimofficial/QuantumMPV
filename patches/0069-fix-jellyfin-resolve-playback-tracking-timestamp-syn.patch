@@ -1,0 +1,366 @@
+From 22de00a151ab492675eaf84e92d0fd01b978252f Mon Sep 17 00:00:00 2001
+From: Arnab Sadhukhan <arnab@Arnabs-Mac-Mini.local>
+Date: Wed, 9 Sep 2026 20:14:37 +0530
+Subject: [PATCH 069/140] fix(jellyfin): resolve playback tracking timestamp
+ sync and auto-refresh state
+
+---
+ .../ui/browser/jellyfin/JellyfinViewModel.kt  | 47 ++++++++++++
+ .../gyrolet/mpvrx/ui/player/PlayerActivity.kt | 39 ++++++++--
+ .../utils/media/JellyfinSessionReporter.kt    | 71 +++++++++++++------
+ 3 files changed, 129 insertions(+), 28 deletions(-)
+
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinViewModel.kt b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinViewModel.kt
+index 592e1b28..d5e17dd6 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinViewModel.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinViewModel.kt
+@@ -47,7 +47,9 @@ import kotlinx.coroutines.awaitAll
+ import kotlinx.coroutines.delay
+ import kotlinx.coroutines.flow.MutableStateFlow
+ import kotlinx.coroutines.flow.StateFlow
++import com.quantummpv.app.utils.media.PlaybackStateEvents
+ import kotlinx.coroutines.flow.asStateFlow
++import kotlinx.coroutines.flow.collectLatest
+ import kotlinx.coroutines.flow.firstOrNull
+ import kotlinx.coroutines.flow.update
+ import kotlinx.coroutines.launch
+@@ -169,6 +171,51 @@ class JellyfinViewModel(
+ 
+   init {
+     loadServers()
++    viewModelScope.launch(Dispatchers.IO) {
++      PlaybackStateEvents.changes.collectLatest {
++        refreshPlaybackStateSilently()
++      }
++    }
++  }
++
++  fun refreshPlaybackStateSilently() {
++    val server = _uiState.value.activeServer ?: return
++    viewModelScope.launch(Dispatchers.IO) {
++      delay(400) // Brief delay to ensure Jellyfin server has committed the stop/progress session data
++      val resumeResult = jellyfinRepository.getResumeItems(server, limit = 16).getOrNull()
++      if (resumeResult != null) {
++        _uiState.update { it.copy(resumeItems = resumeResult) }
++      }
++
++      val detail = _uiState.value.detailItem
++      if (detail != null) {
++        val updatedDetail = jellyfinRepository.getItem(server, detail.id).getOrNull()
++        if (updatedDetail != null) {
++          _uiState.update { it.copy(detailItem = updatedDetail) }
++        }
++        val seasonId = _uiState.value.selectedDetailSeasonId
++        if (seasonId != null) {
++          val episodes = jellyfinRepository.getEpisodes(server, detail.id, seasonId).getOrNull()
++          if (episodes != null) {
++            _uiState.update { it.copy(detailEpisodes = episodes) }
++          }
++        }
++      }
++
++      val openLib = _uiState.value.openLibrary
++      if (openLib != null && _uiState.value.currentItems.isNotEmpty()) {
++        val updatedItems = jellyfinRepository.getItems(
++          server = server,
++          parentId = openLib.id,
++          limit = _uiState.value.currentItems.size.coerceAtLeast(50),
++          sortBy = _uiState.value.sortBy,
++          sortOrder = _uiState.value.sortOrder,
++        ).getOrNull()
++        if (updatedItems != null && updatedItems.items.isNotEmpty()) {
++          _uiState.update { it.copy(currentItems = updatedItems.items) }
++        }
++      }
++    }
+   }
+ 
+   fun loadServers() {
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt b/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt
+index 03ab56bb..231ab303 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt
+@@ -3928,8 +3928,12 @@ class PlayerActivity :
+     }.onFailure { /* Silently ignore PiP update failures */ }
+ 
+     jellyfinSessionReporter?.let { reporter ->
+-      val currentPosMs = (viewModel.pos ?: 0).toLong() * 1000L
+-      reporter.reportPlaybackProgress(currentPosMs, isPaused)
++      val currentPosMs = readMpvIntSeconds("time-pos", viewModel.pos ?: 0).toLong() * 1000L
++      reporter.reportPlaybackProgress(
++        positionMs = currentPosMs,
++        isPaused = isPaused,
++        eventName = if (isPaused) "Pause" else "Unpause",
++      )
+     }
+   }
+ 
+@@ -4277,8 +4281,17 @@ class PlayerActivity :
+ 
+     reportJellyfinStop()
+     currentUri?.toString()?.let { url ->
+-      jellyfinSessionReporter = JellyfinSessionReporter.create(url, lifecycleScope, networkHttpClient)
+-      jellyfinSessionReporter?.reportPlaybackStart((viewModel.pos ?: 0).toLong() * 1000L)
++      val tokenFromHeader =
++        networkPlaylistHeaders.getOrNull(playlistIndex)?.get("X-Emby-Token")
++          ?: intent.getStringArrayExtra("headers")?.let { PlaybackHttpHeaders.fromFlatPairs(it)["X-Emby-Token"] }
++      jellyfinSessionReporter =
++        JellyfinSessionReporter.create(
++          url = url,
++          httpClient = networkHttpClient,
++          fallbackToken = tokenFromHeader,
++        )
++      val initialPosMs = readMpvIntSeconds("time-pos", viewModel.pos ?: 0).toLong() * 1000L
++      jellyfinSessionReporter?.reportPlaybackStart(initialPosMs)
+       startJellyfinProgressLoop()
+     }
+ 
+@@ -4317,6 +4330,14 @@ class PlayerActivity :
+         }
+       } finally {
+         PlaybackSession.completePositionRestore(loadGeneration)
++        val restoredPosMs = readMpvIntSeconds("time-pos", viewModel.pos ?: 0).toLong() * 1000L
++        if (restoredPosMs > 0) {
++          jellyfinSessionReporter?.reportPlaybackProgress(
++            positionMs = restoredPosMs,
++            isPaused = viewModel.paused ?: false,
++            eventName = "TimeUpdate",
++          )
++        }
+       }
+     }
+ 
+@@ -4736,9 +4757,13 @@ class PlayerActivity :
+         while (isActive) {
+           delay(10000) // Report progress every 10 seconds
+           val reporter = jellyfinSessionReporter ?: continue
+-          val currentPosMs = (viewModel.pos ?: 0).toLong() * 1000L
++          val currentPosMs = readMpvIntSeconds("time-pos", viewModel.pos ?: 0).toLong() * 1000L
+           val isPaused = viewModel.paused ?: false
+-          reporter.reportPlaybackProgress(currentPosMs, isPaused)
++          reporter.reportPlaybackProgress(
++            positionMs = currentPosMs,
++            isPaused = isPaused,
++            eventName = "TimeUpdate",
++          )
+         }
+       }
+   }
+@@ -4747,7 +4772,7 @@ class PlayerActivity :
+     jellyfinProgressJob?.cancel()
+     jellyfinProgressJob = null
+     jellyfinSessionReporter?.let { reporter ->
+-      val currentPosMs = (viewModel.pos ?: 0).toLong() * 1000L
++      val currentPosMs = readMpvIntSeconds("time-pos", viewModel.pos ?: 0).toLong() * 1000L
+       reporter.reportPlaybackStop(currentPosMs)
+       jellyfinSessionReporter = null
+     }
+diff --git a/app/src/main/java/com/quantummpv/app/utils/media/JellyfinSessionReporter.kt b/app/src/main/java/com/quantummpv/app/utils/media/JellyfinSessionReporter.kt
+index 10276638..9b8f4b3a 100644
+--- a/app/src/main/java/com/quantummpv/app/utils/media/JellyfinSessionReporter.kt
++++ b/app/src/main/java/com/quantummpv/app/utils/media/JellyfinSessionReporter.kt
+@@ -11,12 +11,16 @@ package com.quantummpv.app.utils.media
+ 
+ import android.net.Uri
+ import android.util.Log
++import com.quantummpv.app.data.jellyfin.JellyfinClient
++import com.quantummpv.app.data.jellyfin.JellyfinClient.Companion.addJellyfinHeaders
+ import com.quantummpv.app.network.SharedHttpClient
+ import com.quantummpv.app.network.awaitResponse
+ import kotlinx.coroutines.CancellationException
+ import kotlinx.coroutines.CoroutineScope
+ import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.SupervisorJob
+ import kotlinx.coroutines.launch
++import kotlinx.serialization.ExperimentalSerializationApi
+ import kotlinx.serialization.Serializable
+ import kotlinx.serialization.encodeToString
+ import kotlinx.serialization.json.Json
+@@ -24,17 +28,19 @@ import okhttp3.MediaType.Companion.toMediaType
+ import okhttp3.OkHttpClient
+ import okhttp3.Request
+ import okhttp3.RequestBody.Companion.toRequestBody
++import java.util.UUID
+ import java.util.concurrent.TimeUnit
+ 
+ class JellyfinSessionReporter(
+   private val baseUrl: String,
+   private val itemId: String,
+   private val apiKey: String,
+-  private val playSessionId: String?,
+-  private val mediaSourceId: String?,
+-  private val coroutineScope: CoroutineScope,
++  private val playSessionId: String,
++  private val mediaSourceId: String,
+   private val httpClient: OkHttpClient = defaultHttpClient,
+ ) {
++  private val reporterScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
++
+   companion object {
+     private const val TAG = "JellyfinSessionReporter"
+ 
+@@ -42,6 +48,15 @@ class JellyfinSessionReporter(
+     private const val TICKS_PER_MILLISECOND = 10000L
+     private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
+ 
++    @OptIn(ExperimentalSerializationApi::class)
++    private val json =
++      Json {
++        ignoreUnknownKeys = true
++        isLenient = true
++        encodeDefaults = true
++        explicitNulls = false
++      }
++
+     private val defaultHttpClient by lazy {
+       SharedHttpClient.derive {
+         connectTimeout(5, TimeUnit.SECONDS)
+@@ -51,8 +66,8 @@ class JellyfinSessionReporter(
+ 
+     fun create(
+       url: String,
+-      coroutineScope: CoroutineScope,
+       httpClient: OkHttpClient? = null,
++      fallbackToken: String? = null,
+     ): JellyfinSessionReporter? {
+       try {
+         val uri = Uri.parse(url)
+@@ -66,9 +81,16 @@ class JellyfinSessionReporter(
+           return null
+         }
+         val itemId = pathSegments[mediaIndex + 1]
+-        val apiKey = uri.getQueryParameter("api_key") ?: uri.getQueryParameter("ApiKey") ?: return null
+-        val playSessionId = uri.getQueryParameter("playSessionId") ?: uri.getQueryParameter("PlaySessionId")
+-        val mediaSourceId = uri.getQueryParameter("mediaSourceId") ?: uri.getQueryParameter("MediaSourceId")
++        val apiKey = uri.getQueryParameter("api_key")
++          ?: uri.getQueryParameter("ApiKey")
++          ?: fallbackToken
++          ?: return null
++        val playSessionId = uri.getQueryParameter("playSessionId")
++          ?: uri.getQueryParameter("PlaySessionId")
++          ?: UUID.randomUUID().toString().replace("-", "")
++        val mediaSourceId = uri.getQueryParameter("mediaSourceId")
++          ?: uri.getQueryParameter("MediaSourceId")
++          ?: itemId
+ 
+         val scheme = uri.scheme ?: "http"
+         val authority = uri.encodedAuthority ?: return null
+@@ -90,7 +112,6 @@ class JellyfinSessionReporter(
+           apiKey = apiKey,
+           playSessionId = playSessionId,
+           mediaSourceId = mediaSourceId,
+-          coroutineScope = coroutineScope,
+           httpClient = httpClient ?: defaultHttpClient,
+         )
+       } catch (e: Exception) {
+@@ -109,6 +130,7 @@ class JellyfinSessionReporter(
+     val CanSeek: Boolean = true,
+     val IsPaused: Boolean = false,
+     val IsMuted: Boolean = false,
++    val PlayMethod: String = "DirectPlay",
+   )
+ 
+   @Serializable
+@@ -120,6 +142,8 @@ class JellyfinSessionReporter(
+     val CanSeek: Boolean = true,
+     val IsPaused: Boolean = false,
+     val IsMuted: Boolean = false,
++    val PlayMethod: String = "DirectPlay",
++    val EventName: String? = null,
+   )
+ 
+   @Serializable
+@@ -131,16 +155,17 @@ class JellyfinSessionReporter(
+   )
+ 
+   fun reportPlaybackStart(positionMs: Long) {
+-    coroutineScope.launch(Dispatchers.IO) {
++    reporterScope.launch {
+       val urlString = "$baseUrl/Sessions/Playing?api_key=$apiKey"
+       val info =
+         PlaybackStartInfo(
+           ItemId = itemId,
+           PlaySessionId = playSessionId,
+           MediaSourceId = mediaSourceId,
+-          PositionTicks = positionMs * TICKS_PER_MILLISECOND,
++          PositionTicks = (positionMs.coerceAtLeast(0L)) * TICKS_PER_MILLISECOND,
++          PlayMethod = "DirectPlay",
+         )
+-      val jsonBody = Json.encodeToString(info)
++      val jsonBody = json.encodeToString(info)
+       sendPostRequest(urlString, jsonBody)
+     }
+   }
+@@ -148,33 +173,36 @@ class JellyfinSessionReporter(
+   fun reportPlaybackProgress(
+     positionMs: Long,
+     isPaused: Boolean,
++    eventName: String? = null,
+   ) {
+-    coroutineScope.launch(Dispatchers.IO) {
++    reporterScope.launch {
+       val urlString = "$baseUrl/Sessions/Playing/Progress?api_key=$apiKey"
+       val info =
+         PlaybackProgressInfo(
+           ItemId = itemId,
+           PlaySessionId = playSessionId,
+           MediaSourceId = mediaSourceId,
+-          PositionTicks = positionMs * TICKS_PER_MILLISECOND,
++          PositionTicks = (positionMs.coerceAtLeast(0L)) * TICKS_PER_MILLISECOND,
+           IsPaused = isPaused,
++          PlayMethod = "DirectPlay",
++          EventName = eventName,
+         )
+-      val jsonBody = Json.encodeToString(info)
++      val jsonBody = json.encodeToString(info)
+       sendPostRequest(urlString, jsonBody)
+     }
+   }
+ 
+   fun reportPlaybackStop(positionMs: Long) {
+-    coroutineScope.launch(Dispatchers.IO) {
++    reporterScope.launch {
+       val urlString = "$baseUrl/Sessions/Playing/Stopped?api_key=$apiKey"
+       val info =
+         PlaybackStopInfo(
+           ItemId = itemId,
+           PlaySessionId = playSessionId,
+           MediaSourceId = mediaSourceId,
+-          PositionTicks = positionMs * TICKS_PER_MILLISECOND,
++          PositionTicks = (positionMs.coerceAtLeast(0L)) * TICKS_PER_MILLISECOND,
+         )
+-      val jsonBody = Json.encodeToString(info)
++      val jsonBody = json.encodeToString(info)
+       sendPostRequest(urlString, jsonBody)
+     }
+   }
+@@ -187,17 +215,17 @@ class JellyfinSessionReporter(
+       val request =
+         Request.Builder()
+           .url(urlString)
++          .addJellyfinHeaders(apiKey)
+           .header("Content-Type", "application/json")
+-          .header("X-Emby-Token", apiKey)
+-          .header("User-Agent", "mpvRx/1.0")
++          .header("User-Agent", "mpvRx/${JellyfinClient.VERSION}")
+           .post(jsonBody.toRequestBody(JSON_MEDIA_TYPE))
+           .build()
+ 
+       httpClient.newCall(request).awaitResponse().use { response ->
+         if (response.isSuccessful) {
+-          Log.d(TAG, "Successfully reported status to Jellyfin: $urlString")
++          Log.d(TAG, "Successfully reported status to Jellyfin ($urlString): ${response.code}")
+         } else {
+-          Log.e(TAG, "Failed to report status to Jellyfin: $urlString, response code: ${response.code}")
++          Log.e(TAG, "Failed to report status to Jellyfin ($urlString): ${response.code} ${response.message}")
+         }
+       }
+     } catch (cancellation: CancellationException) {
+@@ -207,3 +235,4 @@ class JellyfinSessionReporter(
+     }
+   }
+ }
++
+-- 
+2.25.1
+

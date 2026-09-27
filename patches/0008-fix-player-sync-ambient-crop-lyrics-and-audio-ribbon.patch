@@ -1,0 +1,497 @@
+From f3c0db258b8447d7a175053a8fd397be9cff40c0 Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <87899750+Riteshp2001@users.noreply.github.com>
+Date: Fri, 4 Sep 2026 00:22:49 +0530
+Subject: [PATCH 008/140] fix(player): sync ambient crop, lyrics, and audio
+ ribbons
+
+- size YouTube Ambient from post-crop video geometry and refresh on crop changes
+- parse whole-second embedded LRC timestamps into the animated synced-lyrics path
+- drive the three sine ribbons from live low, mid, and high audio bands plus continuously refreshed system output volume
+- preserve ordered proportional lift and a 30 percent speed ceiling while joining ribbons beneath rounded track edges
+---
+ .../gyrolet/mpvrx/ui/player/PlayerActivity.kt |   7 +-
+ .../mpvrx/ui/player/PlayerViewModel.kt        |  18 +--
+ .../mpvrx/ui/player/VideoAspectGeometry.kt    |  35 +++-
+ .../ui/player/controls/AudioPlayerControls.kt |  10 ++
+ .../ui/player/controls/components/Seekbar.kt  |   6 +-
+ .../player/visualizer/OneUiWaveVisualizer.kt  | 153 ++++++++++++------
+ .../gyrolet/mpvrx/utils/media/LyricsUtils.kt  |  30 ++--
+ 7 files changed, 176 insertions(+), 83 deletions(-)
+
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt b/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt
+index 081b6e62..ec090c05 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt
+@@ -1023,6 +1023,7 @@ class PlayerActivity :
+       val lifecycleActive by viewModel.isAmbientLifecycleActive.collectAsState()
+       val isAudioOnly by viewModel.isAudioOnly.collectAsState()
+       val playbackState by PlaybackSession.state.collectAsState()
++      val videoCrop by PlaybackSession.propString["video-crop"].collectAsState()
+       val hdrScreenMode by viewModel.hdrScreenMode.collectAsState()
+       val orientation = LocalConfiguration.current.orientation
+       val playbackReady =
+@@ -1059,7 +1060,9 @@ class PlayerActivity :
+         )
+       val presentationActive = active && ambientFrame.supported && ambientFrame.frame != null
+ 
+-      LaunchedEffect(presentationActive) {
++      // Auto-crop changes after playback becomes ready. Refreshing on the property itself keeps
++      // YouTube Ambient's SurfaceView aligned with the newly cropped content rectangle.
++      LaunchedEffect(presentationActive, videoCrop) {
+         setVideoAmbientPresentationActive(presentationActive)
+       }
+ 
+@@ -1090,7 +1093,7 @@ class PlayerActivity :
+     if (!isVideoAmbientPresentationActive || binding.player.visibility != View.VISIBLE) return
+     val containerWidth = binding.root.width
+     val containerHeight = binding.root.height
+-    val videoAspect = binding.player.getVideoOutAspect()
++    val videoAspect = VideoAspectGeometry.currentEffectiveDisplayAspect()
+     if (containerWidth <= 0 || containerHeight <= 0 || videoAspect == null || videoAspect <= 0.0) return
+ 
+     val containerAspect = containerWidth.toDouble() / containerHeight.toDouble()
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt b/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
+index ab1bb9a0..b5ea1565 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
+@@ -6223,23 +6223,11 @@ class PlayerViewModel : ViewModel(),
+       // Landscape mode: ambient glow goes on left/right (pillarbox)
+       // Both are handled by the same scaleX/scaleY math below
+ 
+-      var (vidW, vidH) = VideoAspectGeometry.currentEffectiveDimensions()
+-      val par = PlaybackSession.getPropertyDouble("video-params/par") ?: 1.0
+-      val rot = PlaybackSession.getPropertyInt("video-params/rotate") ?: 0
+-
+-      if (osdW <= 0 || osdH <= 0 || vidW <= 0.0 || vidH <= 0.0) return
+-
+-      // Apply pixel aspect ratio (non-square pixels)
+-      vidW *= par
+-      // Swap dimensions for 90°/270° rotated videos (portrait shot stored as landscape)
+-      if (rot == 90 || rot == 270) {
+-        val tmp = vidW
+-        vidW = vidH
+-        vidH = tmp
+-      }
++      val vidAr = VideoAspectGeometry.currentEffectiveDisplayAspect() ?: return
++
++      if (osdW <= 0 || osdH <= 0) return
+ 
+       val screenAr = osdW.toDouble() / osdH.toDouble()
+-      val vidAr = vidW / vidH
+ 
+       // Scale the video to fill the screen — the shader remaps it back to the
+       // correct aspect ratio, so only the "overflow" area receives ambient glow.
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/VideoAspectGeometry.kt b/app/src/main/java/com/quantummpv/app/ui/player/VideoAspectGeometry.kt
+index 42732c16..d401d05f 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/VideoAspectGeometry.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/VideoAspectGeometry.kt
+@@ -9,7 +9,7 @@ internal data class VideoDimensions(
+   val height: Double,
+ )
+ 
+-/** Geometry shared by playback aspect modes and Ambient Glow. */
++/** Geometry shared by playback aspect modes and both Ambient implementations. */
+ internal object VideoAspectGeometry {
+   private val cropDimensionsRegex = Regex("""^(\d+)x(\d+)""")
+ 
+@@ -21,6 +21,39 @@ internal object VideoAspectGeometry {
+     return currentCropDimensions() ?: source
+   }
+ 
++  /**
++   * Returns the post-crop display aspect used by both Glow and YouTube Ambient.
++   *
++   * `video-params/aspect` describes the uncropped source, so it cannot size the YouTube Ambient
++   * surface after auto-crop removes encoded black bars. Deriving the aspect from the effective
++   * dimensions keeps both Ambient styles on the same geometry path.
++   */
++  fun currentEffectiveDisplayAspect(
++    fallbackWidth: Double = 1920.0,
++    fallbackHeight: Double = 1080.0,
++  ): Double? =
++    effectiveDisplayAspect(
++      dimensions = currentEffectiveDimensions(fallbackWidth, fallbackHeight),
++      pixelAspectRatio = PlaybackSession.getPropertyDouble("video-params/par") ?: 1.0,
++      rotationDegrees = PlaybackSession.getPropertyInt("video-params/rotate") ?: 0,
++    )
++
++  internal fun effectiveDisplayAspect(
++    dimensions: VideoDimensions,
++    pixelAspectRatio: Double,
++    rotationDegrees: Int,
++  ): Double? {
++    if (!dimensions.width.isFinite() || !dimensions.height.isFinite() ||
++      dimensions.width <= 0.0 || dimensions.height <= 0.0
++    ) {
++      return null
++    }
++    val par = pixelAspectRatio.takeIf { it.isFinite() && it > 0.0 } ?: 1.0
++    val unrotated = dimensions.width * par / dimensions.height
++    val normalizedRotation = ((rotationDegrees % 360) + 360) % 360
++    return if (normalizedRotation == 90 || normalizedRotation == 270) 1.0 / unrotated else unrotated
++  }
++
+   /**
+    * Converts a desired post-crop display ratio to mpv's full-source aspect override.
+    *
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/AudioPlayerControls.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/AudioPlayerControls.kt
+index 033e0ca0..d47d5d6e 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/AudioPlayerControls.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/AudioPlayerControls.kt
+@@ -685,6 +685,16 @@ fun AudioPlayerControls(
+    val volumeScale = currentVolumePercent / 100f
+    val visualizerFeatures = rememberAudioVisualizerFeatures(isPlaying, volumeScale)
+ 
++  // Hardware buttons, Bluetooth devices and system panels can change STREAM_MUSIC without
++  // going through the player's volume callbacks. Keep the visualizer's gain synchronized.
++  LaunchedEffect(viewModel, isPlaying) {
++    viewModel.syncCurrentVolumeState()
++    while (isPlaying && isActive) {
++      kotlinx.coroutines.delay(200L)
++      viewModel.syncCurrentVolumeState()
++    }
++  }
++
+   val repeatMode by viewModel.repeatMode.collectAsState()
+   val shuffleEnabled by viewModel.shuffleEnabled.collectAsState()
+   val playlistModeEnabled = viewModel.hasPlaylistSupport()
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/Seekbar.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/Seekbar.kt
+index 6caf09e2..6939a171 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/Seekbar.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/Seekbar.kt
+@@ -364,7 +364,7 @@ internal fun SeekbarWithTimers(
+         onValueChangeFinished = onValueChangeFinished,
+         scope = scope,
+         animatedPosition = animatedPosition,
+-        modifier = Modifier.fillMaxWidth().height(if (showWavyVisualizer) 50.dp else 44.dp), // Taller for visibility
++        modifier = Modifier.fillMaxWidth().height(if (showWavyVisualizer) 64.dp else 44.dp),
+       )
+ 
+       Row(
+@@ -395,7 +395,7 @@ internal fun SeekbarWithTimers(
+     }
+   } else {
+     Row(
+-      modifier = modifier.height(48.dp),
++      modifier = modifier.height(if (showWavyVisualizer) 64.dp else 48.dp),
+       verticalAlignment = Alignment.CenterVertically,
+       horizontalArrangement = Arrangement.spacedBy(2.dp),
+     ) {
+@@ -435,7 +435,7 @@ internal fun SeekbarWithTimers(
+         onValueChangeFinished = onValueChangeFinished,
+         scope = scope,
+         animatedPosition = animatedPosition,
+-        modifier = Modifier.weight(1f).height(if (showWavyVisualizer) 50.dp else 48.dp),
++        modifier = Modifier.weight(1f).height(if (showWavyVisualizer) 64.dp else 48.dp),
+       )
+ 
+       VideoTimer(
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/visualizer/OneUiWaveVisualizer.kt b/app/src/main/java/com/quantummpv/app/ui/player/visualizer/OneUiWaveVisualizer.kt
+index ed6d8a29..bd60bcd4 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/visualizer/OneUiWaveVisualizer.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/visualizer/OneUiWaveVisualizer.kt
+@@ -43,6 +43,7 @@ import java.util.concurrent.atomic.AtomicBoolean
+ import kotlin.math.PI
+ import kotlin.math.min
+ import kotlin.math.sin
++import kotlin.math.sqrt
+ 
+ private data class RibbonTones(
+   val bass: Color,
+@@ -57,6 +58,24 @@ private fun ribbonTones(palette: VisualizerPalette): RibbonTones =
+     treble = Color(palette.primary),
+   )
+ 
++/** Loud audio can accelerate the ribbon motion by at most thirty percent. */
++internal fun ribbonSpeedMultiplier(loudness: Float): Float =
++  1f + loudness.coerceIn(0f, 1f) * 0.30f
++
++/** Keeps the default lift, then adds explicit system-volume and per-band audio response. */
++internal fun ribbonLiftScale(
++  outputVolume: Float,
++  loudness: Float,
++  bandLevel: Float,
++): Float {
++  val audioLevel =
++    (loudness.coerceIn(0f, 1f) * 0.52f + bandLevel.coerceIn(0f, 1f) * 0.48f)
++      .coerceIn(0f, 1f)
++  return (
++    1f + outputVolume.coerceIn(0f, 1f) * (0.08f + audioLevel * 0.47f)
++  ).coerceIn(1f, 1.55f)
++}
++
+ /**
+  * One UI 6 media-notification style visualizer: a solid ribbon grows above the elapsed
+  * track, breathes with the music, and tapers back into the seekbar at the playhead.
+@@ -87,7 +106,7 @@ internal fun WaveVisualizerOverlay(
+     }
+ 
+   LaunchedEffect(volumeScale) {
+-    features.volumeScale = volumeScale
++    features.volumeScale = volumeScale.coerceIn(0f, 1f)
+   }
+   LaunchedEffect(hasRecordPermission) {
+     if (!hasRecordPermission) recordPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+@@ -114,7 +133,7 @@ internal fun WaveVisualizerOverlay(
+     }
+   }
+ 
+-  // Each band owns its phase and envelope so the ribbons do not move as one shape.
++  // Each ribbon owns a frequency-band envelope; system volume remains a separate live gain.
+   var frameNanos by remember { mutableLongStateOf(0L) }
+   var lowPhase by remember { mutableFloatStateOf(0f) }
+   var midPhase by remember { mutableFloatStateOf(1.8f) }
+@@ -123,51 +142,61 @@ internal fun WaveVisualizerOverlay(
+   var midLevel by remember { mutableFloatStateOf(0f) }
+   var highLevel by remember { mutableFloatStateOf(0f) }
+   var loudness by remember { mutableFloatStateOf(0f) }
++  var outputVolume by remember { mutableFloatStateOf(volumeScale.coerceIn(0f, 1f)) }
+   LaunchedEffect(isPlaying, isSheetOpen) {
+     if (!isPlaying || isSheetOpen) return@LaunchedEffect
+     var previous = 0L
++    fun responsiveLevel(value: Float): Float = sqrt(value.coerceIn(0f, 1f))
++
+     while (true) {
+       withFrameNanos { now ->
+         val dt = if (previous == 0L) 0f else (now - previous) / 1_000_000_000f
+         previous = now
+         val lowTarget =
+-          (
+-            features.scaledSubBass() * 2.8f +
+-              features.scaledBass() * 2.2f +
+-              features.scaledBeat() * 1.1f +
+-              features.scaledEnergy() * 0.4f
+-          ).times(3.6f).coerceIn(0f, 1f)
++          responsiveLevel(
++            features.subBass * 0.45f +
++              features.bass * 0.35f +
++              features.beat * 0.12f +
++              features.energy * 0.08f,
++          )
+         val midTarget =
+-          (
+-            features.scaledLowMid() * 2.2f +
+-              features.scaledMid() * 2.5f +
+-              features.scaledEnergy() * 0.7f +
+-              features.scaledSpectralFlux() * 0.5f
+-          ).times(3.8f).coerceIn(0f, 1f)
++          responsiveLevel(
++            features.lowMid * 0.25f +
++              features.mid * 0.45f +
++              features.energy * 0.20f +
++              features.spectralFlux.coerceIn(0f, 1f) * 0.10f,
++          )
+         val highTarget =
+-          (
+-            features.scaledHighMid() * 1.8f +
+-              features.scaledTreble() * 2.8f +
+-              features.scaledSpectralFlux() * 1.3f +
+-              features.scaledBeat() * 0.25f
+-          ).times(4.2f).coerceIn(0f, 1f)
++          responsiveLevel(
++            features.highMid * 0.25f +
++              features.treble * 0.45f +
++              features.spectralFlux.coerceIn(0f, 1f) * 0.22f +
++              features.beat * 0.08f,
++          )
+         val loudnessTarget =
+-          (
+-            features.scaledEnergy() * 5.5f +
+-              features.scaledBass() * 1.8f +
+-              features.scaledMid() * 1.1f +
+-              features.scaledTreble() * 0.6f
+-          ).coerceIn(0f, 1f)
++          responsiveLevel(
++            features.energy * 0.50f +
++              features.subBass * 0.10f +
++              features.bass * 0.15f +
++              features.mid * 0.15f +
++              features.treble * 0.10f,
++          )
+ 
+-        lowLevel += (lowTarget - lowLevel) * min(1f, dt * (if (lowTarget > lowLevel) 9f else 2.6f))
++        lowLevel += (lowTarget - lowLevel) * min(1f, dt * (if (lowTarget > lowLevel) 10f else 3f))
+         midLevel += (midTarget - midLevel) * min(1f, dt * (if (midTarget > midLevel) 12f else 4f))
+-        highLevel += (highTarget - highLevel) * min(1f, dt * (if (highTarget > highLevel) 18f else 7f))
++        highLevel += (highTarget - highLevel) * min(1f, dt * (if (highTarget > highLevel) 15f else 6f))
+         loudness +=
+           (loudnessTarget - loudness) *
+-            min(1f, dt * (if (loudnessTarget > loudness) 14f else 3.5f))
+-        lowPhase += dt * 1.15f
+-        midPhase += dt * 2f
+-        highPhase += dt * 3.4f
++            min(1f, dt * (if (loudnessTarget > loudness) 10f else 3.5f))
++        val volumeTarget = features.volumeScale.coerceIn(0f, 1f)
++        outputVolume +=
++          (volumeTarget - outputVolume) * min(1f, dt * 8f)
++        lowPhase +=
++          dt * 1.15f * ribbonSpeedMultiplier(outputVolume * (loudness * 0.55f + lowLevel * 0.45f))
++        midPhase +=
++          dt * 2f * ribbonSpeedMultiplier(outputVolume * (loudness * 0.55f + midLevel * 0.45f))
++        highPhase +=
++          dt * 3.4f * ribbonSpeedMultiplier(outputVolume * (loudness * 0.55f + highLevel * 0.45f))
+         frameNanos = now
+       }
+     }
+@@ -212,54 +241,72 @@ internal fun WaveVisualizerOverlay(
+       phase: Float,
+       liftScale: Float,
+     ) {
+-      val lift = baseLift * amplitudeFraction * liftScale
+-      if (waveEnd <= trackHeight.toPx() || lift <= 0.25f) return
++      val availableLift = (trackTop - 1.dp.toPx()).coerceAtLeast(0f)
++      val lift = min(baseLift * amplitudeFraction * liftScale, availableLift)
++      val joinInset = trackHalf.coerceAtLeast(1.dp.toPx())
++      val ribbonStart = joinInset.coerceAtMost(waveEnd / 2f)
++      val ribbonEnd = (waveEnd - joinInset).coerceAtLeast(ribbonStart)
++      if (ribbonEnd - ribbonStart <= 1f || lift <= 0.25f) return
+ 
+       fun ribbonTop(x: Float): Float {
+-        val edgeIn = smoothstep(x / (wavelength * 0.5f))
+-        val edgeOut = smoothstep((waveEnd - x) / (wavelength * 0.55f))
++        val edgeIn = smoothstep((x - ribbonStart) / (wavelength * 0.5f))
++        val edgeOut = smoothstep((ribbonEnd - x) / (wavelength * 0.55f))
+         val envelope = edgeIn * edgeOut
+-        val undulation = 0.64f + 0.36f * sin((x / wavelength) * twoPi - phase)
++        val undulation = 0.60f + 0.40f * sin((x / wavelength) * twoPi - phase)
+         return trackTop - lift * undulation * envelope
+       }
+ 
+-      val step = 2.dp.toPx().coerceAtLeast(1f)
++      val step = 1.dp.toPx().coerceAtLeast(1f)
++      val baseline = trackTop + min(trackHalf, 1.5.dp.toPx())
+       path.reset()
+-      path.moveTo(0f, trackTop)
+-      path.lineTo(0f, ribbonTop(0f))
+-      var x = 0f
+-      while (x < waveEnd) {
+-        x = min(x + step, waveEnd)
++      path.moveTo(ribbonStart, baseline)
++      path.lineTo(ribbonStart, ribbonTop(ribbonStart))
++      var x = ribbonStart
++      while (x < ribbonEnd) {
++        x = min(x + step, ribbonEnd)
+         path.lineTo(x, ribbonTop(x))
+       }
+-      path.lineTo(waveEnd, trackTop)
++      path.lineTo(ribbonEnd, baseline)
+       path.close()
+       drawPath(path = path, color = color)
+     }
+ 
++    val rearLiftScale = ribbonLiftScale(outputVolume, loudness, lowLevel)
++    val middleLiftScale =
++      min(
++        ribbonLiftScale(outputVolume, loudness, midLevel),
++        rearLiftScale * 1.20f,
++      )
++    val frontLiftScale =
++      min(
++        ribbonLiftScale(outputVolume, loudness, highLevel),
++        middleLiftScale * 1.18f,
++      )
++
++    // Band-specific motion stays ordered rear > middle > front at every volume.
+     drawRibbon(
+       path = lowRibbonPath,
+       color = tones.bass.copy(alpha = 0.82f),
+-      wavelength = 96.dp.toPx(),
+-      baseLift = 12.dp.toPx(),
++      wavelength = 108.dp.toPx(),
++      baseLift = 15.5.dp.toPx(),
+       phase = lowPhase,
+-      liftScale = 0.62f + loudness * 0.50f + lowLevel * 0.23f,
++      liftScale = rearLiftScale,
+     )
+     drawRibbon(
+       path = midRibbonPath,
+       color = tones.mid.copy(alpha = 0.88f),
+-      wavelength = 58.dp.toPx(),
+-      baseLift = 8.5.dp.toPx(),
++      wavelength = 66.dp.toPx(),
++      baseLift = 12.dp.toPx(),
+       phase = midPhase,
+-      liftScale = 0.50f + loudness * 0.45f + midLevel * 0.25f,
++      liftScale = middleLiftScale,
+     )
+     drawRibbon(
+       path = highRibbonPath,
+       color = tones.treble.copy(alpha = 0.94f),
+-      wavelength = 34.dp.toPx(),
+-      baseLift = 5.5.dp.toPx(),
++      wavelength = 40.dp.toPx(),
++      baseLift = 9.dp.toPx(),
+       phase = highPhase,
+-      liftScale = 0.40f + loudness * 0.35f + highLevel * 0.25f,
++      liftScale = frontLiftScale,
+     )
+   }
+ }
+diff --git a/app/src/main/java/com/quantummpv/app/utils/media/LyricsUtils.kt b/app/src/main/java/com/quantummpv/app/utils/media/LyricsUtils.kt
+index ec67fe0c..43bc1243 100644
+--- a/app/src/main/java/com/quantummpv/app/utils/media/LyricsUtils.kt
++++ b/app/src/main/java/com/quantummpv/app/utils/media/LyricsUtils.kt
+@@ -12,10 +12,15 @@ import java.util.regex.Pattern
+ 
+ object LyricsUtils {
+ 
+-  private val LRC_LINE_REGEX = Pattern.compile("^\\[(\\d{1,2}):(\\d{2})[.:](\\d{2,3})](.*)$")
+-  private val LRC_WORD_REGEX = Pattern.compile("<(\\d{1,2}):(\\d{2})[.:](\\d{2,3})>([^<]*)")
+-  private val LRC_WORD_TAG_REGEX = Regex("<\\d{1,2}:\\d{2}[.:]\\d{2,3}>")
+-  private val LRC_WORD_SPLIT_REGEX = Regex("(?=<\\d{1,2}:\\d{2}[.:]\\d{2,3}>)")
++  // The fractional component is optional in standard LRC. In particular, many embedded USLT
++  // tags contain whole-second timestamps such as `[00:54]`; treating those as plain text leaks
++  // the timestamp into the UI and disables the synced-line animations.
++  private val LRC_LINE_REGEX =
++    Pattern.compile("^\\[(\\d{1,3}):(\\d{2})(?:[.:](\\d{1,3}))?](.*)$")
++  private val LRC_WORD_REGEX =
++    Pattern.compile("<(\\d{1,3}):(\\d{2})(?:[.:](\\d{1,3}))?>([^<]*)")
++  private val LRC_WORD_TAG_REGEX = Regex("<\\d{1,3}:\\d{2}(?:[.:]\\d{1,3})?>")
++  private val LRC_WORD_SPLIT_REGEX = Regex("(?=<\\d{1,3}:\\d{2}(?:[.:]\\d{1,3})?>)")
+   private val LRC_METADATA_PATTERN = Pattern.compile("^\\[[a-zA-Z]+:.*]$")
+   private val LYRIC_WORD_REGEX = Regex("\\S+")
+ 
+@@ -40,11 +45,10 @@ object LyricsUtils {
+         isSynced = true
+         val minutes = lineMatcher.group(1)?.toLong() ?: 0
+         val seconds = lineMatcher.group(2)?.toLong() ?: 0
+-        val fraction = lineMatcher.group(3)?.toLong() ?: 0
++        val fraction = fractionToMillis(lineMatcher.group(3))
+         val rawText = lineMatcher.group(4)?.trim() ?: ""
+ 
+-        val millis = if (lineMatcher.group(3)?.length == 2) fraction * 10 else fraction
+-        val lineTimestamp = (minutes * 60 * 1000 + seconds * 1000 + millis).toInt()
++        val lineTimestamp = (minutes * 60 * 1000 + seconds * 1000 + fraction).toInt()
+ 
+         val displayText = LRC_WORD_TAG_REGEX.replace(rawText, "").trim()
+ 
+@@ -57,9 +61,8 @@ object LyricsUtils {
+             if (wordMatcher.find()) {
+               val wMin = wordMatcher.group(1)?.toLong() ?: 0
+               val wSec = wordMatcher.group(2)?.toLong() ?: 0
+-              val wFrac = wordMatcher.group(3)?.toLong() ?: 0
++              val wMillis = fractionToMillis(wordMatcher.group(3))
+               val wText = (wordMatcher.group(4) ?: "").trim()
+-              val wMillis = if (wordMatcher.group(3)?.length == 2) wFrac * 10 else wFrac
+               val wTime = (wMin * 60 * 1000 + wSec * 1000 + wMillis).toInt()
+ 
+               if (wText.isNotEmpty()) {
+@@ -141,6 +144,15 @@ object LyricsUtils {
+     }
+   }
+ 
++  /** Converts LRC tenths, centiseconds, or milliseconds to milliseconds. */
++  private fun fractionToMillis(fraction: String?): Long =
++    when (fraction?.length) {
++      null, 0 -> 0L
++      1 -> fraction.toLong() * 100L
++      2 -> fraction.toLong() * 10L
++      else -> fraction.toLong()
++    }
++
+   private fun estimateWordTimings(
+     line: SyncedLine,
+     nextLineTimeMs: Int?,
+-- 
+2.25.1
+

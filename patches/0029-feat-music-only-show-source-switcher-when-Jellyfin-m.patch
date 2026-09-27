@@ -1,0 +1,184 @@
+From c59070b88b81e188c687abf6a043021838ad673c Mon Sep 17 00:00:00 2001
+From: Arnab Sadhukhan <arnab@Arnabs-Mac-Mini.local>
+Date: Sun, 6 Sep 2026 16:40:32 +0530
+Subject: [PATCH 029/140] feat(music): only show source switcher when Jellyfin
+ music library is available
+
+---
+ .../gyrolet/mpvrx/ui/browser/MainScreen.kt    | 53 ++++++++++++++++++-
+ .../ui/browser/jellyfin/JellyfinViewModel.kt  | 16 ++++--
+ .../ui/browser/music/MusicLibraryContent.kt   | 13 ++++-
+ app/src/main/res/values/strings.xml           |  1 +
+ 4 files changed, 76 insertions(+), 7 deletions(-)
+
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/MainScreen.kt b/app/src/main/java/com/quantummpv/app/ui/browser/MainScreen.kt
+index 65e88ad1..1105571b 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/MainScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/MainScreen.kt
+@@ -448,6 +448,57 @@ object MainScreen : Screen {
+                           }
+                         }
+                       }
++                    } else if (!jellyfinUiState.isLoading && !jellyfinUiState.hasMusicLibrary && jellyfinUiState.libraries.isNotEmpty()) {
++                      Box(
++                        modifier = Modifier.fillMaxSize().padding(24.dp),
++                        contentAlignment = Alignment.Center,
++                      ) {
++                        androidx.compose.material3.Card(
++                          shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
++                          colors =
++                            androidx.compose.material3.CardDefaults.cardColors(
++                              containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
++                            ),
++                        ) {
++                          Column(
++                            modifier = Modifier.padding(24.dp),
++                            horizontalAlignment = Alignment.CenterHorizontally,
++                            verticalArrangement = Arrangement.spacedBy(16.dp),
++                          ) {
++                            androidx.compose.material3.Icon(
++                              painter = painterResource(R.drawable.ic_jellyfin),
++                              contentDescription = null,
++                              modifier = Modifier.size(56.dp),
++                              tint = MaterialTheme.colorScheme.primary,
++                            )
++                            Text(
++                              text = stringResource(R.string.music_source_jellyfin),
++                              style = MaterialTheme.typography.titleLarge,
++                              fontWeight = FontWeight.Bold,
++                            )
++                            Text(
++                              text = stringResource(R.string.jellyfin_no_music_library),
++                              style = MaterialTheme.typography.bodyMedium,
++                              color = MaterialTheme.colorScheme.onSurfaceVariant,
++                              textAlign = androidx.compose.ui.text.style.TextAlign.Center,
++                            )
++                            androidx.compose.material3.FilledTonalButton(
++                              onClick = {
++                                mediaServerPreferences.musicSourceProvider.set(MusicSourceProvider.LOCAL)
++                              },
++                            ) {
++                              Text(stringResource(R.string.music_source_local))
++                            }
++                            androidx.compose.material3.TextButton(
++                              onClick = {
++                                backStack.add(com.quantummpv.app.ui.preferences.MediaServersPreferencesScreen)
++                              },
++                            ) {
++                              Text(stringResource(R.string.generic_configure))
++                            }
++                          }
++                        }
++                      }
+                     } else {
+                       LaunchedEffect(jellyfinUiState.libraries) {
+                         jellyfinViewModel.ensureMusicLibraryOpened()
+@@ -458,7 +509,7 @@ object MainScreen : Screen {
+                       )
+                     }
+                   } else {
+-                    MusicLibraryContent()
++                    MusicLibraryContent(jellyfinViewModel = jellyfinViewModel)
+                   }
+                 }
+                 MainTab.RECENTS -> RecentlyPlayedScreen.Content()
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinViewModel.kt b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinViewModel.kt
+index 91df0272..dff8fc5e 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinViewModel.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinViewModel.kt
+@@ -127,7 +127,10 @@ data class JellyfinUiState(
+   val detailSimilarItems: List<JellyfinItem> = emptyList(),
+   val isDetailLoading: Boolean = false,
+   val isDetailEpisodesLoading: Boolean = false,
+-)
++) {
++  val hasMusicLibrary: Boolean
++    get() = activeServer != null && libraries.any { JellyfinViewModel.isMusicLibrary(it) }
++}
+ 
+ class JellyfinViewModel(
+   application: Application,
+@@ -546,9 +549,7 @@ class JellyfinViewModel(
+   fun ensureMusicLibraryOpened() {
+     val active = _uiState.value.activeServer ?: return
+     if (_uiState.value.openLibrary?.isMusic == true) return
+-    val musicLib = _uiState.value.libraries.firstOrNull {
+-      it.collectionType?.equals("music", ignoreCase = true) == true || it.type == "MusicAlbum" || it.type == "MusicArtist"
+-    }
++    val musicLib = _uiState.value.libraries.firstOrNull { isMusicLibrary(it) }
+     if (musicLib != null) {
+       navigateToItem(musicLib)
+     }
+@@ -2043,6 +2044,13 @@ class JellyfinViewModel(
+   }
+ 
+   companion object {
++    fun isMusicLibrary(item: JellyfinItem): Boolean {
++      val col = item.collectionType?.lowercase()?.trim() ?: ""
++      val type = item.type.lowercase().trim()
++      val name = item.name.lowercase().trim()
++      return col == "music" || type == "music" || type == "audio" || (name.contains("music") && !name.contains("video"))
++    }
++
+     fun factory(application: Application): ViewModelProvider.Factory =
+       viewModelFactory {
+         initializer {
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryContent.kt b/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryContent.kt
+index 9f19c02c..bd30db39 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryContent.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryContent.kt
+@@ -4,9 +4,11 @@
+ 
+ package com.quantummpv.app.ui.browser.music
+ 
++import android.app.Application
+ import android.graphics.BitmapFactory
+ import android.net.Uri
+ import android.text.format.DateUtils
++import com.quantummpv.app.ui.browser.jellyfin.JellyfinViewModel
+ import androidx.activity.compose.BackHandler
+ import androidx.compose.animation.AnimatedVisibility
+ import androidx.compose.animation.fadeIn
+@@ -188,12 +190,19 @@ private fun MusicSong.toVideo(): Video {
+ @Composable
+ fun MusicLibraryContent(
+   modifier: Modifier = Modifier,
+-  musicViewModel: MusicLibraryViewModel = viewModel()
++  musicViewModel: MusicLibraryViewModel = viewModel(),
++  jellyfinViewModel: JellyfinViewModel? = null,
+ ) {
+   val context = LocalContext.current
+   val backStack = LocalBackStack.current
+   val scope = rememberCoroutineScope()
+ 
++  val jfViewModel: JellyfinViewModel =
++    jellyfinViewModel
++      ?: viewModel(factory = JellyfinViewModel.factory(context.applicationContext as Application))
++  val jellyfinUiState by jfViewModel.uiState.collectAsStateWithLifecycle()
++  val hasJellyfinMusicLibrary = jellyfinUiState.hasMusicLibrary
++
+   val selectedTab by musicViewModel.selectedTab.collectAsState()
+   val searchQuery by musicViewModel.searchQuery.collectAsState()
+   val sortField by musicViewModel.sortField.collectAsState()
+@@ -557,7 +566,7 @@ fun MusicLibraryContent(
+               onInfoClick = null,
+               onAddToPlaylistClick = null,
+               preSearchActions = {
+-                if (!activeSelectionManager.isInSelectionMode) {
++                if (!activeSelectionManager.isInSelectionMode && hasJellyfinMusicLibrary) {
+                   var isSourceDropdownOpen by remember { mutableStateOf(false) }
+                   Box {
+                     Surface(
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index 27142576..d94ca745 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -2137,4 +2137,5 @@
+   <string name="pref_seerr_connected_as">Connected as %1$s</string>
+   <string name="pref_seerr_not_connected">Not connected</string>
+   <string name="pref_jellyfin_no_server">No Jellyfin server connected</string>
++  <string name="jellyfin_no_music_library">No music library found on this Jellyfin server</string>
+ </resources>
+-- 
+2.25.1
+

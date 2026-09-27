@@ -9,6 +9,10 @@
 
 package com.quantummpv.app.ui.player.controls.components.sheets
 
+package com.quantummpv.app.ui.player.controls.components.sheets
+
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -76,7 +80,7 @@ fun VideoZoomSheet(
     if (zoomControlEnabled) currentOnSetVideoZoom(zoom)
   }
 
-  PlayerSheet(onDismissRequest = onDismissRequest) {
+  PlayerSheet(onDismissRequest = onDismissRequest, title = stringResource(R.string.btn_label_zoom)) {
     ZoomVideoSheet(
       zoom = zoom,
       defaultZoom = defaultZoom,
@@ -126,8 +130,8 @@ private fun ZoomVideoSheet(
       modifier
         .fillMaxWidth()
         .verticalScroll(rememberScrollState())
-        .padding(vertical = MaterialTheme.spacing.medium),
-    verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.small),
+        .padding(vertical = 8.dp),
+      verticalArrangement = Arrangement.spacedBy(16.dp),
   ) {
     // Zoom slider with +/- buttons
     Row(

@@ -1,0 +1,2135 @@
+From 7bc11ba591386d77d3504b1faae264f63879a57d Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <87899750+Riteshp2001@users.noreply.github.com>
+Date: Sun, 6 Sep 2026 04:42:56 +0000
+Subject: [PATCH 021/140] feat(playlists): add Xtream Codes import
+
+---
+ .../mpvrx/data/network/XtreamClient.kt        | 159 ++++++++
+ .../data/network/proxy/HlsStreamingProxy.kt   |  98 +++--
+ .../network/proxy/XtreamStreamingProxy.kt     | 349 ++++++++++++++++++
+ .../gyrolet/mpvrx/database/MpvRxDatabase.kt   |   2 +-
+ .../gyrolet/mpvrx/database/dao/PlaylistDao.kt |  15 +
+ .../mpvrx/database/entities/PlaylistEntity.kt |  13 +-
+ .../database/repository/PlaylistRepository.kt | 215 ++++++++++-
+ .../com/quantummpv/app/di/DatabaseModule.kt    |  30 ++
+ .../mpvrx/domain/network/XtreamPlaybackUri.kt | 144 ++++++++
+ .../mpvrx/ui/browser/cards/PlaylistCard.kt    |  12 +-
+ .../dialogs/AddXtreamPlaylistDialog.kt        | 217 +++++++++++
+ .../browser/playlist/PlaylistDetailScreen.kt  |   2 +-
+ .../ui/browser/playlist/PlaylistScreen.kt     |   3 +-
+ .../ui/browser/playlist/PlaylistViewModel.kt  |   6 +
+ .../ui/browser/sheets/PlaylistActionSheet.kt  |  51 +++
+ .../mpvrx/ui/player/PlaybackSession.kt        |  18 +
+ .../gyrolet/mpvrx/ui/player/PlayerUtils.kt    |   3 +-
+ app/src/main/res/values-ar/strings.xml        |  16 +
+ app/src/main/res/values-de/strings.xml        |  16 +
+ app/src/main/res/values-es/strings.xml        |  16 +
+ app/src/main/res/values-fr/strings.xml        |  16 +
+ app/src/main/res/values-hi/strings.xml        |  16 +
+ app/src/main/res/values-ja/strings.xml        |  16 +
+ app/src/main/res/values-pt-rBR/strings.xml    |  16 +
+ app/src/main/res/values-ru/strings.xml        |  16 +
+ app/src/main/res/values-zh-rCN/strings.xml    |  16 +
+ app/src/main/res/values/strings.xml           |  16 +
+ 27 files changed, 1451 insertions(+), 46 deletions(-)
+ create mode 100644 app/src/main/java/com/quantummpv/app/data/network/XtreamClient.kt
+ create mode 100644 app/src/main/java/com/quantummpv/app/data/network/proxy/XtreamStreamingProxy.kt
+ create mode 100644 app/src/main/java/com/quantummpv/app/domain/network/XtreamPlaybackUri.kt
+ create mode 100644 app/src/main/java/com/quantummpv/app/ui/browser/dialogs/AddXtreamPlaylistDialog.kt
+
+diff --git a/app/src/main/java/com/quantummpv/app/data/network/XtreamClient.kt b/app/src/main/java/com/quantummpv/app/data/network/XtreamClient.kt
+new file mode 100644
+index 00000000..be1387b4
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/data/network/XtreamClient.kt
+@@ -0,0 +1,159 @@
++/*
++ * SPDX-License-Identifier: AGPL-3.0-or-later
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Affero General Public License as published
++ * by the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ */
++
++package com.quantummpv.app.data.network
++
++import com.quantummpv.app.network.awaitResponse
++import com.quantummpv.app.utils.media.M3UParseResult
++import com.quantummpv.app.utils.media.M3UParser
++import kotlinx.coroutines.CancellationException
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.runInterruptible
++import kotlinx.serialization.json.Json
++import kotlinx.serialization.json.JsonObject
++import kotlinx.serialization.json.JsonPrimitive
++import kotlinx.serialization.json.jsonObject
++import okhttp3.HttpUrl
++import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
++import okhttp3.OkHttpClient
++import okhttp3.Request
++import java.io.ByteArrayOutputStream
++
++data class XtreamCatalog(
++  val serverUrl: String,
++  val playlist: M3UParseResult.Success,
++)
++
++/** Loads the standard Xtream authentication response and M3U-plus account catalog. */
++class XtreamClient(
++  private val httpClient: OkHttpClient,
++  private val json: Json,
++) {
++  suspend fun loadCatalog(
++    rawServerUrl: String,
++    username: String,
++    password: String,
++  ): Result<XtreamCatalog> =
++    try {
++      val serverUrl = normalizeServerUrl(rawServerUrl)
++      require(username.isNotBlank()) { "Username is required" }
++      require(password.isNotBlank()) { "Password is required" }
++
++      validateAccount(serverUrl, username, password)
++      val playlistUrl =
++        endpoint(serverUrl, "get.php", username, password)
++          .newBuilder()
++          .addQueryParameter("type", "m3u_plus")
++          .addQueryParameter("output", "ts")
++          .build()
++      val parseResult = M3UParser.parseFromUrl(playlistUrl.toString(), httpClient = httpClient)
++      when (parseResult) {
++        is M3UParseResult.Success -> Result.success(XtreamCatalog(serverUrl, parseResult))
++        is M3UParseResult.Error -> Result.failure(IllegalArgumentException(parseResult.message))
++      }
++    } catch (error: CancellationException) {
++      throw error
++    } catch (error: Exception) {
++      Result.failure(error)
++    }
++
++  fun normalizeServerUrl(rawServerUrl: String): String {
++    val trimmed = rawServerUrl.trim()
++    require(trimmed.startsWith("http://", true) || trimmed.startsWith("https://", true)) {
++      "Server URL must start with http:// or https://"
++    }
++    val parsed = trimmed.toHttpUrlOrNull() ?: throw IllegalArgumentException("Invalid Xtream server URL")
++    require(parsed.username.isEmpty() && parsed.password.isEmpty()) { "Enter credentials in their own fields" }
++    require(parsed.query == null && parsed.fragment == null) { "Server URL must not contain a query or fragment" }
++
++    val normalizedPath = parsed.encodedPath.trimEnd('/').ifEmpty { "/" }
++    return parsed
++      .newBuilder()
++      .encodedPath(normalizedPath)
++      .build()
++      .toString()
++      .removeSuffix("/")
++  }
++
++  private suspend fun validateAccount(
++    serverUrl: String,
++    username: String,
++    password: String,
++  ) {
++    val request =
++      Request
++        .Builder()
++        .url(endpoint(serverUrl, "player_api.php", username, password))
++        .header("User-Agent", USER_AGENT)
++        .build()
++    httpClient.newCall(request).awaitResponse().use { response ->
++      if (response.code == 401 || response.code == 403) {
++        throw IllegalArgumentException("Invalid Xtream username or password")
++      }
++      if (!response.isSuccessful) {
++        throw IllegalArgumentException("Xtream server returned HTTP ${response.code}")
++      }
++
++      val content = readBoundedUtf8(response.body.byteStream())
++      val root =
++        runCatching { json.parseToJsonElement(content).jsonObject }
++          .getOrElse { throw IllegalArgumentException("Xtream server returned an invalid account response") }
++      val userInfo =
++        root["user_info"] as? JsonObject
++          ?: throw IllegalArgumentException("Xtream server returned an invalid account response")
++      val authenticated = (userInfo["auth"] as? JsonPrimitive)?.content.orEmpty()
++      if (authenticated != "1" && !authenticated.equals("true", ignoreCase = true)) {
++        throw IllegalArgumentException("Invalid Xtream username or password")
++      }
++      val status = (userInfo["status"] as? JsonPrimitive)?.content.orEmpty()
++      if (status.isNotBlank() && !status.equals("active", ignoreCase = true)) {
++        throw IllegalArgumentException("Xtream account is not active")
++      }
++    }
++  }
++
++  private fun endpoint(
++    serverUrl: String,
++    endpoint: String,
++    username: String,
++    password: String,
++  ): HttpUrl =
++    "$serverUrl/"
++      .toHttpUrlOrNull()
++      ?.newBuilder()
++      ?.addPathSegment(endpoint)
++      ?.addQueryParameter("username", username)
++      ?.addQueryParameter("password", password)
++      ?.build()
++      ?: throw IllegalArgumentException("Invalid Xtream server URL")
++
++  private suspend fun readBoundedUtf8(input: java.io.InputStream): String =
++    runInterruptible(Dispatchers.IO) {
++      input.use { stream ->
++        val output = ByteArrayOutputStream()
++        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
++        var total = 0
++        while (true) {
++          val count = stream.read(buffer)
++          if (count < 0) break
++          total += count
++          if (total > MAX_AUTH_RESPONSE_BYTES) {
++            throw IllegalArgumentException("Xtream account response is too large")
++          }
++          output.write(buffer, 0, count)
++        }
++        output.toString(Charsets.UTF_8.name())
++      }
++    }
++
++  companion object {
++    private const val USER_AGENT = "mpvRx/2.5"
++    private const val MAX_AUTH_RESPONSE_BYTES = 512 * 1024
++  }
++}
+diff --git a/app/src/main/java/com/quantummpv/app/data/network/proxy/HlsStreamingProxy.kt b/app/src/main/java/com/quantummpv/app/data/network/proxy/HlsStreamingProxy.kt
+index 4df7b306..a5255b04 100644
+--- a/app/src/main/java/com/quantummpv/app/data/network/proxy/HlsStreamingProxy.kt
++++ b/app/src/main/java/com/quantummpv/app/data/network/proxy/HlsStreamingProxy.kt
+@@ -20,18 +20,16 @@ import kotlinx.coroutines.SupervisorJob
+ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+ import okhttp3.OkHttpClient
+ import okhttp3.Request
+-import okhttp3.Response as OkResponse
+ import java.io.ByteArrayInputStream
+ import java.io.IOException
+-import java.io.InputStream
+ import java.net.URI
+-import java.net.URLDecoder
+-import java.net.URLEncoder
+ import java.nio.charset.StandardCharsets
+ import java.security.SecureRandom
+ import java.util.Base64
++import java.util.LinkedHashMap
+ import java.util.concurrent.ConcurrentHashMap
+ import java.util.concurrent.TimeUnit
++import okhttp3.Response as OkResponse
+ 
+ /**
+  * An embedded loopback proxy for HLS (m3u8) streams.
+@@ -40,15 +38,14 @@ import java.util.concurrent.TimeUnit
+  * HLS manifests using OkHttp on Android, rewriting manifests to route all child playlists,
+  * media segments, and encryption keys through local loopback (127.0.0.1) for libmpv.
+  */
+-class HlsStreamingProxy private constructor() :
+-  NanoHTTPD("127.0.0.1", 0) {
+-
++class HlsStreamingProxy private constructor() : NanoHTTPD("127.0.0.1", 0) {
+   companion object {
+     private const val TAG = "HlsStreamingProxy"
+     private const val TOKEN_BYTES = 24
+     private const val TIMEOUT_SECONDS = 30L
+     private const val MIME_M3U8 = "application/vnd.apple.mpegurl"
+     private const val MIME_OCTET = "application/octet-stream"
++    private const val MAX_TARGETS_PER_SESSION = 8_192
+ 
+     @Volatile
+     private var instance: HlsStreamingProxy? = null
+@@ -75,7 +72,10 @@ class HlsStreamingProxy private constructor() :
+     val sourceUrl: String,
+     val headers: Map<String, String>,
+     val userAgent: String?,
+-  )
++  ) {
++    internal val targetUrlsByToken = LinkedHashMap<String, String>(16, 0.75f, true)
++    internal val targetTokensByUrl = mutableMapOf<String, String>()
++  }
+ 
+   private val random = SecureRandom()
+   private val proxyJob = SupervisorJob()
+@@ -154,18 +154,18 @@ class HlsStreamingProxy private constructor() :
+           handleMasterManifest(token, hlsSession, headOnly)
+         }
+         subPath.startsWith("variant.m3u8", ignoreCase = true) -> {
+-          val targetUrl = session.parameters["u"]?.firstOrNull()?.let(::decodeUrl)
++          val targetUrl = session.parameters["r"]?.firstOrNull()?.let { resolveTarget(hlsSession, it) }
+           if (targetUrl.isNullOrBlank()) return notFound(headOnly)
+           handleVariantManifest(token, hlsSession, targetUrl, headOnly)
+         }
+         subPath.startsWith("segment", ignoreCase = true) -> {
+-          val targetUrl = session.parameters["u"]?.firstOrNull()?.let(::decodeUrl)
++          val targetUrl = session.parameters["r"]?.firstOrNull()?.let { resolveTarget(hlsSession, it) }
+           if (targetUrl.isNullOrBlank()) return notFound(headOnly)
+           val rangeHeader = session.headers["range"]
+           handleSegment(hlsSession, targetUrl, rangeHeader, headOnly)
+         }
+         subPath.startsWith("key", ignoreCase = true) -> {
+-          val targetUrl = session.parameters["u"]?.firstOrNull()?.let(::decodeUrl)
++          val targetUrl = session.parameters["r"]?.firstOrNull()?.let { resolveTarget(hlsSession, it) }
+           if (targetUrl.isNullOrBlank()) return notFound(headOnly)
+           handleKey(hlsSession, targetUrl, headOnly)
+         }
+@@ -174,8 +174,8 @@ class HlsStreamingProxy private constructor() :
+     } catch (e: CancellationException) {
+       throw e
+     } catch (e: Exception) {
+-      Log.e(TAG, "Error handling HLS proxy request for $uri: ${e.message}")
+-      newFixedLengthResponse(Response.Status.INTERNAL_ERROR, MIME_PLAINTEXT, "HLS Proxy Error: ${e.message}")
++      Log.e(TAG, "HLS proxy request failed (${e::class.java.simpleName})")
++      newFixedLengthResponse(Response.Status.INTERNAL_ERROR, MIME_PLAINTEXT, "HLS proxy request failed")
+         .apply { addCorsHeaders(this) }
+     }
+   }
+@@ -197,7 +197,7 @@ class HlsStreamingProxy private constructor() :
+     try {
+       okResponse = httpClient.newCall(requestBuilder.build()).execute()
+     } catch (e: IOException) {
+-      Log.e(TAG, "Failed to fetch master manifest from upstream: ${e.message}")
++      Log.e(TAG, "Failed to fetch master manifest (${e::class.java.simpleName})")
+       return newFixedLengthResponse(CustomStatus(502, "Bad Gateway"), MIME_PLAINTEXT, "Failed to fetch upstream manifest")
+         .apply { addCorsHeaders(this) }
+     }
+@@ -216,7 +216,7 @@ class HlsStreamingProxy private constructor() :
+     val finalUrl = okResponse.request.url.toString()
+     okResponse.close()
+ 
+-    val rewritten = rewriteMasterManifest(content, token, finalUrl)
++    val rewritten = rewriteMasterManifest(content, token, session, finalUrl)
+     val bytes = rewritten.toByteArray(StandardCharsets.UTF_8)
+     val stream = if (headOnly) ByteArrayInputStream(ByteArray(0)) else ByteArrayInputStream(bytes)
+ 
+@@ -239,7 +239,7 @@ class HlsStreamingProxy private constructor() :
+     try {
+       okResponse = httpClient.newCall(requestBuilder.build()).execute()
+     } catch (e: IOException) {
+-      Log.e(TAG, "Failed to fetch variant manifest from upstream ($variantUrl): ${e.message}")
++      Log.e(TAG, "Failed to fetch variant manifest (${e::class.java.simpleName})")
+       return newFixedLengthResponse(CustomStatus(502, "Bad Gateway"), MIME_PLAINTEXT, "Failed to fetch upstream variant")
+         .apply { addCorsHeaders(this) }
+     }
+@@ -258,7 +258,7 @@ class HlsStreamingProxy private constructor() :
+     val finalUrl = okResponse.request.url.toString()
+     okResponse.close()
+ 
+-    val rewritten = rewriteVariantManifest(content, token, finalUrl)
++    val rewritten = rewriteVariantManifest(content, token, session, finalUrl)
+     val bytes = rewritten.toByteArray(StandardCharsets.UTF_8)
+     val stream = if (headOnly) ByteArrayInputStream(ByteArray(0)) else ByteArrayInputStream(bytes)
+ 
+@@ -284,7 +284,7 @@ class HlsStreamingProxy private constructor() :
+     try {
+       okResponse = httpClient.newCall(requestBuilder.build()).execute()
+     } catch (e: IOException) {
+-      Log.e(TAG, "Failed to fetch segment ($segmentUrl): ${e.message}")
++      Log.e(TAG, "Failed to fetch segment (${e::class.java.simpleName})")
+       return newFixedLengthResponse(CustomStatus(502, "Bad Gateway"), MIME_PLAINTEXT, "Failed to fetch segment")
+         .apply { addCorsHeaders(this) }
+     }
+@@ -336,7 +336,7 @@ class HlsStreamingProxy private constructor() :
+     try {
+       okResponse = httpClient.newCall(requestBuilder.build()).execute()
+     } catch (e: IOException) {
+-      Log.e(TAG, "Failed to fetch key ($keyUrl): ${e.message}")
++      Log.e(TAG, "Failed to fetch key (${e::class.java.simpleName})")
+       return newFixedLengthResponse(CustomStatus(502, "Bad Gateway"), MIME_PLAINTEXT, "Failed to fetch key")
+         .apply { addCorsHeaders(this) }
+     }
+@@ -363,6 +363,7 @@ class HlsStreamingProxy private constructor() :
+   private fun rewriteMasterManifest(
+     manifestContent: String,
+     token: String,
++    session: HlsSession,
+     baseUrl: String,
+   ): String {
+     val lines = manifestContent.lines()
+@@ -381,7 +382,7 @@ class HlsStreamingProxy private constructor() :
+       if (nextLineIsVariant) {
+         if (!line.startsWith("#")) {
+           val resolvedVariantUrl = resolveUrl(baseUrl, line)
+-          val proxiedVariantUrl = "/hls/$token/variant.m3u8?u=${encodeUrl(resolvedVariantUrl)}"
++          val proxiedVariantUrl = proxyTargetUrl(token, session, "variant.m3u8", resolvedVariantUrl)
+           rewrittenLines.add(proxiedVariantUrl)
+           nextLineIsVariant = false
+           continue
+@@ -398,7 +399,7 @@ class HlsStreamingProxy private constructor() :
+           if (uriMatch != null) {
+             val originalUri = uriMatch.groupValues[1]
+             val resolvedUri = resolveUrl(baseUrl, originalUri)
+-            val proxiedUri = "/hls/$token/variant.m3u8?u=${encodeUrl(resolvedUri)}"
++            val proxiedUri = proxyTargetUrl(token, session, "variant.m3u8", resolvedUri)
+             val rewrittenMediaLine = line.replace(uriMatch.value, """URI="$proxiedUri"""")
+             rewrittenLines.add(rewrittenMediaLine)
+           } else {
+@@ -408,7 +409,7 @@ class HlsStreamingProxy private constructor() :
+         !isMasterPlaylist && !line.startsWith("#") -> {
+           // Single-variant media playlist received as master
+           val resolvedSegmentUrl = resolveUrl(baseUrl, line)
+-          val proxiedSegmentUrl = "/hls/$token/segment?u=${encodeUrl(resolvedSegmentUrl)}"
++          val proxiedSegmentUrl = proxyTargetUrl(token, session, "segment", resolvedSegmentUrl)
+           rewrittenLines.add(proxiedSegmentUrl)
+         }
+         else -> {
+@@ -423,6 +424,7 @@ class HlsStreamingProxy private constructor() :
+   private fun rewriteVariantManifest(
+     manifestContent: String,
+     token: String,
++    session: HlsSession,
+     baseUrl: String,
+   ): String {
+     val lines = manifestContent.lines()
+@@ -441,7 +443,7 @@ class HlsStreamingProxy private constructor() :
+           if (uriMatch != null) {
+             val originalUri = uriMatch.groupValues[1]
+             val resolvedUri = resolveUrl(baseUrl, originalUri)
+-            val proxiedUri = "/hls/$token/key?u=${encodeUrl(resolvedUri)}"
++            val proxiedUri = proxyTargetUrl(token, session, "key", resolvedUri)
+             rewrittenLines.add(line.replace(uriMatch.value, """URI="$proxiedUri""""))
+           } else {
+             rewrittenLines.add(line)
+@@ -452,7 +454,7 @@ class HlsStreamingProxy private constructor() :
+           if (uriMatch != null) {
+             val originalUri = uriMatch.groupValues[1]
+             val resolvedUri = resolveUrl(baseUrl, originalUri)
+-            val proxiedUri = "/hls/$token/segment?u=${encodeUrl(resolvedUri)}"
++            val proxiedUri = proxyTargetUrl(token, session, "segment", resolvedUri)
+             rewrittenLines.add(line.replace(uriMatch.value, """URI="$proxiedUri""""))
+           } else {
+             rewrittenLines.add(line)
+@@ -469,7 +471,7 @@ class HlsStreamingProxy private constructor() :
+         else -> {
+           // Segment URL
+           val resolvedSegmentUrl = resolveUrl(baseUrl, line)
+-          val proxiedSegmentUrl = "/hls/$token/segment?u=${encodeUrl(resolvedSegmentUrl)}"
++          val proxiedSegmentUrl = proxyTargetUrl(token, session, "segment", resolvedSegmentUrl)
+           rewrittenLines.add(proxiedSegmentUrl)
+         }
+       }
+@@ -485,6 +487,42 @@ class HlsStreamingProxy private constructor() :
+     return resolved?.toString() ?: cleanRelative
+   }
+ 
++  private fun proxyTargetUrl(
++    sessionToken: String,
++    session: HlsSession,
++    route: String,
++    targetUrl: String,
++  ): String = "/hls/$sessionToken/$route?r=${registerTarget(session, targetUrl)}"
++
++  private fun registerTarget(
++    session: HlsSession,
++    targetUrl: String,
++  ): String =
++    synchronized(session) {
++      session.targetTokensByUrl[targetUrl]?.let { existingToken ->
++        session.targetUrlsByToken[existingToken]
++        return@synchronized existingToken
++      }
++      var token: String
++      do {
++        token = generateToken()
++      } while (session.targetUrlsByToken.containsKey(token))
++      session.targetUrlsByToken[token] = targetUrl
++      session.targetTokensByUrl[targetUrl] = token
++      while (session.targetUrlsByToken.size > MAX_TARGETS_PER_SESSION) {
++        val iterator = session.targetUrlsByToken.entries.iterator()
++        val eldest = iterator.next()
++        iterator.remove()
++        session.targetTokensByUrl.remove(eldest.value)
++      }
++      token
++    }
++
++  private fun resolveTarget(
++    session: HlsSession,
++    token: String,
++  ): String? = synchronized(session) { session.targetUrlsByToken[token] }
++
+   /**
+    * Manifest-supplied targets are attacker-influenced and may point at any host, so the session's
+    * Authorization/Cookie headers are only forwarded back to the origin that issued them.
+@@ -572,14 +610,4 @@ class HlsStreamingProxy private constructor() :
+     random.nextBytes(bytes)
+     return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
+   }
+-
+-  private fun encodeUrl(url: String): String =
+-    URLEncoder.encode(url, StandardCharsets.UTF_8.name())
+-
+-  private fun decodeUrl(encoded: String): String =
+-    try {
+-      URLDecoder.decode(encoded, StandardCharsets.UTF_8.name())
+-    } catch (_: Exception) {
+-      encoded
+-    }
+ }
+diff --git a/app/src/main/java/com/quantummpv/app/data/network/proxy/XtreamStreamingProxy.kt b/app/src/main/java/com/quantummpv/app/data/network/proxy/XtreamStreamingProxy.kt
+new file mode 100644
+index 00000000..f7893739
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/data/network/proxy/XtreamStreamingProxy.kt
+@@ -0,0 +1,349 @@
++/*
++ * SPDX-License-Identifier: AGPL-3.0-or-later
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Affero General Public License as published
++ * by the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ */
++
++package com.quantummpv.app.data.network.proxy
++
++import android.util.Log
++import com.quantummpv.app.database.repository.PlaylistRepository
++import com.quantummpv.app.domain.network.XtreamPlaybackUri
++import com.quantummpv.app.network.SharedHttpClient
++import fi.iki.elonen.NanoHTTPD
++import kotlinx.coroutines.CancellationException
++import kotlinx.coroutines.CoroutineScope
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.SupervisorJob
++import kotlinx.coroutines.cancel
++import kotlinx.coroutines.launch
++import okhttp3.OkHttpClient
++import okhttp3.Request
++import org.koin.core.component.KoinComponent
++import org.koin.core.component.inject
++import java.io.ByteArrayInputStream
++import java.io.FilterInputStream
++import java.io.IOException
++import java.io.InputStream
++import java.net.URI
++import java.security.SecureRandom
++import java.util.Base64
++import java.util.concurrent.ConcurrentHashMap
++import java.util.concurrent.CountDownLatch
++import java.util.concurrent.TimeUnit
++import java.util.concurrent.atomic.AtomicReference
++import okhttp3.Response as OkResponse
++
++/** Keeps Xtream credentials behind a capability URL while mpv reads the selected stream. */
++class XtreamStreamingProxy private constructor() : NanoHTTPD("127.0.0.1", 0), KoinComponent {
++  companion object {
++    private const val TAG = "XtreamStreamingProxy"
++    private const val TOKEN_BYTES = 24
++    private const val RESOLVE_TIMEOUT_SECONDS = 30L
++    private const val DEFAULT_USER_AGENT = "mpvRx/2.5"
++
++    @Volatile
++    private var instance: XtreamStreamingProxy? = null
++
++    fun getInstance(): XtreamStreamingProxy =
++      instance ?: synchronized(this) {
++        instance ?: XtreamStreamingProxy().also {
++          it.start(SOCKET_READ_TIMEOUT, false)
++          instance = it
++        }
++      }
++
++    fun stopInstance() {
++      synchronized(this) {
++        instance?.let { proxy ->
++          proxy.stop()
++          proxy.cleanup()
++          instance = null
++        }
++      }
++    }
++  }
++
++  private class StreamInfo(
++    val registrationId: String,
++    val reference: XtreamPlaybackUri.Reference,
++    val headers: Map<String, String>,
++    val mimeType: String,
++  ) {
++    @Volatile
++    var sourceUrl: String? = null
++
++    @Volatile
++    var hlsRegistrationId: String? = null
++  }
++
++  private class HeadResponse(
++    status: Response.IStatus,
++    mimeType: String,
++    contentLength: Long,
++  ) : Response(status, mimeType, ByteArrayInputStream(ByteArray(0)), contentLength)
++
++  private class CustomStatus(
++    private val code: Int,
++    private val description: String,
++  ) : Response.IStatus {
++    override fun getRequestStatus(): Int = code
++
++    override fun getDescription(): String = "$code $description"
++  }
++
++  private val repository by inject<PlaylistRepository>()
++  private val random = SecureRandom()
++  private val proxyJob = SupervisorJob()
++  private val proxyScope = CoroutineScope(Dispatchers.IO + proxyJob)
++  private val tokenByRegistration = ConcurrentHashMap<String, String>()
++  private val streamsByToken = ConcurrentHashMap<String, StreamInfo>()
++  private val httpClient: OkHttpClient by lazy {
++    SharedHttpClient.derive {
++      connectTimeout(30L, TimeUnit.SECONDS)
++      readTimeout(0L, TimeUnit.MILLISECONDS)
++      followRedirects(true)
++      followSslRedirects(true)
++    }
++  }
++
++  @Synchronized
++  fun registerStream(
++    streamId: String,
++    reference: XtreamPlaybackUri.Reference,
++    headers: Map<String, String> = emptyMap(),
++    mimeType: String = "application/octet-stream",
++  ): String {
++    val token = generateToken()
++    val info = StreamInfo(streamId, reference, headers, sanitizeMimeType(mimeType))
++    streamsByToken[token] = info
++    tokenByRegistration.put(streamId, token)?.let { oldToken ->
++      streamsByToken.remove(oldToken)?.let(::release)
++    }
++
++    val extension = reference.extension.takeIf(String::isNotBlank)?.let { ".$it" }.orEmpty()
++    val route = "/xtream/$token/stream$extension"
++    return URI("http", null, "127.0.0.1", listeningPort, route, null, null).toASCIIString()
++  }
++
++  @Synchronized
++  fun unregisterStream(streamId: String) {
++    val token = tokenByRegistration.remove(streamId) ?: return
++    streamsByToken.remove(token)?.let(::release)
++  }
++
++  override fun serve(session: IHTTPSession): Response {
++    val headOnly = session.method == Method.HEAD
++    if (session.method != Method.GET && session.method != Method.HEAD) {
++      return textResponse(Response.Status.METHOD_NOT_ALLOWED, "Method not allowed", headOnly)
++        .apply { addHeader("Allow", "GET, HEAD") }
++    }
++
++    val token = session.uri.removePrefix("/xtream/").substringBefore('/')
++    val info = token.takeIf(String::isNotBlank)?.let(streamsByToken::get) ?: return notFound(headOnly)
++    val sourceUrl = resolveSource(info) ?: return upstreamFailure(headOnly)
++
++    if (info.reference.extension.equals("m3u8", ignoreCase = true)) {
++      return redirectToHls(info, sourceUrl, headOnly)
++    }
++
++    return proxyHttp(session, info, sourceUrl, headOnly)
++  }
++
++  private fun resolveSource(info: StreamInfo): String? {
++    info.sourceUrl?.let { return it }
++    val result = awaitProxyIo { repository.resolveXtreamStream(info.reference) }
++    val sourceUrl = result.getOrNull() ?: return null
++    synchronized(info) {
++      info.sourceUrl?.let { return it }
++      info.sourceUrl = sourceUrl
++    }
++    return sourceUrl
++  }
++
++  private fun redirectToHls(
++    info: StreamInfo,
++    sourceUrl: String,
++    headOnly: Boolean,
++  ): Response {
++    val hlsProxy = HlsStreamingProxy.getInstance()
++    val registrationId = "${info.registrationId}-hls"
++    val target =
++      hlsProxy.registerStream(
++        streamId = registrationId,
++        sourceUrl = sourceUrl,
++        headers = info.headers,
++        userAgent = headerValue(info.headers, "User-Agent"),
++      )
++    synchronized(info) {
++      info.hlsRegistrationId?.takeIf { it != registrationId }?.let(hlsProxy::unregisterStream)
++      info.hlsRegistrationId = registrationId
++    }
++    return textResponse(Response.Status.REDIRECT, "", headOnly).apply { addHeader("Location", target) }
++  }
++
++  private fun proxyHttp(
++    session: IHTTPSession,
++    info: StreamInfo,
++    sourceUrl: String,
++    headOnly: Boolean,
++  ): Response =
++    try {
++      val requestBuilder = Request.Builder().url(sourceUrl)
++      info.headers.forEach { (name, value) -> requestBuilder.header(name, value) }
++      if (headerValue(info.headers, "User-Agent") == null) {
++        requestBuilder.header("User-Agent", DEFAULT_USER_AGENT)
++      }
++      session.headers["range"]?.takeIf(String::isNotBlank)?.let { requestBuilder.header("Range", it) }
++      if (headOnly) requestBuilder.head() else requestBuilder.get()
++
++      val upstream = httpClient.newCall(requestBuilder.build()).execute()
++      if (isHlsResponse(upstream)) {
++        val hlsSourceUrl = upstream.request.url.toString()
++        upstream.close()
++        redirectToHls(info, hlsSourceUrl, headOnly)
++      } else {
++        upstreamResponse(upstream, info.mimeType, headOnly)
++      }
++    } catch (error: Exception) {
++      Log.e(TAG, "Xtream upstream request failed (${error::class.java.simpleName})")
++      upstreamFailure(headOnly)
++    }
++
++  private fun upstreamResponse(
++    upstream: OkResponse,
++    fallbackMimeType: String,
++    headOnly: Boolean,
++  ): Response {
++    val status = Response.Status.lookup(upstream.code) ?: CustomStatus(upstream.code, "Upstream Response")
++    if (!upstream.isSuccessful) {
++      val statusCode = upstream.code
++      upstream.close()
++      return textResponse(status, "Upstream returned HTTP $statusCode", headOnly)
++    }
++
++    val contentType =
++      upstream.header("Content-Type")?.substringBefore(';')?.trim().orEmpty()
++        .takeIf(String::isNotBlank) ?: fallbackMimeType
++    val contentLength = upstream.header("Content-Length")?.toLongOrNull() ?: upstream.body.contentLength()
++    val response =
++      if (headOnly) {
++        upstream.close()
++        HeadResponse(status, contentType, contentLength.coerceAtLeast(0L))
++      } else {
++        val bodyStream = ClosingInputStream(upstream.body.byteStream(), upstream)
++        if (contentLength >= 0L) {
++          newFixedLengthResponse(status, contentType, bodyStream, contentLength)
++        } else {
++          newChunkedResponse(status, contentType, bodyStream)
++        }
++      }
++
++    upstream.header("Accept-Ranges")?.let { response.addHeader("Accept-Ranges", it) }
++    upstream.header("Content-Range")?.let { response.addHeader("Content-Range", it) }
++    upstream.header("Content-Disposition")?.let { response.addHeader("Content-Disposition", it) }
++    response.addHeader("Connection", "close")
++    return response
++  }
++
++  private fun isHlsResponse(upstream: OkResponse): Boolean {
++    if (upstream.request.url.encodedPath.endsWith(".m3u8", ignoreCase = true)) return true
++    val contentType = upstream.header("Content-Type")?.substringBefore(';')?.trim().orEmpty()
++    return contentType.contains("mpegurl", ignoreCase = true) || contentType.contains("m3u8", ignoreCase = true)
++  }
++
++  private fun <T> awaitProxyIo(operation: suspend () -> Result<T>): Result<T> {
++    val result = AtomicReference<Result<T>?>(null)
++    val latch = CountDownLatch(1)
++    val job =
++      proxyScope.launch {
++        try {
++          result.set(operation())
++        } catch (cancellation: CancellationException) {
++          result.set(Result.failure(cancellation))
++        } catch (error: Exception) {
++          result.set(Result.failure(error))
++        } finally {
++          latch.countDown()
++        }
++      }
++    return try {
++      if (latch.await(RESOLVE_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
++        result.get() ?: Result.failure(IOException("Xtream resolution produced no result"))
++      } else {
++        job.cancel()
++        Result.failure(IOException("Xtream resolution timed out"))
++      }
++    } catch (interrupted: InterruptedException) {
++      job.cancel()
++      Thread.currentThread().interrupt()
++      Result.failure(interrupted)
++    }
++  }
++
++  private fun release(info: StreamInfo) {
++    info.sourceUrl = null
++    info.hlsRegistrationId?.let(HlsStreamingProxy.getInstance()::unregisterStream)
++    info.hlsRegistrationId = null
++  }
++
++  private fun generateToken(): String {
++    var token: String
++    do {
++      val bytes = ByteArray(TOKEN_BYTES).also(random::nextBytes)
++      token = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
++    } while (streamsByToken.containsKey(token))
++    return token
++  }
++
++  private fun sanitizeMimeType(value: String): String =
++    value.takeIf { it.matches(Regex("[A-Za-z0-9!#$&^_.+-]+/[A-Za-z0-9!#$&^_.+*-]+")) }
++      ?: "application/octet-stream"
++
++  private fun headerValue(
++    headers: Map<String, String>,
++    name: String,
++  ): String? = headers.entries.firstOrNull { it.key.equals(name, ignoreCase = true) }?.value
++
++  private fun notFound(headOnly: Boolean): Response =
++    textResponse(Response.Status.NOT_FOUND, "Stream not found", headOnly)
++
++  private fun upstreamFailure(headOnly: Boolean): Response =
++    textResponse(Response.Status.SERVICE_UNAVAILABLE, "Upstream stream failed", headOnly)
++
++  private fun textResponse(
++    status: Response.IStatus,
++    message: String,
++    headOnly: Boolean,
++  ): Response =
++    if (headOnly) {
++      HeadResponse(status, MIME_PLAINTEXT, message.toByteArray(Charsets.UTF_8).size.toLong())
++    } else {
++      newFixedLengthResponse(status, MIME_PLAINTEXT, message)
++    }
++
++  private fun cleanup() {
++    synchronized(this) {
++      tokenByRegistration.clear()
++      streamsByToken.values.forEach(::release)
++      streamsByToken.clear()
++    }
++    proxyScope.cancel()
++  }
++
++  private class ClosingInputStream(
++    delegate: InputStream,
++    private val response: OkResponse,
++  ) : FilterInputStream(delegate) {
++    override fun close() {
++      try {
++        super.close()
++      } finally {
++        response.close()
++      }
++    }
++  }
++}
+diff --git a/app/src/main/java/com/quantummpv/app/database/MpvRxDatabase.kt b/app/src/main/java/com/quantummpv/app/database/MpvRxDatabase.kt
+index eb943867..3005a9d3 100644
+--- a/app/src/main/java/com/quantummpv/app/database/MpvRxDatabase.kt
++++ b/app/src/main/java/com/quantummpv/app/database/MpvRxDatabase.kt
+@@ -50,7 +50,7 @@ import com.quantummpv.app.domain.network.NetworkConnection
+     JellyfinServerEntity::class,
+     DownloadItemEntity::class,
+   ],
+-  version = 18,
++  version = 19,
+   exportSchema = true,
+ )
+ @TypeConverters(NetworkProtocolConverter::class, NetworkStreamEntryTypeConverter::class)
+diff --git a/app/src/main/java/com/quantummpv/app/database/dao/PlaylistDao.kt b/app/src/main/java/com/quantummpv/app/database/dao/PlaylistDao.kt
+index 280ad039..4fd757ff 100644
+--- a/app/src/main/java/com/quantummpv/app/database/dao/PlaylistDao.kt
++++ b/app/src/main/java/com/quantummpv/app/database/dao/PlaylistDao.kt
+@@ -50,6 +50,21 @@ interface PlaylistDao {
+   @Query("SELECT * FROM PlaylistEntity WHERE isM3uPlaylist = 1 AND m3uSourceUrl = :sourceUrl LIMIT 1")
+   suspend fun getRemotePlaylistBySourceUrl(sourceUrl: String): PlaylistEntity?
+ 
++  @Query(
++    """
++    SELECT * FROM PlaylistEntity
++    WHERE isXtreamPlaylist = 1 AND xtreamServerUrl = :serverUrl AND xtreamUsername = :username
++    LIMIT 1
++    """,
++  )
++  suspend fun getXtreamPlaylistByIdentity(
++    serverUrl: String,
++    username: String,
++  ): PlaylistEntity?
++
++  @Query("SELECT * FROM PlaylistEntity WHERE isXtreamPlaylist = 1 AND xtreamAccountKey = :accountKey LIMIT 1")
++  suspend fun getXtreamPlaylistByAccountKey(accountKey: String): PlaylistEntity?
++
+   @Query("SELECT * FROM PlaylistEntity WHERE id = :playlistId")
+   fun observePlaylistById(playlistId: Int): Flow<PlaylistEntity?>
+ 
+diff --git a/app/src/main/java/com/quantummpv/app/database/entities/PlaylistEntity.kt b/app/src/main/java/com/quantummpv/app/database/entities/PlaylistEntity.kt
+index 8d9ec665..b423bafd 100644
+--- a/app/src/main/java/com/quantummpv/app/database/entities/PlaylistEntity.kt
++++ b/app/src/main/java/com/quantummpv/app/database/entities/PlaylistEntity.kt
+@@ -10,9 +10,15 @@
+ package com.quantummpv.app.database.entities
+ 
+ import androidx.room.Entity
++import androidx.room.Index
+ import androidx.room.PrimaryKey
+ 
+-@Entity
++@Entity(
++  indices = [
++    Index(value = ["xtreamAccountKey"], unique = true),
++    Index(value = ["xtreamServerUrl", "xtreamUsername"]),
++  ],
++)
+ data class PlaylistEntity(
+   @PrimaryKey(autoGenerate = true) val id: Int = 0,
+   val name: String,
+@@ -22,4 +28,9 @@ data class PlaylistEntity(
+   val isM3uPlaylist: Boolean = false, // True if this playlist was created from an M3U source
+   val userAgent: String? = null, // Custom User-Agent for fetching this M3U
+   val isAudio: Boolean = false, // True if this playlist was created in music mode
++  val isXtreamPlaylist: Boolean = false,
++  val xtreamAccountKey: String? = null,
++  val xtreamServerUrl: String? = null,
++  val xtreamUsername: String? = null,
++  val xtreamEncryptedPassword: String? = null,
+ )
+diff --git a/app/src/main/java/com/quantummpv/app/database/repository/PlaylistRepository.kt b/app/src/main/java/com/quantummpv/app/database/repository/PlaylistRepository.kt
+index 57f9d61b..65faf2eb 100644
+--- a/app/src/main/java/com/quantummpv/app/database/repository/PlaylistRepository.kt
++++ b/app/src/main/java/com/quantummpv/app/database/repository/PlaylistRepository.kt
+@@ -11,9 +11,13 @@ package com.quantummpv.app.database.repository
+ 
+ import android.content.Context
+ import android.net.Uri
++import com.quantummpv.app.data.network.XtreamClient
++import com.quantummpv.app.data.network.credentials.NetworkCredentialCipher
++import com.quantummpv.app.data.network.credentials.NetworkCredentialStorageException
+ import com.quantummpv.app.database.dao.PlaylistDao
+ import com.quantummpv.app.database.entities.PlaylistEntity
+ import com.quantummpv.app.database.entities.PlaylistItemEntity
++import com.quantummpv.app.domain.network.XtreamPlaybackUri
+ import com.quantummpv.app.preferences.YtdlPreferences
+ import com.quantummpv.app.ui.player.ytdlp.YtdlpManager
+ import com.quantummpv.app.ui.player.ytdlp.YtdlpPlaylistMetadata
+@@ -26,13 +30,19 @@ import kotlinx.coroutines.flow.Flow
+ import kotlinx.coroutines.flow.map
+ import kotlinx.coroutines.sync.Mutex
+ import kotlinx.coroutines.sync.withLock
++import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+ import okhttp3.OkHttpClient
++import java.net.URLDecoder
++import java.nio.charset.StandardCharsets
++import java.util.UUID
+ 
+ class PlaylistRepository(
+   private val playlistDao: PlaylistDao,
+   private val httpClient: OkHttpClient,
+   private val applicationContext: Context,
+   private val ytdlPreferences: YtdlPreferences,
++  private val credentialCipher: NetworkCredentialCipher,
++  private val xtreamClient: XtreamClient,
+ ) {
+   companion object {
+     const val FAVORITES_PLAYLIST_NAME = "Favorites"
+@@ -388,6 +398,75 @@ class PlaylistRepository(
+       Result.failure(e)
+     }
+ 
++  suspend fun createXtreamPlaylist(
++    serverUrl: String,
++    username: String,
++    password: String,
++  ): Result<Long> =
++    try {
++      val accountUsername = username
++      val catalog =
++        xtreamClient
++          .loadCatalog(serverUrl, accountUsername, password)
++          .getOrElse { error -> return Result.failure(error) }
++      val encryptedPassword = encryptXtreamPassword(password)
++
++      remotePlaylistWriteMutex.withLock {
++        val existing = playlistDao.getXtreamPlaylistByIdentity(catalog.serverUrl, accountUsername)
++        val accountKey = existing?.xtreamAccountKey ?: UUID.randomUUID().toString()
++        val securedPlaylist =
++          secureXtreamPlaylist(
++            parseResult = catalog.playlist,
++            accountKey = accountKey,
++            username = accountUsername,
++            password = password,
++          )
++        val now = System.currentTimeMillis()
++
++        if (existing != null) {
++          replaceRemotePlaylist(
++            playlist =
++              existing.copy(
++                updatedAt = now,
++                isM3uPlaylist = true,
++                isXtreamPlaylist = true,
++                xtreamAccountKey = accountKey,
++                xtreamServerUrl = catalog.serverUrl,
++                xtreamUsername = accountUsername,
++                xtreamEncryptedPassword = encryptedPassword,
++              ),
++            parseResult = securedPlaylist,
++            name = existing.name,
++            userAgent = existing.userAgent,
++          )
++          Result.success(existing.id.toLong())
++        } else {
++          val host = catalog.serverUrl.toHttpUrlOrNull()?.host ?: "Server"
++          val playlist =
++            PlaylistEntity(
++              name = "Xtream – $host",
++              createdAt = now,
++              updatedAt = now,
++              isM3uPlaylist = true,
++              isXtreamPlaylist = true,
++              xtreamAccountKey = accountKey,
++              xtreamServerUrl = catalog.serverUrl,
++              xtreamUsername = accountUsername,
++              xtreamEncryptedPassword = encryptedPassword,
++            )
++          val items =
++            securedPlaylist.items.mapIndexed { index, item ->
++              item.toEntity(playlistId = 0, position = index, now = now)
++            }
++          Result.success(playlistDao.insertPlaylistWithItems(playlist, items))
++        }
++      }
++    } catch (error: CancellationException) {
++      throw error
++    } catch (error: Exception) {
++      Result.failure(error)
++    }
++
+   suspend fun createM3UPlaylistFromFile(
+     context: Context,
+     uri: Uri,
+@@ -473,6 +552,10 @@ class PlaylistRepository(
+         getPlaylistById(playlistId)
+           ?: return Result.failure(Exception("Playlist not found"))
+ 
++      if (playlist.isXtreamPlaylist) {
++        return refreshXtreamPlaylist(playlist)
++      }
++
+       if (!playlist.isM3uPlaylist || playlist.m3uSourceUrl == null) {
+         return Result.failure(Exception("Not an M3U playlist or no source URL available"))
+       }
+@@ -499,6 +582,124 @@ class PlaylistRepository(
+     }
+   }
+ 
++  suspend fun resolveXtreamStream(reference: XtreamPlaybackUri.Reference): Result<String> =
++    try {
++      val playlist =
++        playlistDao.getXtreamPlaylistByAccountKey(reference.accountKey)
++          ?: return Result.failure(IllegalStateException("Xtream account is unavailable"))
++      val serverUrl = playlist.xtreamServerUrl
++        ?: return Result.failure(IllegalStateException("Xtream server is unavailable"))
++      val username = playlist.xtreamUsername
++        ?: return Result.failure(IllegalStateException("Xtream username is unavailable"))
++      val password = decryptXtreamPassword(playlist)
++      Result.success(XtreamPlaybackUri.resolve(reference, serverUrl, username, password))
++    } catch (error: CancellationException) {
++      throw error
++    } catch (error: Exception) {
++      Result.failure(error)
++    }
++
++  private suspend fun refreshXtreamPlaylist(playlist: PlaylistEntity): Result<Unit> {
++    val serverUrl = playlist.xtreamServerUrl
++      ?: return Result.failure(IllegalStateException("Xtream server is unavailable"))
++    val username = playlist.xtreamUsername
++      ?: return Result.failure(IllegalStateException("Xtream username is unavailable"))
++    val accountKey = playlist.xtreamAccountKey
++      ?: return Result.failure(IllegalStateException("Xtream account is unavailable"))
++    val password =
++      runCatching { decryptXtreamPassword(playlist) }
++        .getOrElse { error -> return Result.failure(error) }
++    val catalog =
++      xtreamClient
++        .loadCatalog(serverUrl, username, password)
++        .getOrElse { error -> return Result.failure(error) }
++    val securedPlaylist =
++      runCatching {
++        secureXtreamPlaylist(catalog.playlist, accountKey, username, password)
++      }.getOrElse { error -> return Result.failure(error) }
++
++    return remotePlaylistWriteMutex.withLock {
++      val current = getPlaylistById(playlist.id)
++        ?: return@withLock Result.failure(IllegalStateException("Playlist not found"))
++      if (!current.isXtreamPlaylist || current.xtreamAccountKey != accountKey) {
++        return@withLock Result.failure(IllegalStateException("Xtream account changed; refresh again"))
++      }
++      replaceRemotePlaylist(
++        playlist = current.copy(xtreamServerUrl = catalog.serverUrl),
++        parseResult = securedPlaylist,
++        name = current.name,
++        userAgent = current.userAgent,
++      )
++      Result.success(Unit)
++    }
++  }
++
++  private fun secureXtreamPlaylist(
++    parseResult: M3UParseResult.Success,
++    accountKey: String,
++    username: String,
++    password: String,
++  ): M3UParseResult.Success =
++    parseResult.copy(
++      items =
++        parseResult.items.map { item ->
++          val reference =
++            XtreamPlaybackUri.fromProviderUrl(item.url, accountKey, username, password)
++              ?: throw IllegalArgumentException("Xtream catalog contains an unsupported stream URL")
++          item.copy(
++            url = XtreamPlaybackUri.create(reference),
++            title = scrubXtreamPassword(item.title, password),
++            tvgId = scrubXtreamPassword(item.tvgId, password),
++            tvgName = scrubXtreamPassword(item.tvgName, password),
++            tvgLogo = sanitizeXtreamUrlMetadata(item.tvgLogo, password),
++            groupTitle = scrubXtreamPassword(item.groupTitle, password),
++            licenseType = scrubXtreamPassword(item.licenseType, password),
++            licenseKey = sanitizeXtreamUrlMetadata(item.licenseKey, password),
++            userAgent = scrubXtreamPassword(item.userAgent, password),
++          )
++        },
++    )
++
++  private fun encryptXtreamPassword(password: String): String =
++    try {
++      credentialCipher.encrypt(password)
++    } catch (error: Exception) {
++      throw NetworkCredentialStorageException(error)
++    }
++
++  private fun decryptXtreamPassword(playlist: PlaylistEntity): String {
++    val encrypted = playlist.xtreamEncryptedPassword
++      ?: throw IllegalStateException("Saved Xtream password is unavailable. Add the account again.")
++    return try {
++      credentialCipher.decrypt(encrypted)
++    } catch (_: Exception) {
++      throw IllegalStateException("Saved Xtream password is unavailable. Add the account again.")
++    }
++  }
++
++  private fun sanitizeXtreamUrlMetadata(
++    value: String?,
++    password: String,
++  ): String? =
++    value?.takeUnless { candidate ->
++      containsSecret(candidate, password)
++    }
++
++  private fun containsSecret(
++    value: String,
++    secret: String,
++  ): Boolean {
++    if (secret.isBlank()) return false
++    if (value.contains(secret)) return true
++    val decoded = runCatching { URLDecoder.decode(value, StandardCharsets.UTF_8.name()) }.getOrDefault(value)
++    return decoded.contains(secret)
++  }
++
++  private fun scrubXtreamPassword(
++    value: String?,
++    password: String,
++  ): String? = value?.replace(password, "•••")
++
+   private suspend fun persistM3UPlaylist(
+     parseResult: M3UParseResult.Success,
+     name: String,
+@@ -547,6 +748,10 @@ class PlaylistRepository(
+       previousItems.values
+         .filter { item -> !item.tvgId.isNullOrBlank() }
+         .associateBy { item -> item.tvgId }
++    val previousXtreamItems =
++      previousItems.values.mapNotNull { item ->
++        xtreamItemIdentity(item.filePath)?.let { identity -> identity to item }
++      }.toMap()
+     val now = System.currentTimeMillis()
+     val items =
+       parseResult.items.mapIndexed { index, item ->
+@@ -555,7 +760,10 @@ class PlaylistRepository(
+           playlistId = playlist.id,
+           position = index,
+           now = now,
+-          previousItem = previousItems[normalizedPath] ?: item.tvgId?.let(previousItemsByTvgId::get),
++          previousItem =
++            previousItems[normalizedPath]
++              ?: xtreamItemIdentity(normalizedPath)?.let(previousXtreamItems::get)
++              ?: item.tvgId?.let(previousItemsByTvgId::get),
+         )
+       }
+     playlistDao.replacePlaylistItems(
+@@ -644,3 +852,8 @@ private fun M3UPlaylistItem.toEntity(
+     userAgent = userAgent,
+     isFavorite = previousItem?.isFavorite ?: false,
+   )
++
++private fun xtreamItemIdentity(uri: String): String? =
++  XtreamPlaybackUri.parse(uri)?.let { reference ->
++    "${reference.accountKey}:${reference.route.wireValue}:${reference.streamId}"
++  }
+diff --git a/app/src/main/java/com/quantummpv/app/di/DatabaseModule.kt b/app/src/main/java/com/quantummpv/app/di/DatabaseModule.kt
+index b8049860..55bd63fb 100644
+--- a/app/src/main/java/com/quantummpv/app/di/DatabaseModule.kt
++++ b/app/src/main/java/com/quantummpv/app/di/DatabaseModule.kt
+@@ -13,6 +13,7 @@ import androidx.room.Room
+ import androidx.room.RoomDatabase
+ import androidx.room.migration.Migration
+ import androidx.sqlite.db.SupportSQLiteDatabase
++import com.quantummpv.app.data.network.XtreamClient
+ import com.quantummpv.app.data.network.credentials.AndroidNetworkCredentialKey
+ import com.quantummpv.app.data.network.credentials.NetworkCredentialCipher
+ import com.quantummpv.app.database.MpvRxDatabase
+@@ -734,6 +735,25 @@ val MIGRATION_17_18 =
+     }
+   }
+ 
++val MIGRATION_18_19 =
++  object : Migration(18, 19) {
++    override fun migrate(db: SupportSQLiteDatabase) {
++      db.execSQL("ALTER TABLE `PlaylistEntity` ADD COLUMN `isXtreamPlaylist` INTEGER NOT NULL DEFAULT 0")
++      db.execSQL("ALTER TABLE `PlaylistEntity` ADD COLUMN `xtreamAccountKey` TEXT")
++      db.execSQL("ALTER TABLE `PlaylistEntity` ADD COLUMN `xtreamServerUrl` TEXT")
++      db.execSQL("ALTER TABLE `PlaylistEntity` ADD COLUMN `xtreamUsername` TEXT")
++      db.execSQL("ALTER TABLE `PlaylistEntity` ADD COLUMN `xtreamEncryptedPassword` TEXT")
++      db.execSQL(
++        "CREATE UNIQUE INDEX IF NOT EXISTS `index_PlaylistEntity_xtreamAccountKey` " +
++          "ON `PlaylistEntity` (`xtreamAccountKey`)",
++      )
++      db.execSQL(
++        "CREATE INDEX IF NOT EXISTS `index_PlaylistEntity_xtreamServerUrl_xtreamUsername` " +
++          "ON `PlaylistEntity` (`xtreamServerUrl`, `xtreamUsername`)",
++      )
++    }
++  }
++
+ val DatabaseModule =
+   module {
+     single<Json> {
+@@ -766,6 +786,7 @@ val DatabaseModule =
+           MIGRATION_15_16,
+           MIGRATION_16_17,
+           MIGRATION_17_18,
++          MIGRATION_18_19,
+         ).build()
+     }
+ 
+@@ -802,6 +823,13 @@ val DatabaseModule =
+       NetworkCredentialCipher(AndroidNetworkCredentialKey::getOrCreate)
+     }
+ 
++    single {
++      XtreamClient(
++        httpClient = get(),
++        json = get(),
++      )
++    }
++
+     single {
+       com.quantummpv.app.repository.NetworkRepository(
+         dao = get(),
+@@ -815,6 +843,8 @@ val DatabaseModule =
+         httpClient = get(),
+         applicationContext = androidContext(),
+         ytdlPreferences = get(),
++        credentialCipher = get(),
++        xtreamClient = get(),
+       )
+     }
+ 
+diff --git a/app/src/main/java/com/quantummpv/app/domain/network/XtreamPlaybackUri.kt b/app/src/main/java/com/quantummpv/app/domain/network/XtreamPlaybackUri.kt
+new file mode 100644
+index 00000000..dd7e8924
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/domain/network/XtreamPlaybackUri.kt
+@@ -0,0 +1,144 @@
++/*
++ * SPDX-License-Identifier: AGPL-3.0-or-later
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Affero General Public License as published
++ * by the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ */
++
++package com.quantummpv.app.domain.network
++
++import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
++import java.net.URI
++
++/** A credential-free reference to a stream exposed by a saved Xtream account. */
++object XtreamPlaybackUri {
++  const val SCHEME = "mpvrx-xtream"
++
++  enum class Route(
++    val wireValue: String,
++    val upstreamPrefix: String?,
++  ) {
++    LIVE("live", "live"),
++    BARE_LIVE("bare-live", null),
++    MOVIE("movie", "movie"),
++    SERIES("series", "series"),
++  }
++
++  data class Reference(
++    val accountKey: String,
++    val route: Route,
++    val streamId: String,
++    val extension: String,
++  )
++
++  /** Converts a standard Xtream stream URL to a reference that contains no account credentials. */
++  fun fromProviderUrl(
++    providerUrl: String,
++    accountKey: String,
++    username: String,
++    password: String,
++  ): Reference? {
++    if (!isValidAccountKey(accountKey) || username.isBlank() || password.isBlank()) return null
++    if ('|' in providerUrl) return null
++
++    val url = providerUrl.toHttpUrlOrNull() ?: return null
++    if (url.query != null || url.fragment != null) return null
++    val segments = url.pathSegments.filter(String::isNotEmpty)
++    val credentialIndex =
++      (0 until (segments.size - 2))
++        .lastOrNull { index -> segments[index] == username && segments[index + 1] == password }
++        ?: return null
++    if (credentialIndex + 3 != segments.size) return null
++
++    val route =
++      when (segments.getOrNull(credentialIndex - 1)?.lowercase()) {
++        "live" -> Route.LIVE
++        "movie" -> Route.MOVIE
++        "series" -> Route.SERIES
++        else -> Route.BARE_LIVE
++      }
++    val streamFile = segments[credentialIndex + 2]
++    val separator = streamFile.lastIndexOf('.')
++    val streamId = if (separator > 0) streamFile.substring(0, separator) else streamFile
++    val extension =
++      if (separator > 0) {
++        streamFile.substring(separator + 1).lowercase()
++      } else if (route == Route.LIVE || route == Route.BARE_LIVE) {
++        "ts"
++      } else {
++        ""
++      }
++
++    if (!isValidStreamId(streamId) || !isValidExtension(extension)) return null
++    return Reference(accountKey, route, streamId, extension)
++  }
++
++  fun create(reference: Reference): String {
++    require(isValidAccountKey(reference.accountKey)) { "Invalid Xtream account key" }
++    require(isValidStreamId(reference.streamId)) { "Invalid Xtream stream id" }
++    require(isValidExtension(reference.extension)) { "Invalid Xtream stream extension" }
++    val extension = reference.extension.ifEmpty { "_" }
++    return URI(
++      SCHEME,
++      reference.accountKey,
++      "/${reference.route.wireValue}/${reference.streamId}/$extension",
++      null,
++      null,
++    ).toASCIIString()
++  }
++
++  fun parse(rawUri: String): Reference? =
++    runCatching {
++      val uri = URI(rawUri)
++      if (!uri.scheme.equals(SCHEME, ignoreCase = true) ||
++        uri.userInfo != null ||
++        uri.port != -1 ||
++        uri.query != null ||
++        uri.fragment != null
++      ) {
++        return@runCatching null
++      }
++
++      val accountKey = uri.authority ?: return@runCatching null
++      val segments = uri.path.orEmpty().split('/').filter(String::isNotEmpty)
++      if (!isValidAccountKey(accountKey) || segments.size != 3) return@runCatching null
++      val route = Route.entries.firstOrNull { it.wireValue == segments[0] } ?: return@runCatching null
++      val streamId = segments[1]
++      val extension = segments[2].takeUnless { it == "_" }.orEmpty()
++      if (!isValidStreamId(streamId) || !isValidExtension(extension)) return@runCatching null
++      Reference(accountKey, route, streamId, extension)
++    }.getOrNull()
++
++  /** Reconstructs the upstream URL only after the saved account has been resolved securely. */
++  fun resolve(
++    reference: Reference,
++    serverUrl: String,
++    username: String,
++    password: String,
++  ): String {
++    require(username.isNotBlank() && password.isNotBlank()) { "Xtream credentials are incomplete" }
++    val base = serverUrl.toHttpUrlOrNull() ?: throw IllegalArgumentException("Invalid Xtream server URL")
++    val builder = base.newBuilder()
++    reference.route.upstreamPrefix?.let(builder::addPathSegment)
++    builder.addPathSegment(username)
++    builder.addPathSegment(password)
++    builder.addPathSegment(
++      if (reference.extension.isBlank()) {
++        reference.streamId
++      } else {
++        "${reference.streamId}.${reference.extension}"
++      },
++    )
++    return builder.build().toString()
++  }
++
++  private fun isValidAccountKey(value: String): Boolean =
++    value.length in 16..64 && value.all { it.isLetterOrDigit() || it == '-' || it == '_' }
++
++  private fun isValidStreamId(value: String): Boolean =
++    value.isNotEmpty() && value.length <= 20 && value.all(Char::isDigit)
++
++  private fun isValidExtension(value: String): Boolean = value.length <= 12 && value.all(Char::isLetterOrDigit)
++}
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/cards/PlaylistCard.kt b/app/src/main/java/com/quantummpv/app/ui/browser/cards/PlaylistCard.kt
+index 47b54fdb..7c320723 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/cards/PlaylistCard.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/cards/PlaylistCard.kt
+@@ -77,6 +77,7 @@ fun PlaylistCard(
+       } == true
+     val chipText =
+       when {
++        playlist.isXtreamPlaylist -> stringResource(R.string.playlist_xtream_badge)
+         isOnlinePlaylist -> stringResource(R.string.playlist_online_badge)
+         playlist.isM3uPlaylist -> stringResource(R.string.playlist_m3u_badge)
+         else -> "Local"
+@@ -115,11 +116,12 @@ fun PlaylistCard(
+     onLongClick = onLongClick,
+     onThumbClick = onThumbClick,
+     showDateModified = true,
+-    customIcon = if (isFavorites) {
+-      Icons.RoundedFilled.Favorite
+-    } else {
+-      Icons.RoundedFilled.PlaylistPlay
+-    },
++    customIcon =
++      when {
++        isFavorites -> Icons.RoundedFilled.Favorite
++        playlist.isXtreamPlaylist -> Icons.RoundedFilled.Tv
++        else -> Icons.RoundedFilled.PlaylistPlay
++      },
+     modifier = modifier,
+     customChipContent = customChipRenderer,
+     isGridMode = isGridMode,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/dialogs/AddXtreamPlaylistDialog.kt b/app/src/main/java/com/quantummpv/app/ui/browser/dialogs/AddXtreamPlaylistDialog.kt
+new file mode 100644
+index 00000000..f9e85fc5
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/dialogs/AddXtreamPlaylistDialog.kt
+@@ -0,0 +1,217 @@
++/*
++ * SPDX-License-Identifier: AGPL-3.0-or-later
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Affero General Public License as published
++ * by the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ */
++
++package com.quantummpv.app.ui.browser.dialogs
++
++import android.widget.Toast
++import androidx.compose.foundation.layout.Arrangement
++import androidx.compose.foundation.layout.Box
++import androidx.compose.foundation.layout.Column
++import androidx.compose.foundation.layout.Row
++import androidx.compose.foundation.layout.Spacer
++import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.layout.size
++import androidx.compose.foundation.layout.width
++import androidx.compose.foundation.rememberScrollState
++import androidx.compose.foundation.text.KeyboardActions
++import androidx.compose.foundation.text.KeyboardOptions
++import androidx.compose.foundation.verticalScroll
++import androidx.compose.material3.Button
++import androidx.compose.material3.Card
++import androidx.compose.material3.CircularProgressIndicator
++import androidx.compose.material3.IconButton
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.OutlinedTextField
++import androidx.compose.material3.Text
++import androidx.compose.material3.TextButton
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.getValue
++import androidx.compose.runtime.mutableStateOf
++import androidx.compose.runtime.remember
++import androidx.compose.runtime.rememberCoroutineScope
++import androidx.compose.runtime.setValue
++import androidx.compose.ui.Alignment
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.platform.LocalContext
++import androidx.compose.ui.res.stringResource
++import androidx.compose.ui.text.input.ImeAction
++import androidx.compose.ui.text.input.KeyboardType
++import androidx.compose.ui.text.input.PasswordVisualTransformation
++import androidx.compose.ui.text.input.VisualTransformation
++import androidx.compose.ui.unit.dp
++import androidx.compose.ui.window.Dialog
++import com.quantummpv.app.R
++import com.quantummpv.app.ui.icons.Icon
++import com.quantummpv.app.ui.icons.Icons
++import kotlinx.coroutines.launch
++import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
++
++@Composable
++fun AddXtreamPlaylistDialog(
++  isOpen: Boolean,
++  onDismiss: () -> Unit,
++  onImported: () -> Unit,
++  onCreateXtreamPlaylist: suspend (String, String, String) -> Result<Long>,
++) {
++  if (!isOpen) return
++
++  val context = LocalContext.current
++  val coroutineScope = rememberCoroutineScope()
++  var serverUrl by remember { mutableStateOf("") }
++  var username by remember { mutableStateOf("") }
++  var password by remember { mutableStateOf("") }
++  var passwordVisible by remember { mutableStateOf(false) }
++  var isLoading by remember { mutableStateOf(false) }
++  var submitted by remember { mutableStateOf(false) }
++  var errorMessage by remember { mutableStateOf<String?>(null) }
++
++  val parsedServerUrl = serverUrl.trim().toHttpUrlOrNull()
++  val isServerUrlValid =
++    parsedServerUrl != null &&
++      parsedServerUrl.scheme in setOf("http", "https") &&
++      parsedServerUrl.username.isEmpty() &&
++      parsedServerUrl.password.isEmpty() &&
++      parsedServerUrl.query == null &&
++      parsedServerUrl.fragment == null
++  val showServerUrlError = !isServerUrlValid && (submitted || serverUrl.isNotBlank())
++  val canSubmit = isServerUrlValid && username.isNotBlank() && password.isNotBlank() && !isLoading
++
++  val submit = {
++    submitted = true
++    errorMessage = null
++    if (canSubmit) {
++      isLoading = true
++      coroutineScope.launch {
++        onCreateXtreamPlaylist(serverUrl.trim(), username, password)
++          .onSuccess {
++            Toast
++              .makeText(context, context.getString(R.string.playlist_xtream_import_success), Toast.LENGTH_SHORT)
++              .show()
++            password = ""
++            onImported()
++          }.onFailure { error ->
++            errorMessage = error.message ?: context.getString(R.string.generic_unknown_error)
++          }
++        isLoading = false
++      }
++    }
++  }
++
++  Dialog(onDismissRequest = { if (!isLoading) onDismiss() }) {
++    Card(
++      modifier = Modifier.fillMaxWidth().padding(16.dp),
++      shape = MaterialTheme.shapes.extraLarge,
++    ) {
++      Column(
++        modifier =
++          Modifier
++            .padding(24.dp)
++            .verticalScroll(rememberScrollState()),
++        verticalArrangement = Arrangement.spacedBy(16.dp),
++      ) {
++        Text(
++          text = stringResource(R.string.playlist_xtream_add_title),
++          style = MaterialTheme.typography.headlineSmall,
++        )
++        Text(
++          text = stringResource(R.string.playlist_xtream_add_description),
++          style = MaterialTheme.typography.bodyMedium,
++          color = MaterialTheme.colorScheme.onSurfaceVariant,
++        )
++
++        OutlinedTextField(
++          value = serverUrl,
++          onValueChange = { serverUrl = it },
++          label = { Text(stringResource(R.string.playlist_xtream_server_url)) },
++          placeholder = { Text(stringResource(R.string.playlist_xtream_server_placeholder)) },
++          singleLine = true,
++          isError = showServerUrlError,
++          enabled = !isLoading,
++          keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Next),
++          modifier = Modifier.fillMaxWidth(),
++        )
++        OutlinedTextField(
++          value = username,
++          onValueChange = { username = it },
++          label = { Text(stringResource(R.string.playlist_xtream_username)) },
++          singleLine = true,
++          isError = submitted && username.isBlank(),
++          enabled = !isLoading,
++          keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
++          modifier = Modifier.fillMaxWidth(),
++        )
++        OutlinedTextField(
++          value = password,
++          onValueChange = { password = it },
++          label = { Text(stringResource(R.string.playlist_xtream_password)) },
++          singleLine = true,
++          isError = submitted && password.isBlank(),
++          enabled = !isLoading,
++          visualTransformation =
++            if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
++          keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
++          keyboardActions = KeyboardActions(onDone = { submit() }),
++          trailingIcon = {
++            IconButton(onClick = { passwordVisible = !passwordVisible }, enabled = !isLoading) {
++              Icon(
++                imageVector =
++                  if (passwordVisible) Icons.RoundedFilled.VisibilityOff else Icons.RoundedFilled.Visibility,
++                contentDescription =
++                  stringResource(
++                    if (passwordVisible) {
++                      R.string.playlist_xtream_hide_password
++                    } else {
++                      R.string.playlist_xtream_show_password
++                    },
++                  ),
++              )
++            }
++          },
++          modifier = Modifier.fillMaxWidth(),
++        )
++
++        if (showServerUrlError) {
++          Text(
++            text = stringResource(R.string.playlist_xtream_url_error),
++            style = MaterialTheme.typography.bodySmall,
++            color = MaterialTheme.colorScheme.error,
++          )
++        }
++        errorMessage?.let { message ->
++          Text(
++            text = stringResource(R.string.playlist_xtream_import_error, message),
++            style = MaterialTheme.typography.bodySmall,
++            color = MaterialTheme.colorScheme.error,
++          )
++        }
++
++        if (isLoading) {
++          Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
++            CircularProgressIndicator(modifier = Modifier.size(32.dp))
++          }
++        }
++
++        Row(
++          modifier = Modifier.fillMaxWidth(),
++          horizontalArrangement = Arrangement.End,
++          verticalAlignment = Alignment.CenterVertically,
++        ) {
++          TextButton(onClick = onDismiss, enabled = !isLoading) {
++            Text(stringResource(R.string.generic_cancel))
++          }
++          Spacer(modifier = Modifier.width(8.dp))
++          Button(onClick = submit, enabled = canSubmit) {
++            Text(stringResource(R.string.playlist_xtream_connect))
++          }
++        }
++      }
++    }
++  }
++}
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/playlist/PlaylistDetailScreen.kt b/app/src/main/java/com/quantummpv/app/ui/browser/playlist/PlaylistDetailScreen.kt
+index 37579185..268eb1c8 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/playlist/PlaylistDetailScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/playlist/PlaylistDetailScreen.kt
+@@ -332,7 +332,7 @@ data class PlaylistDetailScreen(
+             isSingleSelection = selectionManager.isSingleSelection,
+             useRemoveIcon = true, // Show remove icon instead of delete for playlist
+             onInfoClick =
+-              if (selectionManager.isSingleSelection) {
++              if (selectionManager.isSingleSelection && playlist?.isXtreamPlaylist != true) {
+                 {
+                   val item = selectionManager.getSelectedItems().firstOrNull()
+                   if (item != null) {
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/playlist/PlaylistScreen.kt b/app/src/main/java/com/quantummpv/app/ui/browser/playlist/PlaylistScreen.kt
+index a53f4882..720a3562 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/playlist/PlaylistScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/playlist/PlaylistScreen.kt
+@@ -298,7 +298,7 @@ object PlaylistScreen : Screen {
+             EmptyState(
+               icon = Icons.RoundedFilled.PlaylistAdd,
+               title = stringResource(R.string.ui_no_playlists_yet),
+-              message = "Create a playlist or add one from an m3u URL",
++              message = stringResource(R.string.playlist_empty_description),
+             )
+           }
+         }
+@@ -335,6 +335,7 @@ object PlaylistScreen : Screen {
+       onCreatePlaylist = viewModel::createPlaylist,
+       onCreateM3UPlaylistFromFile = viewModel::createM3UPlaylistFromFile,
+       onCreateM3UPlaylist = viewModel::createM3UPlaylist,
++      onCreateXtreamPlaylist = viewModel::createXtreamPlaylist,
+       context = context,
+     )
+ 
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/playlist/PlaylistViewModel.kt b/app/src/main/java/com/quantummpv/app/ui/browser/playlist/PlaylistViewModel.kt
+index 0928d29b..91734733 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/playlist/PlaylistViewModel.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/playlist/PlaylistViewModel.kt
+@@ -153,6 +153,12 @@ class PlaylistViewModel(
+     userAgent: String? = null,
+   ): Result<Long> = repository.createM3UPlaylist(url, userAgent)
+ 
++  suspend fun createXtreamPlaylist(
++    serverUrl: String,
++    username: String,
++    password: String,
++  ): Result<Long> = repository.createXtreamPlaylist(serverUrl, username, password)
++
+   suspend fun createM3UPlaylistFromFile(uri: android.net.Uri): Result<Long> =
+     repository.createM3UPlaylistFromFile(getApplication(), uri)
+ 
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/sheets/PlaylistActionSheet.kt b/app/src/main/java/com/quantummpv/app/ui/browser/sheets/PlaylistActionSheet.kt
+index c8ae628d..c6adcc46 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/sheets/PlaylistActionSheet.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/sheets/PlaylistActionSheet.kt
+@@ -49,6 +49,7 @@ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.text.font.FontWeight
+ import androidx.compose.ui.unit.dp
+ import androidx.compose.ui.window.Dialog
++import com.quantummpv.app.ui.browser.dialogs.AddXtreamPlaylistDialog
+ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
+ import com.quantummpv.app.utils.media.SharedUrlExtractor
+@@ -62,11 +63,13 @@ fun PlaylistActionSheet(
+   onCreatePlaylist: suspend (String) -> Long,
+   onCreateM3UPlaylistFromFile: suspend (Uri) -> Result<Long>,
+   onCreateM3UPlaylist: suspend (String, String?) -> Result<Long>,
++  onCreateXtreamPlaylist: suspend (String, String, String) -> Result<Long>,
+   context: android.content.Context,
+   modifier: Modifier = Modifier,
+ ) {
+   var showCreateDialog by remember { mutableStateOf(false) }
+   var showM3UDialog by remember { mutableStateOf(false) }
++  var showXtreamDialog by remember { mutableStateOf(false) }
+ 
+   if (!isOpen) return
+ 
+@@ -186,6 +189,44 @@ fun PlaylistActionSheet(
+         }
+       }
+ 
++      Card(
++        onClick = { showXtreamDialog = true },
++        modifier = Modifier.fillMaxWidth(),
++        colors =
++          CardDefaults.cardColors(
++            containerColor = MaterialTheme.colorScheme.surfaceVariant,
++          ),
++      ) {
++        Row(
++          modifier = Modifier.fillMaxWidth().padding(16.dp),
++          horizontalArrangement = Arrangement.spacedBy(16.dp),
++          verticalAlignment = Alignment.CenterVertically,
++        ) {
++          Icon(
++            imageVector = Icons.RoundedFilled.Tv,
++            contentDescription = null,
++            tint = MaterialTheme.colorScheme.primary,
++            modifier = Modifier.size(24.dp),
++          )
++          Column(modifier = Modifier.weight(1f)) {
++            Text(
++              text =
++                androidx.compose.ui.res
++                  .stringResource(com.quantummpv.app.R.string.playlist_xtream_add_action),
++              style = MaterialTheme.typography.bodyLarge,
++              fontWeight = FontWeight.Medium,
++            )
++            Text(
++              text =
++                androidx.compose.ui.res
++                  .stringResource(com.quantummpv.app.R.string.playlist_xtream_add_action_description),
++              style = MaterialTheme.typography.bodySmall,
++              color = MaterialTheme.colorScheme.onSurfaceVariant,
++            )
++          }
++        }
++      }
++
+       Spacer(modifier = Modifier.height(8.dp))
+     }
+   }
+@@ -485,4 +526,14 @@ fun PlaylistActionSheet(
+       }
+     }
+   }
++
++  AddXtreamPlaylistDialog(
++    isOpen = showXtreamDialog,
++    onDismiss = { showXtreamDialog = false },
++    onImported = {
++      showXtreamDialog = false
++      onDismiss()
++    },
++    onCreateXtreamPlaylist = onCreateXtreamPlaylist,
++  )
+ }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/PlaybackSession.kt b/app/src/main/java/com/quantummpv/app/ui/player/PlaybackSession.kt
+index 9796e637..8e4b2714 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/PlaybackSession.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/PlaybackSession.kt
+@@ -18,7 +18,9 @@ import android.util.Log
+ import android.view.Surface
+ import com.quantummpv.app.data.network.proxy.HlsStreamingProxy
+ import com.quantummpv.app.data.network.proxy.NetworkStreamingProxy
++import com.quantummpv.app.data.network.proxy.XtreamStreamingProxy
+ import com.quantummpv.app.domain.network.NetworkPlaybackUri
++import com.quantummpv.app.domain.network.XtreamPlaybackUri
+ import com.quantummpv.app.preferences.MpvConfigOverridePolicy
+ import `is`.xyz.mpv.MPVLib
+ import `is`.xyz.mpv.MPVNode
+@@ -121,6 +123,7 @@ object PlaybackSession : MPVLib.EventObserver {
+   private data class NetworkStreamRegistration(
+     val proxy: NetworkStreamingProxy? = null,
+     val hlsProxy: HlsStreamingProxy? = null,
++    val xtreamProxy: XtreamStreamingProxy? = null,
+     val streamId: String,
+   )
+ 
+@@ -1636,6 +1639,20 @@ object PlaybackSession : MPVLib.EventObserver {
+   }
+ 
+   private fun resolvePlayableUri(item: PlaybackItem): ResolvedPlayable {
++    val xtreamReference = XtreamPlaybackUri.parse(item.playableUri)
++    if (xtreamReference != null) {
++      val proxy = XtreamStreamingProxy.getInstance()
++      val streamId = "xtream-${streamSequence.incrementAndGet()}"
++      val uri =
++        proxy.registerStream(
++          streamId = streamId,
++          reference = xtreamReference,
++          headers = item.headers,
++          mimeType = item.mimeType ?: "application/octet-stream",
++        )
++      return ResolvedPlayable(uri, NetworkStreamRegistration(xtreamProxy = proxy, streamId = streamId))
++    }
++
+     val reference =
+       NetworkPlaybackUri.parse(item.playableUri)
+         ?: item.networkSource?.let { source ->
+@@ -1713,6 +1730,7 @@ object PlaybackSession : MPVLib.EventObserver {
+     runCatching {
+       registration.proxy?.unregisterStream(registration.streamId)
+       registration.hlsProxy?.unregisterStream(registration.streamId)
++      registration.xtreamProxy?.unregisterStream(registration.streamId)
+     }.onFailure { error -> Log.w(TAG, "Failed to release network stream", error) }
+   }
+ 
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/PlayerUtils.kt b/app/src/main/java/com/quantummpv/app/ui/player/PlayerUtils.kt
+index 220e0ffc..ecc98d9b 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/PlayerUtils.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/PlayerUtils.kt
+@@ -16,6 +16,7 @@ import android.provider.DocumentsContract
+ import android.provider.MediaStore
+ import android.util.Log
+ import com.quantummpv.app.domain.network.NetworkPlaybackUri
++import com.quantummpv.app.domain.network.XtreamPlaybackUri
+ import com.quantummpv.app.ui.player.PlayerActivity.Companion.TAG
+ import `is`.xyz.mpv.MPVNode
+ import `is`.xyz.mpv.Utils
+@@ -248,7 +249,7 @@ internal fun Uri.resolveUri(
+         ?: if (allowFdFallback) null else toString()
+     "data" -> "data://$schemeSpecificPart"
+     "magnet", "torrent" -> toString()
+-    NetworkPlaybackUri.SCHEME -> toString()
++    NetworkPlaybackUri.SCHEME, XtreamPlaybackUri.SCHEME -> toString()
+     in Utils.PROTOCOLS -> toString()
+     else -> {
+       Log.e(TAG, "Unsupported URI scheme: $scheme")
+diff --git a/app/src/main/res/values-ar/strings.xml b/app/src/main/res/values-ar/strings.xml
+index 838ccbc2..890d20a6 100644
+--- a/app/src/main/res/values-ar/strings.xml
++++ b/app/src/main/res/values-ar/strings.xml
+@@ -569,6 +569,22 @@
+   <string name="playlist_favorite_songs">الأغاني المفضلة</string>
+   <string name="playlist_favorite_videos">مقاطع الفيديو المفضلة</string>
+   <string name="playlist_online_badge">عبر الإنترنت</string>
++  <string name="playlist_xtream_badge">Xtream</string>
++  <string name="playlist_xtream_add_action">إضافة Xtream Codes</string>
++  <string name="playlist_xtream_add_action_description">استيراد قائمة تشغيل باستخدام حساب مزود الخدمة</string>
++  <string name="playlist_xtream_add_title">إضافة قائمة تشغيل Xtream Codes</string>
++  <string name="playlist_xtream_add_description">أدخل عنوان الخادم وبيانات الحساب التي قدمها مزود IPTV.</string>
++  <string name="playlist_xtream_server_url">عنوان URL للخادم</string>
++  <string name="playlist_xtream_server_placeholder">https://provider.example:443</string>
++  <string name="playlist_xtream_username">اسم المستخدم</string>
++  <string name="playlist_xtream_password">كلمة المرور</string>
++  <string name="playlist_xtream_show_password">إظهار كلمة المرور</string>
++  <string name="playlist_xtream_hide_password">إخفاء كلمة المرور</string>
++  <string name="playlist_xtream_url_error">أدخل عنوان URL كاملاً للخادم يبدأ بـ http:// أو https:// من دون بيانات اعتماد أو معلمات استعلام أو جزء.</string>
++  <string name="playlist_xtream_connect">الاتصال والاستيراد</string>
++  <string name="playlist_xtream_import_success">تم حفظ قائمة تشغيل Xtream في قوائم التشغيل</string>
++  <string name="playlist_xtream_import_error">تعذر إضافة قائمة تشغيل Xtream: %1$s</string>
++  <string name="playlist_empty_description">أنشئ قائمة تشغيل أو استورد عنوان M3U أو أضف حساب Xtream</string>
+   <string name="playlist_add_remote_title">إضافة قائمة تشغيل</string>
+   <string name="playlist_remote_url_hint">يدعم M3U/M3U8 وقوائم تشغيل الويب مثل YouTube</string>
+   <string name="playlist_import_success">تم حفظ قائمة التشغيل في قسم قوائم التشغيل</string>
+diff --git a/app/src/main/res/values-de/strings.xml b/app/src/main/res/values-de/strings.xml
+index fbabdb60..200e71e4 100644
+--- a/app/src/main/res/values-de/strings.xml
++++ b/app/src/main/res/values-de/strings.xml
+@@ -569,6 +569,22 @@ Weiter: NEXT</string>
+   <string name="playlist_favorite_songs">Lieblingssongs</string>
+   <string name="playlist_favorite_videos">Lieblingsvideos</string>
+   <string name="playlist_online_badge">Online</string>
++  <string name="playlist_xtream_badge">Xtream</string>
++  <string name="playlist_xtream_add_action">Xtream Codes hinzufügen</string>
++  <string name="playlist_xtream_add_action_description">Eine Wiedergabeliste mit deinem Anbieter-Konto importieren</string>
++  <string name="playlist_xtream_add_title">Xtream-Codes-Wiedergabeliste hinzufügen</string>
++  <string name="playlist_xtream_add_description">Gib die Serveradresse und die Kontodaten deines IPTV-Anbieters ein.</string>
++  <string name="playlist_xtream_server_url">Server-URL</string>
++  <string name="playlist_xtream_server_placeholder">https://provider.example:443</string>
++  <string name="playlist_xtream_username">Benutzername</string>
++  <string name="playlist_xtream_password">Passwort</string>
++  <string name="playlist_xtream_show_password">Passwort anzeigen</string>
++  <string name="playlist_xtream_hide_password">Passwort ausblenden</string>
++  <string name="playlist_xtream_url_error">Gib eine vollständige Server-URL mit http:// oder https:// ohne Anmeldedaten, Abfrageparameter oder Fragment ein.</string>
++  <string name="playlist_xtream_connect">Verbinden und importieren</string>
++  <string name="playlist_xtream_import_success">Xtream-Wiedergabeliste wurde unter Wiedergabelisten gespeichert</string>
++  <string name="playlist_xtream_import_error">Xtream-Wiedergabeliste konnte nicht hinzugefügt werden: %1$s</string>
++  <string name="playlist_empty_description">Erstelle eine Wiedergabeliste, importiere eine M3U-URL oder füge ein Xtream-Konto hinzu</string>
+   <string name="playlist_add_remote_title">Wiedergabeliste hinzufügen</string>
+   <string name="playlist_remote_url_hint">Unterstützt M3U/M3U8 und Web-Wiedergabelisten wie YouTube</string>
+   <string name="playlist_import_success">Wiedergabeliste wurde unter „Wiedergabelisten“ gespeichert</string>
+diff --git a/app/src/main/res/values-es/strings.xml b/app/src/main/res/values-es/strings.xml
+index 6b3b9bce..35df2c4d 100644
+--- a/app/src/main/res/values-es/strings.xml
++++ b/app/src/main/res/values-es/strings.xml
+@@ -569,6 +569,22 @@ Siguiente: NEXT</string>
+   <string name="playlist_favorite_songs">Canciones favoritas</string>
+   <string name="playlist_favorite_videos">Vídeos favoritos</string>
+   <string name="playlist_online_badge">En línea</string>
++  <string name="playlist_xtream_badge">Xtream</string>
++  <string name="playlist_xtream_add_action">Añadir Xtream Codes</string>
++  <string name="playlist_xtream_add_action_description">Importa una lista con tu cuenta del proveedor</string>
++  <string name="playlist_xtream_add_title">Añadir lista de Xtream Codes</string>
++  <string name="playlist_xtream_add_description">Introduce la dirección del servidor y los datos de cuenta proporcionados por tu proveedor de IPTV.</string>
++  <string name="playlist_xtream_server_url">URL del servidor</string>
++  <string name="playlist_xtream_server_placeholder">https://provider.example:443</string>
++  <string name="playlist_xtream_username">Nombre de usuario</string>
++  <string name="playlist_xtream_password">Contraseña</string>
++  <string name="playlist_xtream_show_password">Mostrar contraseña</string>
++  <string name="playlist_xtream_hide_password">Ocultar contraseña</string>
++  <string name="playlist_xtream_url_error">Introduce una URL completa del servidor que empiece por http:// o https://, sin credenciales, parámetros de consulta ni fragmentos.</string>
++  <string name="playlist_xtream_connect">Conectar e importar</string>
++  <string name="playlist_xtream_import_success">La lista Xtream se guardó en Listas de reproducción</string>
++  <string name="playlist_xtream_import_error">No se pudo añadir la lista Xtream: %1$s</string>
++  <string name="playlist_empty_description">Crea una lista, importa una URL M3U o añade una cuenta Xtream</string>
+   <string name="playlist_add_remote_title">Añadir lista de reproducción</string>
+   <string name="playlist_remote_url_hint">Admite M3U/M3U8 y listas web como YouTube</string>
+   <string name="playlist_import_success">Lista guardada en Listas de reproducción</string>
+diff --git a/app/src/main/res/values-fr/strings.xml b/app/src/main/res/values-fr/strings.xml
+index a6015e87..15e7ccd2 100644
+--- a/app/src/main/res/values-fr/strings.xml
++++ b/app/src/main/res/values-fr/strings.xml
+@@ -569,6 +569,22 @@ Suivant : NEXT</string>
+   <string name="playlist_favorite_songs">Morceaux favoris</string>
+   <string name="playlist_favorite_videos">Vidéos favorites</string>
+   <string name="playlist_online_badge">En ligne</string>
++  <string name="playlist_xtream_badge">Xtream</string>
++  <string name="playlist_xtream_add_action">Ajouter Xtream Codes</string>
++  <string name="playlist_xtream_add_action_description">Importer une playlist avec votre compte fournisseur</string>
++  <string name="playlist_xtream_add_title">Ajouter une playlist Xtream Codes</string>
++  <string name="playlist_xtream_add_description">Saisissez l’adresse du serveur et les identifiants fournis par votre fournisseur IPTV.</string>
++  <string name="playlist_xtream_server_url">URL du serveur</string>
++  <string name="playlist_xtream_server_placeholder">https://provider.example:443</string>
++  <string name="playlist_xtream_username">Nom d’utilisateur</string>
++  <string name="playlist_xtream_password">Mot de passe</string>
++  <string name="playlist_xtream_show_password">Afficher le mot de passe</string>
++  <string name="playlist_xtream_hide_password">Masquer le mot de passe</string>
++  <string name="playlist_xtream_url_error">Saisissez une URL de serveur complète commençant par http:// ou https://, sans identifiants, paramètres de requête ni fragment.</string>
++  <string name="playlist_xtream_connect">Se connecter et importer</string>
++  <string name="playlist_xtream_import_success">La playlist Xtream a été enregistrée dans les playlists</string>
++  <string name="playlist_xtream_import_error">Impossible d’ajouter la playlist Xtream : %1$s</string>
++  <string name="playlist_empty_description">Créez une playlist, importez une URL M3U ou ajoutez un compte Xtream</string>
+   <string name="playlist_add_remote_title">Ajouter une liste de lecture</string>
+   <string name="playlist_remote_url_hint">Compatible avec M3U/M3U8 et les listes de lecture web comme YouTube</string>
+   <string name="playlist_import_success">Liste enregistrée dans Listes de lecture</string>
+diff --git a/app/src/main/res/values-hi/strings.xml b/app/src/main/res/values-hi/strings.xml
+index 5d23a179..1d4ea8ca 100644
+--- a/app/src/main/res/values-hi/strings.xml
++++ b/app/src/main/res/values-hi/strings.xml
+@@ -563,6 +563,22 @@
+   <string name="playlist_favorite_songs">पसंदीदा गाने</string>
+   <string name="playlist_favorite_videos">पसंदीदा वीडियो</string>
+   <string name="playlist_online_badge">ऑनलाइन</string>
++  <string name="playlist_xtream_badge">Xtream</string>
++  <string name="playlist_xtream_add_action">Xtream Codes जोड़ें</string>
++  <string name="playlist_xtream_add_action_description">अपने प्रदाता खाते से प्लेलिस्ट इंपोर्ट करें</string>
++  <string name="playlist_xtream_add_title">Xtream Codes प्लेलिस्ट जोड़ें</string>
++  <string name="playlist_xtream_add_description">अपने IPTV प्रदाता द्वारा दिया गया सर्वर पता और खाता विवरण दर्ज करें।</string>
++  <string name="playlist_xtream_server_url">सर्वर URL</string>
++  <string name="playlist_xtream_server_placeholder">https://provider.example:443</string>
++  <string name="playlist_xtream_username">यूज़रनेम</string>
++  <string name="playlist_xtream_password">पासवर्ड</string>
++  <string name="playlist_xtream_show_password">पासवर्ड दिखाएँ</string>
++  <string name="playlist_xtream_hide_password">पासवर्ड छिपाएँ</string>
++  <string name="playlist_xtream_url_error">बिना क्रेडेंशियल, क्वेरी पैरामीटर या फ़्रैगमेंट के http:// या https:// से शुरू होने वाला पूरा सर्वर URL दर्ज करें।</string>
++  <string name="playlist_xtream_connect">कनेक्ट और इंपोर्ट करें</string>
++  <string name="playlist_xtream_import_success">Xtream प्लेलिस्ट, प्लेलिस्ट में सेव हो गई</string>
++  <string name="playlist_xtream_import_error">Xtream प्लेलिस्ट नहीं जोड़ी जा सकी: %1$s</string>
++  <string name="playlist_empty_description">प्लेलिस्ट बनाएँ, M3U URL इंपोर्ट करें या Xtream खाता जोड़ें</string>
+   <string name="playlist_add_remote_title">प्लेलिस्ट जोड़ें</string>
+   <string name="playlist_remote_url_hint">M3U/M3U8 और YouTube जैसी वेब प्लेलिस्ट का समर्थन करता है</string>
+   <string name="playlist_import_success">प्लेलिस्ट, प्लेलिस्ट अनुभाग में सहेजी गई</string>
+diff --git a/app/src/main/res/values-ja/strings.xml b/app/src/main/res/values-ja/strings.xml
+index 324d394a..93a130a2 100644
+--- a/app/src/main/res/values-ja/strings.xml
++++ b/app/src/main/res/values-ja/strings.xml
+@@ -569,6 +569,22 @@
+   <string name="playlist_favorite_songs">お気に入りの曲</string>
+   <string name="playlist_favorite_videos">お気に入りの動画</string>
+   <string name="playlist_online_badge">オンライン</string>
++  <string name="playlist_xtream_badge">Xtream</string>
++  <string name="playlist_xtream_add_action">Xtream Codesを追加</string>
++  <string name="playlist_xtream_add_action_description">プロバイダーのアカウントでプレイリストをインポートします</string>
++  <string name="playlist_xtream_add_title">Xtream Codesプレイリストを追加</string>
++  <string name="playlist_xtream_add_description">IPTVプロバイダーから提供されたサーバーアドレスとアカウント情報を入力してください。</string>
++  <string name="playlist_xtream_server_url">サーバーURL</string>
++  <string name="playlist_xtream_server_placeholder">https://provider.example:443</string>
++  <string name="playlist_xtream_username">ユーザー名</string>
++  <string name="playlist_xtream_password">パスワード</string>
++  <string name="playlist_xtream_show_password">パスワードを表示</string>
++  <string name="playlist_xtream_hide_password">パスワードを非表示</string>
++  <string name="playlist_xtream_url_error">認証情報、クエリパラメーター、フラグメントを含まない、http:// または https:// で始まる完全なサーバーURLを入力してください。</string>
++  <string name="playlist_xtream_connect">接続してインポート</string>
++  <string name="playlist_xtream_import_success">Xtreamプレイリストをプレイリストに保存しました</string>
++  <string name="playlist_xtream_import_error">Xtreamプレイリストを追加できませんでした: %1$s</string>
++  <string name="playlist_empty_description">プレイリストを作成するか、M3U URLまたはXtreamアカウントを追加してください</string>
+   <string name="playlist_add_remote_title">プレイリストを追加</string>
+   <string name="playlist_remote_url_hint">M3U/M3U8 と YouTube などのウェブプレイリストに対応</string>
+   <string name="playlist_import_success">プレイリストに保存しました</string>
+diff --git a/app/src/main/res/values-pt-rBR/strings.xml b/app/src/main/res/values-pt-rBR/strings.xml
+index dcbf2577..8ea2880f 100644
+--- a/app/src/main/res/values-pt-rBR/strings.xml
++++ b/app/src/main/res/values-pt-rBR/strings.xml
+@@ -569,6 +569,22 @@ Próximo: NEXT</string>
+   <string name="playlist_favorite_songs">Músicas favoritas</string>
+   <string name="playlist_favorite_videos">Vídeos favoritos</string>
+   <string name="playlist_online_badge">Online</string>
++  <string name="playlist_xtream_badge">Xtream</string>
++  <string name="playlist_xtream_add_action">Adicionar Xtream Codes</string>
++  <string name="playlist_xtream_add_action_description">Importe uma playlist usando sua conta do provedor</string>
++  <string name="playlist_xtream_add_title">Adicionar playlist Xtream Codes</string>
++  <string name="playlist_xtream_add_description">Insira o endereço do servidor e os dados da conta fornecidos pelo seu provedor de IPTV.</string>
++  <string name="playlist_xtream_server_url">URL do servidor</string>
++  <string name="playlist_xtream_server_placeholder">https://provider.example:443</string>
++  <string name="playlist_xtream_username">Nome de usuário</string>
++  <string name="playlist_xtream_password">Senha</string>
++  <string name="playlist_xtream_show_password">Mostrar senha</string>
++  <string name="playlist_xtream_hide_password">Ocultar senha</string>
++  <string name="playlist_xtream_url_error">Insira uma URL completa do servidor começando com http:// ou https://, sem credenciais, parâmetros de consulta ou fragmento.</string>
++  <string name="playlist_xtream_connect">Conectar e importar</string>
++  <string name="playlist_xtream_import_success">A playlist Xtream foi salva em Playlists</string>
++  <string name="playlist_xtream_import_error">Não foi possível adicionar a playlist Xtream: %1$s</string>
++  <string name="playlist_empty_description">Crie uma playlist, importe uma URL M3U ou adicione uma conta Xtream</string>
+   <string name="playlist_add_remote_title">Adicionar playlist</string>
+   <string name="playlist_remote_url_hint">Compatível com M3U/M3U8 e playlists da web, como YouTube</string>
+   <string name="playlist_import_success">Playlist salva em Playlists</string>
+diff --git a/app/src/main/res/values-ru/strings.xml b/app/src/main/res/values-ru/strings.xml
+index 3bad851d..be665a56 100644
+--- a/app/src/main/res/values-ru/strings.xml
++++ b/app/src/main/res/values-ru/strings.xml
+@@ -569,6 +569,22 @@
+   <string name="playlist_favorite_songs">Любимые песни</string>
+   <string name="playlist_favorite_videos">Любимые видео</string>
+   <string name="playlist_online_badge">Онлайн</string>
++  <string name="playlist_xtream_badge">Xtream</string>
++  <string name="playlist_xtream_add_action">Добавить Xtream Codes</string>
++  <string name="playlist_xtream_add_action_description">Импортировать плейлист с помощью учётной записи провайдера</string>
++  <string name="playlist_xtream_add_title">Добавить плейлист Xtream Codes</string>
++  <string name="playlist_xtream_add_description">Введите адрес сервера и данные учётной записи, предоставленные вашим IPTV-провайдером.</string>
++  <string name="playlist_xtream_server_url">URL сервера</string>
++  <string name="playlist_xtream_server_placeholder">https://provider.example:443</string>
++  <string name="playlist_xtream_username">Имя пользователя</string>
++  <string name="playlist_xtream_password">Пароль</string>
++  <string name="playlist_xtream_show_password">Показать пароль</string>
++  <string name="playlist_xtream_hide_password">Скрыть пароль</string>
++  <string name="playlist_xtream_url_error">Введите полный URL сервера, начинающийся с http:// или https://, без учётных данных, параметров запроса и фрагмента.</string>
++  <string name="playlist_xtream_connect">Подключиться и импортировать</string>
++  <string name="playlist_xtream_import_success">Плейлист Xtream сохранён в разделе плейлистов</string>
++  <string name="playlist_xtream_import_error">Не удалось добавить плейлист Xtream: %1$s</string>
++  <string name="playlist_empty_description">Создайте плейлист, импортируйте URL M3U или добавьте учётную запись Xtream</string>
+   <string name="playlist_add_remote_title">Добавить плейлист</string>
+   <string name="playlist_remote_url_hint">Поддерживаются M3U/M3U8 и веб-плейлисты, например YouTube</string>
+   <string name="playlist_import_success">Плейлист сохранён в разделе «Плейлисты»</string>
+diff --git a/app/src/main/res/values-zh-rCN/strings.xml b/app/src/main/res/values-zh-rCN/strings.xml
+index 65d06a87..21a45ec6 100644
+--- a/app/src/main/res/values-zh-rCN/strings.xml
++++ b/app/src/main/res/values-zh-rCN/strings.xml
+@@ -571,6 +571,22 @@
+   <string name="playlist_favorite_songs">喜爱的歌曲</string>
+   <string name="playlist_favorite_videos">喜爱的视频</string>
+   <string name="playlist_online_badge">在线</string>
++  <string name="playlist_xtream_badge">Xtream</string>
++  <string name="playlist_xtream_add_action">添加 Xtream Codes</string>
++  <string name="playlist_xtream_add_action_description">使用服务提供商账户导入播放列表</string>
++  <string name="playlist_xtream_add_title">添加 Xtream Codes 播放列表</string>
++  <string name="playlist_xtream_add_description">请输入 IPTV 服务提供商提供的服务器地址和账户信息。</string>
++  <string name="playlist_xtream_server_url">服务器 URL</string>
++  <string name="playlist_xtream_server_placeholder">https://provider.example:443</string>
++  <string name="playlist_xtream_username">用户名</string>
++  <string name="playlist_xtream_password">密码</string>
++  <string name="playlist_xtream_show_password">显示密码</string>
++  <string name="playlist_xtream_hide_password">隐藏密码</string>
++  <string name="playlist_xtream_url_error">请输入以 http:// 或 https:// 开头且不含凭据、查询参数或片段的完整服务器 URL。</string>
++  <string name="playlist_xtream_connect">连接并导入</string>
++  <string name="playlist_xtream_import_success">Xtream 播放列表已保存到播放列表</string>
++  <string name="playlist_xtream_import_error">无法添加 Xtream 播放列表：%1$s</string>
++  <string name="playlist_empty_description">创建播放列表、导入 M3U URL 或添加 Xtream 账户</string>
+   <string name="playlist_add_remote_title">添加播放列表</string>
+   <string name="playlist_remote_url_hint">支持 M3U/M3U8 和 YouTube 等网络播放列表</string>
+   <string name="playlist_import_success">播放列表已保存到“播放列表”</string>
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index acdfb90b..7c2e8a20 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -666,6 +666,22 @@
+   <string name="playlist_favorite_songs">Favorite Songs</string>
+   <string name="playlist_favorite_videos">Favorite Videos</string>
+   <string name="playlist_online_badge">Online</string>
++  <string name="playlist_xtream_badge">Xtream</string>
++  <string name="playlist_xtream_add_action">Add Xtream Codes</string>
++  <string name="playlist_xtream_add_action_description">Import a playlist using your provider account</string>
++  <string name="playlist_xtream_add_title">Add Xtream Codes Playlist</string>
++  <string name="playlist_xtream_add_description">Enter the server address and account details supplied by your IPTV provider.</string>
++  <string name="playlist_xtream_server_url">Server URL</string>
++  <string name="playlist_xtream_server_placeholder">https://provider.example:443</string>
++  <string name="playlist_xtream_username">Username</string>
++  <string name="playlist_xtream_password">Password</string>
++  <string name="playlist_xtream_show_password">Show password</string>
++  <string name="playlist_xtream_hide_password">Hide password</string>
++  <string name="playlist_xtream_url_error">Enter a complete http:// or https:// server URL without credentials, query parameters, or a fragment.</string>
++  <string name="playlist_xtream_connect">Connect and Import</string>
++  <string name="playlist_xtream_import_success">Xtream playlist saved in Playlists</string>
++  <string name="playlist_xtream_import_error">Couldn’t add Xtream playlist: %1$s</string>
++  <string name="playlist_empty_description">Create a playlist, import an M3U URL, or add an Xtream account</string>
+   <string name="playlist_add_remote_title">Add Playlist</string>
+   <string name="playlist_remote_url_hint">Supports M3U/M3U8 and web playlists such as YouTube</string>
+   <string name="playlist_import_success">Playlist saved in Playlists</string>
+-- 
+2.25.1
+

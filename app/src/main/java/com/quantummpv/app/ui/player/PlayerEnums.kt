@@ -46,6 +46,7 @@ enum class ResumePlaybackMode(
 }
 
 enum class VideoAspect(
+
   @StringRes val titleRes: Int,
 ) {
   Crop(R.string.player_aspect_crop),

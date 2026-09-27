@@ -1,0 +1,46 @@
+---
+title: Orientation, background playback, and PiP
+description: Control rotation, keep media playing outside the player, and understand picture-in-picture handoffs.
+---
+
+## Orientation modes
+
+mpvRx exposes eight orientation choices:
+
+| Mode | Behavior |
+| --- | --- |
+| Free | Follow normal device rotation. |
+| Video | Choose portrait or landscape from the media dimensions. |
+| Portrait | Lock to normal portrait. |
+| Reverse portrait | Lock to upside-down portrait. |
+| Sensor portrait | Rotate only between portrait directions. |
+| Landscape | Lock to normal landscape. |
+| Reverse landscape | Lock to the opposite landscape direction. |
+| Sensor landscape | Rotate only between landscape directions. |
+
+Per-video orientation memory can restore a media-specific choice the next time the same item opens. Use a fixed mode when sensor changes are distracting, and Video mode when mixed portrait/landscape libraries should choose automatically.
+
+## Unified background playback
+
+Background playback keeps the active queue alive when you return to browser screens or leave the foreground. Audio and video share one persistent playback session, so changing tabs should not create a second queue.
+
+Android may require notification permission for transport controls. Aggressive vendor battery optimization can still stop long-running background work; exempt mpvRx only when the device actually interrupts playback.
+
+## Picture-in-picture
+
+PiP places video in Android's floating player while another app is active. Expanding PiP returns to the full player without restarting media, and closing the PiP window stops the active playback session.
+
+If PiP does not appear:
+
+1. Confirm Android allows PiP for mpvRx.
+2. Confirm a video, rather than audio-only media, is active.
+3. Disable custom window or orientation overrides temporarily.
+4. Check whether the device vendor blocks PiP in battery or multitasking settings.
+
+## Mini-player handoff
+
+Back navigation may return to the browser with a mini-player instead of stopping playback. Opening the mini-player restores the same queue and position. If a handoff opens the wrong item, report the exact source type, queue order, and navigation path.
+
+## Notifications
+
+Media notifications expose transport and close actions for the active session. Android 13 and newer require notification permission. Notification style and chapter progress options depend on Android version and the selected player settings.

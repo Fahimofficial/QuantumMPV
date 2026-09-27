@@ -1,0 +1,145 @@
+From a1aa0ef271baaa06f608385f220392a35b0bd18f Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <riteshp2001@gmail.com>
+Date: Thu, 17 Sep 2026 11:33:52 +0530
+Subject: [PATCH 116/140] fix(player): avoid redundant network lyrics probes
+
+Limit automatic lyrics to audio, skip remote metadata retriever fallbacks, and deduplicate active lyric lookups.
+---
+ .../mpvrx/ui/player/PlayerViewModel.kt        | 16 ++++++--
+ .../utils/media/EmbeddedLyricsExtractor.kt    | 38 +++++++++++--------
+ 2 files changed, 36 insertions(+), 18 deletions(-)
+
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt b/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
+index 9b664b50..09a28c02 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
+@@ -1113,6 +1113,7 @@ class PlayerViewModel : ViewModel(),
+   fun loadLyricsForCurrentTrack(forceRefresh: Boolean = false) {
+     val path = PlaybackSession.getPropertyString("path") ?: PlaybackSession.getPropertyString("stream-open-filename") ?: return
+     if (path.isBlank()) return
++    val generation = PlaybackSession.state.value.generation
+ 
+     val title = currentMediaTitle.takeIf { it.isNotBlank() }
+       ?: PlaybackSession.getPropertyString("metadata/by-key/Title")
+@@ -1126,7 +1127,10 @@ class PlayerViewModel : ViewModel(),
+ 
+     val duration = PlaybackSession.getPropertyInt("duration") ?: 0
+     val request = LyricsLoadRequest(path, title, artist, duration)
+-    if (!forceRefresh && request == lastLyricsLoadRequest) return
++    if (
++      !forceRefresh && lastLyricsLoadRequest?.path == path &&
++      (lyricsLoadJob?.isActive == true || request == lastLyricsLoadRequest)
++    ) return
+     lastLyricsLoadRequest = request
+ 
+     lyricsUiState.value = lyricsUiState.value.copy(isLoading = true, errorMessage = null, syncOffsetMs = 0)
+@@ -1150,7 +1154,7 @@ class PlayerViewModel : ViewModel(),
+       // result if we're still on the same track (extra guard on top of job cancellation).
+       val stillCurrentPath = PlaybackSession.getPropertyString("path")
+         ?: PlaybackSession.getPropertyString("stream-open-filename")
+-      if (stillCurrentPath != path) return@launch
++      if (!PlaybackSession.isCurrentGeneration(generation) || stillCurrentPath != path) return@launch
+ 
+       val activeIndex = com.quantummpv.app.utils.media.LyricsUtils.getActiveLineIndex(
+         syncedLines = result.activeLyrics?.synced,
+@@ -2298,6 +2302,12 @@ val isBrightnessSliderShown = MutableStateFlow(false)
+   }
+ 
+   fun onVideoLoadStarted() {
++    lyricsLoadJob?.cancel()
++    lyricsLoadJob = null
++    lyricsTranslateJob?.cancel()
++    lyricsTranslateJob = null
++    lastLyricsLoadRequest = null
++    lyricsUiState.value = LyricsUiState()
+     stopRealtimeSubtitles(showToastMessage = false)
+     introLookupJob?.cancel()
+     cancelAutoCropAnalysis()
+@@ -2338,7 +2348,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
+     }
+     syncplayManager.updateFileInfo(currentSyncplayFileInfo())
+     applyEqualizerMpvFilters()
+-    loadLyricsForCurrentTrack()
++    if (isAudioOnly.value) loadLyricsForCurrentTrack()
+     scheduleAutoCropAnalysis()
+   }
+ 
+diff --git a/app/src/main/java/com/quantummpv/app/utils/media/EmbeddedLyricsExtractor.kt b/app/src/main/java/com/quantummpv/app/utils/media/EmbeddedLyricsExtractor.kt
+index b6b14205..d02f75a6 100644
+--- a/app/src/main/java/com/quantummpv/app/utils/media/EmbeddedLyricsExtractor.kt
++++ b/app/src/main/java/com/quantummpv/app/utils/media/EmbeddedLyricsExtractor.kt
+@@ -12,6 +12,8 @@ import com.quantummpv.app.domain.lyrics.Lyrics
+ import com.quantummpv.app.domain.lyrics.LyricsSourceType
+ import com.quantummpv.app.ui.player.PlaybackSession
+ import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.currentCoroutineContext
++import kotlinx.coroutines.ensureActive
+ import kotlinx.coroutines.withContext
+ import java.io.File
+ 
+@@ -23,9 +25,15 @@ object EmbeddedLyricsExtractor {
+     mediaPath: String?,
+   ): Lyrics? = withContext(Dispatchers.IO) {
+     if (mediaPath.isNullOrBlank()) return@withContext null
++    currentCoroutineContext().ensureActive()
++    val sourceUri = Uri.parse(mediaPath)
++    val scheme = sourceUri.scheme
++    val isLocalSource =
++      scheme.isNullOrBlank() || scheme.equals("file", ignoreCase = true) ||
++        scheme.equals("content", ignoreCase = true) || scheme.equals("android.resource", ignoreCase = true)
+ 
+     // 1. Try reading local .lrc file next to audio file first
+-    val localLrcLyrics = findLocalLrcFile(mediaPath)
++    val localLrcLyrics = if (isLocalSource) findLocalLrcFile(mediaPath) else null
+     if (localLrcLyrics != null && localLrcLyrics.isValid()) {
+       Log.d(TAG, "Found local .lrc file for: $mediaPath")
+       return@withContext localLrcLyrics
+@@ -41,6 +49,9 @@ object EmbeddedLyricsExtractor {
+       }
+     }
+ 
++    if (!isLocalSource) return@withContext null
++    currentCoroutineContext().ensureActive()
++
+     // 3. Fallback: Direct ID3v2 parser from media file / content stream
+     val id3Lyrics = findLyricsDirectlyFromMedia(context, mediaPath)
+     if (id3Lyrics != null) {
+@@ -52,24 +63,21 @@ object EmbeddedLyricsExtractor {
+     }
+ 
+     // 4. Fallback to MediaMetadataRetriever (for supported platforms)
++    currentCoroutineContext().ensureActive()
+     runCatching {
+       val retriever = MediaMetadataRetriever()
+-      val cleanPath = when {
+-        mediaPath.startsWith("file://") -> mediaPath.removePrefix("file://")
+-        mediaPath.startsWith("content://") -> null
+-        else -> mediaPath
+-      }
+-
+-      if (cleanPath != null) {
+-        retriever.setDataSource(cleanPath)
+-      } else {
+-        retriever.setDataSource(context, Uri.parse(mediaPath))
++      val rawLyrics = try {
++        when {
++          scheme.isNullOrBlank() -> retriever.setDataSource(mediaPath)
++          scheme.equals("file", ignoreCase = true) -> retriever.setDataSource(sourceUri.path)
++          else -> retriever.setDataSource(context, sourceUri)
++        }
++        // Key 1000 represents METADATA_KEY_LYRICS in vendor MediaMetadataRetriever extensions
++        retriever.extractMetadata(1000)
++      } finally {
++        retriever.release()
+       }
+ 
+-      // Key 1000 represents METADATA_KEY_LYRICS in vendor MediaMetadataRetriever extensions
+-      val rawLyrics = retriever.extractMetadata(1000)
+-      retriever.release()
+-
+       if (!rawLyrics.isNullOrBlank()) {
+         val parsed = LyricsUtils.parseLyrics(rawLyrics, sourceType = LyricsSourceType.EMBEDDED)
+         if (parsed.isValid()) {
+-- 
+2.25.1
+

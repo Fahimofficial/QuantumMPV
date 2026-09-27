@@ -1,0 +1,54 @@
+From 11fa988be3d166e5979534b0aa6513fbfa82cdea Mon Sep 17 00:00:00 2001
+From: Arnab Sadhukhan <arnab@Arnabs-Mac-Mini.local>
+Date: Wed, 9 Sep 2026 20:46:36 +0530
+Subject: [PATCH 074/140] fix(jellyfin): fix series filtering and add fallback
+ for library latest sections
+
+---
+ .../ui/browser/jellyfin/JellyfinViewModel.kt  | 22 +++++++++++++++----
+ 1 file changed, 18 insertions(+), 4 deletions(-)
+
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinViewModel.kt b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinViewModel.kt
+index 714a339c..3c7d8437 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinViewModel.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinViewModel.kt
+@@ -340,9 +340,10 @@ class JellyfinViewModel(
+         val topRatedRaw = topRatedResult.getOrNull()?.items ?: emptyList()
+         val musicRaw = musicResult.getOrNull()?.items ?: emptyList()
+ 
+-        // Helper filter to exclude music and folders from general video home sections
++        // Helper filter to exclude music and pure folders from general video home sections
+         fun isVideoMedia(item: JellyfinItem): Boolean {
+-          if (item.isAudio || item.isFolder || item.type == "Folder" || item.type == "MusicAlbum" || item.type == "Audio" || item.type == "MusicArtist" || item.type == "CollectionFolder") return false
++          if (item.isAudio || item.type == "Folder" || item.type == "MusicAlbum" || item.type == "Audio" || item.type == "MusicArtist" || item.type == "CollectionFolder") return false
++          if (item.isFolder && !item.isSeries && !item.isSeason && item.type != "Series" && item.type != "Season") return false
+           return true
+         }
+ 
+@@ -359,8 +360,21 @@ class JellyfinViewModel(
+               limit = 16,
+               groupItems = true,
+             )
+-            val rawItems = latestItemsResult.getOrDefault(emptyList()).filter { isVideoMedia(it) }
+-            val containsShows = rawItems.any { it.isSeries || it.type == "Episode" || it.seriesName != null }
++            var rawItems = latestItemsResult.getOrDefault(emptyList()).filter { isVideoMedia(it) }
++
++            // Fallback: If getLatestMedia with ParentId returned empty, fetch latest items sorted by DateCreated
++            if (rawItems.isEmpty()) {
++              val fallbackItemsResult = jellyfinRepository.getItems(
++                server = server,
++                parentId = lib.id,
++                sortBy = JellyfinSortBy.DATE_ADDED,
++                sortOrder = JellyfinSortOrder.DESCENDING,
++                limit = 16,
++              )
++              rawItems = fallbackItemsResult.getOrNull()?.items.orEmpty().filter { isVideoMedia(it) }
++            }
++
++            val containsShows = rawItems.any { it.isSeries || it.type == "Series" || it.type == "Episode" || it.seriesName != null }
+             val isShows = isShowLib || containsShows
+ 
+             val processedItems = if (isShows) {
+-- 
+2.25.1
+

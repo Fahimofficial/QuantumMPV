@@ -1,0 +1,3766 @@
+From 3b92b32d60f2fd13ed58fd857bd1dd1b3b4028dd Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <87899750+Riteshp2001@users.noreply.github.com>
+Date: Tue, 8 Sep 2026 05:41:26 +0000
+Subject: [PATCH 048/140] fix(ui): stabilize tab navigation and return through
+ Home
+
+Consolidate the three navigation fixes: native main-tab swipe ownership, fixed-slot animated navigation dock, foreground-gated interactions, Home-first Back handling, consistent screen transitions, and off-main-thread music processing. Retain the layout import required for dock positioning.
+
+Remove the Python regression script introduced in this series as requested. Static guards passed before removal; no local Android build or compilation run.
+---
+ .github/PULL_REQUEST_TEMPLATE.md              |  22 +
+ CITATION.md                                   |  61 ++
+ CODE_OF_CONDUCT.md                            |  42 ++
+ README.md                                     |  83 ++-
+ SUPPORT.md                                    |  40 ++
+ .../java/com/quantummpv/app/MainActivity.kt    | 152 +----
+ .../preferences/AppearancePreferences.kt      |   1 -
+ .../mpvrx/preferences/PlayerPreferences.kt    |   4 +-
+ .../gyrolet/mpvrx/ui/browser/MainScreen.kt    | 613 +++++++-----------
+ .../browser/NavigationBarSelectionEffect.kt   |  21 +
+ .../mpvrx/ui/browser/NavigationBarState.kt    |  14 +
+ .../browser/dialogs/VideoCompressorOverlay.kt |   2 +-
+ .../filesystem/FileSystemBrowserScreen.kt     |  45 +-
+ .../ui/browser/folderlist/FolderListScreen.kt |  34 +-
+ .../ui/browser/jellyfin/JellyfinContent.kt    |  59 +-
+ .../ui/browser/jellyfin/JellyfinMusicView.kt  |   5 +-
+ .../ui/browser/jellyfin/seerr/SeerrContent.kt |   2 +-
+ .../medialibrary/MediaLibraryContent.kt       |  19 +-
+ .../ui/browser/music/MusicLibraryContent.kt   |  76 +--
+ .../ui/browser/music/MusicLibraryViewModel.kt |  53 +-
+ .../ui/browser/navidrome/NavidromeContent.kt  |  37 +-
+ .../browser/navidrome/NavidromeMusicView.kt   |   4 +-
+ .../NetworkBookmarksScreen.kt                 |   5 +-
+ .../networkstreaming/NetworkBrowserScreen.kt  |   9 +-
+ .../NetworkStreamingScreen.kt                 |  23 +-
+ .../playlist/PlaylistAddVideosScreen.kt       |   2 +-
+ .../browser/playlist/PlaylistDetailScreen.kt  |   5 +-
+ .../ui/browser/playlist/PlaylistScreen.kt     |  15 +-
+ .../recentlyplayed/RecentlyPlayedScreen.kt    |  38 +-
+ .../browser/states/PermissionDeniedState.kt   |   2 +-
+ .../ui/browser/videolist/VideoListScreen.kt   |  20 +-
+ .../mpvrx/ui/player/AnimationStyles.kt        |   7 +-
+ .../mpvrx/ui/preferences/AboutScreen.kt       |   3 +-
+ .../preferences/AdvancedPreferencesScreen.kt  |  11 +-
+ .../AppearancePreferencesScreen.kt            |  23 +-
+ .../ui/preferences/ConfigEditorScreen.kt      |   3 +-
+ .../ui/preferences/LuaScriptEditorScreen.kt   |   3 +-
+ .../mpvrx/ui/preferences/LuaScriptsScreen.kt  |   5 +-
+ .../MpvConfigOverridePreference.kt            |   3 +-
+ .../PlayerControlsPreferencesScreen.kt        |   9 +-
+ .../mpvrx/ui/preferences/PreferencesScreen.kt |  39 +-
+ .../ui/preferences/SearchablePreference.kt    |   1 -
+ .../ui/preferences/SettingsSearchScreen.kt    |   3 +-
+ .../ui/securefolder/SecureFolderScreen.kt     |   4 +-
+ .../mpvrx/ui/utils/NavBackStackExtensions.kt  |   5 +
+ .../gyrolet/mpvrx/ui/utils/NavigationPager.kt | 135 ++++
+ .../mpvrx/ui/utils/ScreenNavigation.kt        | 122 ++++
+ app/src/main/res/values/strings.xml           |   4 +-
+ gradle/libs.versions.toml                     |   4 +-
+ 49 files changed, 1016 insertions(+), 876 deletions(-)
+ create mode 100644 .github/PULL_REQUEST_TEMPLATE.md
+ create mode 100644 CITATION.md
+ create mode 100644 CODE_OF_CONDUCT.md
+ create mode 100644 SUPPORT.md
+ create mode 100644 app/src/main/java/com/quantummpv/app/ui/browser/NavigationBarSelectionEffect.kt
+ create mode 100644 app/src/main/java/com/quantummpv/app/ui/utils/NavigationPager.kt
+ create mode 100644 app/src/main/java/com/quantummpv/app/ui/utils/ScreenNavigation.kt
+
+diff --git a/.github/PULL_REQUEST_TEMPLATE.md b/.github/PULL_REQUEST_TEMPLATE.md
+new file mode 100644
+index 00000000..f0707af1
+--- /dev/null
++++ b/.github/PULL_REQUEST_TEMPLATE.md
+@@ -0,0 +1,22 @@
++## Summary
++
++<!-- Explain what changed and why. Link any related issue. -->
++
++## Validation
++
++<!-- List the checks you actually ran and their results. State what was not run and why.
++For UI/playback changes, include the device, Android version, APK variant, and relevant scenarios.
++Documentation-only changes can list link and formatting checks; do not claim an unrun build passed. -->
++
++## Screenshots or recordings
++
++<!-- For visible UI changes, include before/after examples when available. Otherwise write N/A. -->
++
++## Checklist
++
++- [ ] This PR is focused on the described change, with unrelated edits left out.
++- [ ] I have recorded validation results and any remaining limitations above.
++- [ ] User-facing documentation is updated where applicable.
++- [ ] Upstream credits and license notices are preserved for adapted code or assets.
++- [ ] Logs, screenshots, and code do not expose credentials or private information.
++- [ ] I have read the [Code of Conduct](https://github.com/Riteshp2001/mpvRx/blob/master/CODE_OF_CONDUCT.md).
+diff --git a/CITATION.md b/CITATION.md
+new file mode 100644
+index 00000000..4fbb5c64
+--- /dev/null
++++ b/CITATION.md
+@@ -0,0 +1,61 @@
++# Credits and citation information
++
++mpvRx is part of an open-source media ecosystem. This page preserves the project's acknowledgments and links to the people and projects being credited.
++
++## Citing mpvRx
++
++When mentioning, reviewing, or building on mpvRx, link to the [project repository](https://github.com/Riteshp2001/mpvRx). Include the release tag or commit you used so others can identify the same version.
++
++Suggested plain-text reference:
++
++```text
++mpvRx contributors. mpvRx — Android video and music player.
++https://github.com/Riteshp2001/mpvRx
++Version: <release tag or commit hash>
++```
++
++## Open-source acknowledgments
++
++The groups below organize the existing credits by project type; they are not an exhaustive dependency inventory or a claim that every project is bundled in the app.
++
++### Playback & player projects
++
++| Project | Source |
++|---|---|
++| mpv-android | [mpv-android on GitHub](https://github.com/mpv-android) |
++| mpvExtended | [marlboro-advance/mpvEx](https://github.com/marlboro-advance/mpvEx) |
++| mpvKt | [abdallahmehiz/mpvKt](https://github.com/abdallahmehiz/mpvKt) |
++| MpvRex | [sfsakhawat999/mpvRex](https://github.com/sfsakhawat999/mpvRex) |
++| Next Player | [anilbeesetti/nextplayer](https://github.com/anilbeesetti/nextplayer) |
++
++### Music & media apps
++
++| Project | Source |
++|---|---|
++| PixelPlayer | [theovilardo/PixelPlayer](https://github.com/theovilardo/PixelPlayer) |
++| Gramophone | [FoedusProgramme/Gramophone](https://github.com/FoedusProgramme/Gramophone) |
++| AFinity | [MakD/AFinity](https://github.com/MakD/AFinity) |
++| Chora | [CraftWorksMC/Chora](https://github.com/CraftWorksMC/Chora) |
++
++### Video processing & streaming
++
++| Project | Source |
++|---|---|
++| hdr-toys | [natural-harmonia-gropius/hdr-toys](https://github.com/natural-harmonia-gropius/hdr-toys) |
++| anacrolix/torrent | [anacrolix/torrent](https://github.com/anacrolix/torrent) |
++
++### Individual contributions
++
++| Contributor | Acknowledgment |
++|---|---|
++| [SunnyVishnu3](https://github.com/SunnyVishnu3) | `yt-dlp` native integration and SDK 29+ bypass logic |
++
++Thank you also to everyone contributing code, translations, documentation, bug reports, and testing. The [GitHub contributor history](https://github.com/Riteshp2001/mpvRx/graphs/contributors) records repository contributions.
++
++## Keeping credits accurate
++
++Preserve upstream copyright and license notices when adapting code or assets. These acknowledgments supplement, rather than replace, the [project license](LICENSE) and notices accompanying third-party work.
++
++If a credit is missing or incorrect, [open an issue](https://github.com/Riteshp2001/mpvRx/issues/new) or a pull request with the relevant source link and the attribution to add or correct.
++
++[Back to the README](README.md#acknowledgments)
+diff --git a/CODE_OF_CONDUCT.md b/CODE_OF_CONDUCT.md
+new file mode 100644
+index 00000000..7f9f67de
+--- /dev/null
++++ b/CODE_OF_CONDUCT.md
+@@ -0,0 +1,42 @@
++# Code of Conduct
++
++mpvRx welcomes people with different backgrounds, experience levels, and ways of contributing. Everyone should be able to ask questions, report problems, and discuss changes without harassment or personal attacks.
++
++## Expected behavior
++
++- Be respectful and patient. Not everyone has the same devices, language skills, or technical experience.
++- Discuss the code, design, or behavior being reviewed—not the worth or motives of the person involved.
++- Give actionable feedback and accept corrections in good faith.
++- Respect other people's time. Search existing discussions, provide useful context, and avoid repeated demands for updates.
++- Credit other people's work and respect their privacy.
++- Follow reasonable moderation requests and help keep discussions focused.
++
++## Unacceptable behavior
++
++- Harassment, threats, intimidation, stalking, or discriminatory remarks.
++- Sexual harassment or unwelcome sexual content.
++- Personal insults, targeted humiliation, or sustained disruption of a discussion.
++- Publishing private information, messages, credentials, or identifying details without consent.
++- Spam, impersonation, retaliation against someone making a report, or attempts to evade moderation.
++
++Disagreement and criticism are welcome when expressed constructively. A rejected feature request or technical disagreement is not a reason to target another participant.
++
++## Scope
++
++This policy applies to this repository's issues, pull requests, reviews, and other project-managed spaces. It also applies when someone is explicitly representing mpvRx in a public space.
++
++## Reporting a concern
++
++Contact the [project maintainer](https://github.com/Riteshp2001) through a private contact method they make available. Include relevant links, a brief account of what happened, and any immediate concerns.
++
++If no private contact method is listed, open a brief issue asking for a private reporting channel. Do not include names, sensitive evidence, or the details of the report in that public request. You can also use GitHub's built-in reporting tools for conduct on GitHub.
++
++Share only the information needed to review the concern. Do not repost a report publicly or encourage others to target the people involved.
++
++## Moderation
++
++Maintainers may edit or remove inappropriate content, ask participants to change their behavior, close or lock discussions, or restrict participation when needed. The response should reflect the context, severity, and any repeated behavior.
++
++Reports should be handled with care for the privacy and safety of everyone involved. Someone with a conflict of interest should step back from reviewing a report when another maintainer is available. Requests to reconsider a moderation decision should use the same private reporting route and provide relevant context.
++
++[Project help and bug reports](SUPPORT.md) · [Back to the README](README.md)
+diff --git a/README.md b/README.md
+index f340ae43..d56a40b6 100644
+--- a/README.md
++++ b/README.md
+@@ -1,5 +1,5 @@
+ <p align="center">
+-  <img src="fastlane\metadata\android\en-US\images\icon.png" width="250" height="250" />
++  <img src="fastlane/metadata/android/en-US/images/icon.png" width="250" height="250" alt="mpvRx app icon" />
+ </p>
+ 
+ <h1 align="center">mpvRx</h1>
+@@ -87,7 +87,7 @@ mpvRx pushes the mpv-android experience further with deep customization, thermal
+ 
+ </details>
+ 
+-<details close>
++<details>
+ <summary><b>📺 HDR & Video Pipeline</b></summary>
+ 
+ | Feature | Description |
+@@ -97,6 +97,7 @@ mpvRx pushes the mpv-android experience further with deep customization, thermal
+ | **SDR-to-HDR Boost** | Boost SDR content into HDR range when using Linear HDR pipeline |
+ | **GPU Deband** | CPU (gradfun) or GPU deband with configurable iterations, threshold, range, grain |
+ | **Smart Render Backend** | Auto-selects between OpenGL/Vulkan and gpu/gpu-next based on device support |
++| **Automatic Black-Bar Cropping** | Optional analysis detects and removes encoded black borders on supported videos |
+ 
+ </details>
+ 
+@@ -161,7 +162,8 @@ mpvRx pushes the mpv-android experience further with deep customization, thermal
+ | **25+ Button Types** | Cast, Mirror, Vertical Flip, A-B Loop, Custom Skip, Background Playback, Ambient, and more |
+ | **Custom User Buttons** | Create arbitrary buttons executing Lua, JavaScript, or mpv commands |
+ | **Landscape/Portrait Adaptive Layouts** | Completely different control layouts per orientation |
+-| **"Slide to Unlock" Controls** | Slide mechanism when controls are locked |
++| **One-Tap Control Unlock** | When playback controls are locked, tap the unlock button at the top-left or top-right according to the side you touch |
++| **Double-Back Unlock** | While controls are locked, the first Back press shows a reminder; a second quick press unlocks them |
+ | **Hide Button Backgrounds** | Transparent buttons with only icons visible |
+ | **Centralized "More Sheet"** | Quick access to all player buttons and custom controls |
+ | **In-Player Settings** | Toggle 10+ settings (gestures, PiP, UI behavior) without leaving playback |
+@@ -211,6 +213,41 @@ mpvRx pushes the mpv-android experience further with deep customization, thermal
+ | **Syncplay Rooms** | Join a Syncplay server room to synchronize pause, resume, seeking, and playback position with other viewers |
+ | **Responsive & Dual-Pane Layouts** | Automatic grid sizing plus optional folder/settings dual-pane views on tablets |
+ | **Audio Library Mode** | MediaStore and filesystem audio browsing with square artwork, metadata titles, and mixed sibling playlists |
++| **Home-First Back Navigation** | Main tabs return to Home before Back exits the app; selection, search, and nested screens handle Back first |
++| **Swipeable Main Tabs** | Swipe between main destinations with a sliding dock highlight; nested category tabs remain selectable by tapping |
++</details>
++
++<details close>
++<summary><b>🎵 Music Library & Audio Player</b></summary>
++
++| Feature | Description |
++|---|---|
++| **Local Music Library** | Browse songs, albums, artists, and audio playlists with cover art, search, sorting, and grid/list views |
++| **Choose Your Music Source** | Switch the Music tab between local storage, Jellyfin, and Navidrome |
++| **Library Filters** | Exclude selected audio folders and set a minimum track duration |
++| **Dedicated Now Playing View** | Artwork, track metadata, playback controls, and an up-next queue in a music-focused layout |
++| **Lyrics** | View local or embedded lyrics, fetch online lyrics from LRCLIB, and switch between available sources |
++| **Four Audio Visualizers** | Choose Blob, Galaxy, Cuboid, or Particle visualizations, with an optional audio-reactive wavy seekbar |
++| **Audio Playlists & Favorites** | Create local audio playlists, keep favorite tracks together, and start normal or shuffled playback |
++
++</details>
++
++<details close>
++<summary><b>🎧 Navidrome / Subsonic Music Streaming</b></summary>
++
++| Feature | Description |
++|---|---|
++| **Subsonic API Integration** | Stream music from Navidrome and compatible Subsonic servers using token/salt authentication |
++| **Multiple Servers** | Save named servers, switch the active server, and manage connections from the app |
++| **Flexible Sign-In** | Connect with a username and password, or a supported app password/token |
++| **Music Discovery** | Quick mixes, recently added albums, artist browsing, and artwork-rich album and playlist detail views |
++| **Library Search** | Search the server for songs, albums, and artists |
++| **Server Playlists & Favorites** | Browse server playlists and sync favorite songs, albums, and artists; starred songs appear in a Favorites collection |
++| **Play All & Shuffle** | Start an album or playlist as a playback queue with track titles, artists, and cover art |
++| **Display Preferences** | Choose grid/list views and track sorting preferences |
++
++> Requires a music-server account and a reachable server. Available functionality depends on the server's Subsonic API and authentication support.
++
+ </details>
+ 
+ <details close>
+@@ -219,7 +256,7 @@ mpvRx pushes the mpv-android experience further with deep customization, thermal
+ | Feature | Description |
+ |---|---|
+ | **Native Server Integration** | Direct connection with Jellyfin accounts, fast token authentication, and multi-server management |
+-| **Material 3 Expressive UI** | Cinematic interface with spring-based transitions and fluid layout hierarchy |
++| **Material 3 Expressive UI** | Cinematic interface with artwork-rich browsing, detail sheets, and dedicated music views |
+ | **Featured Hero Banner** | Auto-advancing 16:9 backdrop banner with smooth gradient scrims, ratings, badges, and quick play |
+ | **Continue Watching & Recently Watched** | Horizontal resume carousels with relative timestamps and progress bars tracking playback progress |
+ | **Library Filter Chips** | Instant switching between Movies, TV Shows, Anime, Music, and BoxSets with dynamic item counts |
+@@ -295,7 +332,7 @@ mpvRx pushes the mpv-android experience further with deep customization, thermal
+ | **yt-dlp Integration** | High-performance streaming support for YouTube, Twitch, Bilibili, and more via a native Python bridge (SDK 29+ bypass) |
+ | **yt-dlp Quality Controls** | Independent codec, resolution, FPS, HDR, container, and audio-bitrate preferences |
+ | **Dynamic Refresh Rate** | Matches supported display refresh rates to the current video's frame rate for smoother motion |
+-| **Audio Blob Visualizer** | OpenGL ES 3.0 FFT-reactive blob with bloom, touch rotation, pinch zoom, and an Audio Settings toggle |
++| **Secure Folder** | PIN-protected access with optional biometrics, media move/restore actions, and a hideable entry point |
+ | **Screenshot Templates** | Filename placeholders for source name, playback position, and millisecond-accurate timestamps |
+ 
+ </details>
+@@ -331,8 +368,7 @@ _Just a Pro tip if your battery consumption stays within 200 mAh and belwo 0.9W
+   <i>Note: Previews may be unstable and are intended for testing purposes only.</i>
+ </div> -->
+ 
+-If something breaks, feels off, or deserves another pass, _don't be Dumb and ask for Trash Features which only you require it wll be auto deleted_, 
+-report it in the [Issues](https://github.com/Riteshp2001/mpvRx/issues).
++For help, reproducible bug reports, or feature suggestions, start with the [support guide](SUPPORT.md) and [existing issues](https://github.com/Riteshp2001/mpvRx/issues).
+ 
+ ---
+ 
+@@ -355,6 +391,8 @@ report it in the [Issues](https://github.com/Riteshp2001/mpvRx/issues).
+ | Variant | Description |
+ |---|---|
+ | `standard` | Main release with in-app update support |
++| `noVulkan` | Vulkan-free native distribution, packaged as a universal APK |
++| `fongmi` | Alternate native distribution with MediaCodec/Vulkan support, packaged as a universal APK |
+ 
+ ### APK Variants
+ 
+@@ -423,18 +461,25 @@ git push origin v1.3.1-preview.1
+ 
+ ## Acknowledgments
+ 
+-- [mpv-android](https://github.com/mpv-android)
+-- [mpvExtended](https://github.com/marlboro-advance/mpvEx)
+-- [mpvKt](https://github.com/abdallahmehiz/mpvKt)
+-- [PixelPlayer](https://github.com/theovilardo/PixelPlayer) 
+-- [MpvRex](https://github.com/sfsakhawat999/mpvRex)
+-- [Next Player](https://github.com/anilbeesetti/nextplayer)
+-- [Gramophone](https://github.com/FoedusProgramme/Gramophone)
+-- [hdr-toys](https://github.com/natural-harmonia-gropius/hdr-toys)
+-- [AFinity](https://github.com/MakD/AFinity)
+-- [anacrolix/torrent](https://github.com/anacrolix/torrent)
+-- [Chora](https://github.com/CraftWorksMC/Chora)
+-- [**SunnyVishnu3**](https://github.com/SunnyVishnu3) for the `yt-dlp` native integration and SDK 29+ bypass logic.
++### Built with open source
++
++Thank you to the player projects, music apps, libraries, and individual contributors whose work makes projects like mpvRx possible.
++
++| Explore the credits | Includes |
++|---|---|
++| [Playback & player projects](CITATION.md#playback--player-projects) | mpv-android, mpvExtended, mpvKt, MpvRex, Next Player |
++| [Music & media apps](CITATION.md#music--media-apps) | PixelPlayer, Gramophone, AFinity, Chora |
++| [Video processing & streaming](CITATION.md#video-processing--streaming) | hdr-toys, anacrolix/torrent |
++
++> Special thanks to [SunnyVishnu3](https://github.com/SunnyVishnu3) for the `yt-dlp` native integration and SDK 29+ bypass logic.
++
++[Full acknowledgments & citation information](CITATION.md) · [All contributors](https://github.com/Riteshp2001/mpvRx/graphs/contributors)
++
++---
++
++## Community
++
++[Get help](SUPPORT.md) · [Report a bug](https://github.com/Riteshp2001/mpvRx/issues/new?template=bug_report.md) · [Suggest a feature](https://github.com/Riteshp2001/mpvRx/issues/new?template=feature_request.md) · [Code of conduct](CODE_OF_CONDUCT.md)
+ 
+ ---
+ 
+diff --git a/SUPPORT.md b/SUPPORT.md
+new file mode 100644
+index 00000000..4bac1806
+--- /dev/null
++++ b/SUPPORT.md
+@@ -0,0 +1,40 @@
++# Getting help with mpvRx
++
++## Start here
++
++- Check the [README](README.md) for features, build variants, and setup information.
++- Check [release notes](https://github.com/Riteshp2001/mpvRx/releases) and [existing issues](https://github.com/Riteshp2001/mpvRx/issues) before opening a new report.
++- When troubleshooting, note whether you are using a stable or preview build and which APK variant you installed.
++
++## Report a bug
++
++Use the [bug report template](https://github.com/Riteshp2001/mpvRx/issues/new?template=bug_report.md). Include:
++
++1. App version or commit, APK variant, device model, and Android version.
++2. Exact steps to reproduce the issue, followed by expected and actual behavior.
++3. Relevant settings, including custom `mpv.conf`, scripts, shaders, or gesture options.
++4. Screenshots, a short recording, or relevant logs when useful.
++
++For playback problems, include the media source type, container, codecs, resolution, and whether the problem also occurs with default settings. Share only media you have permission to distribute.
++
++For Jellyfin, Navidrome, or Subsonic issues, include the server software/version and whether the same account can play the item in another client. Never post passwords, app tokens, authenticated stream URLs, or private server details.
++
++For navigation or performance problems, describe the exact tabs and direction, whether the problem happens on first use or repeatedly, and the approximate library size. A recording or performance trace can help distinguish gesture problems from slow loading. Review logs and traces for private information before sharing them.
++
++## Suggest a feature
++
++Use the [feature request template](https://github.com/Riteshp2001/mpvRx/issues/new?template=feature_request.md). Explain the problem you want to solve, who it affects, your proposed behavior, and alternatives you have tried. For larger changes, discuss the idea before spending time on an implementation.
++
++## Ask a question
++
++If the README and existing issues do not answer your question, [open an issue](https://github.com/Riteshp2001/mpvRx/issues/new) with a clear title and enough context to help others understand it. Keep one main topic per issue.
++
++## Sensitive reports
++
++Do not publish vulnerability details, exposed credentials, or private conduct reports in a public issue. Use a private contact method published by the [maintainer](https://github.com/Riteshp2001); if none is available, ask for a private reporting channel without posting the sensitive details.
++
++For community concerns, see the [Code of Conduct](CODE_OF_CONDUCT.md).
++
++## Respectful collaboration
++
++Support and review depend on maintainer availability; a report does not guarantee an immediate response or implementation. Keep follow-ups relevant, avoid duplicate reports, and follow the [Code of Conduct](CODE_OF_CONDUCT.md).
+diff --git a/app/src/main/java/com/quantummpv/app/MainActivity.kt b/app/src/main/java/com/quantummpv/app/MainActivity.kt
+index 0c78fb1d..41e99217 100644
+--- a/app/src/main/java/com/quantummpv/app/MainActivity.kt
++++ b/app/src/main/java/com/quantummpv/app/MainActivity.kt
+@@ -9,14 +9,11 @@
+ 
+ package com.quantummpv.app
+ 
+-import android.Manifest
+ import android.content.Intent
+-import android.content.pm.PackageManager
+ import android.content.pm.ActivityInfo
+ import android.content.res.Configuration
+ import android.os.Build
+ import android.os.Bundle
+-import android.provider.Settings
+ import android.util.Log
+ import android.app.Activity
+ import androidx.activity.ComponentActivity
+@@ -26,23 +23,10 @@ import androidx.activity.enableEdgeToEdge
+ import androidx.activity.result.contract.ActivityResultContracts
+ import androidx.appcompat.app.AppCompatActivity
+ import androidx.lifecycle.Lifecycle
+-import androidx.compose.animation.ContentTransform
+-import androidx.compose.animation.EnterTransition
+-import androidx.compose.animation.ExitTransition
+-import androidx.compose.animation.core.Spring
+-import androidx.compose.animation.core.spring
+-import androidx.compose.animation.fadeIn
+-import androidx.compose.animation.fadeOut
+-import androidx.compose.animation.scaleIn
+-import androidx.compose.animation.scaleOut
+-import androidx.compose.animation.slideInHorizontally
+-import androidx.compose.animation.slideOutHorizontally
+-import androidx.compose.animation.togetherWith
+ import androidx.compose.foundation.isSystemInDarkTheme
+ import androidx.compose.foundation.layout.fillMaxSize
+ import androidx.compose.foundation.layout.fillMaxWidth
+ import androidx.compose.material3.AlertDialog
+-import androidx.compose.material3.MaterialTheme
+ import androidx.compose.material3.Surface
+ import androidx.compose.material3.Text
+ import androidx.compose.material3.TextButton
+@@ -59,12 +43,9 @@ import androidx.compose.ui.graphics.toArgb
+ import androidx.compose.ui.platform.LocalConfiguration
+ import androidx.compose.ui.platform.LocalContext
+ import androidx.compose.ui.res.stringResource
+-import androidx.core.content.ContextCompat
+ import androidx.lifecycle.viewmodel.compose.viewModel
+ import androidx.navigation3.runtime.NavBackStack
+-import androidx.navigation3.runtime.NavEntry
+ import androidx.navigation3.runtime.rememberNavBackStack
+-import androidx.navigation3.ui.NavDisplay
+ import androidx.compose.foundation.layout.Box
+ import androidx.compose.foundation.layout.WindowInsets
+ import androidx.compose.foundation.layout.navigationBars
+@@ -79,8 +60,6 @@ import com.quantummpv.app.presentation.Screen
+ import com.quantummpv.app.ui.browser.MainScreen
+ import com.quantummpv.app.ui.browser.NavigationBarState
+ import com.quantummpv.app.ui.browser.components.MiniPlayer
+-import com.quantummpv.app.ui.player.NavigationAnimStyle
+-import com.quantummpv.app.ui.theme.AppMotion
+ import com.quantummpv.app.ui.theme.DarkMode
+ import com.quantummpv.app.ui.theme.MpvrxTheme
+ import com.quantummpv.app.ui.theme.rememberThemeTransitionState
+@@ -88,7 +67,6 @@ import android.view.SurfaceHolder
+ import android.view.SurfaceView
+ import androidx.compose.foundation.background
+ import androidx.compose.runtime.mutableStateOf
+-import androidx.compose.runtime.getValue
+ import androidx.compose.runtime.setValue
+ import androidx.compose.ui.viewinterop.AndroidView
+ import com.quantummpv.app.ui.player.MPVPipHelper
+@@ -99,6 +77,7 @@ import com.quantummpv.app.ui.player.MediaPlaybackService
+ import com.quantummpv.app.ui.player.TrackNode
+ import com.quantummpv.app.ui.player.toObject
+ import com.quantummpv.app.ui.utils.LocalBackStack
++import com.quantummpv.app.ui.utils.ScreenNavDisplay
+ import com.quantummpv.app.ui.utils.popSafely
+ import com.quantummpv.app.utils.device.VulkanCapabilities
+ import com.quantummpv.app.utils.device.DeviceFormFactor
+@@ -116,114 +95,6 @@ import org.koin.android.ext.android.inject
+ private const val RENDERER_NOTICE_PREFERENCES = "renderer_build_notice"
+ private const val NON_VULKAN_NOTICE_SHOWN = "non_vulkan_notice_shown"
+ 
+-private fun screenNavTransition(
+-  forward: Boolean,
+-  style: NavigationAnimStyle,
+-  speed: Float = 1f,
+-): ContentTransform {
+-  val dir = if (forward) 1 else -1
+-
+-  return when (style) {
+-    NavigationAnimStyle.None ->
+-      EnterTransition.None togetherWith ExitTransition.None
+-
+-    NavigationAnimStyle.Minimal ->
+-      fadeIn(
+-        spring(
+-          dampingRatio = AppMotion.Spatial.Standard.dampingRatio,
+-          stiffness = AppMotion.Spatial.Standard.stiffness,
+-        ),
+-      ) togetherWith
+-        fadeOut(spring(stiffness = AppMotion.Spatial.Standard.stiffness))
+-
+-    NavigationAnimStyle.FlipFade ->
+-      (
+-        scaleIn(
+-          spring(
+-            dampingRatio = AppMotion.Spatial.Expressive.dampingRatio,
+-            stiffness = AppMotion.Spatial.Expressive.stiffness,
+-          ),
+-          initialScale = 0.94f,
+-        ) +
+-          fadeIn(
+-            spring(
+-              dampingRatio = AppMotion.Spatial.Expressive.dampingRatio,
+-              stiffness = AppMotion.Spatial.Expressive.stiffness,
+-            ),
+-          )
+-      ) togetherWith
+-        (
+-          scaleOut(spring(stiffness = AppMotion.Spatial.Standard.stiffness), targetScale = 1.06f) +
+-            fadeOut(spring(stiffness = AppMotion.Spatial.Standard.stiffness))
+-        )
+-
+-    NavigationAnimStyle.Depth ->
+-      (
+-        slideInHorizontally(
+-          spring(
+-            dampingRatio = AppMotion.Spatial.Standard.dampingRatio,
+-            stiffness = AppMotion.Spatial.Standard.stiffness,
+-          ),
+-        ) {
+-          it * dir
+-        } +
+-          fadeIn(
+-            spring(
+-              dampingRatio = AppMotion.Spatial.Standard.dampingRatio,
+-              stiffness = AppMotion.Spatial.Standard.stiffness,
+-            ),
+-          )
+-      ) togetherWith
+-        (
+-          slideOutHorizontally(
+-            spring(stiffness = AppMotion.Spatial.Standard.stiffness),
+-          ) { (-it * 0.25f * dir).toInt() } +
+-            scaleOut(spring(stiffness = AppMotion.Spatial.Standard.stiffness), targetScale = 0.92f) +
+-            fadeOut(spring(stiffness = AppMotion.Spatial.Standard.stiffness))
+-        )
+-
+-    NavigationAnimStyle.Elastic ->
+-      (
+-        slideInHorizontally(
+-          spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = 380f),
+-        ) { it * dir } + fadeIn(spring(stiffness = AppMotion.Spatial.Snappy.stiffness))
+-      ) togetherWith
+-        (
+-          slideOutHorizontally(spring(stiffness = AppMotion.Spatial.Standard.stiffness)) { (-it / 3 * dir) } +
+-            fadeOut(spring(stiffness = AppMotion.Spatial.Standard.stiffness))
+-        )
+-
+-    NavigationAnimStyle.Default ->
+-      if (forward) {
+-        slideInHorizontally(
+-          spring(
+-            dampingRatio = AppMotion.Spatial.Expressive.dampingRatio,
+-            stiffness = AppMotion.Spatial.Expressive.stiffness,
+-          ),
+-        ) { it } togetherWith
+-          slideOutHorizontally(
+-            spring(
+-              dampingRatio = AppMotion.Spatial.Standard.dampingRatio,
+-              stiffness = AppMotion.Spatial.Standard.stiffness,
+-            ),
+-          ) { -it / 8 }
+-      } else {
+-        slideInHorizontally(
+-          spring(
+-            dampingRatio = AppMotion.Spatial.Expressive.dampingRatio,
+-            stiffness = AppMotion.Spatial.Expressive.stiffness,
+-          ),
+-        ) { -it / 5 } togetherWith
+-          slideOutHorizontally(
+-            spring(
+-              dampingRatio = AppMotion.Spatial.Standard.dampingRatio,
+-              stiffness = AppMotion.Spatial.Standard.stiffness,
+-            ),
+-          ) { it }
+-      }
+-  }
+-}
+-
+ /**
+  * Main entry point for the application
+  */
+@@ -615,9 +486,6 @@ class MainActivity : AppCompatActivity() {
+     @Suppress("UNCHECKED_CAST")
+     val typedBackstack = backstack as NavBackStack<Screen>
+ 
+-    val appNavStyle by playerPreferences.appNavStyle.collectAsState()
+-    val animSpeed by playerPreferences.animationSpeed.collectAsState()
+-
+     val context = LocalContext.current
+     val currentVersion =
+       if (BuildConfig.IS_PREVIEW_BUILD) {
+@@ -658,7 +526,7 @@ class MainActivity : AppCompatActivity() {
+ 
+       if (hasNavEntries) {
+         Box(modifier = Modifier.fillMaxSize()) {
+-          NavDisplay(
++          ScreenNavDisplay(
+             modifier = Modifier.fillMaxSize(),
+             backStack = typedBackstack,
+             onBack = {
+@@ -666,22 +534,6 @@ class MainActivity : AppCompatActivity() {
+                 this@MainActivity.finish()
+               }
+             },
+-            entryProvider = { route ->
+-              NavEntry(route) {
+-                Surface(
+-                  modifier = Modifier.fillMaxSize(),
+-                  color = MaterialTheme.colorScheme.background,
+-                ) {
+-                  route.Content()
+-                }
+-              }
+-            },
+-            sizeTransform = null,
+-            transitionSpec = { screenNavTransition(forward = true, style = appNavStyle, speed = animSpeed) },
+-            popTransitionSpec = { screenNavTransition(forward = false, style = appNavStyle, speed = animSpeed) },
+-            predictivePopTransitionSpec = { _: Int ->
+-              screenNavTransition(forward = false, style = appNavStyle, speed = animSpeed)
+-            },
+           )
+ 
+           val miniPlayerConfig = LocalConfiguration.current
+diff --git a/app/src/main/java/com/quantummpv/app/preferences/AppearancePreferences.kt b/app/src/main/java/com/quantummpv/app/preferences/AppearancePreferences.kt
+index 4e1d0d9e..31961763 100644
+--- a/app/src/main/java/com/quantummpv/app/preferences/AppearancePreferences.kt
++++ b/app/src/main/java/com/quantummpv/app/preferences/AppearancePreferences.kt
+@@ -58,7 +58,6 @@ class AppearancePreferences(
+   val seekbarStyle = preferenceStore.getEnum("seekbar_style", SeekbarStyle.Thick)
+   val portraitPlaybackControlsPosition =
+     preferenceStore.getEnum("portrait_playback_controls_position", PortraitPlaybackControlsPosition.Center)
+-  val showHomeTab = preferenceStore.getBoolean("show_home_tab", true)
+   val showMusicTab = preferenceStore.getBoolean("show_music_tab", true)
+   val showRecentsTab = preferenceStore.getBoolean("show_recents_tab", true)
+   val showPlaylistsTab = preferenceStore.getBoolean("show_playlists_tab", true)
+diff --git a/app/src/main/java/com/quantummpv/app/preferences/PlayerPreferences.kt b/app/src/main/java/com/quantummpv/app/preferences/PlayerPreferences.kt
+index 1bcd4b15..35f2aa00 100644
+--- a/app/src/main/java/com/quantummpv/app/preferences/PlayerPreferences.kt
++++ b/app/src/main/java/com/quantummpv/app/preferences/PlayerPreferences.kt
+@@ -191,9 +191,9 @@ class PlayerPreferences(
+   /** Animation played when a video first opens. Default = no overlay. */
+   val videoOpenAnimation = preferenceStore.getEnum("video_open_animation", VideoOpenAnimation.Default)
+ 
+-  /** Screen-level (app-wide) navigation transition style. */
++  /** Screen/pane transition style. None also disables programmatic tab animations. */
+   val appNavStyle = preferenceStore.getEnum("app_nav_style", NavigationAnimStyle.Default)
+ 
+-  /** Global animation speed multiplier (0.5 = half speed, 2.0 = double speed). */
++  /** Animation duration multiplier (0.5 = twice as fast, 2.0 = twice as slow). */
+   val animationSpeed = preferenceStore.getFloat("animation_speed", 1.0f)
+ }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/MainScreen.kt b/app/src/main/java/com/quantummpv/app/ui/browser/MainScreen.kt
+index a87395d7..ca92e3ac 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/MainScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/MainScreen.kt
+@@ -11,29 +11,27 @@ package com.quantummpv.app.ui.browser
+ 
+ import android.annotation.SuppressLint
+ import android.content.res.Configuration
++import androidx.activity.compose.BackHandler
+ import androidx.compose.animation.AnimatedVisibility
+-import androidx.compose.animation.animateColorAsState
+-import androidx.compose.animation.animateContentSize
+-import androidx.compose.animation.core.Spring
+-import androidx.compose.animation.core.animateDpAsState
++import androidx.compose.animation.EnterTransition
++import androidx.compose.animation.ExitTransition
++import androidx.compose.animation.core.FastOutSlowInEasing
++import androidx.compose.animation.core.snap
++import androidx.compose.animation.core.tween
+ import androidx.compose.animation.core.animateFloatAsState
+-import androidx.compose.animation.core.spring
+-import androidx.compose.animation.expandHorizontally
+ import androidx.compose.animation.fadeIn
+ import androidx.compose.animation.fadeOut
+-import androidx.compose.animation.shrinkHorizontally
+ import androidx.compose.animation.slideInVertically
+ import androidx.compose.animation.slideOutVertically
+ import androidx.compose.foundation.BorderStroke
+-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+-import androidx.compose.foundation.clickable
+ import androidx.compose.foundation.interaction.MutableInteractionSource
++import androidx.compose.foundation.selection.selectable
++import androidx.compose.foundation.selection.selectableGroup
+ import androidx.compose.foundation.layout.Arrangement
+ import androidx.compose.foundation.layout.Box
+ import androidx.compose.foundation.layout.BoxWithConstraints
+ import androidx.compose.foundation.layout.Column
+ import androidx.compose.foundation.layout.Row
+-import androidx.compose.foundation.layout.Spacer
+ import androidx.compose.foundation.layout.fillMaxSize
+ import androidx.compose.foundation.layout.fillMaxWidth
+ import androidx.compose.foundation.layout.height
+@@ -41,11 +39,8 @@ import androidx.compose.foundation.layout.navigationBarsPadding
+ import androidx.compose.foundation.layout.padding
+ import androidx.compose.foundation.layout.size
+ import androidx.compose.foundation.background
+-import androidx.compose.foundation.layout.offset
+ import androidx.compose.foundation.layout.width
+-import androidx.compose.foundation.layout.wrapContentSize
+-import androidx.compose.foundation.layout.wrapContentWidth
+-import androidx.compose.foundation.pager.HorizontalPager
++import com.quantummpv.app.ui.utils.NavigationPager
+ import androidx.compose.foundation.pager.PagerState
+ import androidx.compose.foundation.pager.rememberPagerState
+ import androidx.compose.foundation.shape.CircleShape
+@@ -62,44 +57,47 @@ import androidx.compose.runtime.SideEffect
+ import androidx.compose.runtime.compositionLocalOf
+ import androidx.compose.runtime.derivedStateOf
+ import androidx.compose.runtime.getValue
+-import androidx.compose.runtime.mutableFloatStateOf
+-import androidx.compose.runtime.mutableIntStateOf
+-import androidx.compose.runtime.mutableStateMapOf
++import androidx.compose.runtime.key
+ import androidx.compose.runtime.mutableStateOf
+ import androidx.compose.runtime.remember
+ import androidx.compose.runtime.rememberCoroutineScope
++import androidx.compose.runtime.saveable.rememberSaveable
+ import androidx.compose.runtime.setValue
+ import androidx.compose.runtime.snapshotFlow
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.draw.clip
++import androidx.compose.ui.draw.clipToBounds
++import androidx.compose.ui.draw.drawBehind
++import androidx.compose.ui.geometry.CornerRadius
++import androidx.compose.ui.geometry.Offset
++import androidx.compose.ui.geometry.Size
+ import androidx.compose.ui.graphics.Color
+ import androidx.compose.ui.graphics.graphicsLayer
+-import androidx.compose.ui.graphics.lerp
+ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+-import androidx.compose.ui.input.nestedscroll.nestedScroll
+-import androidx.compose.ui.input.pointer.pointerInput
++import androidx.compose.ui.layout.layout
+ import androidx.compose.ui.layout.onGloballyPositioned
+-import androidx.compose.ui.layout.positionInParent
+ import androidx.compose.ui.platform.LocalDensity
+ import androidx.compose.ui.platform.LocalHapticFeedback
+ import androidx.compose.ui.res.painterResource
+ import androidx.compose.ui.res.stringResource
++import androidx.compose.ui.semantics.Role
+ import androidx.compose.ui.text.font.FontWeight
++import androidx.compose.ui.text.style.TextAlign
+ import androidx.compose.ui.text.style.TextOverflow
+-import androidx.compose.ui.unit.IntOffset
++import androidx.compose.ui.unit.LayoutDirection
+ import androidx.compose.ui.unit.dp
+-import androidx.compose.ui.unit.lerp
+-import androidx.compose.ui.util.lerp
+ import kotlin.math.roundToInt
+ import com.quantummpv.app.R
+ import com.quantummpv.app.preferences.AppearancePreferences
+ import com.quantummpv.app.preferences.MediaServerPreferences
+ import com.quantummpv.app.preferences.MusicSourceProvider
++import com.quantummpv.app.preferences.PlayerPreferences
+ import com.quantummpv.app.preferences.preference.collectAsState
+ import androidx.lifecycle.compose.collectAsStateWithLifecycle
+ import com.quantummpv.app.presentation.Screen
+ import com.quantummpv.app.ui.utils.LocalBackStack
++import com.quantummpv.app.ui.utils.navigateTo
+ import com.quantummpv.app.ui.browser.folderlist.FolderListScreen
+ import com.quantummpv.app.ui.browser.music.MusicLibraryContent
+ import com.quantummpv.app.ui.browser.networkstreaming.NetworkStreamingScreen
+@@ -110,13 +108,13 @@ import com.quantummpv.app.ui.icons.Icons
+ import com.quantummpv.app.ui.player.controls.components.rememberTvInitialFocusRequester
+ import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
+ import com.quantummpv.app.ui.player.controls.components.tvInitialFocus
+-import com.quantummpv.app.ui.theme.AppMotion
++import com.quantummpv.app.ui.player.NavigationAnimStyle
++import com.quantummpv.app.ui.utils.navigationDurationMillis
+ import kotlinx.coroutines.Job
+ import kotlinx.coroutines.cancelAndJoin
+ import kotlinx.coroutines.launch
+ import kotlinx.serialization.Serializable
+ import org.koin.compose.koinInject
+-import kotlin.math.roundToInt
+ 
+ @Serializable
+ object MainScreen : Screen {
+@@ -129,9 +127,6 @@ object MainScreen : Screen {
+     JELLYFIN,
+   }
+ 
+-  // Use a companion object to store state more persistently
+-  private var persistentSelectedTab: MainTab = MainTab.HOME
+-
+   /**
+    * Update selection state and navigation bar visibility
+    * This method should be called whenever selection changes
+@@ -171,9 +166,13 @@ object MainScreen : Screen {
+   override fun Content() {
+     val backStack = LocalBackStack.current
+     val appearancePreferences = koinInject<AppearancePreferences>()
++    val playerPreferences = koinInject<PlayerPreferences>()
++    val navStyle by playerPreferences.appNavStyle.collectAsState()
++    val animSpeed by playerPreferences.animationSpeed.collectAsState()
++    val duration = navigationDurationMillis(animSpeed)
++    var persistentSelectedTab by rememberSaveable { mutableStateOf(MainTab.HOME) }
+     val mediaServerPreferences = koinInject<MediaServerPreferences>()
+     val musicSourceProvider by mediaServerPreferences.musicSourceProvider.collectAsState()
+-    val showHomeTab by appearancePreferences.showHomeTab.collectAsState()
+     val showMusicTab by appearancePreferences.showMusicTab.collectAsState()
+     val showRecentsTab by appearancePreferences.showRecentsTab.collectAsState()
+     val showPlaylistsTab by appearancePreferences.showPlaylistsTab.collectAsState()
+@@ -186,7 +185,6 @@ object MainScreen : Screen {
+ 
+     val visibleTabs =
+       remember(
+-        showHomeTab,
+         showMusicTab,
+         showRecentsTab,
+         showPlaylistsTab,
+@@ -194,7 +192,8 @@ object MainScreen : Screen {
+         showJellyfinTab,
+       ) {
+         buildList {
+-          if (showHomeTab) add(MainTab.HOME)
++          // Home is the permanent root so Back never exits directly from another tab.
++          add(MainTab.HOME)
+           if (showMusicTab) add(MainTab.MUSIC)
+           if (showRecentsTab) add(MainTab.RECENTS)
+           if (showPlaylistsTab) add(MainTab.PLAYLISTS)
+@@ -211,7 +210,8 @@ object MainScreen : Screen {
+       }
+     }
+     SideEffect {
+-      NavigationBarState.isNavBarVisible = !hideNavigationBar && visibleTabs.isNotEmpty() && !isPermissionDenied
++      NavigationBarState.isNavBarVisible =
++        backStack.lastOrNull() == MainScreen && !hideNavigationBar && visibleTabs.isNotEmpty() && !isPermissionDenied
+     }
+ 
+     val coroutineScope = rememberCoroutineScope()
+@@ -241,7 +241,7 @@ object MainScreen : Screen {
+         pagerState.settledPage == restorePage &&
+           pagerState.currentPage == restorePage &&
+           pagerState.currentPageOffsetFraction == 0f
+-      if (!isRestorePageSettled && !pagerState.isScrollInProgress) {
++      if (!isRestorePageSettled) {
+         pagerState.scrollToPage(restorePage)
+       }
+ 
+@@ -271,29 +271,28 @@ object MainScreen : Screen {
+         if (!isAlreadySettled) {
+           tabNavigationJob =
+             coroutineScope.launch {
+-              pagerState.animateScrollToPage(
+-                page = targetIndex,
+-                animationSpec =
+-                  spring(
+-                    dampingRatio = Spring.DampingRatioNoBouncy,
+-                    stiffness = Spring.StiffnessMedium,
+-                  ),
+-              )
++              if (navStyle == NavigationAnimStyle.None) {
++                pagerState.scrollToPage(targetIndex)
++              } else {
++                pagerState.animateScrollToPage(
++                  page = targetIndex,
++                  animationSpec = tween(duration, easing = FastOutSlowInEasing),
++                )
++              }
+             }
+         }
+       }
+     }
+ 
+-    val pagerFlingBehavior =
+-      androidx.compose.foundation.pager.PagerDefaults.flingBehavior(
+-        state = pagerState,
+-        snapPositionalThreshold = 0.2f,
+-        snapAnimationSpec =
+-          spring(
+-            dampingRatio = Spring.DampingRatioNoBouncy,
+-            stiffness = Spring.StiffnessMedium,
+-          ),
+-      )
++    val shouldReturnHome by remember(pagerState) {
++      derivedStateOf {
++        pagerState.settledPage != 0 || pagerState.currentPage != 0 || pagerState.isScrollInProgress
++      }
++    }
++    // Register before page content: selection, search and nested navigation handle Back first.
++    BackHandler(enabled = backStack.lastOrNull() == MainScreen && shouldReturnHome) {
++      onTabSelected(MainTab.HOME)
++    }
+ 
+     val mainNavBar = @Composable { modifier: Modifier ->
+       ExpressivePillNavigationBar(
+@@ -306,61 +305,15 @@ object MainScreen : Screen {
+     }
+ 
+     val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+-    val screenWidth = configuration.screenWidthDp.dp
+ 
+     val isPortrait = configuration.orientation == Configuration.ORIENTATION_PORTRAIT
+     val isTablet = configuration.smallestScreenWidthDp >= 600
+     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+ 
+-    val selectedTabTitleLength =
+-      when (selectedTab) {
+-        MainTab.HOME -> 36.dp
+-        MainTab.MUSIC -> 36.dp
+-        MainTab.RECENTS -> 48.dp
+-        MainTab.PLAYLISTS -> 52.dp
+-        MainTab.NETWORK -> 50.dp
+-        MainTab.JELLYFIN -> 44.dp
+-      }
+-
+-    val unselectedCount = (visibleTabs.size - 1).coerceAtLeast(0)
+-    val targetNavBarWidth =
+-      if (visibleTabs.isEmpty()) 0.dp
+-      else (22.dp + 6.dp + selectedTabTitleLength + 28.dp) +
+-        (42.dp * unselectedCount) +
+-        (4.dp * unselectedCount) +
+-        12.dp
+-
+-    val navBarWidth by animateDpAsState(
+-      targetValue = targetNavBarWidth,
+-      animationSpec =
+-        spring(
+-          dampingRatio = Spring.DampingRatioNoBouncy,
+-          stiffness = Spring.StiffnessMedium,
+-        ),
+-      label = "nav_bar_width",
+-    )
+-
+-    val targetOffsetFraction =
+-      when {
+-        isDualPaneFolderSelected && selectedTab == MainTab.HOME -> 0.2f
+-        isMiniPlayerVisible && (isLandscape || isTablet) -> 0f
+-        else -> 0.5f
+-      }
+-
+-    val animatedOffsetFraction by animateFloatAsState(
+-      targetValue = targetOffsetFraction,
+-      animationSpec =
+-        spring(
+-          dampingRatio = Spring.DampingRatioNoBouncy,
+-          stiffness = Spring.StiffnessMedium,
+-        ),
+-      label = "nav_bar_position",
+-    )
+-
+     // On portrait phones the edge-to-edge mini player sits above the pill nav bar,
+     // so screens/FABs must clear it.
+     val miniPlayerNavClearance = if (isMiniPlayerVisible && isPortrait && !isTablet) 96.dp else 0.dp
+-    val contentBottomPadding = remember(miniPlayerNavClearance) { 88.dp + miniPlayerNavClearance }
++    val contentBottomPadding = (if (visibleTabs.isEmpty()) 0.dp else 88.dp) + miniPlayerNavClearance
+     val context = androidx.compose.ui.platform.LocalContext.current
+     val jellyfinViewModel: com.quantummpv.app.ui.browser.jellyfin.JellyfinViewModel =
+       androidx.lifecycle.viewmodel.compose.viewModel(
+@@ -394,14 +347,14 @@ object MainScreen : Screen {
+             LocalNavigationBarHeight provides contentBottomPadding,
+             LocalMainNavigationBar provides mainNavBar,
+           ) {
+-            HorizontalPager(
++            NavigationPager(
+               state = pagerState,
+-              modifier = Modifier.fillMaxSize(),
++              modifier = Modifier.fillMaxSize().clipToBounds(),
++              key = { page -> visibleTabs[page].name },
+               beyondViewportPageCount = 1,
+-              flingBehavior = pagerFlingBehavior,
+               userScrollEnabled = !isPermissionDenied,
+             ) { page ->
+-              val tab = visibleTabs.getOrNull(page) ?: return@HorizontalPager
++              val tab = visibleTabs.getOrNull(page) ?: return@NavigationPager
+               when (tab) {
+                 MainTab.HOME -> FolderListScreen.Content()
+                 MainTab.MUSIC -> {
+@@ -443,7 +396,7 @@ object MainScreen : Screen {
+                             )
+                             androidx.compose.material3.FilledTonalButton(
+                               onClick = {
+-                                backStack.add(com.quantummpv.app.ui.preferences.MediaServersPreferencesScreen)
++                                backStack.navigateTo(com.quantummpv.app.ui.preferences.MediaServersPreferencesScreen)
+                               },
+                             ) {
+                               Text(stringResource(R.string.generic_configure))
+@@ -501,7 +454,7 @@ object MainScreen : Screen {
+                             }
+                             androidx.compose.material3.TextButton(
+                               onClick = {
+-                                backStack.add(com.quantummpv.app.ui.preferences.MediaServersPreferencesScreen)
++                                backStack.navigateTo(com.quantummpv.app.ui.preferences.MediaServersPreferencesScreen)
+                               },
+                             ) {
+                               Text(stringResource(R.string.generic_configure))
+@@ -556,7 +509,7 @@ object MainScreen : Screen {
+                             )
+                             androidx.compose.material3.FilledTonalButton(
+                               onClick = {
+-                                backStack.add(com.quantummpv.app.ui.preferences.MediaServersPreferencesScreen)
++                                backStack.navigateTo(com.quantummpv.app.ui.preferences.MediaServersPreferencesScreen)
+                               },
+                             ) {
+                               Text(stringResource(R.string.generic_configure))
+@@ -596,24 +549,16 @@ object MainScreen : Screen {
+         // Animated bottom navigation bar with slide animations
+         AnimatedVisibility(
+           visible = !hideNavigationBar && visibleTabs.isNotEmpty() && !isPermissionDenied,
+-          enter =
++          enter = if (navStyle == NavigationAnimStyle.None) EnterTransition.None else
+             slideInVertically(
+-              animationSpec =
+-                spring(
+-                  dampingRatio = AppMotion.Spatial.ExpressiveDp.dampingRatio,
+-                  stiffness = AppMotion.Spatial.ExpressiveDp.stiffness,
+-                ),
++              animationSpec = tween(duration, easing = FastOutSlowInEasing),
+               initialOffsetY = { fullHeight -> fullHeight * 2 },
+-            ) + fadeIn(),
+-          exit =
++            ) + fadeIn(tween(duration)),
++          exit = if (navStyle == NavigationAnimStyle.None) ExitTransition.None else
+             slideOutVertically(
+-              animationSpec =
+-                spring(
+-                  dampingRatio = androidx.compose.animation.core.Spring.DampingRatioNoBouncy,
+-                  stiffness = androidx.compose.animation.core.Spring.StiffnessMedium,
+-                ),
++              animationSpec = tween(duration, easing = FastOutSlowInEasing),
+               targetOffsetY = { fullHeight -> fullHeight * 2 },
+-            ) + fadeOut(),
++            ) + fadeOut(tween(duration)),
+           modifier =
+             Modifier
+               .fillMaxWidth()
+@@ -624,79 +569,41 @@ object MainScreen : Screen {
+           BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+             val containerWidth = maxWidth
+             val density = LocalDensity.current
+-            var measuredWidthDp by remember { mutableStateOf(220.dp) }
+-            val isDualPaneActive = isDualPaneFolderSelected && selectedTab == MainTab.HOME
+-            val isMiniPlayerActive = isMiniPlayerVisible && (isLandscape || isTablet)
+-            val isCustomAligned = isDualPaneActive || isMiniPlayerActive
+-
+-            val animatedWidthDp by animateDpAsState(
+-              targetValue = measuredWidthDp,
+-              animationSpec =
+-                spring(
+-                  dampingRatio = Spring.DampingRatioNoBouncy,
+-                  stiffness = Spring.StiffnessMedium,
+-                ),
+-              label = "measured_width_anim",
++            val centerFraction = animateFloatAsState(
++              targetValue = when {
++                isDualPaneFolderSelected && selectedTab == MainTab.HOME -> 0.2f
++                isMiniPlayerVisible && (isLandscape || isTablet) -> 0f
++                else -> 0.5f
++              },
++              animationSpec = if (navStyle == NavigationAnimStyle.None) snap() else tween(duration, easing = FastOutSlowInEasing),
++              label = "pill_alignment",
+             )
+ 
+-            val targetLeftPadding =
+-              when {
+-                isDualPaneActive ->
+-                  ((containerWidth * 0.20f) - (animatedWidthDp / 2)).coerceAtLeast(16.dp)
+-                isMiniPlayerActive ->
+-                  16.dp
+-                else ->
+-                  ((containerWidth - animatedWidthDp) / 2).coerceAtLeast(16.dp)
+-              }
+-
+-            val animatedLeftPadding by animateDpAsState(
+-              targetValue = targetLeftPadding,
+-              animationSpec =
+-                spring(
+-                  dampingRatio = Spring.DampingRatioNoBouncy,
+-                  stiffness = Spring.StiffnessMedium,
+-                ),
+-              label = "pill_left_padding",
++            ExpressivePillNavigationBar(
++              visibleTabs = visibleTabs,
++              selectedTab = selectedTab,
++              onTabSelected = onTabSelected,
++              pagerState = pagerState,
++              modifier = Modifier
++                .layout { measurable, constraints ->
++                  val margin = 16.dp.roundToPx()
++                  val placeable = measurable.measure(
++                    constraints.copy(minWidth = 0, maxWidth = (constraints.maxWidth - margin * 2).coerceAtLeast(0)),
++                  )
++                  layout(constraints.maxWidth, placeable.height) {
++                    // Place using the actual width, avoiding springs chasing animated measurements.
++                    val start = (constraints.maxWidth * centerFraction.value - placeable.width / 2f)
++                      .roundToInt().coerceAtLeast(margin)
++                    placeable.placeRelative(start, 0)
++                  }
++                }
++                .onGloballyPositioned { coords ->
++                  val width = with(density) { coords.size.width.toDp() }
++                  NavigationBarState.navbarWidth = width
++                  NavigationBarState.navbarLeftOffset =
++                    (containerWidth * centerFraction.value - width / 2).coerceAtLeast(16.dp)
++                },
+             )
+-
+-            SideEffect {
+-              val targetLeft = if (isCustomAligned) animatedLeftPadding else ((containerWidth - animatedWidthDp) / 2).coerceAtLeast(16.dp)
+-              if (NavigationBarState.navbarLeftOffset != targetLeft) {
+-                NavigationBarState.navbarLeftOffset = targetLeft
+-              }
+-              if (NavigationBarState.navbarWidth != animatedWidthDp) {
+-                NavigationBarState.navbarWidth = animatedWidthDp
+-              }
+-            }
+-
+-            Box(
+-              modifier =
+-                Modifier
+-                  .fillMaxWidth()
+-                  .then(
+-                    if (isCustomAligned) {
+-                      Modifier
+-                        .wrapContentSize(Alignment.TopStart)
+-                        .padding(start = animatedLeftPadding)
+-                    } else {
+-                      Modifier.wrapContentSize(Alignment.TopCenter)
+-                    }
+-                  ),
+-            ) {
+-              ExpressivePillNavigationBar(
+-                visibleTabs = visibleTabs,
+-                selectedTab = selectedTab,
+-                onTabSelected = onTabSelected,
+-                pagerState = pagerState,
+-                modifier =
+-                  Modifier.onGloballyPositioned { coords ->
+-                    val w = with(density) { coords.size.width.toDp() }
+-                    if (w > 0.dp && w != measuredWidthDp) {
+-                      measuredWidthDp = w
+-                    }
+-                  },
+-              )
+-            }
+           }
+         }
+       }
+@@ -712,209 +619,126 @@ private fun ExpressivePillNavigationBar(
+   modifier: Modifier = Modifier,
+   pagerState: PagerState? = null,
+ ) {
++  if (visibleTabs.isEmpty()) return
+   val haptics = LocalHapticFeedback.current
+   val initialFocusRequester = rememberTvInitialFocusRequester(visibleTabs.isNotEmpty())
+ 
+-  val position =
+-    if (pagerState != null && visibleTabs.isNotEmpty()) {
+-      (pagerState.currentPage + pagerState.currentPageOffsetFraction).coerceIn(
+-        0f,
+-        (visibleTabs.size - 1).toFloat(),
+-      )
+-    } else {
+-      visibleTabs.indexOf(selectedTab).coerceAtLeast(0).toFloat()
+-    }
+-
+-  fun activeTabWidth(tab: MainScreen.MainTab): androidx.compose.ui.unit.Dp =
+-    when (tab) {
+-      MainScreen.MainTab.HOME -> 92.dp
+-      MainScreen.MainTab.MUSIC -> 92.dp
+-      MainScreen.MainTab.RECENTS -> 104.dp
+-      MainScreen.MainTab.PLAYLISTS -> 108.dp
+-      MainScreen.MainTab.NETWORK -> 106.dp
+-      MainScreen.MainTab.JELLYFIN -> 100.dp
+-    }
+-
+-  val inactiveTabWidth = 44.dp
+-  val spacing = 4.dp
+-  val startPadding = 6.dp
+-
+-  val tabWidths = remember(position, visibleTabs) {
+-    visibleTabs.mapIndexed { index, tab ->
+-      val fraction = (1f - kotlin.math.abs(position - index)).coerceIn(0f, 1f)
+-      androidx.compose.ui.unit.lerp(inactiveTabWidth, activeTabWidth(tab), fraction)
+-    }
+-  }
+-
+-  val tabOffsets = remember(tabWidths) {
+-    var acc = startPadding
+-    tabWidths.map { w ->
+-      val left = acc
+-      acc += w + spacing
+-      left
+-    }
+-  }
+-
+-  val pageFloor = position.toInt().coerceIn(0, (visibleTabs.size - 1).coerceAtLeast(0))
+-  val pageCeil = (pageFloor + 1).coerceIn(0, (visibleTabs.size - 1).coerceAtLeast(0))
+-  val fraction = (position - pageFloor).coerceIn(0f, 1f)
+-
+-  val indicatorLeft =
+-    if (tabOffsets.isNotEmpty()) {
+-      androidx.compose.ui.unit.lerp(tabOffsets[pageFloor], tabOffsets[pageCeil], fraction)
+-    } else {
+-      startPadding
+-    }
+-
+-  val indicatorWidth =
+-    if (tabWidths.isNotEmpty()) {
+-      androidx.compose.ui.unit.lerp(tabWidths[pageFloor], tabWidths[pageCeil], fraction)
+-    } else {
+-      inactiveTabWidth
+-    }
++  BoxWithConstraints(modifier = modifier) {
++    // The dock follows the same progress as the pages, without per-frame composition or layout.
++    fun position(): Float =
++      if (pagerState != null && visibleTabs.isNotEmpty()) {
++        (pagerState.currentPage + pagerState.currentPageOffsetFraction).coerceIn(
++          0f,
++          (visibleTabs.size - 1).toFloat(),
++        )
++      } else {
++        visibleTabs.indexOf(selectedTab).coerceAtLeast(0).toFloat()
++      }
+ 
+-  Surface(
+-    modifier = modifier,
+-    shape = CircleShape,
+-    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+-    tonalElevation = 6.dp,
+-    shadowElevation = 8.dp,
+-    border =
+-      BorderStroke(
+-        width = 1.dp,
+-        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
+-      ),
+-  ) {
+-    Box(
+-      modifier =
+-        Modifier
+-          .wrapContentWidth()
+-          .padding(horizontal = startPadding, vertical = 6.dp),
++    val startPadding = 6.dp
++    val barWidth = (64.dp * visibleTabs.size + startPadding * 2).coerceAtMost(maxWidth)
++    val indicatorColor = MaterialTheme.colorScheme.primaryContainer
++    fun tabFraction(index: Int, progress: Float): Float = (1f - kotlin.math.abs(progress - index)).coerceIn(0f, 1f)
++
++    Surface(
++      modifier = Modifier.width(barWidth),
++      shape = CircleShape,
++      color = MaterialTheme.colorScheme.surfaceContainerHigh,
++      tonalElevation = 6.dp,
++      shadowElevation = 8.dp,
++      border =
++        BorderStroke(
++          width = 1.dp,
++          color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
++        ),
+     ) {
+-      // Sliding background pill indicator
+-      Box(
++      Row(
+         modifier =
+           Modifier
+-            .offset(x = indicatorLeft - startPadding, y = 0.dp)
+-            .width(indicatorWidth)
+-            .height(44.dp)
+-            .clip(CircleShape)
+-            .background(MaterialTheme.colorScheme.primaryContainer),
+-      )
+-
+-      // Tab buttons row positioned directly on top of the track
+-      Row(
+-        horizontalArrangement = Arrangement.spacedBy(spacing, Alignment.CenterHorizontally),
++            .padding(horizontal = startPadding, vertical = 6.dp)
++            .selectableGroup()
++            .drawBehind {
++              val progress = position()
++              val visualPosition = if (layoutDirection == LayoutDirection.Rtl) visibleTabs.lastIndex - progress else progress
++              val slotWidth = size.width / visibleTabs.size
++              val width = minOf(48.dp.toPx(), slotWidth - 4.dp.toPx()).coerceAtLeast(0f)
++              drawRoundRect(
++                color = indicatorColor,
++                topLeft = Offset(slotWidth * (visualPosition + 0.5f) - width / 2, 4.dp.toPx()),
++                size = Size(width, 32.dp.toPx()),
++                cornerRadius = CornerRadius(16.dp.toPx()),
++              )
++            },
+         verticalAlignment = Alignment.CenterVertically,
+       ) {
+         visibleTabs.forEachIndexed { index, tab ->
+-          val tabFraction = (1f - kotlin.math.abs(position - index)).coerceIn(0f, 1f)
+-          val tabWidth = tabWidths.getOrElse(index) { inactiveTabWidth }
+-
+-          val contentColor =
+-            androidx.compose.ui.graphics.lerp(
+-              MaterialTheme.colorScheme.onSurfaceVariant,
+-              MaterialTheme.colorScheme.onPrimaryContainer,
+-              tabFraction,
+-            )
+-
+-          Box(
+-            modifier =
+-              Modifier
+-                .width(tabWidth)
+-                .height(44.dp)
+-                .then(
+-                  if (tab == selectedTab) {
+-                    Modifier.tvInitialFocus(initialFocusRequester)
+-                  } else {
+-                    Modifier
+-                  },
+-                )
+-                .tvFocusHighlight(CircleShape, focusedScale = 1.06f)
+-                .clip(CircleShape)
+-                .clickable(
+-                  interactionSource = remember { MutableInteractionSource() },
+-                  indication = androidx.compose.material3.ripple(bounded = true),
+-                ) {
+-                  haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+-                  onTabSelected(tab)
+-                },
+-            contentAlignment = Alignment.Center,
+-          ) {
+-            Row(
+-              modifier = Modifier.padding(horizontal = 8.dp),
+-              horizontalArrangement = Arrangement.Center,
+-              verticalAlignment = Alignment.CenterVertically,
+-            ) {
+-              when (tab) {
+-                MainScreen.MainTab.HOME ->
+-                  Icon(
+-                    Icons.RoundedFilled.Home,
+-                    contentDescription = stringResource(R.string.ui_home),
+-                    tint = contentColor,
+-                    modifier = Modifier.size(22.dp),
+-                  )
+-                MainScreen.MainTab.MUSIC ->
+-                  Icon(
+-                    Icons.RoundedFilled.Audiotrack,
+-                    contentDescription = stringResource(R.string.ui_music),
+-                    tint = contentColor,
+-                    modifier = Modifier.size(22.dp),
+-                  )
+-                MainScreen.MainTab.RECENTS ->
+-                  Icon(
+-                    Icons.RoundedFilled.History,
+-                    contentDescription = stringResource(R.string.ui_recents),
+-                    tint = contentColor,
+-                    modifier = Modifier.size(22.dp),
+-                  )
+-                MainScreen.MainTab.PLAYLISTS ->
+-                  Icon(
+-                    Icons.RoundedFilled.PlaylistPlay,
+-                    contentDescription = stringResource(R.string.ui_playlists),
+-                    tint = contentColor,
+-                    modifier = Modifier.size(22.dp),
+-                  )
+-                MainScreen.MainTab.NETWORK ->
+-                  Icon(
+-                    Icons.RoundedFilled.BringYourOwnIp,
+-                    contentDescription = stringResource(R.string.ui_network),
+-                    tint = contentColor,
+-                    modifier = Modifier.size(22.dp),
+-                  )
+-                MainScreen.MainTab.JELLYFIN ->
+-                  androidx.compose.material3.Icon(
+-                    painter = painterResource(R.drawable.ic_jellyfin),
+-                    contentDescription = "Jellyfin",
+-                    tint = contentColor,
+-                    modifier = Modifier.size(22.dp),
+-                  )
+-              }
+-
+-              if (tabFraction > 0.05f) {
+-                Spacer(modifier = Modifier.width(androidx.compose.ui.unit.lerp(0.dp, 6.dp, tabFraction)))
+-                Text(
+-                  text =
+-                    when (tab) {
+-                      MainScreen.MainTab.HOME -> stringResource(R.string.ui_home)
+-                      MainScreen.MainTab.MUSIC -> stringResource(R.string.ui_music)
+-                      MainScreen.MainTab.RECENTS -> stringResource(R.string.ui_recents)
+-                      MainScreen.MainTab.PLAYLISTS -> stringResource(R.string.ui_playlists)
+-                      MainScreen.MainTab.NETWORK -> stringResource(R.string.ui_network)
+-                      MainScreen.MainTab.JELLYFIN -> stringResource(R.string.ui_jellyfin)
+-                    },
+-                  style = MaterialTheme.typography.labelMedium,
+-                  fontWeight = FontWeight.Bold,
+-                  color = contentColor,
+-                  maxLines = 1,
+-                  softWrap = false,
+-                  overflow = TextOverflow.Clip,
+-                  modifier =
+-                    Modifier.graphicsLayer {
+-                      alpha = ((tabFraction - 0.25f) / 0.75f).coerceIn(0f, 1f)
++          key(tab) {
++            // Stable touch targets and labels: only the highlight and icon layers move.
++            Column(
++              modifier =
++                Modifier
++                  .weight(1f)
++                  .height(60.dp)
++                  .then(
++                    if (tab == selectedTab) {
++                      Modifier.tvInitialFocus(initialFocusRequester)
++                    } else {
++                      Modifier
+                     },
+-                )
++                  )
++                  .tvFocusHighlight(CircleShape, focusedScale = 1.06f)
++                  .clip(CircleShape)
++                  .selectable(
++                    selected = tab == selectedTab,
++                    role = Role.Tab,
++                    interactionSource = remember { MutableInteractionSource() },
++                    indication = ripple(bounded = true),
++                  ) {
++                    if (tab != selectedTab) haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
++                    onTabSelected(tab)
++                  }
++                  .padding(top = 4.dp),
++              horizontalAlignment = Alignment.CenterHorizontally,
++              verticalArrangement = Arrangement.Top,
++            ) {
++              Box(
++                modifier = Modifier.size(32.dp).graphicsLayer {
++                  val fraction = tabFraction(index, position())
++                  scaleX = 1f + 0.06f * fraction
++                  scaleY = scaleX
++                  translationY = -1.dp.toPx() * fraction
++                },
++                contentAlignment = Alignment.Center,
++              ) {
++                Box(Modifier.graphicsLayer { alpha = 1f - tabFraction(index, position()) }) {
++                  MainTabIcon(tab, MaterialTheme.colorScheme.onSurfaceVariant)
++                }
++                Box(Modifier.graphicsLayer { alpha = tabFraction(index, position()) }) {
++                  MainTabIcon(tab, MaterialTheme.colorScheme.onPrimaryContainer)
++                }
+               }
++              Text(
++                text =
++                  when (tab) {
++                    MainScreen.MainTab.HOME -> stringResource(R.string.ui_home)
++                    MainScreen.MainTab.MUSIC -> stringResource(R.string.ui_music)
++                    MainScreen.MainTab.RECENTS -> stringResource(R.string.ui_recents)
++                    MainScreen.MainTab.PLAYLISTS -> stringResource(R.string.ui_playlists)
++                    MainScreen.MainTab.NETWORK -> stringResource(R.string.ui_network)
++                    MainScreen.MainTab.JELLYFIN -> stringResource(R.string.ui_jellyfin)
++                  },
++                style = MaterialTheme.typography.labelSmall,
++                fontWeight = FontWeight.SemiBold,
++                color = MaterialTheme.colorScheme.onSurface,
++                textAlign = TextAlign.Center,
++                maxLines = 1,
++                softWrap = false,
++                overflow = TextOverflow.Ellipsis,
++                modifier =
++                  Modifier.fillMaxWidth().padding(horizontal = 2.dp).graphicsLayer {
++                    alpha = 0.65f + 0.35f * tabFraction(index, position())
++                  },
++              )
+             }
+           }
+         }
+@@ -923,6 +747,33 @@ private fun ExpressivePillNavigationBar(
+   }
+ }
+ 
++@Composable
++private fun MainTabIcon(tab: MainScreen.MainTab, tint: Color) {
++  val icon = when (tab) {
++    MainScreen.MainTab.HOME -> Icons.RoundedFilled.Home
++    MainScreen.MainTab.MUSIC -> Icons.RoundedFilled.Audiotrack
++    MainScreen.MainTab.RECENTS -> Icons.RoundedFilled.History
++    MainScreen.MainTab.PLAYLISTS -> Icons.RoundedFilled.PlaylistPlay
++    MainScreen.MainTab.NETWORK -> Icons.RoundedFilled.BringYourOwnIp
++    MainScreen.MainTab.JELLYFIN -> null
++  }
++  if (icon == null) {
++    androidx.compose.material3.Icon(
++      painter = painterResource(R.drawable.ic_jellyfin),
++      contentDescription = null,
++      tint = tint,
++      modifier = Modifier.size(22.dp),
++    )
++  } else {
++    Icon(
++      icon,
++      contentDescription = null,
++      tint = tint,
++      modifier = Modifier.size(22.dp),
++    )
++  }
++}
++
+ val LocalNavigationBarHeight = compositionLocalOf { 0.dp }
+ 
+ // CompositionLocal for main navigation bar
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/NavigationBarSelectionEffect.kt b/app/src/main/java/com/quantummpv/app/ui/browser/NavigationBarSelectionEffect.kt
+new file mode 100644
+index 00000000..9c4df335
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/NavigationBarSelectionEffect.kt
+@@ -0,0 +1,21 @@
++/*
++ * SPDX-License-Identifier: AGPL-3.0-or-later
++ */
++
++package com.quantummpv.app.ui.browser
++
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.remember
++import androidx.lifecycle.compose.LifecycleResumeEffect
++import com.quantummpv.app.ui.utils.LocalNavigationPageActive
++
++/** Only the foreground page may publish selection controls to the shared navigation bar. */
++@Composable
++internal fun NavigationBarSelectionEffect(inSelectionMode: Boolean, onlyVideos: Boolean = true) {
++  val owner = remember { Any() }
++  val isActive = LocalNavigationPageActive.current
++  LifecycleResumeEffect(inSelectionMode, onlyVideos, isActive) {
++    if (isActive) NavigationBarState.claimSelection(owner, inSelectionMode, onlyVideos)
++    onPauseOrDispose { NavigationBarState.releaseSelection(owner) }
++  }
++}
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/NavigationBarState.kt b/app/src/main/java/com/quantummpv/app/ui/browser/NavigationBarState.kt
+index 23c9b06a..e1db8f5d 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/NavigationBarState.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/NavigationBarState.kt
+@@ -24,6 +24,20 @@ import androidx.compose.ui.unit.dp
+  * Uses Compose state so screens recompose only when values actually change.
+  */
+ object NavigationBarState {
++  private var selectionOwner: Any? = null
++
++  internal fun claimSelection(owner: Any, inSelectionMode: Boolean, onlyVideos: Boolean) {
++    selectionOwner = owner
++    updateSelectionState(inSelectionMode, onlyVideos)
++  }
++
++  internal fun releaseSelection(owner: Any) {
++    if (selectionOwner == owner) {
++      selectionOwner = null
++      updateSelectionState(inSelectionMode = false)
++    }
++  }
++
+   var isInSelectionMode: Boolean by mutableStateOf(false)
+     private set
+ 
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/dialogs/VideoCompressorOverlay.kt b/app/src/main/java/com/quantummpv/app/ui/browser/dialogs/VideoCompressorOverlay.kt
+index 73398aee..b162f7b1 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/dialogs/VideoCompressorOverlay.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/dialogs/VideoCompressorOverlay.kt
+@@ -17,7 +17,7 @@ import android.media.MediaMetadataRetriever
+ import android.net.Uri
+ import android.os.Build
+ import android.widget.Toast
+-import androidx.activity.compose.BackHandler
++import com.quantummpv.app.ui.utils.NavigationBackHandler as BackHandler
+ import androidx.activity.compose.rememberLauncherForActivityResult
+ import androidx.activity.result.contract.ActivityResultContracts
+ import androidx.compose.animation.AnimatedContent
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/filesystem/FileSystemBrowserScreen.kt b/app/src/main/java/com/quantummpv/app/ui/browser/filesystem/FileSystemBrowserScreen.kt
+index 6d42e843..f8d11cfb 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/filesystem/FileSystemBrowserScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/filesystem/FileSystemBrowserScreen.kt
+@@ -12,7 +12,7 @@ package com.quantummpv.app.ui.browser.filesystem
+ import android.content.Context
+ import android.content.Intent
+ import android.util.Log
+-import androidx.activity.compose.BackHandler
++import com.quantummpv.app.ui.utils.NavigationBackHandler as BackHandler
+ import androidx.activity.compose.rememberLauncherForActivityResult
+ import androidx.activity.result.contract.ActivityResultContracts
+ import androidx.compose.animation.AnimatedVisibility
+@@ -118,6 +118,7 @@ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
+ import com.quantummpv.app.ui.theme.AppMotion
+ import com.quantummpv.app.ui.utils.LocalBackStack
++import com.quantummpv.app.ui.utils.navigateTo
+ import com.quantummpv.app.ui.utils.calculateResponsiveGridSpans
+ import com.quantummpv.app.ui.utils.popSafely
+ import com.quantummpv.app.utils.media.CopyPasteOps
+@@ -331,25 +332,15 @@ fun FileSystemBrowserScreen(path: String? = null) {
+     )
+   }
+ 
+-  // Combined MainScreen updates for better performance and responsiveness
+-  LaunchedEffect(
+-    showBottomNavigation,
+-    isInSelectionMode,
+-    onlyVideosSelected,
+-    permissionState.status,
+-    isPermissionSetupCompleted,
+-  ) {
+-    if (isAtRoot) {
++  com.quantummpv.app.ui.browser.NavigationBarSelectionEffect(isInSelectionMode)
++  val isActiveRoot = isAtRoot && com.quantummpv.app.ui.utils.LocalNavigationPageActive.current
++  androidx.lifecycle.compose.LifecycleResumeEffect(isActiveRoot, showBottomNavigation, isPermissionSetupCompleted) {
++    if (isActiveRoot) {
+       try {
+         val mainScreenObj = com.quantummpv.app.ui.browser.MainScreen
+ 
+         // Update all MainScreen states in one call to reduce overhead
+         mainScreenObj.updateBottomBarVisibility(showBottomNavigation)
+-        mainScreenObj.updateSelectionState(
+-          isInSelectionMode = isInSelectionMode,
+-          isOnlyVideosSelected = true,
+-          selectionManager = if (onlyVideosSelected) selectionManager else null,
+-        )
+         mainScreenObj.updatePermissionState(
+           isDenied = !isPermissionSetupCompleted,
+         )
+@@ -357,21 +348,7 @@ fun FileSystemBrowserScreen(path: String? = null) {
+         Log.e("FileSystemBrowserScreen", "Failed to update MainScreen state", e)
+       }
+     }
+-  }
+-
+-  // Cleanup: Restore bottom navigation bar when leaving the screen
+-  DisposableEffect(Unit) {
+-    onDispose {
+-      if (isAtRoot) {
+-        try {
+-          val mainScreenObj = com.quantummpv.app.ui.browser.MainScreen
+-          // Restore bottom navigation when leaving the screen
+-          mainScreenObj.updateBottomBarVisibility(true)
+-        } catch (e: Exception) {
+-          Log.e("FileSystemBrowserScreen", "Failed to restore MainScreen bottom bar visibility", e)
+-        }
+-      }
+-    }
++    onPauseOrDispose { }
+   }
+ 
+   // File picker
+@@ -581,7 +558,7 @@ fun FileSystemBrowserScreen(path: String? = null) {
+               isSearching = !isSearching
+             },
+             onSettingsClick = {
+-              backstack.add(com.quantummpv.app.ui.preferences.PreferencesScreen)
++              backstack.navigateTo(com.quantummpv.app.ui.preferences.PreferencesScreen)
+             },
+             isSingleSelection = selectionManager.isSingleSelection,
+             onInfoClick =
+@@ -790,7 +767,7 @@ fun FileSystemBrowserScreen(path: String? = null) {
+                   MediaUtils.playFile(video, context, "search")
+                 },
+                 onFolderClick = { folder ->
+-                  backstack.add(FileSystemDirectoryScreen(folder.path))
++                  backstack.navigateTo(FileSystemDirectoryScreen(folder.path))
+                   isSearching = false
+                   searchQuery = ""
+                 },
+@@ -818,7 +795,7 @@ fun FileSystemBrowserScreen(path: String? = null) {
+                   if (isInSelectionMode) {
+                     selectionManager.toggle(folder)
+                   } else {
+-                    backstack.add(FileSystemDirectoryScreen(folder.path))
++                    backstack.navigateTo(FileSystemDirectoryScreen(folder.path))
+                   }
+                 },
+                 onFolderLongClick = { folder ->
+@@ -857,7 +834,7 @@ fun FileSystemBrowserScreen(path: String? = null) {
+                 onBreadcrumbClick = { component ->
+                   // Navigate to the breadcrumb by popping until we reach it
+                   // or pushing if it's a new path
+-                  backstack.add(FileSystemDirectoryScreen(component.fullPath))
++                  backstack.navigateTo(FileSystemDirectoryScreen(component.fullPath))
+                 },
+                 selectionManager = selectionManager,
+                 modifier = Modifier,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/folderlist/FolderListScreen.kt b/app/src/main/java/com/quantummpv/app/ui/browser/folderlist/FolderListScreen.kt
+index 84240ffe..e179e025 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/folderlist/FolderListScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/folderlist/FolderListScreen.kt
+@@ -64,7 +64,6 @@ import androidx.compose.runtime.Composable
+ import androidx.compose.runtime.CompositionLocalProvider
+ import androidx.compose.runtime.DisposableEffect
+ import androidx.compose.runtime.LaunchedEffect
+-import androidx.compose.runtime.SideEffect
+ import androidx.compose.runtime.collectAsState
+ import androidx.compose.runtime.derivedStateOf
+ import androidx.compose.runtime.getValue
+@@ -128,6 +127,7 @@ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
+ import com.quantummpv.app.ui.securefolder.SecureFolderGateScreen
+ import com.quantummpv.app.ui.utils.LocalBackStack
++import com.quantummpv.app.ui.utils.navigateTo
+ import com.quantummpv.app.ui.utils.calculateResponsiveGridSpans
+ import com.quantummpv.app.utils.history.RecentlyPlayedOps
+ import com.quantummpv.app.utils.media.CopyPasteOps
+@@ -495,17 +495,15 @@ object FolderListScreen : Screen {
+     }
+ 
+     // Update NavigationBarState synchronously when selection mode changes
+-    SideEffect {
+-      navBarState.updateSelectionState(
+-        inSelectionMode = selectionManager.isInSelectionMode,
+-        onlyVideos = true,
+-      )
+-    }
++    com.quantummpv.app.ui.browser.NavigationBarSelectionEffect(selectionManager.isInSelectionMode)
+ 
+-    DisposableEffect(isDualPaneActive, selectedFolderBucketId) {
+-      navBarState.isDualPaneFolderSelected = isDualPaneActive && selectedFolderBucketId != null
+-      onDispose {
+-        navBarState.isDualPaneFolderSelected = false
++    val isNavigationPageActive = com.quantummpv.app.ui.utils.LocalNavigationPageActive.current
++    androidx.lifecycle.compose.LifecycleResumeEffect(isDualPaneActive, selectedFolderBucketId, isNavigationPageActive) {
++      if (isNavigationPageActive) {
++        navBarState.isDualPaneFolderSelected = isDualPaneActive && selectedFolderBucketId != null
++      }
++      onPauseOrDispose {
++        if (isNavigationPageActive) navBarState.isDualPaneFolderSelected = false
+       }
+     }
+ 
+@@ -527,7 +525,7 @@ object FolderListScreen : Screen {
+         (!embedded && internalIsSearching) ||
+         isFabExpanded.value ||
+         (isDualPaneActive && selectedFolderBucketId != null)
+-    androidx.activity.compose.BackHandler(enabled = shouldHandleBack) {
++    com.quantummpv.app.ui.utils.NavigationBackHandler(enabled = shouldHandleBack) {
+       when {
+         isFabExpanded.value -> isFabExpanded.value = false
+         selectionManager.isInSelectionMode -> selectionManager.clear()
+@@ -616,10 +614,10 @@ object FolderListScreen : Screen {
+                 if (!internalIsSearching) internalSearchQuery = ""
+               },
+               onSettingsClick = {
+-                backstack.add(com.quantummpv.app.ui.preferences.PreferencesScreen)
++                backstack.navigateTo(com.quantummpv.app.ui.preferences.PreferencesScreen)
+               },
+-              onTitleDoubleTap = { backstack.add(SecureFolderGateScreen) },
+-              onTitleLongPress = { backstack.add(SecureFolderGateScreen) },
++              onTitleDoubleTap = { backstack.navigateTo(SecureFolderGateScreen) },
++              onTitleLongPress = { backstack.navigateTo(SecureFolderGateScreen) },
+               showBetaBadge = BuildConfig.IS_PREVIEW_BUILD,
+               onRenameClick = null,
+               isSingleSelection = selectionManager.isSingleSelection,
+@@ -690,7 +688,7 @@ object FolderListScreen : Screen {
+               onDeselectAll = { selectionManager.clear() },
+               onMoveToSecureClick = {
+                 if (!secureFolderPreferences.isPinSet()) {
+-                  backstack.add(SecureFolderGateScreen)
++                  backstack.navigateTo(SecureFolderGateScreen)
+                 } else if (secureFolderPreferences.dontAskBeforeMove.get()) {
+                   moveSelectedFoldersToSecureFolder()
+                 } else {
+@@ -866,7 +864,7 @@ object FolderListScreen : Screen {
+                             internalSearchQuery = ""
+                           }
+                         } else {
+-                          backstack.add(
++                          backstack.navigateTo(
+                             com.quantummpv.app.ui.browser.videolist
+                               .VideoListScreen(folder.bucketId, folder.name, isAudio = audioOnly),
+                           )
+@@ -905,7 +903,7 @@ object FolderListScreen : Screen {
+                         selectedFolderBucketId = folder.bucketId
+                         selectedFolderName = folder.name
+                       } else {
+-                        backstack.add(
++                        backstack.navigateTo(
+                           com.quantummpv.app.ui.browser.videolist
+                             .VideoListScreen(folder.bucketId, folder.name, isAudio = audioOnly),
+                         )
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinContent.kt b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinContent.kt
+index af18b527..b2482404 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinContent.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinContent.kt
+@@ -9,7 +9,7 @@
+ 
+ package com.quantummpv.app.ui.browser.jellyfin
+ 
+-import androidx.activity.compose.BackHandler
++import com.quantummpv.app.ui.utils.NavigationBackHandler as BackHandler
+ import androidx.compose.animation.AnimatedVisibility
+ import androidx.compose.animation.core.Spring
+ import androidx.compose.animation.core.animateFloatAsState
+@@ -70,9 +70,7 @@ import androidx.compose.material3.ToggleFloatingActionButton
+ import androidx.compose.material3.ToggleFloatingActionButtonDefaults.animateIcon
+ import androidx.compose.material3.animateFloatingActionButton
+ import androidx.compose.foundation.pager.rememberPagerState
+-import androidx.compose.runtime.rememberCoroutineScope
+ import androidx.compose.runtime.Composable
+-import androidx.compose.runtime.DisposableEffect
+ import androidx.compose.runtime.LaunchedEffect
+ import androidx.compose.runtime.collectAsState
+ import androidx.compose.runtime.derivedStateOf
+@@ -103,13 +101,11 @@ import com.quantummpv.app.domain.jellyfin.JellyfinServer
+ import com.quantummpv.app.preferences.AppearancePreferences
+ import com.quantummpv.app.preferences.MediaServerPreferences
+ import com.quantummpv.app.preferences.MusicSourceProvider
+-import kotlinx.coroutines.launch
+ import com.quantummpv.app.preferences.BrowserPreferences
+ import com.quantummpv.app.preferences.MediaLayoutMode
+ import com.quantummpv.app.preferences.preference.collectAsState
+ import com.quantummpv.app.presentation.components.pullrefresh.PullRefreshBox
+ import com.quantummpv.app.ui.browser.LocalNavigationBarHeight
+-import com.quantummpv.app.ui.browser.NavigationBarState
+ import com.quantummpv.app.ui.browser.components.BrowserTopBar
+ import com.quantummpv.app.ui.browser.components.ExpressiveScrollBar
+ import com.quantummpv.app.ui.browser.components.fastScrollGlyph
+@@ -122,6 +118,8 @@ import com.quantummpv.app.ui.components.InlineSearchBar
+ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
+ import com.quantummpv.app.ui.utils.LocalBackStack
++import com.quantummpv.app.ui.utils.navigateTo
++import com.quantummpv.app.ui.utils.rememberTabNavigation
+ import org.koin.compose.koinInject
+ 
+ @OptIn(ExperimentalMaterial3Api::class)
+@@ -163,7 +161,6 @@ fun JellyfinContent(
+   var isFabExpanded by remember { mutableStateOf(false) }
+   val isFabVisible = remember { mutableStateOf(true) }
+   val searchFocusRequester = remember { FocusRequester() }
+-  val scope = rememberCoroutineScope()
+ 
+   val seerrViewModel: com.quantummpv.app.ui.browser.jellyfin.seerr.SeerrViewModel =
+     androidx.lifecycle.viewmodel.compose.viewModel(
+@@ -186,19 +183,22 @@ fun JellyfinContent(
+     initialPage = musicTabs.indexOf(uiState.musicActiveTab).coerceAtLeast(0),
+     pageCount = { musicTabs.size },
+   )
++  val navigateMusicTab = rememberTabNavigation(musicPagerState)
+ 
+-  LaunchedEffect(musicPagerState.settledPage, musicTabs) {
+-    musicTabs.getOrNull(musicPagerState.settledPage)?.let { tab ->
+-      if (uiState.musicActiveTab != tab) {
+-        viewModel.setMusicTab(tab)
++  LaunchedEffect(musicPagerState.settledPage, musicPagerState.isScrollInProgress, musicTabs) {
++    if (!musicPagerState.isScrollInProgress) {
++      musicTabs.getOrNull(musicPagerState.settledPage)?.let { tab ->
++        if (uiState.musicActiveTab != tab) {
++          viewModel.setMusicTab(tab)
++        }
+       }
+     }
+   }
+ 
+   LaunchedEffect(uiState.musicActiveTab, musicTabs) {
+     val targetIndex = musicTabs.indexOf(uiState.musicActiveTab)
+-    if (targetIndex >= 0 && musicPagerState.currentPage != targetIndex) {
+-      musicPagerState.animateScrollToPage(targetIndex)
++    if (targetIndex >= 0) {
++      navigateMusicTab(targetIndex)
+     }
+   }
+ 
+@@ -248,15 +248,7 @@ fun JellyfinContent(
+     }
+   }
+ 
+-  DisposableEffect(selectionManager.isInSelectionMode) {
+-    NavigationBarState.updateSelectionState(
+-      inSelectionMode = selectionManager.isInSelectionMode,
+-      onlyVideos = true,
+-    )
+-    onDispose {
+-      NavigationBarState.updateSelectionState(inSelectionMode = false)
+-    }
+-  }
++  com.quantummpv.app.ui.browser.NavigationBarSelectionEffect(selectionManager.isInSelectionMode)
+ 
+   // Intercept back button if searching, selecting, requests open, details open, or browsing inside a folder
+   val isBackEnabled =
+@@ -435,7 +427,7 @@ fun JellyfinContent(
+             null
+           },
+           onSettingsClick = {
+-            backstack.add(com.quantummpv.app.ui.preferences.PreferencesScreen)
++            backstack.navigateTo(com.quantummpv.app.ui.preferences.PreferencesScreen)
+           },
+           preSearchActions = {
+             if (!selectionManager.isInSelectionMode) {
+@@ -609,7 +601,7 @@ fun JellyfinContent(
+                       },
+                       onClick = {
+                         isSourceDropdownOpen = false
+-                        backstack.add(com.quantummpv.app.ui.preferences.MediaServersPreferencesScreen)
++                        backstack.navigateTo(com.quantummpv.app.ui.preferences.MediaServersPreferencesScreen)
+                       },
+                     )
+                   }
+@@ -620,7 +612,7 @@ fun JellyfinContent(
+           postSearchActions = {
+             if (!selectionManager.isInSelectionMode) {
+               IconButton(
+-                onClick = { backstack.add(com.quantummpv.app.ui.downloads.DownloadsScreen) },
++                onClick = { backstack.navigateTo(com.quantummpv.app.ui.downloads.DownloadsScreen) },
+                 modifier = Modifier.padding(horizontal = 2.dp),
+               ) {
+                 Icon(
+@@ -656,12 +648,7 @@ fun JellyfinContent(
+           musicTabs.forEachIndexed { index, tab ->
+             Tab(
+               selected = selectedTabIndex == index,
+-              onClick = {
+-                scope.launch {
+-                  viewModel.setMusicTab(tab)
+-                  musicPagerState.animateScrollToPage(index)
+-                }
+-              },
++              onClick = { viewModel.setMusicTab(tab) },
+               text = {
+                 Text(
+                   text = tab.title,
+@@ -925,15 +912,7 @@ fun JellyfinContent(
+                   server = uiState.activeServer!!,
+                   pagerState = musicPagerState,
+                   visibleTabs = musicTabs,
+-                  onTabSelected = { tab ->
+-                    scope.launch {
+-                      viewModel.setMusicTab(tab)
+-                      val targetIndex = musicTabs.indexOf(tab)
+-                      if (targetIndex >= 0) {
+-                        musicPagerState.animateScrollToPage(targetIndex)
+-                      }
+-                    }
+-                  },
++                  onTabSelected = viewModel::setMusicTab,
+                   onItemClick = { item ->
+                     if (selectionManager.isInSelectionMode) {
+                       selectionManager.toggle(item)
+@@ -1591,4 +1570,4 @@ private fun ErrorView(
+       }
+     }
+   }
+-}
+\ No newline at end of file
++}
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinMusicView.kt b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinMusicView.kt
+index bbfb4a98..bf7a2eb6 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinMusicView.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinMusicView.kt
+@@ -66,7 +66,7 @@ import com.quantummpv.app.ui.icons.AppIcon
+ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
+ 
+-import androidx.compose.foundation.pager.HorizontalPager
++import com.quantummpv.app.ui.utils.NavigationPager
+ import androidx.compose.foundation.pager.PagerState
+ import androidx.lifecycle.compose.collectAsStateWithLifecycle
+ import com.quantummpv.app.ui.browser.music.MusicSortField
+@@ -97,7 +97,7 @@ fun JellyfinMusicView(
+   val queueState by PlaybackSession.queue.collectAsStateWithLifecycle()
+   val currentSessionItem = queueState.currentItem
+ 
+-  HorizontalPager(
++  NavigationPager(
+     state = pagerState,
+     modifier = modifier
+       .fillMaxSize()
+@@ -725,4 +725,3 @@ fun JellyfinMusicCard(
+     modifier = modifier,
+   )
+ }
+-
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/seerr/SeerrContent.kt b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/seerr/SeerrContent.kt
+index dc722639..55d7a1ea 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/seerr/SeerrContent.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/seerr/SeerrContent.kt
+@@ -10,7 +10,7 @@
+ package com.quantummpv.app.ui.browser.jellyfin.seerr
+ 
+ import android.widget.Toast
+-import androidx.activity.compose.BackHandler
++import com.quantummpv.app.ui.utils.NavigationBackHandler as BackHandler
+ import androidx.compose.animation.AnimatedVisibility
+ import androidx.compose.foundation.background
+ import androidx.compose.foundation.horizontalScroll
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/medialibrary/MediaLibraryContent.kt b/app/src/main/java/com/quantummpv/app/ui/browser/medialibrary/MediaLibraryContent.kt
+index 74d36b7f..49c03b39 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/medialibrary/MediaLibraryContent.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/medialibrary/MediaLibraryContent.kt
+@@ -12,7 +12,7 @@ package com.quantummpv.app.ui.browser.medialibrary
+ import android.content.Intent
+ import android.os.Environment
+ import android.widget.Toast
+-import androidx.activity.compose.BackHandler
++import com.quantummpv.app.ui.utils.NavigationBackHandler as BackHandler
+ import androidx.activity.compose.rememberLauncherForActivityResult
+ import androidx.activity.result.contract.ActivityResultContracts
+ import androidx.compose.animation.AnimatedVisibility
+@@ -111,6 +111,7 @@ import com.quantummpv.app.ui.player.PreparedPlaybackLaunchStore
+ import com.quantummpv.app.ui.player.PlayerActivity
+ import com.quantummpv.app.ui.securefolder.SecureFolderGateScreen
+ import com.quantummpv.app.ui.utils.LocalBackStack
++import com.quantummpv.app.ui.utils.navigateTo
+ import com.quantummpv.app.utils.history.RecentlyPlayedOps
+ import com.quantummpv.app.utils.media.CopyPasteOps
+ import com.quantummpv.app.utils.media.MediaUtils
+@@ -315,11 +316,11 @@ fun MediaLibraryContent(forceAudio: Boolean = false) {
+ 
+   LaunchedEffect(selectionManager.isInSelectionMode, mediaType) {
+     showFloatingBottomBar = selectionManager.isInSelectionMode
+-    NavigationBarState.updateSelectionState(
+-      inSelectionMode = selectionManager.isInSelectionMode,
+-      onlyVideos = mediaType == MediaLibraryType.Video,
+-    )
+   }
++  com.quantummpv.app.ui.browser.NavigationBarSelectionEffect(
++    inSelectionMode = selectionManager.isInSelectionMode,
++    onlyVideos = mediaType == MediaLibraryType.Video,
++  )
+ 
+   fun playFromMediaLibrary(video: Video) {
+     if (!playlistMode || mediaTypeVideosWithInfo.size <= 1) {
+@@ -455,10 +456,10 @@ fun MediaLibraryContent(forceAudio: Boolean = false) {
+           onSortClick = { sortDialogOpen.value = true },
+           onSearchClick = { isSearching = true },
+           onSettingsClick = {
+-            backstack.add(com.quantummpv.app.ui.preferences.PreferencesScreen)
++            backstack.navigateTo(com.quantummpv.app.ui.preferences.PreferencesScreen)
+           },
+-          onTitleDoubleTap = { backstack.add(SecureFolderGateScreen) },
+-          onTitleLongPress = { backstack.add(SecureFolderGateScreen) },
++          onTitleDoubleTap = { backstack.navigateTo(SecureFolderGateScreen) },
++          onTitleLongPress = { backstack.navigateTo(SecureFolderGateScreen) },
+           isSingleSelection = selectionManager.isSingleSelection,
+           onInfoClick = {
+             if (selectionManager.isSingleSelection) {
+@@ -479,7 +480,7 @@ fun MediaLibraryContent(forceAudio: Boolean = false) {
+           onDeselectAll = { selectionManager.clear() },
+           onMoveToSecureClick = {
+             if (!secureFolderPreferences.isPinSet()) {
+-              backstack.add(SecureFolderGateScreen)
++              backstack.navigateTo(SecureFolderGateScreen)
+             } else if (secureFolderPreferences.dontAskBeforeMove.get()) {
+               moveSelectedToSecureFolder()
+             } else {
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryContent.kt b/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryContent.kt
+index bef5de4e..f61550f5 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryContent.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryContent.kt
+@@ -9,7 +9,7 @@ import android.graphics.BitmapFactory
+ import android.net.Uri
+ import android.text.format.DateUtils
+ import com.quantummpv.app.ui.browser.jellyfin.JellyfinViewModel
+-import androidx.activity.compose.BackHandler
++import com.quantummpv.app.ui.utils.NavigationBackHandler as BackHandler
+ import androidx.compose.animation.AnimatedVisibility
+ import androidx.compose.animation.fadeIn
+ import androidx.compose.animation.fadeOut
+@@ -43,7 +43,7 @@ import androidx.compose.foundation.lazy.grid.items
+ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+ import androidx.compose.foundation.lazy.items
+ import androidx.compose.foundation.lazy.rememberLazyListState
+-import androidx.compose.foundation.pager.HorizontalPager
++import com.quantummpv.app.ui.utils.NavigationPager
+ import androidx.compose.foundation.pager.rememberPagerState
+ import androidx.compose.foundation.shape.CircleShape
+ import androidx.compose.foundation.shape.RoundedCornerShape
+@@ -84,7 +84,6 @@ import androidx.compose.material3.rememberTooltipState
+ import androidx.compose.runtime.Composable
+ import androidx.compose.runtime.DisposableEffect
+ import androidx.compose.runtime.LaunchedEffect
+-import androidx.compose.runtime.SideEffect
+ import androidx.compose.runtime.collectAsState
+ import androidx.compose.runtime.derivedStateOf
+ import androidx.compose.runtime.getValue
+@@ -131,7 +130,6 @@ import com.quantummpv.app.preferences.preference.collectAsState
+ import com.quantummpv.app.ui.preferences.PreferencesScreen
+ import com.quantummpv.app.ui.browser.LocalNavigationBarHeight
+ import com.quantummpv.app.ui.browser.MainScreen
+-import com.quantummpv.app.ui.browser.NavigationBarState
+ import com.quantummpv.app.ui.browser.cards.PlaylistCard
+ import com.quantummpv.app.ui.browser.components.BrowserBottomBar
+ import com.quantummpv.app.ui.browser.components.BrowserTopBar
+@@ -152,6 +150,8 @@ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
+ import com.quantummpv.app.ui.theme.AppShapeScale
+ import com.quantummpv.app.ui.utils.LocalBackStack
++import com.quantummpv.app.ui.utils.navigateTo
++import com.quantummpv.app.ui.utils.rememberTabNavigation
+ import com.quantummpv.app.utils.media.MediaUtils
+ import com.quantummpv.app.utils.permission.PermissionUtils
+ import androidx.lifecycle.Lifecycle
+@@ -238,7 +238,6 @@ fun MusicLibraryContent(
+   var isSearchActive by remember { mutableStateOf(false) }
+   var isSortMenuExpanded by remember { mutableStateOf(false) }
+   var showCreatePlaylistDialog by remember { mutableStateOf(false) }
+-  var selectedPlaylistForDetail by remember { mutableStateOf<PlaylistEntity?>(null) }
+ 
+   var selectedSongForOptions by remember { mutableStateOf<MusicSong?>(null) }
+   var selectedAlbumForOptions by remember { mutableStateOf<MusicAlbum?>(null) }
+@@ -327,6 +326,7 @@ fun MusicLibraryContent(
+     visibleTabs.indexOf(selectedTab).coerceAtLeast(0)
+   }
+   val pagerState = rememberPagerState(initialPage = initialPageIndex) { visibleTabs.size }
++  val navigateTab = rememberTabNavigation(pagerState)
+ 
+   val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+ 
+@@ -359,22 +359,20 @@ fun MusicLibraryContent(
+     }
+   }
+ 
+-  LaunchedEffect(visibleTabs) {
+-    if (selectedTab !in visibleTabs) {
+-      visibleTabs.firstOrNull()?.let { musicViewModel.setTab(it) }
+-    }
+-  }
+-
+-  LaunchedEffect(pagerState.settledPage, visibleTabs) {
+-    visibleTabs.getOrNull(pagerState.settledPage)?.let { tab ->
+-      musicViewModel.setTab(tab)
+-    }
++  LaunchedEffect(pagerState, visibleTabs) {
++    if (visibleTabs.isEmpty()) return@LaunchedEffect
++    // Restore by tab identity before publishing page indices after tabs are hidden/reordered.
++    pagerState.scrollToPage(visibleTabs.indexOf(selectedTab).coerceAtLeast(0))
++    snapshotFlow { pagerState.settledPage to pagerState.isScrollInProgress }
++      .collect { (page, scrolling) ->
++        if (!scrolling) visibleTabs.getOrNull(page)?.let(musicViewModel::setTab)
++      }
+   }
+ 
+-  LaunchedEffect(selectedTab, visibleTabs) {
++  LaunchedEffect(selectedTab) {
+     val targetIndex = visibleTabs.indexOf(selectedTab)
+-    if (targetIndex >= 0 && pagerState.currentPage != targetIndex) {
+-      pagerState.animateScrollToPage(targetIndex)
++    if (targetIndex >= 0) {
++      navigateTab(targetIndex)
+     }
+     songSelectionManager.clear()
+     albumSelectionManager.clear()
+@@ -426,19 +424,10 @@ fun MusicLibraryContent(
+       }
+   }
+ 
+-  val navBarState = NavigationBarState
+-  SideEffect {
+-    navBarState.updateSelectionState(
+-      inSelectionMode = activeSelectionManager.isInSelectionMode,
+-      onlyVideos = false,
+-    )
+-  }
+-
+-  DisposableEffect(Unit) {
+-    onDispose {
+-      navBarState.updateSelectionState(inSelectionMode = false)
+-    }
+-  }
++  com.quantummpv.app.ui.browser.NavigationBarSelectionEffect(
++    inSelectionMode = activeSelectionManager.isInSelectionMode,
++    onlyVideos = false,
++  )
+ 
+   BackHandler(enabled = isSearchActive || activeSelectionManager.isInSelectionMode || (isFabExpanded.value && !quickPlayFabDirect)) {
+     when {
+@@ -451,13 +440,6 @@ fun MusicLibraryContent(
+     }
+   }
+ 
+-  // Playlist detail overlay when a playlist is opened
+-  selectedPlaylistForDetail?.let { playlist ->
+-    BackHandler { selectedPlaylistForDetail = null }
+-    PlaylistDetailScreen(playlistId = playlist.id).Content()
+-    return
+-  }
+-
+   val totalCount = when (selectedTab) {
+     MusicTab.SONGS -> songs.size
+     MusicTab.ALBUMS -> albums.size
+@@ -515,7 +497,7 @@ fun MusicLibraryContent(
+               onSortClick = { isSortMenuExpanded = true },
+               onSearchClick = { isSearchActive = true },
+               onSettingsClick = {
+-                backStack.add(PreferencesScreen)
++                backStack.navigateTo(PreferencesScreen)
+               },
+               onSelectAll = { activeSelectionManager.selectAll() },
+               onInvertSelection = { activeSelectionManager.invertSelection() },
+@@ -744,7 +726,7 @@ fun MusicLibraryContent(
+                         },
+                         onClick = {
+                           isSourceDropdownOpen = false
+-                          backStack.add(com.quantummpv.app.ui.preferences.MediaServersPreferencesScreen)
++                          backStack.navigateTo(com.quantummpv.app.ui.preferences.MediaServersPreferencesScreen)
+                         },
+                       )
+                     }
+@@ -788,12 +770,7 @@ fun MusicLibraryContent(
+           visibleTabs.forEachIndexed { index, tab ->
+             Tab(
+               selected = pagerState.currentPage == index,
+-              onClick = {
+-                scope.launch {
+-                  musicViewModel.setTab(tab)
+-                  pagerState.animateScrollToPage(index)
+-                }
+-              },
++              onClick = { musicViewModel.setTab(tab) },
+               text = {
+                 Text(
+                   text = tab.title,
+@@ -921,8 +898,9 @@ fun MusicLibraryContent(
+             CircularProgressIndicator()
+           }
+         } else {
+-          HorizontalPager(
++          NavigationPager(
+             state = pagerState,
++            key = { page -> visibleTabs[page].name },
+             modifier = Modifier.fillMaxSize(),
+             beyondViewportPageCount = 1,
+           ) { page ->
+@@ -1000,7 +978,7 @@ fun MusicLibraryContent(
+                   if (playlistSelectionManager.isInSelectionMode) {
+                     playlistSelectionManager.toggle(playlist)
+                   } else {
+-                    selectedPlaylistForDetail = playlist
++                    backStack.navigateTo(PlaylistDetailScreen(playlistId = playlist.id))
+                   }
+                 },
+                 onPlaylistLongClick = { playlist ->
+@@ -1364,7 +1342,7 @@ fun MusicLibraryContent(
+                 modifier = Modifier.clickable {
+                   val target = playlist
+                   selectedPlaylistForOptions = null
+-                  selectedPlaylistForDetail = target
++                  backStack.navigateTo(PlaylistDetailScreen(playlistId = target.id))
+                 }
+               )
+               if (!playlist.name.equals(PlaylistRepository.FAVORITES_PLAYLIST_NAME, ignoreCase = true)) {
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryViewModel.kt b/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryViewModel.kt
+index 9911c42d..278ddcc8 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryViewModel.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryViewModel.kt
+@@ -16,6 +16,8 @@ import com.quantummpv.app.ui.player.PlaybackSession
+ import com.quantummpv.app.ui.player.PreparedPlaybackLaunchStore
+ import com.quantummpv.app.ui.player.PlayerActivity
+ import com.quantummpv.app.utils.history.RecentlyPlayedOps
++import kotlinx.coroutines.CancellationException
++import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.flow.MutableStateFlow
+ import kotlinx.coroutines.flow.SharingStarted
+ import kotlinx.coroutines.flow.StateFlow
+@@ -23,9 +25,13 @@ import kotlinx.coroutines.flow.asStateFlow
+ import kotlinx.coroutines.flow.collect
+ import kotlinx.coroutines.flow.combine
+ import kotlinx.coroutines.flow.distinctUntilChanged
++import kotlinx.coroutines.flow.flowOn
+ import kotlinx.coroutines.flow.map
+ import kotlinx.coroutines.flow.stateIn
+ import kotlinx.coroutines.launch
++import kotlinx.coroutines.sync.Mutex
++import kotlinx.coroutines.sync.withLock
++import kotlinx.coroutines.withContext
+ import org.koin.core.component.KoinComponent
+ import org.koin.core.component.inject
+ 
+@@ -53,6 +59,7 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
+   // Keep the unfiltered MediaStore result so changing the minimum-duration preference can update
+   // Songs, Albums and Artists immediately without rescanning storage on every slider movement.
+   private val _allSongs = MutableStateFlow<List<MusicSong>>(emptyList())
++  private val filterMutex = Mutex()
+ 
+   private val _songs = MutableStateFlow<List<MusicSong>>(emptyList())
+   val songs: StateFlow<List<MusicSong>> = _songs.asStateFlow()
+@@ -109,7 +116,7 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
+         Pair(minimumSeconds, blacklist)
+       }
+         .distinctUntilChanged()
+-        .collect { (minimumSeconds, blacklist) -> applyFilters(minimumSeconds, blacklist) }
++        .collect { applyFilters() }
+     }
+     viewModelScope.launch {
+       MediaLibraryEvents.changes.collectLatest {
+@@ -142,7 +149,8 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
+       MusicSortField.TRACK_COUNT, MusicSortField.YEAR -> result.sortedBy { it.year }
+     }
+     if (order == MusicSortOrder.DESCENDING) sorted.reversed() else sorted
+-  }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
++  }.flowOn(Dispatchers.Default)
++    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+ 
+   val filteredAlbums: StateFlow<List<MusicAlbum>> = combine(
+     _albums, _searchQuery, sortField, sortOrder
+@@ -162,7 +170,8 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
+       else -> result.sortedBy { it.title.lowercase() }
+     }
+     if (order == MusicSortOrder.DESCENDING) sorted.reversed() else sorted
+-  }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
++  }.flowOn(Dispatchers.Default)
++    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+ 
+   val filteredArtists: StateFlow<List<MusicArtist>> = combine(
+     _artists, _searchQuery, sortField, sortOrder
+@@ -177,16 +186,16 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
+       else -> result.sortedBy { it.name.lowercase() }
+     }
+     if (order == MusicSortOrder.DESCENDING) sorted.reversed() else sorted
+-  }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
++  }.flowOn(Dispatchers.Default)
++    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+ 
+   suspend fun refreshLibrary(context: Context) {
+     _isLoading.value = true
+     try {
+       _allSongs.value = MusicLibraryScanner.scanSongs(context)
+-      applyFilters(
+-        browserPreferences.minimumAudioDurationSeconds.get(),
+-        foldersPreferences.blacklistedAudioFolders.get()
+-      )
++      applyFilters()
++    } catch (e: CancellationException) {
++      throw e
+     } catch (e: Exception) {
+       e.printStackTrace()
+     } finally {
+@@ -199,20 +208,28 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
+    * selects 30 seconds, every 30s, 3min, 30min, or multi-hour audio file remains in the library.
+    * Also filters out songs whose path starts with any blacklisted audio folder path.
+    */
+-  private fun applyFilters(minimumSeconds: Int, blacklist: Set<String>) {
+-    val minimumMs = minimumSeconds.coerceAtLeast(0).toLong() * 1000L
+-    val visibleSongs = _allSongs.value.filter { song ->
+-      val meetsDuration = (minimumMs == 0L || song.durationMs >= minimumMs)
+-      val isNotBlacklisted = blacklist.none { folderPath ->
+-        song.path.equals(folderPath, ignoreCase = true) ||
+-          song.path.startsWith(if (folderPath.endsWith("/")) folderPath else "$folderPath/", ignoreCase = true)
++  private suspend fun applyFilters() = filterMutex.withLock {
++    // A scan and a preference change can arrive together. Serialize publication and take the
++    // latest inputs inside the lock so an older background calculation cannot win the race.
++    val allSongs = _allSongs.value
++    val minimumSeconds = browserPreferences.minimumAudioDurationSeconds.get()
++    val blacklist = foldersPreferences.blacklistedAudioFolders.get()
++    val (visibleSongs, albums, artists) = withContext(Dispatchers.Default) {
++      val minimumMs = minimumSeconds.coerceAtLeast(0).toLong() * 1000L
++      val visible = allSongs.filter { song ->
++        val meetsDuration = (minimumMs == 0L || song.durationMs >= minimumMs)
++        val isNotBlacklisted = blacklist.none { folderPath ->
++          song.path.equals(folderPath, ignoreCase = true) ||
++            song.path.startsWith(if (folderPath.endsWith("/")) folderPath else "$folderPath/", ignoreCase = true)
++        }
++        meetsDuration && isNotBlacklisted
+       }
+-      meetsDuration && isNotBlacklisted
++      Triple(visible, buildAlbums(visible), buildArtists(visible))
+     }
+ 
+     _songs.value = visibleSongs
+-    _albums.value = buildAlbums(visibleSongs)
+-    _artists.value = buildArtists(visibleSongs)
++    _albums.value = albums
++    _artists.value = artists
+ 
+     // Never leave the detail screen pointing at an album/artist that was completely filtered out.
+     _selectedAlbum.value = _selectedAlbum.value?.takeIf { selected -> _albums.value.any { it.id == selected.id } }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/navidrome/NavidromeContent.kt b/app/src/main/java/com/quantummpv/app/ui/browser/navidrome/NavidromeContent.kt
+index bef8743c..3870167d 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/navidrome/NavidromeContent.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/navidrome/NavidromeContent.kt
+@@ -9,7 +9,7 @@
+ 
+ package com.quantummpv.app.ui.browser.navidrome
+ 
+-import androidx.activity.compose.BackHandler
++import com.quantummpv.app.ui.utils.NavigationBackHandler as BackHandler
+ import androidx.compose.foundation.background
+ import androidx.compose.foundation.clickable
+ import androidx.compose.foundation.layout.Arrangement
+@@ -51,7 +51,6 @@ import androidx.compose.runtime.collectAsState
+ import androidx.compose.runtime.getValue
+ import androidx.compose.runtime.mutableStateOf
+ import androidx.compose.runtime.remember
+-import androidx.compose.runtime.rememberCoroutineScope
+ import androidx.compose.runtime.saveable.rememberSaveable
+ import androidx.compose.runtime.setValue
+ import androidx.compose.ui.Alignment
+@@ -81,10 +80,11 @@ import com.quantummpv.app.ui.browser.music.SharedMusicTrackListItem
+ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
+ import com.quantummpv.app.ui.utils.LocalBackStack
++import com.quantummpv.app.ui.utils.navigateTo
++import com.quantummpv.app.ui.utils.rememberTabNavigation
+ import com.quantummpv.app.ui.browser.dialogs.MusicSortDialog
+ import com.quantummpv.app.ui.browser.music.MusicSortField
+ import com.quantummpv.app.ui.browser.LocalNavigationBarHeight
+-import kotlinx.coroutines.launch
+ import org.koin.compose.koinInject
+ 
+ @OptIn(ExperimentalMaterial3Api::class)
+@@ -97,7 +97,6 @@ fun NavidromeContent(
+   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+   val context = LocalContext.current
+   val backstack = LocalBackStack.current
+-  val scope = rememberCoroutineScope()
+ 
+   val mediaServerPreferences = koinInject<MediaServerPreferences>()
+   val currentMusicSource by mediaServerPreferences.musicSourceProvider.collectAsState()
+@@ -124,10 +123,13 @@ fun NavidromeContent(
+     initialPage = 0,
+     pageCount = { musicTabs.size },
+   )
++  val navigateMusicTab = rememberTabNavigation(musicPagerState)
+ 
+-  LaunchedEffect(musicPagerState.settledPage) {
+-    musicTabs.getOrNull(musicPagerState.settledPage)?.let { tab ->
+-      viewModel.setMusicTab(tab)
++  LaunchedEffect(musicPagerState.settledPage, musicPagerState.isScrollInProgress) {
++    if (!musicPagerState.isScrollInProgress) {
++      musicTabs.getOrNull(musicPagerState.settledPage)?.let { tab ->
++        viewModel.setMusicTab(tab)
++      }
+     }
+   }
+ 
+@@ -227,7 +229,7 @@ fun NavidromeContent(
+           } else null,
+           onSearchClick = { isSearching = true },
+           onSettingsClick = {
+-            backstack.add(com.quantummpv.app.ui.preferences.PreferencesScreen)
++            backstack.navigateTo(com.quantummpv.app.ui.preferences.PreferencesScreen)
+           },
+           preSearchActions = {
+             if (isMusicOnlyMode) {
+@@ -376,7 +378,7 @@ fun NavidromeContent(
+                     },
+                     onClick = {
+                       isSourceDropdownOpen = false
+-                      backstack.add(com.quantummpv.app.ui.preferences.MediaServersPreferencesScreen)
++                      backstack.navigateTo(com.quantummpv.app.ui.preferences.MediaServersPreferencesScreen)
+                     },
+                   )
+                 }
+@@ -385,7 +387,7 @@ fun NavidromeContent(
+           },
+           postSearchActions = {
+             IconButton(
+-              onClick = { backstack.add(com.quantummpv.app.ui.downloads.DownloadsScreen) },
++              onClick = { backstack.navigateTo(com.quantummpv.app.ui.downloads.DownloadsScreen) },
+               modifier = Modifier.padding(horizontal = 2.dp),
+             ) {
+               Icon(
+@@ -411,12 +413,7 @@ fun NavidromeContent(
+           musicTabs.forEachIndexed { index, tab ->
+             Tab(
+               selected = selectedTabIndex == index,
+-              onClick = {
+-                scope.launch {
+-                  viewModel.setMusicTab(tab)
+-                  musicPagerState.animateScrollToPage(index)
+-                }
+-              },
++              onClick = { navigateMusicTab(index) },
+               text = {
+                 Text(
+                   text = tab.title,
+@@ -560,13 +557,7 @@ fun NavidromeContent(
+           pagerState = musicPagerState,
+           visibleTabs = musicTabs,
+           onTabSelected = { tab ->
+-            scope.launch {
+-              viewModel.setMusicTab(tab)
+-              val targetIndex = musicTabs.indexOf(tab)
+-              if (targetIndex >= 0) {
+-                musicPagerState.animateScrollToPage(targetIndex)
+-              }
+-            }
++            navigateMusicTab(musicTabs.indexOf(tab))
+           },
+           onSongClick = { song -> viewModel.playSong(context, song) },
+           onAlbumClick = { album -> viewModel.openAlbumDetail(album) },
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/navidrome/NavidromeMusicView.kt b/app/src/main/java/com/quantummpv/app/ui/browser/navidrome/NavidromeMusicView.kt
+index 69f1f53c..cdd39839 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/navidrome/NavidromeMusicView.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/navidrome/NavidromeMusicView.kt
+@@ -29,7 +29,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
+ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+ import androidx.compose.foundation.lazy.grid.items
+ import androidx.compose.foundation.lazy.items
+-import androidx.compose.foundation.pager.HorizontalPager
++import com.quantummpv.app.ui.utils.NavigationPager
+ import androidx.compose.foundation.pager.PagerState
+ import androidx.compose.material3.CircularProgressIndicator
+ import androidx.compose.material3.MaterialTheme
+@@ -84,7 +84,7 @@ fun NavidromeMusicView(
+   val queueState by PlaybackSession.queue.collectAsStateWithLifecycle()
+   val currentSessionItem = queueState.currentItem
+ 
+-  HorizontalPager(
++  NavigationPager(
+     state = pagerState,
+     modifier = modifier
+       .fillMaxSize()
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/networkstreaming/NetworkBookmarksScreen.kt b/app/src/main/java/com/quantummpv/app/ui/browser/networkstreaming/NetworkBookmarksScreen.kt
+index acd2aa55..417e3203 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/networkstreaming/NetworkBookmarksScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/networkstreaming/NetworkBookmarksScreen.kt
+@@ -45,6 +45,7 @@ import com.quantummpv.app.ui.browser.states.EmptyState
+ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
+ import com.quantummpv.app.ui.utils.LocalBackStack
++import com.quantummpv.app.ui.utils.navigateTo
+ import com.quantummpv.app.ui.utils.popSafely
+ import kotlinx.serialization.Serializable
+ import org.koin.compose.koinInject
+@@ -201,7 +202,7 @@ object NetworkBookmarksScreen : Screen {
+             BookmarkManageCard(
+               bookmark = bookmark,
+               onOpen = {
+-                backstack.add(
++                backstack.navigateTo(
+                   NetworkBrowserScreen(
+                     connectionId = bookmark.connection.id,
+                     connectionName = bookmark.connection.name,
+@@ -270,4 +271,4 @@ private fun BookmarkManageCard(
+       }
+     }
+   }
+-}
+\ No newline at end of file
++}
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/networkstreaming/NetworkBrowserScreen.kt b/app/src/main/java/com/quantummpv/app/ui/browser/networkstreaming/NetworkBrowserScreen.kt
+index 53c875ef..d370f8eb 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/networkstreaming/NetworkBrowserScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/networkstreaming/NetworkBrowserScreen.kt
+@@ -9,7 +9,7 @@
+ 
+ package com.quantummpv.app.ui.browser.networkstreaming
+ 
+-import androidx.activity.compose.BackHandler
++import com.quantummpv.app.ui.utils.NavigationBackHandler as BackHandler
+ import androidx.compose.foundation.layout.Arrangement
+ import androidx.compose.foundation.layout.Box
+ import androidx.compose.foundation.layout.PaddingValues
+@@ -77,6 +77,7 @@ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
+ import com.quantummpv.app.ui.preferences.PreferencesScreen
+ import com.quantummpv.app.ui.utils.LocalBackStack
++import com.quantummpv.app.ui.utils.navigateTo
+ import com.quantummpv.app.ui.utils.popSafely
+ import kotlinx.serialization.Serializable
+ import org.koin.compose.koinInject
+@@ -140,7 +141,7 @@ data class NetworkBrowserScreen(
+ 
+     LaunchedEffect(viewModel) {
+       viewModel.importedPlaylistId.collect { playlistId ->
+-        backstack.add(PlaylistDetailScreen(playlistId))
++        backstack.navigateTo(PlaylistDetailScreen(playlistId))
+       }
+     }
+ 
+@@ -201,7 +202,7 @@ data class NetworkBrowserScreen(
+             onSortClick = { sortDialogOpen.value = true },
+             onSearchClick = { isSearching = true },
+             onSettingsClick = {
+-              backstack.add(PreferencesScreen)
++              backstack.navigateTo(PreferencesScreen)
+             },
+             onDeleteClick = null,
+             onRenameClick = null,
+@@ -265,7 +266,7 @@ data class NetworkBrowserScreen(
+         searchQuery = searchQuery,
+         onRefresh = { viewModel.loadFiles() },
+         onFolderClick = { folder ->
+-          backstack.add(
++          backstack.navigateTo(
+             NetworkBrowserScreen(
+               connectionId = connectionId,
+               connectionName = connectionName,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/networkstreaming/NetworkStreamingScreen.kt b/app/src/main/java/com/quantummpv/app/ui/browser/networkstreaming/NetworkStreamingScreen.kt
+index fad919f6..502343d8 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/networkstreaming/NetworkStreamingScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/networkstreaming/NetworkStreamingScreen.kt
+@@ -11,7 +11,7 @@ package com.quantummpv.app.ui.browser.networkstreaming
+ 
+ import android.content.Context
+ import android.content.SharedPreferences
+-import androidx.activity.compose.BackHandler
++import com.quantummpv.app.ui.utils.NavigationBackHandler as BackHandler
+ import androidx.compose.animation.AnimatedVisibility
+ import androidx.compose.animation.animateContentSize
+ import androidx.compose.animation.expandVertically
+@@ -36,7 +36,7 @@ import androidx.compose.foundation.layout.size
+ import androidx.compose.foundation.layout.width
+ import androidx.compose.foundation.lazy.LazyColumn
+ import androidx.compose.foundation.lazy.items
+-import androidx.compose.foundation.pager.HorizontalPager
++import com.quantummpv.app.ui.utils.NavigationPager
+ import androidx.compose.foundation.pager.rememberPagerState
+ import androidx.compose.foundation.shape.RoundedCornerShape
+ import androidx.compose.foundation.text.KeyboardActions
+@@ -119,6 +119,8 @@ import com.quantummpv.app.ui.torrent.TorrentSelectionInput
+ import com.quantummpv.app.ui.torrent.TorrentSelectionScreen
+ import com.quantummpv.app.ui.torrent.TorrentSelectionViewModel
+ import com.quantummpv.app.ui.utils.LocalBackStack
++import com.quantummpv.app.ui.utils.navigateTo
++import com.quantummpv.app.ui.utils.rememberTabNavigation
+ import com.quantummpv.app.utils.media.SharedUrlExtractor
+ import com.quantummpv.app.utils.media.MediaUtils
+ import kotlinx.coroutines.Dispatchers
+@@ -360,7 +362,7 @@ object NetworkStreamingScreen : Screen {
+                 onSortClick = null,
+                 onSearchClick = null,
+                 onSettingsClick = {
+-                  backstack.add(com.quantummpv.app.ui.preferences.PreferencesScreen)
++                  backstack.navigateTo(com.quantummpv.app.ui.preferences.PreferencesScreen)
+                 },
+                 onDeleteClick = null,
+                 onRenameClick = null,
+@@ -373,7 +375,7 @@ object NetworkStreamingScreen : Screen {
+                 onDeselectAll = null,
+                 additionalActions = {
+                   IconButton(
+-                    onClick = { backstack.add(com.quantummpv.app.ui.downloads.DownloadsScreen) },
++                    onClick = { backstack.navigateTo(com.quantummpv.app.ui.downloads.DownloadsScreen) },
+                     modifier = Modifier.padding(horizontal = 2.dp),
+                   ) {
+                     Icon(
+@@ -395,11 +397,12 @@ object NetworkStreamingScreen : Screen {
+             contentColor = MaterialTheme.colorScheme.primary,
+             divider = {},
+           ) {
++            val navigateTab = rememberTabNavigation(pagerState)
+             NetworkTab.entries.forEachIndexed { index, tab ->
+               Tab(
+                 selected = pagerState.currentPage == index,
+                 onClick = {
+-                  coroutineScope.launch { pagerState.animateScrollToPage(index) }
++                  navigateTab(index)
+                 },
+                 text = {
+                   Text(
+@@ -448,7 +451,7 @@ object NetworkStreamingScreen : Screen {
+             .fillMaxSize()
+             .padding(padding),
+       ) {
+-        HorizontalPager(
++        NavigationPager(
+           state = pagerState,
+           modifier =
+             Modifier
+@@ -510,7 +513,7 @@ object NetworkStreamingScreen : Screen {
+                 onDelete = { viewModel.deleteConnection(it) },
+                 onBrowse = { conn, status ->
+                   if (status?.isConnected == true) {
+-                    backstack.add(
++                    backstack.navigateTo(
+                       NetworkBrowserScreen(
+                         connectionId = conn.id,
+                         connectionName = conn.name,
+@@ -523,7 +526,7 @@ object NetworkStreamingScreen : Screen {
+                   viewModel.updateConnection(conn.copy(autoConnect = autoConnect))
+                 },
+                 onOpenBookmark = { item ->
+-                  backstack.add(
++                  backstack.navigateTo(
+                     NetworkBrowserScreen(
+                       connectionId = item.connection.id,
+                       connectionName = item.connection.name,
+@@ -531,7 +534,7 @@ object NetworkStreamingScreen : Screen {
+                     ),
+                   )
+                 },
+-                onManageBookmarks = { backstack.add(NetworkBookmarksScreen) },
++                onManageBookmarks = { backstack.navigateTo(NetworkBookmarksScreen) },
+               )
+             }
+             NetworkTab.MEDIA -> {
+@@ -607,7 +610,7 @@ object NetworkStreamingScreen : Screen {
+         onConfigure = {
+           showYtdlpInstallPrompt = false
+           pendingYtdlpUrl = null
+-          backstack.add(YtdlpSettingsScreen)
++          backstack.navigateTo(YtdlpSettingsScreen)
+         },
+         onDismiss = {
+           showYtdlpInstallPrompt = false
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/playlist/PlaylistAddVideosScreen.kt b/app/src/main/java/com/quantummpv/app/ui/browser/playlist/PlaylistAddVideosScreen.kt
+index 292e7a8c..579f6143 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/playlist/PlaylistAddVideosScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/playlist/PlaylistAddVideosScreen.kt
+@@ -11,7 +11,7 @@ package com.quantummpv.app.ui.browser.playlist
+ 
+ import android.app.Application
+ import android.widget.Toast
+-import androidx.activity.compose.BackHandler
++import com.quantummpv.app.ui.utils.NavigationBackHandler as BackHandler
+ import androidx.compose.foundation.layout.fillMaxWidth
+ import androidx.compose.foundation.layout.padding
+ import androidx.compose.foundation.lazy.LazyColumn
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/playlist/PlaylistDetailScreen.kt b/app/src/main/java/com/quantummpv/app/ui/browser/playlist/PlaylistDetailScreen.kt
+index 268eb1c8..7f6d0f48 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/playlist/PlaylistDetailScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/playlist/PlaylistDetailScreen.kt
+@@ -12,7 +12,7 @@ package com.quantummpv.app.ui.browser.playlist
+ import android.content.Intent
+ import android.net.Uri
+ import android.widget.Toast
+-import androidx.activity.compose.BackHandler
++import com.quantummpv.app.ui.utils.NavigationBackHandler as BackHandler
+ import androidx.compose.foundation.layout.Arrangement
+ import androidx.compose.foundation.layout.Box
+ import androidx.compose.foundation.layout.Column
+@@ -83,6 +83,7 @@ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
+ import com.quantummpv.app.ui.player.PlayerActivity
+ import com.quantummpv.app.ui.utils.LocalBackStack
++import com.quantummpv.app.ui.utils.navigateTo
+ import com.quantummpv.app.ui.utils.popSafely
+ import com.quantummpv.app.utils.clipboard.SafeClipboard
+ import com.quantummpv.app.utils.media.MediaInfoOps
+@@ -483,7 +484,7 @@ data class PlaylistDetailScreen(
+           ExtendedFloatingActionButton(
+             modifier =
+               Modifier.padding(bottom = com.quantummpv.app.ui.browser.NavigationBarState.miniPlayerClearance),
+-            onClick = { backStack.add(PlaylistAddVideosScreen(playlistId, isAudio = isAudioPlaylist)) },
++            onClick = { backStack.navigateTo(PlaylistAddVideosScreen(playlistId, isAudio = isAudioPlaylist)) },
+             icon = { Icon(Icons.RoundedFilled.Add, contentDescription = null) },
+             text = { Text(if (isAudioPlaylist) "Add Songs" else stringResource(R.string.playlist_add_videos)) },
+           )
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/playlist/PlaylistScreen.kt b/app/src/main/java/com/quantummpv/app/ui/browser/playlist/PlaylistScreen.kt
+index 720a3562..e8fa5ab6 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/playlist/PlaylistScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/playlist/PlaylistScreen.kt
+@@ -9,7 +9,7 @@
+ 
+ package com.quantummpv.app.ui.browser.playlist
+ 
+-import androidx.activity.compose.BackHandler
++import com.quantummpv.app.ui.utils.NavigationBackHandler as BackHandler
+ import androidx.compose.foundation.layout.Arrangement
+ import androidx.compose.foundation.layout.Box
+ import androidx.compose.foundation.layout.BoxWithConstraints
+@@ -36,7 +36,6 @@ import androidx.compose.material3.Scaffold
+ import androidx.compose.material3.Text
+ import androidx.compose.runtime.Composable
+ import androidx.compose.runtime.LaunchedEffect
+-import androidx.compose.runtime.SideEffect
+ import androidx.compose.runtime.collectAsState
+ import androidx.compose.runtime.getValue
+ import androidx.compose.runtime.mutableStateOf
+@@ -72,6 +71,7 @@ import com.quantummpv.app.ui.components.InlineSearchBar
+ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
+ import com.quantummpv.app.ui.utils.LocalBackStack
++import com.quantummpv.app.ui.utils.navigateTo
+ import kotlinx.coroutines.launch
+ import kotlinx.serialization.Serializable
+ import org.koin.compose.koinInject
+@@ -161,12 +161,7 @@ object PlaylistScreen : Screen {
+     }
+ 
+     // Synchronize NavigationBarState when selection mode changes
+-    SideEffect {
+-      com.quantummpv.app.ui.browser.NavigationBarState.updateSelectionState(
+-        inSelectionMode = selectionManager.isInSelectionMode,
+-        onlyVideos = true,
+-      )
+-    }
++    com.quantummpv.app.ui.browser.NavigationBarSelectionEffect(selectionManager.isInSelectionMode)
+ 
+     // Track scroll for FAB visibility
+     val mediaLayoutMode by browserPreferences.mediaLayoutMode.collectAsState()
+@@ -236,7 +231,7 @@ object PlaylistScreen : Screen {
+             isSingleSelection = selectionManager.isSingleSelection,
+             onSearchClick = { isSearching = true },
+             onSettingsClick = {
+-              backStack.add(com.quantummpv.app.ui.preferences.PreferencesScreen)
++              backStack.navigateTo(com.quantummpv.app.ui.preferences.PreferencesScreen)
+             },
+             onRenameClick =
+               if (selectionManager.isSingleSelection && !hasProtectedSelection) {
+@@ -314,7 +309,7 @@ object PlaylistScreen : Screen {
+             if (selectionManager.isInSelectionMode) {
+               selectionManager.toggle(playlistWithCount)
+             } else {
+-              backStack.add(PlaylistDetailScreen(playlistWithCount.playlist.id))
++              backStack.navigateTo(PlaylistDetailScreen(playlistWithCount.playlist.id))
+             }
+           },
+           onPlaylistLongClick = { playlistWithCount ->
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/recentlyplayed/RecentlyPlayedScreen.kt b/app/src/main/java/com/quantummpv/app/ui/browser/recentlyplayed/RecentlyPlayedScreen.kt
+index 39a8dbe6..62cb3a35 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/recentlyplayed/RecentlyPlayedScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/recentlyplayed/RecentlyPlayedScreen.kt
+@@ -11,7 +11,7 @@ package com.quantummpv.app.ui.browser.recentlyplayed
+ 
+ import android.content.Intent
+ import android.widget.Toast
+-import androidx.activity.compose.BackHandler
++import com.quantummpv.app.ui.utils.NavigationBackHandler as BackHandler
+ import androidx.activity.compose.rememberLauncherForActivityResult
+ import androidx.activity.result.contract.ActivityResultContracts
+ import androidx.compose.animation.AnimatedVisibility
+@@ -36,7 +36,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
+ import androidx.compose.foundation.lazy.grid.GridItemSpan
+ import androidx.compose.foundation.lazy.grid.LazyGridState
+ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+-import androidx.compose.foundation.pager.HorizontalPager
++import com.quantummpv.app.ui.utils.NavigationPager
+ import androidx.compose.foundation.pager.rememberPagerState
+ import androidx.compose.material3.CircularProgressIndicator
+ import androidx.compose.material3.ExperimentalMaterial3Api
+@@ -59,7 +59,6 @@ import androidx.compose.material3.animateFloatingActionButton
+ import androidx.compose.material3.rememberTooltipState
+ import androidx.compose.runtime.Composable
+ import androidx.compose.runtime.LaunchedEffect
+-import androidx.compose.runtime.SideEffect
+ import androidx.compose.runtime.collectAsState
+ import androidx.compose.runtime.derivedStateOf
+ import androidx.compose.runtime.getValue
+@@ -105,6 +104,8 @@ import com.quantummpv.app.ui.browser.states.EmptyState
+ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
+ import com.quantummpv.app.ui.utils.LocalBackStack
++import com.quantummpv.app.ui.utils.navigateTo
++import com.quantummpv.app.ui.utils.rememberTabNavigation
+ import com.quantummpv.app.ui.utils.calculateResponsiveGridSpans
+ import com.quantummpv.app.utils.media.MediaUtils
+ import kotlinx.coroutines.launch
+@@ -189,12 +190,7 @@ object RecentlyPlayedScreen : Screen {
+ 
+     // Handle back button during selection mode or FAB menu expanded
+     // Synchronize NavigationBarState when selection mode changes
+-    SideEffect {
+-      com.quantummpv.app.ui.browser.NavigationBarState.updateSelectionState(
+-        inSelectionMode = selectionManager.isInSelectionMode,
+-        onlyVideos = true,
+-      )
+-    }
++    com.quantummpv.app.ui.browser.NavigationBarSelectionEffect(selectionManager.isInSelectionMode)
+ 
+     BackHandler(enabled = selectionManager.isInSelectionMode || isFabExpanded.value) {
+       when {
+@@ -239,19 +235,19 @@ object RecentlyPlayedScreen : Screen {
+ 
+     // Swipe between the Video/Audio tabs, kept in sync with the segmented buttons.
+     val pagerState = rememberPagerState(initialPage = recentlyPlayedFilter.ordinal) { MediaLibraryType.entries.size }
+-    LaunchedEffect(pagerState.currentPage) {
+-      MediaLibraryType.entries.getOrNull(pagerState.currentPage)?.let { type ->
+-        if (recentlyPlayedFilter != type) {
+-          selectionManager.clear()
+-          recentlyPlayedFilter = type
++    val navigateTab = rememberTabNavigation(pagerState)
++    LaunchedEffect(pagerState.settledPage, pagerState.isScrollInProgress) {
++      if (!pagerState.isScrollInProgress) {
++        MediaLibraryType.entries.getOrNull(pagerState.settledPage)?.let { type ->
++          if (recentlyPlayedFilter != type) {
++            selectionManager.clear()
++            recentlyPlayedFilter = type
++          }
+         }
+       }
+     }
+     LaunchedEffect(recentlyPlayedFilter) {
+-      val targetPage = recentlyPlayedFilter.ordinal
+-      if (pagerState.currentPage != targetPage) {
+-        pagerState.animateScrollToPage(targetPage)
+-      }
++      navigateTab(recentlyPlayedFilter.ordinal)
+     }
+ 
+     Scaffold(
+@@ -265,7 +261,7 @@ object RecentlyPlayedScreen : Screen {
+           onCancelSelection = { selectionManager.clear() },
+           onSortClick = null, // No sorting in recently played
+           onSettingsClick = {
+-            backStack.add(com.quantummpv.app.ui.preferences.PreferencesScreen)
++            backStack.navigateTo(com.quantummpv.app.ui.preferences.PreferencesScreen)
+           },
+           isSingleSelection = selectionManager.isSingleSelection,
+           onInfoClick = null, // No info in recently played
+@@ -488,7 +484,7 @@ object RecentlyPlayedScreen : Screen {
+         }
+ 
+         else -> {
+-          HorizontalPager(
++          NavigationPager(
+             state = pagerState,
+             modifier = Modifier.fillMaxSize(),
+           ) { page ->
+@@ -536,7 +532,7 @@ object RecentlyPlayedScreen : Screen {
+                 },
+                 onPlaylistClick = { playlistItem ->
+                   // Navigate to playlist detail screen
+-                  backStack.add(PlaylistDetailScreen(playlistItem.playlist.id))
++                  backStack.navigateTo(PlaylistDetailScreen(playlistItem.playlist.id))
+                 },
+                 modifier = Modifier,
+                 isInSelectionMode = selectionManager.isInSelectionMode,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/states/PermissionDeniedState.kt b/app/src/main/java/com/quantummpv/app/ui/browser/states/PermissionDeniedState.kt
+index 51ca22e6..669fde17 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/states/PermissionDeniedState.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/states/PermissionDeniedState.kt
+@@ -20,7 +20,7 @@ import android.net.Uri
+ import android.os.Build
+ import android.os.Environment
+ import android.provider.Settings
+-import androidx.activity.compose.BackHandler
++import com.quantummpv.app.ui.utils.NavigationBackHandler as BackHandler
+ import androidx.activity.compose.rememberLauncherForActivityResult
+ import androidx.activity.result.contract.ActivityResultContracts
+ import androidx.compose.animation.AnimatedContent
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/videolist/VideoListScreen.kt b/app/src/main/java/com/quantummpv/app/ui/browser/videolist/VideoListScreen.kt
+index 430b9ab1..e7fa526a 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/videolist/VideoListScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/videolist/VideoListScreen.kt
+@@ -12,7 +12,7 @@ package com.quantummpv.app.ui.browser.videolist
+ import android.content.Intent
+ import android.os.Environment
+ import android.widget.Toast
+-import androidx.activity.compose.BackHandler
++import com.quantummpv.app.ui.utils.NavigationBackHandler as BackHandler
+ import androidx.activity.compose.rememberLauncherForActivityResult
+ import androidx.compose.animation.AnimatedVisibility
+ import androidx.compose.animation.core.spring
+@@ -49,7 +49,6 @@ import androidx.compose.material3.rememberTooltipState
+ import androidx.compose.runtime.Composable
+ import androidx.compose.runtime.DisposableEffect
+ import androidx.compose.runtime.LaunchedEffect
+-import androidx.compose.runtime.SideEffect
+ import androidx.compose.runtime.collectAsState
+ import androidx.compose.runtime.derivedStateOf
+ import androidx.compose.runtime.getValue
+@@ -114,6 +113,7 @@ import com.quantummpv.app.ui.securefolder.SecureFolderGateScreen
+ import com.quantummpv.app.ui.securefolder.SecureFolderProgressDialog
+ import com.quantummpv.app.ui.theme.AppMotion
+ import com.quantummpv.app.ui.utils.LocalBackStack
++import com.quantummpv.app.ui.utils.navigateTo
+ import com.quantummpv.app.ui.utils.popSafely
+ import com.quantummpv.app.utils.history.RecentlyPlayedOps
+ import com.quantummpv.app.utils.media.CopyPasteOps
+@@ -151,7 +151,6 @@ data class VideoListScreen(
+     val playerPreferences = koinInject<PlayerPreferences>()
+     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+     val navigationBarHeight = com.quantummpv.app.ui.browser.LocalNavigationBarHeight.current
+-    val navBarState = com.quantummpv.app.ui.browser.NavigationBarState
+ 
+     // ViewModel
+     val viewModel: VideoListViewModel =
+@@ -324,12 +323,7 @@ data class VideoListScreen(
+     }
+ 
+     // Update NavigationBarState synchronously when selection mode changes
+-    SideEffect {
+-      navBarState.updateSelectionState(
+-        inSelectionMode = selectionManager.isInSelectionMode,
+-        onlyVideos = true,
+-      )
+-    }
++    com.quantummpv.app.ui.browser.NavigationBarSelectionEffect(selectionManager.isInSelectionMode)
+ 
+     // Predictive back: Only intercept when in selection mode
+     BackHandler(enabled = selectionManager.isInSelectionMode) {
+@@ -400,10 +394,10 @@ data class VideoListScreen(
+             if (isDualPane) {
+               null
+             } else {
+-              { backstack.add(com.quantummpv.app.ui.preferences.PreferencesScreen) }
++              { backstack.navigateTo(com.quantummpv.app.ui.preferences.PreferencesScreen) }
+             },
+-          onTitleDoubleTap = { backstack.add(SecureFolderGateScreen) },
+-          onTitleLongPress = { backstack.add(SecureFolderGateScreen) },
++          onTitleDoubleTap = { backstack.navigateTo(SecureFolderGateScreen) },
++          onTitleLongPress = { backstack.navigateTo(SecureFolderGateScreen) },
+           isSingleSelection = selectionManager.isSingleSelection,
+           onInfoClick = {
+             if (selectionManager.isSingleSelection) {
+@@ -424,7 +418,7 @@ data class VideoListScreen(
+           onDeselectAll = { selectionManager.clear() },
+           onMoveToSecureClick = {
+             if (!secureFolderPreferences.isPinSet()) {
+-              backstack.add(SecureFolderGateScreen)
++              backstack.navigateTo(SecureFolderGateScreen)
+             } else if (secureFolderPreferences.dontAskBeforeMove.get()) {
+               moveSelectedToSecureFolder()
+             } else {
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/AnimationStyles.kt b/app/src/main/java/com/quantummpv/app/ui/player/AnimationStyles.kt
+index 97d6e1be..0803f0ae 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/AnimationStyles.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/AnimationStyles.kt
+@@ -79,11 +79,10 @@ data class VideoOpenAnimationState(
+ enum class NavigationAnimStyle(
+   val displayName: String,
+ ) {
+-  Default("Default"),
+-  Elastic("Elastic Slide"),
++  Default("Slide"),
+   Depth("Depth Zoom"),
+-  FlipFade("Flip Fade"),
+-  Minimal("Minimal Fade"),
++  FlipFade("Fade through"),
++  Minimal("Crossfade"),
+   None("None"),
+ }
+ 
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/AboutScreen.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/AboutScreen.kt
+index ae7feaaa..bdbebe4e 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/AboutScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/AboutScreen.kt
+@@ -85,6 +85,7 @@ import com.quantummpv.app.presentation.crash.CrashActivity.Companion.collectDevic
+ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
+ import com.quantummpv.app.ui.utils.LocalBackStack
++import com.quantummpv.app.ui.utils.navigateTo
+ import com.quantummpv.app.ui.utils.LocalShowSettingsBackArrow
+ import com.quantummpv.app.ui.utils.popSafely
+ import com.quantummpv.app.utils.clipboard.SafeClipboard
+@@ -274,7 +275,7 @@ object AboutScreen : Screen {
+                 val btnContainer = cs.primary
+                 val btnContent = cs.onPrimary
+                 Button(
+-                  onClick = { backstack.add(LibrariesScreen) },
++                  onClick = { backstack.navigateTo(LibrariesScreen) },
+                   modifier =
+                     Modifier
+                       .weight(1f)
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/AdvancedPreferencesScreen.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/AdvancedPreferencesScreen.kt
+index c834ec40..70de558f 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/AdvancedPreferencesScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/AdvancedPreferencesScreen.kt
+@@ -66,6 +66,7 @@ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
+ import com.quantummpv.app.ui.preferences.components.SwitchPreference
+ import com.quantummpv.app.ui.utils.LocalBackStack
++import com.quantummpv.app.ui.utils.navigateTo
+ import com.quantummpv.app.ui.utils.LocalShowSettingsBackArrow
+ import com.quantummpv.app.ui.utils.popSafely
+ import com.quantummpv.app.utils.clipboard.SafeClipboard
+@@ -549,7 +550,7 @@ object AdvancedPreferencesScreen : Screen {
+                   }
+                 },
+                 onClick = {
+-                  backStack.add(ConfigEditorScreen(ConfigEditorScreen.ConfigType.MPV_CONF))
++                  backStack.navigateTo(ConfigEditorScreen(ConfigEditorScreen.ConfigType.MPV_CONF))
+                 },
+               )
+ 
+@@ -574,7 +575,7 @@ object AdvancedPreferencesScreen : Screen {
+                   }
+                 },
+                 onClick = {
+-                  backStack.add(ConfigEditorScreen(ConfigEditorScreen.ConfigType.INPUT_CONF))
++                  backStack.navigateTo(ConfigEditorScreen(ConfigEditorScreen.ConfigType.INPUT_CONF))
+                 },
+               )
+             }
+@@ -672,7 +673,7 @@ object AdvancedPreferencesScreen : Screen {
+                   }
+                 },
+                 onClick = {
+-                  backStack.add(LuaScriptsScreen)
++                  backStack.navigateTo(LuaScriptsScreen)
+                 },
+                 enabled = mpvConfStorageLocation.isNotBlank() && enableLuaScripts,
+               )
+@@ -688,7 +689,7 @@ object AdvancedPreferencesScreen : Screen {
+                   )
+                 },
+                 onClick = {
+-                  backStack.add(com.quantummpv.app.ui.preferences.CustomButtonScreen)
++                  backStack.navigateTo(com.quantummpv.app.ui.preferences.CustomButtonScreen)
+                 },
+               )
+             }
+@@ -723,7 +724,7 @@ object AdvancedPreferencesScreen : Screen {
+                   )
+                 },
+                 onClick = {
+-                  backStack.add(YtdlpSettingsScreen)
++                  backStack.navigateTo(YtdlpSettingsScreen)
+                 },
+               )
+             }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/AppearancePreferencesScreen.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/AppearancePreferencesScreen.kt
+index 773df9db..e3f0334d 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/AppearancePreferencesScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/AppearancePreferencesScreen.kt
+@@ -738,28 +738,12 @@ object AppearancePreferencesScreen : Screen {
+ 
+           item {
+             PreferenceCard {
+-              val showHomeTab by preferences.showHomeTab.collectAsState()
+               val showMusicTab by preferences.showMusicTab.collectAsState()
+               val showRecentsTab by preferences.showRecentsTab.collectAsState()
+               val showPlaylistsTab by preferences.showPlaylistsTab.collectAsState()
+               val showNetworkTab by preferences.showNetworkTab.collectAsState()
+               val showJellyfinTab by preferences.showJellyfinTab.collectAsState()
+ 
+-              SwitchPreference(
+-                modifier = Modifier.settingsSearchTarget(R.string.pref_nav_home_title),
+-                value = showHomeTab,
+-                onValueChange = preferences.showHomeTab::set,
+-                title = { Text(text = stringResource(id = R.string.pref_nav_home_title)) },
+-                summary = {
+-                  Text(
+-                    text = stringResource(id = R.string.pref_nav_home_summary),
+-                    color = MaterialTheme.colorScheme.outline,
+-                  )
+-                },
+-              )
+-
+-              PreferenceDivider()
+-
+               SwitchPreference(
+                 modifier = Modifier.settingsSearchTarget(R.string.pref_nav_music_title),
+                 value = showMusicTab,
+@@ -919,7 +903,12 @@ object AppearancePreferencesScreen : Screen {
+                 values = NavigationAnimStyle.entries,
+                 valueToText = { AnnotatedString(it.displayName) },
+                 title = { Text(stringResource(R.string.pref_anim_screen_nav_style_title)) },
+-                summary = { Text(appNavStyle.displayName, color = MaterialTheme.colorScheme.outline) },
++                summary = {
++                  Text(
++                    "${appNavStyle.displayName}\n${stringResource(R.string.pref_anim_screen_nav_style_summary)}",
++                    color = MaterialTheme.colorScheme.outline,
++                  )
++                },
+               )
+ 
+               PreferenceDivider()
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/ConfigEditorScreen.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/ConfigEditorScreen.kt
+index 261da622..a488f8ee 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/ConfigEditorScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/ConfigEditorScreen.kt
+@@ -45,6 +45,7 @@ import com.quantummpv.app.ui.editor.MpvScriptEditor
+ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
+ import com.quantummpv.app.ui.utils.LocalBackStack
++import com.quantummpv.app.ui.utils.navigateTo
+ import com.quantummpv.app.ui.utils.popSafely
+ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.launch
+@@ -213,7 +214,7 @@ data class ConfigEditorScreen(
+         actions = {
+           IconButton(
+             onClick = {
+-              backStack.add(MpvHelpScreen())
++              backStack.navigateTo(MpvHelpScreen())
+             },
+             modifier = Modifier.padding(end = 4.dp).size(40.dp),
+             colors =
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/LuaScriptEditorScreen.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/LuaScriptEditorScreen.kt
+index 16e47db4..c19d3e32 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/LuaScriptEditorScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/LuaScriptEditorScreen.kt
+@@ -54,6 +54,7 @@ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
+ import com.quantummpv.app.ui.player.PlaybackSession
+ import com.quantummpv.app.ui.utils.LocalBackStack
++import com.quantummpv.app.ui.utils.navigateTo
+ import com.quantummpv.app.ui.utils.popSafely
+ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.launch
+@@ -445,7 +446,7 @@ data class LuaScriptEditorScreen(
+         actions = {
+           // Help button
+           IconButton(
+-            onClick = { backStack.add(MpvHelpScreen()) },
++            onClick = { backStack.navigateTo(MpvHelpScreen()) },
+             modifier = Modifier.padding(end = 4.dp).size(40.dp),
+             colors =
+               IconButtonDefaults.iconButtonColors(
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/LuaScriptsScreen.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/LuaScriptsScreen.kt
+index 52688453..a59c225e 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/LuaScriptsScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/LuaScriptsScreen.kt
+@@ -49,6 +49,7 @@ import com.quantummpv.app.ui.lua.LuaSelectionFootnote
+ import com.quantummpv.app.ui.lua.rememberLuaScriptsCatalog
+ import com.quantummpv.app.ui.theme.spacing
+ import com.quantummpv.app.ui.utils.LocalBackStack
++import com.quantummpv.app.ui.utils.navigateTo
+ import com.quantummpv.app.ui.utils.popSafely
+ import kotlinx.serialization.Serializable
+ import org.koin.compose.koinInject
+@@ -186,7 +187,7 @@ object LuaScriptsScreen : Screen {
+       },
+       floatingActionButton = {
+         FloatingActionButton(
+-          onClick = { backStack.add(LuaScriptEditorScreen(scriptName = null)) },
++          onClick = { backStack.navigateTo(LuaScriptEditorScreen(scriptName = null)) },
+           containerColor = MaterialTheme.colorScheme.primary,
+         ) {
+           Icon(
+@@ -265,7 +266,7 @@ object LuaScriptsScreen : Screen {
+                       tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                     )
+                   }
+-                  IconButton(onClick = { backStack.add(LuaScriptEditorScreen(scriptName = scriptName)) }) {
++                  IconButton(onClick = { backStack.navigateTo(LuaScriptEditorScreen(scriptName = scriptName)) }) {
+                     Icon(
+                       imageVector = Icons.RoundedFilled.Edit,
+                       contentDescription =
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/MpvConfigOverridePreference.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/MpvConfigOverridePreference.kt
+index 7330f215..eb37006d 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/MpvConfigOverridePreference.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/MpvConfigOverridePreference.kt
+@@ -21,6 +21,7 @@ import com.quantummpv.app.preferences.AdvancedPreferences
+ import com.quantummpv.app.preferences.MpvConfigOverride
+ import com.quantummpv.app.preferences.preference.collectAsState
+ import com.quantummpv.app.ui.utils.LocalBackStack
++import com.quantummpv.app.ui.utils.navigateTo
+ import me.zhanghai.compose.preference.Preference
+ 
+ /** Entry row in Advanced settings; the ownership choices live on [MpvConfOwnershipScreen]. */
+@@ -52,6 +53,6 @@ internal fun MpvConfigOverridePreference(
+         color = MaterialTheme.colorScheme.outline,
+       )
+     },
+-    onClick = { backStack.add(MpvConfOwnershipScreen) },
++    onClick = { backStack.navigateTo(MpvConfOwnershipScreen) },
+   )
+ }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/PlayerControlsPreferencesScreen.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/PlayerControlsPreferencesScreen.kt
+index 087d7e24..73581f16 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/PlayerControlsPreferencesScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/PlayerControlsPreferencesScreen.kt
+@@ -62,6 +62,7 @@ import com.quantummpv.app.ui.player.controls.components.SeekbarStyleLivePreview
+ import com.quantummpv.app.ui.preferences.components.PlayerButtonChip
+ import com.quantummpv.app.ui.preferences.components.SwitchPreference
+ import com.quantummpv.app.ui.utils.LocalBackStack
++import com.quantummpv.app.ui.utils.navigateTo
+ import com.quantummpv.app.ui.utils.LocalShowSettingsBackArrow
+ import com.quantummpv.app.ui.utils.popSafely
+ import kotlinx.serialization.Serializable
+@@ -163,7 +164,7 @@ object PlayerControlsPreferencesScreen : Screen {
+                 modifier = Modifier.settingsSearchTarget(R.string.pref_layout_top_right_controls),
+                 title = stringResource(id = R.string.pref_layout_top_right_controls),
+                 onClick = {
+-                  backstack.add(ControlLayoutEditorScreen(ControlRegion.TOP_RIGHT))
++                  backstack.navigateTo(ControlLayoutEditorScreen(ControlRegion.TOP_RIGHT))
+                 },
+               )
+               PreferenceIconSummary(buttons = topRightButtons)
+@@ -174,7 +175,7 @@ object PlayerControlsPreferencesScreen : Screen {
+                 modifier = Modifier.settingsSearchTarget(R.string.pref_layout_bottom_right_controls),
+                 title = stringResource(id = R.string.pref_layout_bottom_right_controls),
+                 onClick = {
+-                  backstack.add(ControlLayoutEditorScreen(ControlRegion.BOTTOM_RIGHT))
++                  backstack.navigateTo(ControlLayoutEditorScreen(ControlRegion.BOTTOM_RIGHT))
+                 },
+               )
+               PreferenceIconSummary(buttons = bottomRightButtons)
+@@ -185,7 +186,7 @@ object PlayerControlsPreferencesScreen : Screen {
+                 modifier = Modifier.settingsSearchTarget(R.string.pref_layout_bottom_left_controls),
+                 title = stringResource(id = R.string.pref_layout_bottom_left_controls),
+                 onClick = {
+-                  backstack.add(ControlLayoutEditorScreen(ControlRegion.BOTTOM_LEFT))
++                  backstack.navigateTo(ControlLayoutEditorScreen(ControlRegion.BOTTOM_LEFT))
+                 },
+               )
+               PreferenceIconSummary(buttons = bottomLeftButtons)
+@@ -203,7 +204,7 @@ object PlayerControlsPreferencesScreen : Screen {
+                 modifier = Modifier.settingsSearchTarget(R.string.pref_layout_portrait_bottom_controls),
+                 title = stringResource(id = R.string.pref_layout_portrait_bottom_controls),
+                 onClick = {
+-                  backstack.add(ControlLayoutEditorScreen(ControlRegion.PORTRAIT_BOTTOM))
++                  backstack.navigateTo(ControlLayoutEditorScreen(ControlRegion.PORTRAIT_BOTTOM))
+                 },
+               )
+               PreferenceIconSummary(buttons = portraitBottomButtons)
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/PreferencesScreen.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/PreferencesScreen.kt
+index 4774cbff..16f19ce2 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/PreferencesScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/PreferencesScreen.kt
+@@ -39,10 +39,8 @@ import androidx.compose.material3.VerticalDivider
+ import androidx.compose.runtime.Composable
+ import androidx.compose.runtime.CompositionLocalProvider
+ import androidx.compose.runtime.getValue
+-import androidx.compose.runtime.key
+-import androidx.compose.runtime.mutableStateOf
+-import androidx.compose.runtime.remember
+ import androidx.compose.runtime.setValue
++import androidx.compose.runtime.snapshots.Snapshot
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.draw.clip
+@@ -68,7 +66,9 @@ import com.quantummpv.app.ui.player.controls.components.tvInitialFocus
+ import com.quantummpv.app.ui.securefolder.SecureFolderGateScreen
+ import com.quantummpv.app.ui.theme.LocalEmphasizedTypography
+ import com.quantummpv.app.ui.utils.LocalBackStack
++import com.quantummpv.app.ui.utils.navigateTo
+ import com.quantummpv.app.ui.utils.LocalShowSettingsBackArrow
++import com.quantummpv.app.ui.utils.ScreenNavDisplay
+ import com.quantummpv.app.ui.utils.popSafely
+ import kotlinx.serialization.Serializable
+ import org.koin.compose.koinInject
+@@ -98,15 +98,24 @@ object PreferencesScreen : Screen {
+     val configuration = LocalConfiguration.current
+     val isTablet = configuration.smallestScreenWidthDp >= 600
+ 
+-    var selectedScreen by remember { mutableStateOf<Screen>(AppearancePreferencesScreen) }
+-
+     if (isTablet) {
++      @Suppress("UNCHECKED_CAST")
++      val detailBackstack = rememberNavBackStack(AppearancePreferencesScreen) as NavBackStack<Screen>
++      val selectedScreen = detailBackstack.first()
+       Row(modifier = Modifier.fillMaxSize()) {
+         Box(modifier = Modifier.weight(0.4f).tvFocusGroup()) {
+           SettingsPane(
+             sections = sections,
+             selectedScreen = selectedScreen,
+-            onScreenSelected = { selectedScreen = it },
++            onScreenSelected = { screen ->
++              if (screen != selectedScreen) {
++                // Replace the category atomically without ever exposing an empty stack.
++                Snapshot.withMutableSnapshot {
++                  detailBackstack[0] = screen
++                  while (detailBackstack.size > 1) detailBackstack.removeAt(detailBackstack.lastIndex)
++                }
++              }
++            },
+           )
+         }
+         VerticalDivider(
+@@ -115,16 +124,10 @@ object PreferencesScreen : Screen {
+           thickness = 1.dp,
+         )
+         Box(modifier = Modifier.weight(0.6f).tvFocusGroup()) {
+-          key(selectedScreen) {
+-            @Suppress("UNCHECKED_CAST")
+-            val detailBackstack = rememberNavBackStack(selectedScreen) as NavBackStack<Screen>
+-            CompositionLocalProvider(
+-              LocalBackStack provides detailBackstack,
+-              LocalShowSettingsBackArrow provides (detailBackstack.size > 1),
+-            ) {
+-              val activeScreen = detailBackstack.lastOrNull() ?: selectedScreen
+-              key(activeScreen) {
+-                activeScreen.Content()
++          CompositionLocalProvider(LocalBackStack provides detailBackstack) {
++            ScreenNavDisplay(backStack = detailBackstack, modifier = Modifier.fillMaxSize()) { screen ->
++              CompositionLocalProvider(LocalShowSettingsBackArrow provides (screen != selectedScreen)) {
++                screen.Content()
+               }
+             }
+           }
+@@ -134,7 +137,7 @@ object PreferencesScreen : Screen {
+       SettingsPane(
+         sections = sections,
+         selectedScreen = null,
+-        onScreenSelected = { backstack.add(it) },
++        onScreenSelected = { backstack.navigateTo(it) },
+       )
+     }
+   }
+@@ -183,7 +186,7 @@ object PreferencesScreen : Screen {
+       ) {
+         item {
+           SettingsSearchEntry(
+-            onClick = { backstack.add(SettingsSearchScreen) },
++            onClick = { backstack.navigateTo(SettingsSearchScreen) },
+             modifier =
+               Modifier
+                 .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 18.dp)
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/SearchablePreference.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/SearchablePreference.kt
+index 3e9c5511..0b741552 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/SearchablePreference.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/SearchablePreference.kt
+@@ -1296,7 +1296,6 @@ object SearchablePreferences {
+         category = "Appearance",
+         screen = AppearancePreferencesScreen,
+         anchorItemIndex = 7,
+-        SearchEntrySpec(R.string.pref_nav_home_title, listOf("home", "tab", "navigation", "show", "hide")),
+         SearchEntrySpec(R.string.pref_nav_music_title, listOf("music", "audio", "tab", "navigation")),
+         SearchEntrySpec(R.string.pref_nav_recents_title, listOf("recent", "history", "tab", "navigation")),
+         SearchEntrySpec(R.string.pref_nav_playlists_title, listOf("playlist", "tab", "navigation")),
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/SettingsSearchScreen.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/SettingsSearchScreen.kt
+index aa2866c8..9050010e 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/SettingsSearchScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/SettingsSearchScreen.kt
+@@ -65,6 +65,7 @@ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
+ import com.quantummpv.app.ui.theme.LocalEmphasizedTypography
+ import com.quantummpv.app.ui.utils.LocalBackStack
++import com.quantummpv.app.ui.utils.navigateTo
+ import com.quantummpv.app.ui.utils.popSafely
+ import kotlinx.serialization.Serializable
+ 
+@@ -370,7 +371,7 @@ object SettingsSearchScreen : Screen {
+                     searchHistoryPref.set(currentHistory.joinToString("|"))
+                   }
+                   SettingsSearchNavigation.open(result.preference)
+-                  backstack.add(result.preference.screen)
++                  backstack.navigateTo(result.preference.screen)
+                 },
+               )
+             }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/securefolder/SecureFolderScreen.kt b/app/src/main/java/com/quantummpv/app/ui/securefolder/SecureFolderScreen.kt
+index 5e6c3bb7..3cb357d6 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/securefolder/SecureFolderScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/securefolder/SecureFolderScreen.kt
+@@ -72,6 +72,7 @@ import com.quantummpv.app.ui.browser.states.EmptyState
+ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
+ import com.quantummpv.app.ui.utils.LocalBackStack
++import com.quantummpv.app.ui.utils.navigateTo
+ import com.quantummpv.app.ui.utils.popSafely
+ import com.quantummpv.app.utils.media.MediaInfoOps
+ import com.quantummpv.app.utils.media.MediaUtils
+@@ -364,7 +365,7 @@ data object SecureFolderScreen : Screen {
+       floatingActionButton = {
+         if (!isInSelectionMode) {
+           ExtendedFloatingActionButton(
+-            onClick = { backstack.add(SecureFolderAddFilesScreen) },
++            onClick = { backstack.navigateTo(SecureFolderAddFilesScreen) },
+             icon = { Icon(Icons.RoundedFilled.Add, contentDescription = null) },
+             text = { Text(stringResource(R.string.secure_folder_add_files)) },
+           )
+@@ -680,4 +681,3 @@ private fun formatResolutionWithFps(
+ 
+ 
+ 
+-
+diff --git a/app/src/main/java/com/quantummpv/app/ui/utils/NavBackStackExtensions.kt b/app/src/main/java/com/quantummpv/app/ui/utils/NavBackStackExtensions.kt
+index d086f0e6..5fe7ca5e 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/utils/NavBackStackExtensions.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/utils/NavBackStackExtensions.kt
+@@ -12,6 +12,11 @@ package com.quantummpv.app.ui.utils
+ import androidx.navigation3.runtime.NavBackStack
+ import androidx.navigation3.runtime.NavKey
+ 
++/** Ignore repeat taps on the same destination before the outgoing screen has left composition. */
++fun <T : NavKey> NavBackStack<T>.navigateTo(screen: T) {
++  if (lastOrNull() != screen) add(screen)
++}
++
+ /**
+  * Pops the current entry without ever leaving the NavDisplay with an empty stack.
+  *
+diff --git a/app/src/main/java/com/quantummpv/app/ui/utils/NavigationPager.kt b/app/src/main/java/com/quantummpv/app/ui/utils/NavigationPager.kt
+new file mode 100644
+index 00000000..58dd7a1b
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/ui/utils/NavigationPager.kt
+@@ -0,0 +1,135 @@
++/*
++ * SPDX-License-Identifier: AGPL-3.0-or-later
++ */
++
++package com.quantummpv.app.ui.utils
++
++import androidx.activity.compose.BackHandler
++import androidx.compose.animation.core.FastOutSlowInEasing
++import androidx.compose.animation.core.tween
++import androidx.compose.foundation.gestures.Orientation
++import androidx.compose.foundation.layout.Box
++import androidx.compose.foundation.layout.fillMaxSize
++import androidx.compose.foundation.pager.HorizontalPager
++import androidx.compose.foundation.pager.PagerDefaults
++import androidx.compose.foundation.pager.PagerScope
++import androidx.compose.foundation.pager.PagerState
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.CompositionLocalProvider
++import androidx.compose.runtime.compositionLocalOf
++import androidx.compose.runtime.derivedStateOf
++import androidx.compose.runtime.getValue
++import androidx.compose.runtime.mutableStateOf
++import androidx.compose.runtime.remember
++import androidx.compose.runtime.rememberCoroutineScope
++import androidx.compose.runtime.setValue
++import androidx.compose.runtime.staticCompositionLocalOf
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.draw.clipToBounds
++import androidx.compose.ui.focus.focusProperties
++import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
++import androidx.compose.ui.semantics.hideFromAccessibility
++import androidx.compose.ui.semantics.semantics
++import com.quantummpv.app.preferences.PlayerPreferences
++import com.quantummpv.app.preferences.preference.collectAsState
++import com.quantummpv.app.ui.player.NavigationAnimStyle
++import kotlinx.coroutines.Job
++import kotlinx.coroutines.launch
++import org.koin.compose.koinInject
++
++/** Page interaction is separate from the host lifecycle: swiping must not resume/rescan a library. */
++internal val LocalNavigationPageActive = compositionLocalOf { true }
++
++// A full-page horizontal gesture has one owner. Nested category tabs remain tappable.
++private val LocalNavigationPagerPresent = staticCompositionLocalOf { false }
++private val PassThroughPageScrollConnection = object : NestedScrollConnection {}
++
++@Composable
++internal fun NavigationBackHandler(enabled: Boolean = true, onBack: () -> Unit) {
++  BackHandler(enabled = enabled && LocalNavigationPageActive.current, onBack = onBack)
++}
++
++/** Native, finger-following page scrolling; screen-transition effects never change swipe physics. */
++@Composable
++internal fun NavigationPager(
++  state: PagerState,
++  modifier: Modifier = Modifier,
++  beyondViewportPageCount: Int = 1,
++  userScrollEnabled: Boolean = true,
++  key: ((Int) -> Any)? = null,
++  content: @Composable PagerScope.(Int) -> Unit,
++) {
++  val isNestedPager = LocalNavigationPagerPresent.current
++  val ownsHorizontalSwipes = userScrollEnabled && !isNestedPager
++  val nestedScrollConnection = if (ownsHorizontalSwipes) {
++    PagerDefaults.pageNestedScrollConnection(state, Orientation.Horizontal)
++  } else {
++    // Disabling drag alone does not disable a pager's nested-scroll/fling consumption.
++    PassThroughPageScrollConnection
++  }
++  CompositionLocalProvider(LocalNavigationPagerPresent provides true) {
++    HorizontalPager(
++      state = state,
++      modifier = modifier.clipToBounds(),
++      // Do not multiply offscreen library composition across outer and inner pagers.
++      beyondViewportPageCount = if (isNestedPager) 0 else beyondViewportPageCount,
++      userScrollEnabled = ownsHorizontalSwipes,
++      pageNestedScrollConnection = nestedScrollConnection,
++      overscrollEffect = null,
++      key = key,
++      // Keep HorizontalPager's velocity-aware fling and settling defaults in both directions.
++    ) { page ->
++      BrowserTabPage(state, page) { content(page) }
++    }
++  }
++}
++
++/** A new tab request cancels the previous one instead of launching competing scrolls. */
++@Composable
++internal fun rememberTabNavigation(state: PagerState): (Int) -> Unit {
++  val preferences = koinInject<PlayerPreferences>()
++  val style by preferences.appNavStyle.collectAsState()
++  val speed by preferences.animationSpeed.collectAsState()
++  val scope = rememberCoroutineScope()
++  var job by remember(state) { mutableStateOf<Job?>(null) }
++  return { page ->
++    if (page in 0 until state.pageCount) {
++      val isAlreadySettled = state.currentPage == page &&
++        state.currentPageOffsetFraction == 0f && !state.isScrollInProgress
++      job?.cancel()
++      if (!isAlreadySettled) {
++        job = scope.launch {
++          if (style == NavigationAnimStyle.None) {
++            state.scrollToPage(page)
++          } else {
++            state.animateScrollToPage(page, animationSpec = tween(navigationDurationMillis(speed), easing = FastOutSlowInEasing))
++          }
++        }
++      }
++    }
++  }
++}
++
++@Composable
++private fun BrowserTabPage(
++  pagerState: PagerState,
++  page: Int,
++  content: @Composable () -> Unit,
++) {
++  val parentActive = LocalNavigationPageActive.current
++  val isActive by remember(pagerState, page, parentActive) {
++    derivedStateOf { parentActive && pagerState.settledPage == page }
++  }
++  // Keep data collection and resume observers on the real screen lifecycle. A synthetic
++  // CREATED -> RESUMED transition here used to restart them at the end of every swipe.
++  CompositionLocalProvider(LocalNavigationPageActive provides isActive) {
++    Box(
++      Modifier
++        .fillMaxSize()
++        .focusProperties { canFocus = isActive }
++        .semantics { if (!isActive) hideFromAccessibility() },
++    ) {
++      content()
++    }
++  }
++}
+diff --git a/app/src/main/java/com/quantummpv/app/ui/utils/ScreenNavigation.kt b/app/src/main/java/com/quantummpv/app/ui/utils/ScreenNavigation.kt
+new file mode 100644
+index 00000000..20f20d8c
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/ui/utils/ScreenNavigation.kt
+@@ -0,0 +1,122 @@
++/*
++ * SPDX-License-Identifier: AGPL-3.0-or-later
++ */
++
++package com.quantummpv.app.ui.utils
++
++import androidx.activity.BackEventCompat
++import androidx.compose.animation.ContentTransform
++import androidx.compose.animation.EnterTransition
++import androidx.compose.animation.ExitTransition
++import androidx.compose.animation.core.FastOutSlowInEasing
++import androidx.compose.animation.core.tween
++import androidx.compose.animation.fadeIn
++import androidx.compose.animation.fadeOut
++import androidx.compose.animation.scaleIn
++import androidx.compose.animation.scaleOut
++import androidx.compose.animation.slideInHorizontally
++import androidx.compose.animation.slideOutHorizontally
++import androidx.compose.animation.togetherWith
++import androidx.compose.foundation.background
++import androidx.compose.foundation.layout.fillMaxSize
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.Surface
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.getValue
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.draw.clipToBounds
++import androidx.compose.ui.platform.LocalLayoutDirection
++import androidx.compose.ui.unit.LayoutDirection
++import androidx.navigation3.runtime.NavBackStack
++import androidx.navigation3.runtime.NavEntry
++import androidx.navigation3.ui.NavDisplay
++import com.quantummpv.app.preferences.PlayerPreferences
++import com.quantummpv.app.preferences.preference.collectAsState
++import com.quantummpv.app.presentation.Screen
++import com.quantummpv.app.ui.player.NavigationAnimStyle
++import kotlin.math.roundToInt
++import org.koin.compose.koinInject
++
++/** The Appearance slider is a duration multiplier: smaller values finish sooner. */
++internal fun navigationDurationMillis(speed: Float, baseMillis: Int = 300): Int =
++  (baseMillis * (speed.takeIf { it.isFinite() } ?: 1f).coerceIn(0.25f, 2.5f)).roundToInt()
++
++/** One host for full screens and nested panes, including system/predictive Back and saved state. */
++@Composable
++internal fun ScreenNavDisplay(
++  backStack: NavBackStack<Screen>,
++  modifier: Modifier = Modifier,
++  onBack: () -> Unit = { backStack.popSafely() },
++  content: @Composable (Screen) -> Unit = { it.Content() },
++) {
++  val preferences = koinInject<PlayerPreferences>()
++  val style by preferences.appNavStyle.collectAsState()
++  val speed by preferences.animationSpeed.collectAsState()
++  val layoutDirection = LocalLayoutDirection.current
++  val direction = if (layoutDirection == LayoutDirection.Ltr) 1 else -1
++
++  NavDisplay(
++    backStack = backStack,
++    modifier = modifier.clipToBounds().background(MaterialTheme.colorScheme.background),
++    onBack = onBack,
++    sizeTransform = null,
++    transitionSpec = { screenNavTransition(true, style, speed, direction) },
++    popTransitionSpec = { screenNavTransition(false, style, speed, direction) },
++    predictivePopTransitionSpec = { edge: Int ->
++      screenNavTransition(false, style, speed, if (edge == BackEventCompat.EDGE_RIGHT) -1 else 1)
++    },
++    entryProvider = { route ->
++      NavEntry(route) {
++        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
++          content(route)
++        }
++      }
++    },
++  )
++}
++
++private fun screenNavTransition(
++  forward: Boolean,
++  style: NavigationAnimStyle,
++  speed: Float,
++  direction: Int,
++): ContentTransform {
++  val duration = navigationDurationMillis(speed)
++
++  return when (style) {
++    NavigationAnimStyle.None -> EnterTransition.None togetherWith ExitTransition.None
++    NavigationAnimStyle.Minimal ->
++      fadeIn(tween(duration, easing = FastOutSlowInEasing)) togetherWith
++        fadeOut(tween(duration, easing = FastOutSlowInEasing))
++    NavigationAnimStyle.FlipFade -> {
++      val exitDuration = (duration * 0.35f).roundToInt()
++      (fadeIn(tween(duration - exitDuration, delayMillis = exitDuration)) +
++        scaleIn(
++          tween(duration, easing = FastOutSlowInEasing),
++          initialScale = if (forward) 0.96f else 1.04f,
++        )) togetherWith fadeOut(tween(exitDuration))
++    }
++    NavigationAnimStyle.Depth ->
++      if (forward) {
++        (slideInHorizontally(tween(duration, easing = FastOutSlowInEasing)) { it * direction } +
++          fadeIn(tween(duration))) togetherWith
++          (scaleOut(tween(duration, easing = FastOutSlowInEasing), targetScale = 0.96f) +
++            fadeOut(tween(duration), targetAlpha = 0.7f))
++      } else {
++        (scaleIn(tween(duration, easing = FastOutSlowInEasing), initialScale = 0.96f) +
++          fadeIn(tween(duration), initialAlpha = 0.7f)) togetherWith
++          (slideOutHorizontally(tween(duration, easing = FastOutSlowInEasing)) { it * direction } +
++            fadeOut(tween(duration)))
++      }
++    NavigationAnimStyle.Default ->
++      if (forward) {
++        slideInHorizontally(tween(duration, easing = FastOutSlowInEasing)) { it * direction } togetherWith
++          (slideOutHorizontally(tween(duration, easing = FastOutSlowInEasing)) { -it * direction / 4 } +
++            fadeOut(tween(duration, easing = FastOutSlowInEasing), targetAlpha = 0.88f))
++      } else {
++        (slideInHorizontally(tween(duration, easing = FastOutSlowInEasing)) { -it * direction / 4 } +
++          fadeIn(tween(duration, easing = FastOutSlowInEasing), initialAlpha = 0.88f)) togetherWith
++          slideOutHorizontally(tween(duration, easing = FastOutSlowInEasing)) { it * direction }
++      }
++  }
++}
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index 6b828a10..9bde9054 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -716,8 +716,8 @@
+   <string name="pref_anim_video_open_summary">Select the transition when starting playback</string>
+   <string name="pref_anim_tab_nav_style_title">Tab navigation style</string>
+   <string name="pref_anim_tab_nav_style_summary">Transition effect between bottom tabs</string>
+-  <string name="pref_anim_screen_nav_style_title">Screen navigation style</string>
+-  <string name="pref_anim_screen_nav_style_summary">Transition effect between settings screens</string>
++  <string name="pref_anim_screen_nav_style_title">Screen transition style</string>
++  <string name="pref_anim_screen_nav_style_summary">Screens use the selected effect; tabs slide with your finger. None also disables tab-tap animations.</string>
+   <string name="pref_anim_speed_title">Animation speed</string>
+   <string name="pref_anim_speed_very_fast">Very fast (%.1f×)</string>
+   <string name="pref_anim_speed_fast">Fast (%.1f×)</string>
+diff --git a/gradle/libs.versions.toml b/gradle/libs.versions.toml
+index d60a6fe6..d13cf23e 100644
+--- a/gradle/libs.versions.toml
++++ b/gradle/libs.versions.toml
+@@ -12,6 +12,7 @@ lazycolumnscrollbar = "2.2.0"
+ nanohttpd = "2.3.1"
+ room = "2.8.4"
+ navigation3 = "1.1.7"
++lifecycle = "2.10.0"
+ kotlinx-serialization = "1.11.0"
+ kotlinx-collections-immutable = "0.5.2"
+ profileinstaller = "1.4.1"
+@@ -73,6 +74,7 @@ androidx-compose-animation-graphics = { group = "androidx.compose.animation", na
+ mediasession = { group = "androidx.media", name = "media", version.ref = "androidxMedia" }
+ androidx-navigation3-runtime = { module = "androidx.navigation3:navigation3-runtime", version.ref = "navigation3" }
+ androidx-navigation3-ui = { module = "androidx.navigation3:navigation3-ui", version.ref = "navigation3" }
++androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycle" }
+ androidx-documentfile = { group = "androidx.documentfile", name = "documentfile", version.ref = "androidxDocumentfile" }
+ androidx-palette = { group = "androidx.palette", name = "palette-ktx", version.ref = "androidxPalette" }
+ seeker = { module = "com.github.abdallahmehiz:seeker", version.ref = "seeker" }
+@@ -127,7 +129,7 @@ libarchive-android = { module = "me.zhanghai.android.libarchive:library", versio
+ 
+ [bundles]
+ koin = ["koin-core", "koin-android", "koin-compose", "koin-viewmodel"]
+-compose-navigation3 = ["androidx-navigation3-runtime", "androidx-navigation3-ui"]
++compose-navigation3 = ["androidx-navigation3-runtime", "androidx-navigation3-ui", "androidx-lifecycle-runtime-compose"]
+ 
+ [plugins]
+ ktlint = { id = "org.jlleitschuh.gradle.ktlint", version.ref = "ktlint" }
+-- 
+2.25.1
+

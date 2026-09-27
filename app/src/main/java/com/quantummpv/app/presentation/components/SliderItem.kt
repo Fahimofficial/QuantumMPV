@@ -26,9 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.layout
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
@@ -48,7 +46,9 @@ fun SliderItem(
   enabled: Boolean = true,
   icon: @Composable () -> Unit = {},
 ) {
-  val haptic = LocalHapticFeedback.current
+  val haptics = rememberAdjustmentHaptics(
+    min.toFloat(), max.toFloat(), (max - min - 1).coerceAtLeast(0), hapticLandmarks.map(Int::toFloat),
+  )
 
   Row(
     modifier =
@@ -115,7 +115,7 @@ fun SliderItem(
   enabled: Boolean = true,
   icon: @Composable () -> Unit = {},
 ) {
-  val haptic = LocalHapticFeedback.current
+  val haptics = rememberAdjustmentHaptics(min, max, steps, hapticLandmarks)
 
   Row(
     modifier =
@@ -180,7 +180,7 @@ fun VerticalSliderItem(
   min: Int = 0,
   icon: @Composable () -> Unit = {},
 ) {
-  val haptic = LocalHapticFeedback.current
+  val haptics = rememberAdjustmentHaptics(min.toFloat(), max.toFloat())
 
   Column(
     modifier =
@@ -199,8 +199,10 @@ fun VerticalSliderItem(
       min = min,
       max = max,
       onValueChange = {
-        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-        onChange(it)
+        if (it != value) {
+          onChange(it)
+          haptics.move(value.toFloat(), it.toFloat())
+        }
       },
       modifier = Modifier.weight(1f),
     )

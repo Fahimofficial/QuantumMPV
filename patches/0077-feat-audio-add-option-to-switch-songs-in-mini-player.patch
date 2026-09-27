@@ -1,0 +1,672 @@
+From a417b07c344bed4cde621b730d8c9bfd507e881a Mon Sep 17 00:00:00 2001
+From: Arnab Sadhukhan <arnab@Arnabs-Mac-Mini.local>
+Date: Wed, 9 Sep 2026 21:37:37 +0530
+Subject: [PATCH 077/140] feat(audio): add option to switch songs in mini
+ player during background playback
+
+---
+ .../mpvrx/preferences/AudioPreferences.kt     |   1 +
+ .../medialibrary/MediaLibraryContent.kt       |   6 +
+ .../ui/browser/music/MusicLibraryViewModel.kt |  11 +
+ .../browser/playlist/PlaylistDetailScreen.kt  |  26 ++
+ .../ui/preferences/AudioPreferencesScreen.kt  |  15 +
+ .../ui/preferences/SearchablePreference.kt    |   9 +
+ .../gyrolet/mpvrx/utils/media/MediaUtils.kt   | 264 ++++++++++--------
+ app/src/main/res/values-ar/strings.xml        |   2 +
+ app/src/main/res/values-de/strings.xml        |   2 +
+ app/src/main/res/values-es/strings.xml        |   2 +
+ app/src/main/res/values-fr/strings.xml        |   2 +
+ app/src/main/res/values-hi/strings.xml        |   2 +
+ app/src/main/res/values-ja/strings.xml        |   2 +
+ app/src/main/res/values-pt-rBR/strings.xml    |   2 +
+ app/src/main/res/values-ru/strings.xml        |   2 +
+ app/src/main/res/values-zh-rCN/strings.xml    |   2 +
+ app/src/main/res/values/strings.xml           |   2 +
+ 17 files changed, 238 insertions(+), 114 deletions(-)
+
+diff --git a/app/src/main/java/com/quantummpv/app/preferences/AudioPreferences.kt b/app/src/main/java/com/quantummpv/app/preferences/AudioPreferences.kt
+index 93b8d8c7..6b118a01 100644
+--- a/app/src/main/java/com/quantummpv/app/preferences/AudioPreferences.kt
++++ b/app/src/main/java/com/quantummpv/app/preferences/AudioPreferences.kt
+@@ -26,6 +26,7 @@ class AudioPreferences(
+   val backgroundPlayback = preferenceStore.getBoolean("automatic_background_playback", false)
+   /** Audio-player-only background playback; video retains [backgroundPlayback]. */
+   val audioBackgroundPlayback = preferenceStore.getBoolean("audio_player_background_playback", false)
++  val miniPlayerTrackSwitching = preferenceStore.getBoolean("audio_mini_player_track_switching", false)
+   val volumeNormalization = preferenceStore.getBoolean("audio_volume_normalization", false)
+   val drcEnabled = preferenceStore.getBoolean("audio_drc_enabled", false)
+   val showAudioVisualizer = preferenceStore.getBoolean("show_audio_visualizer", true)
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/medialibrary/MediaLibraryContent.kt b/app/src/main/java/com/quantummpv/app/ui/browser/medialibrary/MediaLibraryContent.kt
+index dc3e65b3..a6bb34da 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/medialibrary/MediaLibraryContent.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/medialibrary/MediaLibraryContent.kt
+@@ -341,6 +341,12 @@ fun MediaLibraryContent(forceAudio: Boolean = false) {
+         durationSeconds = (item.duration / 1000L).toInt().takeIf { it > 0 },
+       )
+     }
++    val isAudio = mediaType == MediaLibraryType.Audio || video.isAudio
++    if (MediaUtils.shouldPlayInMiniPlayerOnly(isAudio)) {
++      MediaUtils.playInMiniPlayer(context, queueItems, index)
++      return
++    }
++
+     val launchToken = PreparedPlaybackLaunchStore.stage(
+       items = queueItems,
+       currentIndex = index,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryViewModel.kt b/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryViewModel.kt
+index 35345d12..25b62f62 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryViewModel.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryViewModel.kt
+@@ -36,6 +36,7 @@ import org.koin.core.component.KoinComponent
+ import org.koin.core.component.inject
+ 
+ import com.quantummpv.app.utils.media.MediaLibraryEvents
++import com.quantummpv.app.utils.media.MediaUtils
+ import kotlinx.coroutines.flow.collectLatest
+ 
+ class MusicLibraryViewModel : ViewModel(), KoinComponent {
+@@ -328,6 +329,11 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
+         durationSeconds = (item.durationMs / 1000L).toInt().takeIf { it > 0 },
+       )
+     }
++    if (MediaUtils.shouldPlayInMiniPlayerOnly(isAudio = true)) {
++      MediaUtils.playInMiniPlayer(context, queueItems, index)
++      return
++    }
++
+     val launchToken = PreparedPlaybackLaunchStore.stage(
+       items = queueItems,
+       currentIndex = index,
+@@ -364,6 +370,11 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
+         durationSeconds = (item.durationMs / 1000L).toInt().takeIf { it > 0 },
+       )
+     }
++    if (MediaUtils.shouldPlayInMiniPlayerOnly(isAudio = true)) {
++      MediaUtils.playInMiniPlayer(context, queueItems, 0)
++      return
++    }
++
+     val launchToken = PreparedPlaybackLaunchStore.stage(
+       items = queueItems,
+       currentIndex = 0,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/playlist/PlaylistDetailScreen.kt b/app/src/main/java/com/quantummpv/app/ui/browser/playlist/PlaylistDetailScreen.kt
+index 7f6d0f48..57d9bb37 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/playlist/PlaylistDetailScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/playlist/PlaylistDetailScreen.kt
+@@ -81,6 +81,8 @@ import com.quantummpv.app.ui.browser.selection.rememberSelectionManager
+ import com.quantummpv.app.ui.components.InlineSearchBar
+ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
++import com.quantummpv.app.ui.player.PlaybackIdentity
++import com.quantummpv.app.ui.player.PlaybackItem
+ import com.quantummpv.app.ui.player.PlayerActivity
+ import com.quantummpv.app.ui.utils.LocalBackStack
+ import com.quantummpv.app.ui.utils.navigateTo
+@@ -247,6 +249,30 @@ data class PlaylistDetailScreen(
+       item: PlaylistVideoItem,
+       startIndex: Int,
+     ) {
++      val isAudio = item.video.isAudio || (playlist?.isAudio == true)
++      if (MediaUtils.shouldPlayInMiniPlayerOnly(isAudio)) {
++        val queueItems =
++          filteredVideoItems.map { playlistEntry ->
++            val fallback = Uri.parse(playlistEntry.video.path)
++            val uri =
++              playlistEntry.video.uri.takeIf { it != Uri.EMPTY && it.toString().isNotBlank() }
++                ?: fallback.takeIf { !it.scheme.isNullOrBlank() }
++                ?: Uri.fromFile(java.io.File(playlistEntry.video.path))
++            val headerExtra = buildM3UHeadersExtra(playlist, playlistEntry.playlistItem)
++            val headersMap = headerExtra?.let { mapOf(it[0] to it[1]) }.orEmpty()
++            PlaybackItem.fromUri(
++              uri = uri.toString(),
++              stableId = playlistEntry.video.path.takeIf(String::isNotBlank)?.let(PlaybackIdentity::forLocalPath),
++              title = playlistEntry.playlistItem.fileName,
++              mimeType = if (isAudio) "audio/*" else playlistEntry.video.mimeType,
++              headers = headersMap,
++              durationSeconds = (playlistEntry.video.duration / 1000L).toInt().takeIf { it > 0 },
++            )
++          }
++        MediaUtils.playInMiniPlayer(context, queueItems, startIndex)
++        return
++      }
++
+       val fallbackUri = Uri.parse(item.video.path)
+       val playUri =
+         item.video.uri.takeIf { it != Uri.EMPTY && it.toString().isNotBlank() }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/AudioPreferencesScreen.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/AudioPreferencesScreen.kt
+index 6f194fa2..8b74b16f 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/AudioPreferencesScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/AudioPreferencesScreen.kt
+@@ -519,6 +519,21 @@ object AudioPreferencesScreen : Screen {
+                 },
+               )
+ 
++              PreferenceDivider()
++              val miniPlayerTrackSwitching by preferences.miniPlayerTrackSwitching.collectAsState()
++              SwitchPreference(
++                modifier = Modifier.settingsSearchTarget(R.string.pref_audio_mini_player_track_switching_title),
++                value = miniPlayerTrackSwitching,
++                onValueChange = preferences.miniPlayerTrackSwitching::set,
++                title = { Text(stringResource(R.string.pref_audio_mini_player_track_switching_title)) },
++                summary = {
++                  Text(
++                    stringResource(R.string.pref_audio_mini_player_track_switching_summary),
++                    color = MaterialTheme.colorScheme.outline,
++                  )
++                },
++              )
++
+               PreferenceDivider()
+               val autoplayNextAudio by playerPreferences.autoplayNextAudio.collectAsState()
+               SwitchPreference(
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/SearchablePreference.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/SearchablePreference.kt
+index 8da5403b..9c172d4d 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/SearchablePreference.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/SearchablePreference.kt
+@@ -943,6 +943,15 @@ object SearchablePreferences {
+           screen = AudioPreferencesScreen,
+         ),
+       )
++      add(
++        SearchablePreference(
++          titleRes = R.string.pref_audio_mini_player_track_switching_title,
++          summaryRes = R.string.pref_audio_mini_player_track_switching_summary,
++          keywords = listOf("mini player", "background", "switch", "song", "audio", "music", "change"),
++          category = "Audio",
++          screen = AudioPreferencesScreen,
++        ),
++      )
+       add(
+         SearchablePreference(
+           titleRes = R.string.pref_autoplay_next_audio_title,
+diff --git a/app/src/main/java/com/quantummpv/app/utils/media/MediaUtils.kt b/app/src/main/java/com/quantummpv/app/utils/media/MediaUtils.kt
+index 1f1d568f..a81c80a2 100644
+--- a/app/src/main/java/com/quantummpv/app/utils/media/MediaUtils.kt
++++ b/app/src/main/java/com/quantummpv/app/utils/media/MediaUtils.kt
+@@ -14,13 +14,18 @@ import android.content.Context
+ import android.content.Intent
+ import android.net.Uri
+ import android.provider.MediaStore
++import androidx.core.content.ContextCompat
+ import androidx.core.content.FileProvider
+ import androidx.core.net.toUri
+ import com.quantummpv.app.domain.media.model.Video
+ import com.quantummpv.app.domain.torrent.isTorrentSource
++import com.quantummpv.app.ui.browser.NavigationBarState
++import com.quantummpv.app.ui.player.MediaPlaybackService
+ import com.quantummpv.app.ui.player.PlaybackIdentity
+ import com.quantummpv.app.ui.player.PlaybackItem
+ import com.quantummpv.app.ui.player.PlaybackPerformanceTrace
++import com.quantummpv.app.ui.player.PlaybackPhase
++import com.quantummpv.app.ui.player.PlaybackSession
+ import com.quantummpv.app.ui.player.PlayerActivity
+ import com.quantummpv.app.ui.player.PlayerLookupHints
+ import com.quantummpv.app.ui.player.PreparedPlaybackLaunchStore
+@@ -60,6 +65,48 @@ data class PlaybackSubtitleTrack(
+  * bypassing MediaUtils.
+  */
+ object MediaUtils {
++  fun shouldPlayInMiniPlayerOnly(isAudio: Boolean): Boolean {
++    if (!isAudio) return false
++    val audioPreferences =
++      runCatching { org.koin.core.context.GlobalContext.get().get<com.quantummpv.app.preferences.AudioPreferences>() }.getOrNull()
++    if (audioPreferences?.miniPlayerTrackSwitching?.get() != true) return false
++    val sessionState = PlaybackSession.state.value
++    val isServiceActive = MediaPlaybackService.isForegroundActive()
++    val isMiniPlayerVisible = NavigationBarState.isMiniPlayerVisible
++    val isSessionActive =
++      sessionState.phase == PlaybackPhase.READY ||
++        sessionState.phase == PlaybackPhase.BACKGROUND
++    return isServiceActive || isMiniPlayerVisible || isSessionActive
++  }
++
++  fun playInMiniPlayer(
++    context: Context,
++    queueItems: List<PlaybackItem>,
++    startIndex: Int = 0,
++  ) {
++    if (queueItems.isEmpty()) return
++    val selectedIndex = startIndex.coerceIn(queueItems.indices)
++    PlaybackSession.replaceQueue(queueItems, selectedIndex, isExplicitQueue = true)
++    val item = queueItems[selectedIndex]
++    PlaybackSession.load(item)
++    PlaybackSession.setPropertyBoolean("pause", false)
++    PlaybackSession.markBackground()
++    NavigationBarState.isMiniPlayerVisible = true
++
++    val serviceIntent =
++      Intent(context, MediaPlaybackService::class.java).apply {
++        putExtra("media_title", item.title)
++        putExtra("media_artist", item.artist)
++        putExtra("media_uri", item.originalUri)
++        putExtra("media_identifier", item.stableId)
++        putExtra("audio_background_playback", true)
++        putExtra("is_audio", true)
++      }
++    runCatching {
++      ContextCompat.startForegroundService(context, serviceIntent)
++    }
++  }
++
+   fun playFiles(
+     videos: List<Video>,
+     context: Context,
+@@ -73,23 +120,31 @@ object MediaUtils {
+       return
+     }
+ 
++    val selected = videos[selectedIndex]
++    val isAudioMedia = selected.isAudio || videos.all { it.isAudio }
++
+     val queueItems =
+       videos.map { video ->
+         PlaybackItem.fromUri(
+           uri = video.uri.toString(),
+           stableId = video.path.takeIf(String::isNotBlank)?.let(PlaybackIdentity::forLocalPath),
+           title = video.displayName,
+-          mimeType = video.mimeType,
++          mimeType = if (video.isAudio) "audio/*" else video.mimeType,
+           durationSeconds = (video.duration / 1000L).toInt().takeIf { it > 0 },
+         )
+       }
++
++    if (shouldPlayInMiniPlayerOnly(isAudioMedia)) {
++      playInMiniPlayer(context, queueItems, selectedIndex)
++      return
++    }
++
+     val launchToken =
+       PreparedPlaybackLaunchStore.stage(
+         items = queueItems,
+         currentIndex = selectedIndex,
+         isExplicitQueue = true,
+       )
+-    val selected = videos[selectedIndex]
+     val intent =
+       Intent(Intent.ACTION_VIEW, selected.uri).apply {
+         setClass(context, PlayerActivity::class.java)
+@@ -143,135 +198,95 @@ object MediaUtils {
+     isAudio: Boolean = false,
+     playlistDurationsSeconds: List<Int> = emptyList(),
+   ) {
+-    val uri =
+-      when (source) {
+-        is Video -> {
+-          // Video.path is already MediaStore/library metadata. Avoid a synchronous filesystem
+-          // stat on the UI click path before startActivity(); stale media will fail at the same
+-          // playback/open stage where the content URI itself is validated.
+-          val localPath = source.path.takeIf(String::isNotBlank)
+-          // Recents stores a durable filesystem path, while normal library playback is usually
+-          // launched with a MediaStore content:// URI. Playback state is keyed from the launch
+-          // URI, so reopening the same file as file:// created a different key and restarted at 0.
+-          // Resolve the path back to its MediaStore URI for history/quick-play launches only when
+-          // the Video does not already carry a content URI.
+-          val playbackUri =
+-            if (launchSource.isHistoryResumeLaunch() &&
+-              localPath != null &&
+-              !source.uri.scheme.equals("content", ignoreCase = true)
+-            ) {
+-              resolveMediaStoreUri(context, localPath, source.isAudio) ?: source.uri
+-            } else {
+-              source.uri
+-            }
+-          val intent = Intent(Intent.ACTION_VIEW, playbackUri)
+-          val torrentSource = playbackUri.toString().takeIf { isTorrentSource(it, source.mimeType) }
+-          intent.setClass(
+-            context,
+-            if (torrentSource != null && torrentFileIndex == null && torrentPreparationId == null) {
+-              TorrentSelectionActivity::class.java
+-            } else {
+-              PlayerActivity::class.java
+-            },
+-          )
+-          intent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+-          intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+-          intent.putExtra("internal_launch", true) // Enables subtitle autoload
+-          localPath?.let { intent.putExtra("local_media_path", it) }
+-          intent.putExtra("is_audio", source.isAudio)
+-          intent.putExtra(PlayerActivity.EXTRA_VIDEO_WIDTH, source.width)
+-          intent.putExtra(PlayerActivity.EXTRA_VIDEO_HEIGHT, source.height)
+-          applyPlaybackExtras(
+-            intent = intent,
+-            launchSource = launchSource,
+-            title =
+-              title
+-                ?: source.title.takeIf { shouldForwardVideoTitle(source) && it.isNotBlank() }
+-                ?: source.displayName.takeIf { shouldForwardVideoTitle(source) && it.isNotBlank() }
+-                ?: if (launchSource != null &&
+-                  (launchSource.contains("playlist") || launchSource == "m3u_playlist")
+-                ) {
+-                  source.displayName
+-                } else {
+-                  null
+-                },
+-            headers = headers,
+-            subtitles = subtitles,
+-            enabledSubtitles = enabledSubtitles,
+-            subtitleTracks = subtitleTracks,
+-            lookupHints = lookupHints,
+-            torrentFileIndex = torrentFileIndex,
+-            torrentPreparationId = torrentPreparationId,
+-            torrentSource = torrentSource,
+-            mediaDescription = mediaDescription,
+-            posterUrl = posterUrl,
+-            backdropUrl = backdropUrl,
+-            playlist = playlist,
+-            playlistIndex = playlistIndex,
+-            playlistTitles = playlistTitles,
+-            playlistArtists = playlistArtists,
+-            playlistArtworkUrls = playlistArtworkUrls,
+-            isAudio = isAudio,
+-            playlistDurationsSeconds = playlistDurationsSeconds.ifEmpty {
+-              listOf((source.duration / 1000L).toInt().takeIf { it > 0 } ?: 0)
+-            },
+-          )
+-          PlaybackPerformanceTrace.mark("OPEN_REQUEST", "source=${launchSource ?: "library"} kind=video")
+-          context.startActivity(intent)
+-          return
+-        }
++    val videoSource = source as? Video
++    val localPath =
++      when {
++        videoSource != null -> videoSource.path.takeIf(String::isNotBlank)
++        source is String && source.startsWith("file://", ignoreCase = true) -> source.removePrefix("file://")
++        source is String && source.startsWith("/") -> source
++        source is Uri && source.scheme.equals("file", ignoreCase = true) -> source.path
++        else -> null
++      }?.takeIf(String::isNotBlank)
+ 
+-        is String -> {
++    val playbackUri: Uri =
++      when {
++        videoSource != null -> {
++          if (launchSource.isHistoryResumeLaunch() &&
++            localPath != null &&
++            !videoSource.uri.scheme.equals("content", ignoreCase = true)
++          ) {
++            resolveMediaStoreUri(context, localPath, videoSource.isAudio) ?: videoSource.uri
++          } else {
++            videoSource.uri
++          }
++        }
++        source is String -> {
+           if (source.isBlank()) return
+-          // Handle file paths with # characters properly
+           if (source.startsWith("/") || source.startsWith("file://")) {
+-            // It's a local file path - create URI safely
+-            val filePath =
+-              if (source.startsWith("file://")) {
+-                source.removePrefix("file://")
+-              } else {
+-                source
+-              }
+-            Uri.fromFile(java.io.File(filePath))
++            val filePath = if (source.startsWith("file://")) source.removePrefix("file://") else source
++            Uri.fromFile(File(filePath))
+           } else {
+-            // It's likely a network URI - parse normally
+             val parsedUri = source.toUri()
+             parsedUri.scheme?.let { parsedUri } ?: "file://$source".toUri()
+           }
+         }
+-
+-        is android.net.Uri -> source
++        source is Uri -> source
+         else -> {
+           android.util.Log.e("MediaUtils", "Unsupported source type: ${source::class.java}")
+           return
+         }
+       }
+ 
+-    // Keep the path handoff syntactic here. File existence is validated by the actual media open;
+-    // probing storage before startActivity() adds avoidable main-thread I/O to every local launch.
+-    val localPath =
+-      when {
+-        source is String && source.startsWith("file://", ignoreCase = true) -> source.removePrefix("file://")
+-        source is String && source.startsWith("/") -> source
+-        uri.scheme.equals("file", ignoreCase = true) -> uri.path
+-        else -> null
+-      }?.takeIf(String::isNotBlank)
++    val isAudioMedia =
++      isAudio ||
++        videoSource?.isAudio == true ||
++        (localPath?.let { File(it).extension.lowercase() in FileTypeUtils.AUDIO_EXTENSIONS } ?: false)
+ 
+-    val playbackUri =
+-      if (launchSource.isHistoryResumeLaunch() && localPath != null) {
+-        val isAudio = File(localPath).extension.lowercase() in FileTypeUtils.AUDIO_EXTENSIONS
+-        resolveMediaStoreUri(context, localPath, isAudio) ?: uri
+-      } else {
+-        uri
+-      }
++    if (shouldPlayInMiniPlayerOnly(isAudioMedia)) {
++      val queueItems =
++        if (playlist.isNotEmpty()) {
++          val selIndex = playlistIndex.coerceIn(playlist.indices)
++          playlist.mapIndexed { idx, pUri ->
++            PlaybackItem.fromUri(
++              uri = pUri.toString(),
++              title = playlistTitles.getOrNull(idx) ?: title,
++              artist = playlistArtists.getOrNull(idx),
++              mimeType = "audio/*",
++              headers = headers.orEmpty(),
++              artworkUri =
++                playlistArtworkUrls.getOrNull(idx)?.takeIf(String::isNotBlank)
++                  ?: posterUrl?.takeIf { idx == selIndex },
++              durationSeconds = playlistDurationsSeconds.getOrNull(idx)?.takeIf { it > 0 },
++            )
++          }
++        } else {
++          val durSec =
++            playlistDurationsSeconds.firstOrNull()?.takeIf { it > 0 }
++              ?: videoSource?.let { (it.duration / 1000L).toInt().takeIf { d -> d > 0 } }
++          listOf(
++            PlaybackItem.fromUri(
++              uri = playbackUri.toString(),
++              stableId = localPath?.let(PlaybackIdentity::forLocalPath),
++              title = title ?: videoSource?.displayName,
++              artist = playlistArtists.firstOrNull(),
++              mimeType = "audio/*",
++              headers = headers.orEmpty(),
++              artworkUri = posterUrl ?: playlistArtworkUrls.firstOrNull(),
++              durationSeconds = durSec,
++            ),
++          )
++        }
++      playInMiniPlayer(context, queueItems, playlistIndex)
++      return
++    }
+ 
+     val intent = Intent(Intent.ACTION_VIEW, playbackUri)
+     val torrentSource =
+       when (source) {
+         is String -> source.trim()
+         is Uri -> source.toString()
+-        else -> playbackUri.toString()
+-      }.takeIf { isTorrentSource(it) }
++        else -> playbackUri.toString().takeIf { videoSource != null && isTorrentSource(it, videoSource.mimeType) }
++      }?.takeIf { isTorrentSource(it) }
+     intent.setClass(
+       context,
+       if (torrentSource != null && torrentFileIndex == null && torrentPreparationId == null) {
+@@ -282,11 +297,27 @@ object MediaUtils {
+     )
+     intent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+     intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
++    intent.putExtra("internal_launch", true)
+     localPath?.let { intent.putExtra("local_media_path", it) }
++    if (videoSource != null) {
++      intent.putExtra("is_audio", videoSource.isAudio)
++      intent.putExtra(PlayerActivity.EXTRA_VIDEO_WIDTH, videoSource.width)
++      intent.putExtra(PlayerActivity.EXTRA_VIDEO_HEIGHT, videoSource.height)
++    }
+     applyPlaybackExtras(
+       intent = intent,
+       launchSource = launchSource,
+-      title = title,
++      title =
++        title
++          ?: videoSource?.title?.takeIf { shouldForwardVideoTitle(videoSource) && it.isNotBlank() }
++          ?: videoSource?.displayName?.takeIf { shouldForwardVideoTitle(videoSource) && it.isNotBlank() }
++          ?: if (launchSource != null &&
++            (launchSource.contains("playlist") || launchSource == "m3u_playlist")
++          ) {
++            videoSource?.displayName
++          } else {
++            null
++          },
+       headers = headers,
+       subtitles = subtitles,
+       enabledSubtitles = enabledSubtitles,
+@@ -303,10 +334,15 @@ object MediaUtils {
+       playlistTitles = playlistTitles,
+       playlistArtists = playlistArtists,
+       playlistArtworkUrls = playlistArtworkUrls,
+-      isAudio = isAudio,
+-      playlistDurationsSeconds = playlistDurationsSeconds,
++      isAudio = isAudioMedia,
++      playlistDurationsSeconds = playlistDurationsSeconds.ifEmpty {
++        videoSource?.let { listOf((it.duration / 1000L).toInt().takeIf { d -> d > 0 } ?: 0) } ?: emptyList()
++      },
++    )
++    PlaybackPerformanceTrace.mark(
++      "OPEN_REQUEST",
++      "source=${launchSource ?: (if (videoSource != null) "library" else "direct")} kind=${if (videoSource != null) "video" else (playbackUri.scheme ?: "path")}",
+     )
+-    PlaybackPerformanceTrace.mark("OPEN_REQUEST", "source=${launchSource ?: "direct"} kind=${uri.scheme ?: "path"}")
+     context.startActivity(intent)
+   }
+ 
+diff --git a/app/src/main/res/values-ar/strings.xml b/app/src/main/res/values-ar/strings.xml
+index 85a7296f..0b4a846e 100644
+--- a/app/src/main/res/values-ar/strings.xml
++++ b/app/src/main/res/values-ar/strings.xml
+@@ -487,6 +487,8 @@
+   <string name="background_playback_title">التشغيل في الخلفية</string>
+   <string name="pref_audio_background_playback_title">التشغيل في الخلفية (مشغل الصوت)</string>
+   <string name="pref_audio_background_playback_summary">مواصلة تشغيل الصوت عند مغادرة مشغل الصوت أو إيقاف الشاشة</string>
++  <string name="pref_audio_mini_player_track_switching_title">تغيير الأغاني في المشغل المصغر</string>
++  <string name="pref_audio_mini_player_track_switching_summary">عندما يكون المشغل المصغر أو التشغيل في الخلفية نشطًا، يؤدي اختيار أغنية أخرى إلى تحديث المشغل المصغر دون فتح المشغل الكامل</string>
+   <string name="pref_video_background_playback_title">التشغيل في الخلفية (مشغل الفيديو)</string>
+   <string name="pref_video_background_playback_summary">مواصلة تشغيل صوت الفيديو عند مغادرة مشغل الفيديو أو إيقاف الشاشة</string>
+   <string name="deselect_all">إلغاء تحديد الكل</string>
+diff --git a/app/src/main/res/values-de/strings.xml b/app/src/main/res/values-de/strings.xml
+index 6705821d..b86fb082 100644
+--- a/app/src/main/res/values-de/strings.xml
++++ b/app/src/main/res/values-de/strings.xml
+@@ -487,6 +487,8 @@ Weiter: NEXT</string>
+   <string name="background_playback_title">Hintergrundwiedergabe</string>
+   <string name="pref_audio_background_playback_title">Hintergrundwiedergabe (Audio-Player)</string>
+   <string name="pref_audio_background_playback_summary">Audio beim Verlassen des Audio-Players oder Ausschalten des Bildschirms weiterspielen</string>
++  <string name="pref_audio_mini_player_track_switching_title">Titel im Mini-Player wechseln</string>
++  <string name="pref_audio_mini_player_track_switching_summary">Wenn der Mini-Player oder die Hintergrundwiedergabe aktiv ist, wechselt die Titelauswahl das Lied im Mini-Player, ohne den Vollbild-Player zu öffnen</string>
+   <string name="pref_video_background_playback_title">Hintergrundwiedergabe (Video-Player)</string>
+   <string name="pref_video_background_playback_summary">Video-Audio beim Verlassen des Video-Players oder Ausschalten des Bildschirms weiterspielen</string>
+   <string name="deselect_all">Auswahl aufheben</string>
+diff --git a/app/src/main/res/values-es/strings.xml b/app/src/main/res/values-es/strings.xml
+index 32691bea..a0cf62f1 100644
+--- a/app/src/main/res/values-es/strings.xml
++++ b/app/src/main/res/values-es/strings.xml
+@@ -487,6 +487,8 @@ Siguiente: NEXT</string>
+   <string name="background_playback_title">Reproducción en segundo plano</string>
+   <string name="pref_audio_background_playback_title">Reproducción en segundo plano (Reproductor de Audio)</string>
+   <string name="pref_audio_background_playback_summary">Mantener la reproducción al salir del reproductor de audio o apagar la pantalla</string>
++  <string name="pref_audio_mini_player_track_switching_title">Cambiar canciones en el mini reproductor</string>
++  <string name="pref_audio_mini_player_track_switching_summary">Cuando el mini reproductor o la reproducción en segundo plano estén activos, seleccionar otra canción actualiza el mini reproductor sin abrir el reproductor completo</string>
+   <string name="pref_video_background_playback_title">Reproducción en segundo plano (Reproductor de Video)</string>
+   <string name="pref_video_background_playback_summary">Mantener el audio del video al salir del reproductor de video o apagar la pantalla</string>
+   <string name="deselect_all">Deseleccionar todo</string>
+diff --git a/app/src/main/res/values-fr/strings.xml b/app/src/main/res/values-fr/strings.xml
+index 34ee74c9..d8976949 100644
+--- a/app/src/main/res/values-fr/strings.xml
++++ b/app/src/main/res/values-fr/strings.xml
+@@ -487,6 +487,8 @@ Suivant : NEXT</string>
+   <string name="background_playback_title">Lecture en arrière-plan</string>
+   <string name="pref_audio_background_playback_title">Lecture en arrière-plan (Lecteur Audio)</string>
+   <string name="pref_audio_background_playback_summary">Continuer la lecture audio en quittant le lecteur audio ou en éteignant l\’écran</string>
++  <string name="pref_audio_mini_player_track_switching_title">Changer de morceau dans le mini-lecteur</string>
++  <string name="pref_audio_mini_player_track_switching_summary">Lorsque le mini-lecteur ou la lecture en arrière-plan est active, sélectionner un autre morceau met à jour le mini-lecteur sans ouvrir le lecteur complet</string>
+   <string name="pref_video_background_playback_title">Lecture en arrière-plan (Lecteur Vidéo)</string>
+   <string name="pref_video_background_playback_summary">Continuer la lecture du son de la vidéo en quittant le lecteur vidéo ou en éteignant l\’écran</string>
+   <string name="deselect_all">Tout désélectionner</string>
+diff --git a/app/src/main/res/values-hi/strings.xml b/app/src/main/res/values-hi/strings.xml
+index c0524121..aabf7255 100644
+--- a/app/src/main/res/values-hi/strings.xml
++++ b/app/src/main/res/values-hi/strings.xml
+@@ -486,6 +486,8 @@
+   <string name="background_playback_title">बैकग्राउंड प्लेबैक</string>
+   <string name="pref_audio_background_playback_title">ऑडियो प्लेयर बैकग्राउंड प्लेबैक</string>
+   <string name="pref_audio_background_playback_summary">ऑडियो प्लेयर से बाहर जाने या स्क्रीन बंद करने पर ऑडियो चलता रखें</string>
++  <string name="pref_audio_mini_player_track_switching_title">मिनी प्लेयर में गाने बदलें</string>
++  <string name="pref_audio_mini_player_track_switching_summary">जब मिनी प्लेयर या बैकग्राउंड प्लेबैक सक्रिय हो, तो दूसरा गाना चुनने पर पूरा प्लेयर खोले बिना मिनी प्लेयर में गाना बदल जाता है</string>
+   <string name="pref_video_background_playback_title">वीडियो प्लेयर बैकग्राउंड प्लेबैक</string>
+   <string name="pref_video_background_playback_summary">वीडियो प्लेयर से बाहर जाने या स्क्रीन बंद करने पर वीडियो का ऑडियो चलता रखें</string>
+   <string name="deselect_all">सभी अनसिलेक्ट करें</string>
+diff --git a/app/src/main/res/values-ja/strings.xml b/app/src/main/res/values-ja/strings.xml
+index 4a67142c..fbc10cd9 100644
+--- a/app/src/main/res/values-ja/strings.xml
++++ b/app/src/main/res/values-ja/strings.xml
+@@ -487,6 +487,8 @@
+   <string name="background_playback_title">バックグラウンド再生</string>
+   <string name="pref_audio_background_playback_title">バックグラウンド再生（オーディオプレイヤー）</string>
+   <string name="pref_audio_background_playback_summary">オーディオプレイヤーを離れたり画面をオフにしても音声を再生し続ける</string>
++  <string name="pref_audio_mini_player_track_switching_title">ミニプレイヤーで曲を切り替える</string>
++  <string name="pref_audio_mini_player_track_switching_summary">ミニプレイヤーまたはバックグラウンド再生が有効な場合、別の曲を選択しても全画面プレイヤーを開かずにミニプレイヤーで切り替えます</string>
+   <string name="pref_video_background_playback_title">バックグラウンド再生（ビデオプレイヤー）</string>
+   <string name="pref_video_background_playback_summary">ビデオプレイヤーを離れたり画面をオフにしても動画の音声を再生し続ける</string>
+   <string name="deselect_all">すべて選択解除</string>
+diff --git a/app/src/main/res/values-pt-rBR/strings.xml b/app/src/main/res/values-pt-rBR/strings.xml
+index 1581674a..03ebf911 100644
+--- a/app/src/main/res/values-pt-rBR/strings.xml
++++ b/app/src/main/res/values-pt-rBR/strings.xml
+@@ -487,6 +487,8 @@ Próximo: NEXT</string>
+   <string name="background_playback_title">Reprodução em segundo plano</string>
+   <string name="pref_audio_background_playback_title">Reprodução em segundo plano (Reprodutor de Áudio)</string>
+   <string name="pref_audio_background_playback_summary">Manter o áudio tocando ao sair do reprodutor de áudio ou desligar a tela</string>
++  <string name="pref_audio_mini_player_track_switching_title">Trocar músicas no mini player</string>
++  <string name="pref_audio_mini_player_track_switching_summary">Quando o mini player ou a reprodução em segundo plano estiver ativa, selecionar outra música atualiza o mini player sem abrir o player completo</string>
+   <string name="pref_video_background_playback_title">Reprodução em segundo plano (Reprodutor de Vídeo)</string>
+   <string name="pref_video_background_playback_summary">Manter o áudio do vídeo tocando ao sair do reprodutor de vídeo ou desligar a tela</string>
+   <string name="deselect_all">Desmarcar tudo</string>
+diff --git a/app/src/main/res/values-ru/strings.xml b/app/src/main/res/values-ru/strings.xml
+index a25e431f..cc5936fb 100644
+--- a/app/src/main/res/values-ru/strings.xml
++++ b/app/src/main/res/values-ru/strings.xml
+@@ -487,6 +487,8 @@
+   <string name="background_playback_title">Фоновое воспроизведение</string>
+   <string name="pref_audio_background_playback_title">Фоновое воспроизведение (Аудиоплеер)</string>
+   <string name="pref_audio_background_playback_summary">Продолжать воспроизведение аудио при выходе из аудиоплеера или выключении экрана</string>
++  <string name="pref_audio_mini_player_track_switching_title">Переключать треки в мини-плеере</string>
++  <string name="pref_audio_mini_player_track_switching_summary">Когда мини-плеер или фоновое воспроизведение активны, выбор другого трека обновляет мини-плеер без открытия полноэкранного плеера</string>
+   <string name="pref_video_background_playback_title">Фоновое воспроизведение (Видеоплеер)</string>
+   <string name="pref_video_background_playback_summary">Продолжать воспроизведение звука видео при выходе из видеоплеера или выключении экрана</string>
+   <string name="deselect_all">Снять выделение</string>
+diff --git a/app/src/main/res/values-zh-rCN/strings.xml b/app/src/main/res/values-zh-rCN/strings.xml
+index ed5747ac..0e2e018b 100644
+--- a/app/src/main/res/values-zh-rCN/strings.xml
++++ b/app/src/main/res/values-zh-rCN/strings.xml
+@@ -487,6 +487,8 @@
+   <string name="background_playback_title">后台播放</string>
+   <string name="pref_audio_background_playback_title">后台播放（音频播放器）</string>
+   <string name="pref_audio_background_playback_summary">在离开音频播放器或关闭屏幕时保持音频播放</string>
++  <string name="pref_audio_mini_player_track_switching_title">在迷你播放器中切歌</string>
++  <string name="pref_audio_mini_player_track_switching_summary">当迷你播放器或后台播放处于活动状态时，选择另一首歌曲将直接在迷你播放器中切换，而无需打开完整播放器</string>
+   <string name="pref_video_background_playback_title">后台播放（视频播放器）</string>
+   <string name="pref_video_background_playback_summary">在离开视频播放器或关闭屏幕时保持视频音频播放</string>
+   <string name="deselect_all">取消全选</string>
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index 3a4266e1..a352d761 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -570,6 +570,8 @@
+   <string name="background_playback_title">Background playback</string>
+   <string name="pref_audio_background_playback_title">Audio Player Background Playback</string>
+   <string name="pref_audio_background_playback_summary">Keep audio playing when leaving the audio player or turning off screen</string>
++  <string name="pref_audio_mini_player_track_switching_title">Switch songs in mini player</string>
++  <string name="pref_audio_mini_player_track_switching_summary">When mini player or background playback is active, selecting another song updates the mini player without opening the full player</string>
+   <string name="pref_video_background_playback_title">Video Player Background Playback</string>
+   <string name="pref_video_background_playback_summary">Keep video audio playing when leaving the video player or turning off screen</string>
+   <string name="deselect_all">Deselect All</string>
+-- 
+2.25.1
+

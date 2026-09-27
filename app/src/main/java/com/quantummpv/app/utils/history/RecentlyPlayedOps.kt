@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.withContext
 import org.koin.java.KoinJavaComponent.inject
+import java.io.File
 
 object RecentlyPlayedOps {
   private val repository: RecentlyPlayedRepository by inject(RecentlyPlayedRepository::class.java)
@@ -152,6 +153,31 @@ object RecentlyPlayedOps {
         }
       }.distinctUntilChanged()
       .flowOn(Dispatchers.IO)
+
+  suspend fun removeVideoHistory(video: Video) = withContext(Dispatchers.IO) {
+    setOf(video.path, video.uri.toString(), Uri.fromFile(File(video.path)).toString()).forEach { path ->
+      repository.deleteByFilePath(path)
+    }
+  }
+
+  suspend fun markLastPlayed(videos: List<Video>): Boolean =
+    withContext(Dispatchers.IO) {
+      if (!preferences.enableRecentlyPlayed.get() || videos.isEmpty()) return@withContext false
+      videos.asReversed().forEach { video ->
+        addRecentlyPlayed(
+          filePath = video.path,
+          fileName = video.displayName,
+          videoTitle = video.title,
+          duration = video.duration,
+          fileSize = video.size,
+          width = video.width,
+          height = video.height,
+          launchSource = "normal",
+        )
+        repository.markLastPlayed(video.path, System.currentTimeMillis())
+      }
+      true
+    }
 
   suspend fun onVideoDeleted(filePath: String) {
     if (filePath.isBlank()) return

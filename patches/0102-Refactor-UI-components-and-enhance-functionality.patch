@@ -1,0 +1,700 @@
+From e6e3707ab789fdcd8b11929aa90ad6788310f8b6 Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <riteshp2001@gmail.com>
+Date: Tue, 15 Sep 2026 19:28:02 +0530
+Subject: [PATCH 102/140] Refactor UI components and enhance functionality
+
+- Removed unused parameters and actions from BrowserTopBar and SelectionTopBar.
+- Updated FileSystemBrowserScreen to handle watch status actions.
+- Refactored FolderListScreen to improve pin/unpin functionality.
+- Enhanced MediaLibraryContent and VideoListScreen to manage watch status.
+- Updated PlayerActivity and PlayerViewModel to utilize new video zoom and pan properties.
+- Improved GestureHandler to handle video transformations more effectively.
+- Updated VideoZoomSheet to remove unnecessary property retrieval.
+- Fixed composition local usage in AppWallpaper.
+---
+ .../java/com/quantummpv/app/MainActivity.kt    |  1 +
+ .../mpvrx/ui/browser/cards/FolderCard.kt      |  9 -----
+ .../ui/browser/components/BrowserTopBar.kt    | 39 -------------------
+ .../filesystem/FileSystemBrowserScreen.kt     | 31 ---------------
+ .../ui/browser/folderlist/FolderListScreen.kt | 17 --------
+ .../medialibrary/MediaLibraryContent.kt       | 26 -------------
+ .../ui/browser/music/MusicLibraryContent.kt   |  2 -
+ .../ui/browser/videolist/VideoListScreen.kt   | 26 -------------
+ .../mpvrx/ui/player/MediaPlaybackService.kt   |  2 +-
+ .../mpvrx/ui/player/PlaybackSession.kt        | 21 ++++++++++
+ .../gyrolet/mpvrx/ui/player/PlayerActivity.kt |  9 +++--
+ .../mpvrx/ui/player/PlayerViewModel.kt        | 30 ++++++--------
+ .../ui/player/controls/GestureHandler.kt      | 30 ++++++++------
+ .../components/sheets/VideoZoomSheet.kt       |  7 ----
+ .../mpvrx/ui/preferences/PreferencesScreen.kt |  6 ++-
+ .../gyrolet/mpvrx/ui/theme/AppWallpaper.kt    |  4 +-
+ .../mpvrx/ui/utils/ScreenNavigation.kt        |  4 +-
+ 17 files changed, 69 insertions(+), 195 deletions(-)
+
+diff --git a/app/src/main/java/com/quantummpv/app/MainActivity.kt b/app/src/main/java/com/quantummpv/app/MainActivity.kt
+index e92e8e9a..30f8ad02 100644
+--- a/app/src/main/java/com/quantummpv/app/MainActivity.kt
++++ b/app/src/main/java/com/quantummpv/app/MainActivity.kt
+@@ -532,6 +532,7 @@ class MainActivity : AppCompatActivity() {
+           ScreenNavDisplay(
+             modifier = Modifier.fillMaxSize(),
+             backStack = typedBackstack,
++            opaqueBackground = typedBackstack.any { it == com.quantummpv.app.ui.preferences.PreferencesScreen },
+             onBack = {
+               if (typedBackstack.size <= 1 || !typedBackstack.popSafely()) {
+                 this@MainActivity.finish()
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/cards/FolderCard.kt b/app/src/main/java/com/quantummpv/app/ui/browser/cards/FolderCard.kt
+index f7acc1e6..eaba7cb0 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/cards/FolderCard.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/cards/FolderCard.kt
+@@ -11,7 +11,6 @@ package com.quantummpv.app.ui.browser.cards
+ 
+ import androidx.compose.foundation.background
+ import androidx.compose.foundation.combinedClickable
+-import androidx.compose.foundation.interaction.MutableInteractionSource
+ import androidx.compose.foundation.layout.Box
+ import androidx.compose.foundation.layout.Column
+ import androidx.compose.foundation.layout.FlowRow
+@@ -104,8 +103,6 @@ fun FolderCard(
+   val context = androidx.compose.ui.platform.LocalContext.current
+   val density = LocalDensity.current
+   val thumbnailRepository = koinInject<ThumbnailRepository>()
+-  val cardInteractionSource = remember { MutableInteractionSource() }
+-  val thumbnailInteractionSource = remember { MutableInteractionSource() }
+   var folderThumbnail by remember(folder.bucketId) { mutableStateOf<android.graphics.Bitmap?>(null) }
+ 
+   LaunchedEffect(
+@@ -205,8 +202,6 @@ fun FolderCard(
+         .clip(cardShape)
+         .tvContextMenu(onLongClick)
+         .combinedClickable(
+-          interactionSource = cardInteractionSource,
+-          indication = null,
+           onClick = onClick,
+           onLongClick = onLongClick,
+         ),
+@@ -286,8 +281,6 @@ fun FolderCard(
+                 }
+               ).tvFocusHighlight(AppShapeScale.medium, focusedScale = 1.03f)
+                 .combinedClickable(
+-                  interactionSource = thumbnailInteractionSource,
+-                  indication = null,
+                   onClick = onThumbClick,
+                   onLongClick = onLongClick,
+                 ),
+@@ -411,8 +404,6 @@ fun FolderCard(
+                 .size(64.dp)
+                 .tvFocusHighlight(AppShapeScale.medium, focusedScale = 1.03f)
+                 .combinedClickable(
+-                  interactionSource = thumbnailInteractionSource,
+-                  indication = null,
+                   onClick = onThumbClick,
+                   onLongClick = onLongClick,
+                 ),
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/components/BrowserTopBar.kt b/app/src/main/java/com/quantummpv/app/ui/browser/components/BrowserTopBar.kt
+index 4a78e1f1..4b9dfce8 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/components/BrowserTopBar.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/components/BrowserTopBar.kt
+@@ -90,7 +90,6 @@ fun BrowserTopBar(
+   onInfoClick: (() -> Unit)? = null,
+   onShareClick: (() -> Unit)? = null,
+   onPlayClick: (() -> Unit)? = null,
+-  onPinClick: (() -> Unit)? = null,
+   onBlacklistClick: (() -> Unit)? = null,
+   onSelectAll: (() -> Unit)? = null,
+   onInvertSelection: (() -> Unit)? = null,
+@@ -102,7 +101,6 @@ fun BrowserTopBar(
+   onTitleDoubleTap: (() -> Unit)? = null,
+   onMoveToSecureClick: (() -> Unit)? = null,
+   useRemoveIcon: Boolean = false,
+-  onAddToPlaylistClick: (() -> Unit)? = null,
+   onRestoreClick: (() -> Unit)? = null,
+   colors: TopAppBarColors? = null,
+   forceHeadlineSmall: Boolean = false,
+@@ -119,7 +117,6 @@ fun BrowserTopBar(
+       onInfo = onInfoClick,
+       onShare = onShareClick,
+       onPlay = onPlayClick,
+-      onPin = onPinClick,
+       onBlacklist = onBlacklistClick,
+       onSelectAll = onSelectAll,
+       onInvertSelection = onInvertSelection,
+@@ -128,7 +125,6 @@ fun BrowserTopBar(
+       onRestore = onRestoreClick,
+       modifier = modifier,
+       useRemoveIcon = useRemoveIcon,
+-      onAddToPlaylist = onAddToPlaylistClick,
+       colors = colors,
+       additionalActions = additionalActions,
+     )
+@@ -400,14 +396,12 @@ private fun SelectionTopBar(
+   onInfo: (() -> Unit)?,
+   onShare: (() -> Unit)?,
+   onPlay: (() -> Unit)?,
+-  onPin: (() -> Unit)?,
+   onBlacklist: (() -> Unit)?,
+   onSelectAll: (() -> Unit)?,
+   onInvertSelection: (() -> Unit)?,
+   onDeselectAll: (() -> Unit)?,
+   modifier: Modifier = Modifier,
+   useRemoveIcon: Boolean = false,
+-  onAddToPlaylist: (() -> Unit)? = null,
+   onMoveToSecure: (() -> Unit)? = null,
+   onRestore: (() -> Unit)? = null,
+   colors: TopAppBarColors? = null,
+@@ -530,39 +524,6 @@ private fun SelectionTopBar(
+         }
+       }
+ 
+-      if (onPin != null) {
+-        IconButton(
+-          onClick = onPin,
+-          modifier = Modifier.padding(horizontal = 1.dp).browserTopBarFocus(),
+-        ) {
+-          Icon(
+-            Icons.RoundedFilled.PushPin,
+-            contentDescription =
+-              androidx.compose.ui.res
+-                .stringResource(com.quantummpv.app.R.string.ui_pin_folders),
+-            modifier = Modifier.size(24.dp),
+-            tint = MaterialTheme.colorScheme.secondary,
+-          )
+-        }
+-      }
+-
+-      // Add to Playlist icon (for Play Store builds)
+-      if (onAddToPlaylist != null) {
+-        IconButton(
+-          onClick = onAddToPlaylist,
+-          modifier = Modifier.padding(horizontal = 1.dp).browserTopBarFocus(),
+-        ) {
+-          Icon(
+-            Icons.RoundedFilled.PlaylistAdd,
+-            contentDescription =
+-              androidx.compose.ui.res
+-                .stringResource(com.quantummpv.app.R.string.ui_add_to_playlist),
+-            modifier = Modifier.size(28.dp),
+-            tint = MaterialTheme.colorScheme.secondary,
+-          )
+-        }
+-      }
+-
+       // Rename icon
+       if (onRename != null) {
+         IconButton(
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/filesystem/FileSystemBrowserScreen.kt b/app/src/main/java/com/quantummpv/app/ui/browser/filesystem/FileSystemBrowserScreen.kt
+index 980f08d1..ffad7ea6 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/filesystem/FileSystemBrowserScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/filesystem/FileSystemBrowserScreen.kt
+@@ -296,7 +296,6 @@ fun FileSystemBrowserScreen(path: String? = null) {
+   val selectedCount = selectionManager.selectedCount
+   val totalCount = items.size
+   val onlyVideosSelected = selectedVideos.isNotEmpty() && selectedFolders.isEmpty()
+-  val allSelectedVideosWatched = onlyVideosSelected && selectedVideos.all { it.id in watchedVideoIds }
+ 
+   suspend fun selectedPlayableVideos(): List<com.quantummpv.app.domain.media.model.Video> {
+     val videosFromFolders =
+@@ -598,36 +597,6 @@ fun FileSystemBrowserScreen(path: String? = null) {
+             onSelectAll = { selectionManager.selectAll() },
+             onInvertSelection = { selectionManager.invertSelection() },
+             onDeselectAll = { selectionManager.clear() },
+-            onAddToPlaylistClick =
+-              if (onlyVideosSelected) {
+-                { addToPlaylistDialogOpen.value = true }
+-              } else {
+-                null
+-              },
+-            additionalActions = {
+-              if (onlyVideosSelected) {
+-                IconButton(
+-                  onClick = {
+-                    val markWatched = !allSelectedVideosWatched
+-                    selectedVideos.forEach { video -> viewModel.setWatched(video, markWatched) }
+-                    selectionManager.clear()
+-                  },
+-                  modifier = Modifier.tvFocusHighlight(CircleShape, focusedScale = 1.06f),
+-                ) {
+-                  Icon(
+-                    imageVector = if (allSelectedVideosWatched) Icons.RoundedFilled.RemoveCircle else Icons.RoundedFilled.CheckCircle,
+-                    contentDescription =
+-                      stringResource(
+-                        if (allSelectedVideosWatched) {
+-                          R.string.video_action_mark_unwatched
+-                        } else {
+-                          R.string.video_action_mark_watched
+-                        },
+-                      ),
+-                  )
+-                }
+-              }
+-            },
+           )
+         }
+       },
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/folderlist/FolderListScreen.kt b/app/src/main/java/com/quantummpv/app/ui/browser/folderlist/FolderListScreen.kt
+index 0bf9a5e8..c9e002aa 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/folderlist/FolderListScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/folderlist/FolderListScreen.kt
+@@ -650,23 +650,6 @@ object FolderListScreen : Screen {
+                   }
+                 }
+               },
+-              onPinClick = {
+-                coroutineScope.launch {
+-                  val selectedFolders = selectionManager.getSelectedItems()
+-                  if (selectedFolders.isEmpty()) return@launch
+-                  val updated = foldersPreferences.pinnedFolders.get().toMutableSet()
+-                  val shouldUnpinAll = selectedFolders.all { it.path in updated }
+-                  selectedFolders.forEach { folder ->
+-                    if (shouldUnpinAll) {
+-                      updated.remove(folder.path)
+-                    } else {
+-                      updated.add(folder.path)
+-                    }
+-                  }
+-                  foldersPreferences.pinnedFolders.set(updated)
+-                  selectionManager.clear()
+-                }
+-              },
+               onBlacklistClick = {
+                 coroutineScope.launch {
+                   val selectedFolders = selectionManager.getSelectedItems()
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/medialibrary/MediaLibraryContent.kt b/app/src/main/java/com/quantummpv/app/ui/browser/medialibrary/MediaLibraryContent.kt
+index e67ffd5f..7ff80141 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/medialibrary/MediaLibraryContent.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/medialibrary/MediaLibraryContent.kt
+@@ -204,7 +204,6 @@ fun MediaLibraryContent(forceAudio: Boolean = false) {
+   val watchedVideoIds = remember(filteredVideosWithInfo) {
+     filteredVideosWithInfo.filter(VideoWithPlaybackInfo::isWatched).mapTo(hashSetOf()) { it.video.id }
+   }
+-  val allSelectedVideosWatched = selectedVideos.isNotEmpty() && selectedVideos.all { it.id in watchedVideoIds }
+ 
+   val isRefreshing = remember { mutableStateOf(false) }
+   val sortDialogOpen = rememberSaveable { mutableStateOf(false) }
+@@ -500,31 +499,6 @@ fun MediaLibraryContent(forceAudio: Boolean = false) {
+               moveToSecureConfirmOpen.value = true
+             }
+           },
+-          onAddToPlaylistClick = { addToPlaylistDialogOpen.value = true },
+-          additionalActions = {
+-            if (mediaType == MediaLibraryType.Video && selectionManager.isInSelectionMode && selectedVideos.isNotEmpty()) {
+-              IconButton(
+-                onClick = {
+-                  val markWatched = !allSelectedVideosWatched
+-                  selectedVideos.forEach { video -> viewModel.setWatched(video, markWatched) }
+-                  selectionManager.clear()
+-                },
+-                modifier = Modifier.tvFocusHighlight(CircleShape, focusedScale = 1.06f),
+-              ) {
+-                Icon(
+-                  imageVector = if (allSelectedVideosWatched) Icons.RoundedFilled.RemoveCircle else Icons.RoundedFilled.CheckCircle,
+-                  contentDescription =
+-                    stringResource(
+-                      if (allSelectedVideosWatched) {
+-                        R.string.video_action_mark_unwatched
+-                      } else {
+-                        R.string.video_action_mark_watched
+-                      },
+-                    ),
+-                )
+-              }
+-            }
+-          },
+         )
+       }
+     },
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryContent.kt b/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryContent.kt
+index 9d085b30..cd3a308e 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryContent.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryContent.kt
+@@ -551,7 +551,6 @@ fun MusicLibraryContent(
+                   MusicTab.FOLDERS -> { }
+                 }
+               },
+-              onPinClick = null,
+               onBlacklistClick = {
+                 val selectedItems = activeSelectionManager.getSelectedItems()
+                 val selectedPaths = selectedItems.mapNotNull { item ->
+@@ -568,7 +567,6 @@ fun MusicLibraryContent(
+               onRenameClick = null,
+               isSingleSelection = activeSelectionManager.isSingleSelection,
+               onInfoClick = null,
+-              onAddToPlaylistClick = null,
+               preSearchActions = {
+                 if (!activeSelectionManager.isInSelectionMode && (hasJellyfinMusicLibrary || hasNavidromeServer)) {
+                   var isSourceDropdownOpen by remember { mutableStateOf(false) }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/videolist/VideoListScreen.kt b/app/src/main/java/com/quantummpv/app/ui/browser/videolist/VideoListScreen.kt
+index ceaf07d9..5e6dadca 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/videolist/VideoListScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/videolist/VideoListScreen.kt
+@@ -218,7 +218,6 @@ data class VideoListScreen(
+     val watchedVideoIds = remember(sortedVideosWithInfo) {
+       sortedVideosWithInfo.filter(VideoWithPlaybackInfo::isWatched).mapTo(hashSetOf()) { it.video.id }
+     }
+-    val allSelectedVideosWatched = selectedVideos.isNotEmpty() && selectedVideos.all { it.id in watchedVideoIds }
+ 
+     // UI State
+     val isRefreshing = remember { mutableStateOf(false) }
+@@ -430,31 +429,6 @@ data class VideoListScreen(
+               moveToSecureConfirmOpen.value = true
+             }
+           },
+-          onAddToPlaylistClick = { addToPlaylistDialogOpen.value = true },
+-          additionalActions = {
+-            if (selectionManager.isInSelectionMode && selectedVideos.isNotEmpty()) {
+-              IconButton(
+-                onClick = {
+-                  val markWatched = !allSelectedVideosWatched
+-                  selectedVideos.forEach { video -> viewModel.setWatched(video, markWatched) }
+-                  selectionManager.clear()
+-                },
+-                modifier = Modifier.tvFocusHighlight(CircleShape, focusedScale = 1.06f),
+-              ) {
+-                Icon(
+-                  imageVector = if (allSelectedVideosWatched) Icons.RoundedFilled.RemoveCircle else Icons.RoundedFilled.CheckCircle,
+-                  contentDescription =
+-                    stringResource(
+-                      if (allSelectedVideosWatched) {
+-                        R.string.video_action_mark_unwatched
+-                      } else {
+-                        R.string.video_action_mark_watched
+-                      },
+-                    ),
+-                )
+-              }
+-            }
+-          },
+           )
+         }
+       },
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/MediaPlaybackService.kt b/app/src/main/java/com/quantummpv/app/ui/player/MediaPlaybackService.kt
+index 272db547..f4e0ef99 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/MediaPlaybackService.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/MediaPlaybackService.kt
+@@ -1866,7 +1866,7 @@ class MediaPlaybackService :
+       isPositionRestorePending =
+         PlaybackSession.isPositionRestorePending(PlaybackSession.state.value.activeGeneration),
+       playbackSpeed = readMpvDouble("speed", oldState?.playbackSpeed ?: DEFAULT_PLAYBACK_STATE_SPEED),
+-      videoZoom = readMpvDouble("video-zoom", oldState?.videoZoom?.toDouble() ?: 0.0).toFloat(),
++      videoZoom = PlaybackSession.videoZoom.value,
+       sid = readMpvTrackId("sid", oldState?.sid ?: -1),
+       secondarySid = readMpvTrackId("secondary-sid", oldState?.secondarySid ?: -1),
+       subDelayMs =
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/PlaybackSession.kt b/app/src/main/java/com/quantummpv/app/ui/player/PlaybackSession.kt
+index 1f8b9d3c..41b1da6f 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/PlaybackSession.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/PlaybackSession.kt
+@@ -145,6 +145,9 @@ object PlaybackSession : MPVLib.EventObserver {
+   private val observers = CopyOnWriteArraySet<MPVLib.EventObserver>()
+   private val _state = MutableStateFlow(PlaybackSessionState())
+   private val _queue = MutableStateFlow(PlaybackQueueState())
++  private val _videoZoom = MutableStateFlow(0f)
++  private val _videoPanX = MutableStateFlow(0f)
++  private val _videoPanY = MutableStateFlow(0f)
+   private val streamSequence = AtomicLong()
+   private val observedProperties = mutableSetOf<Pair<String, Int>>()
+   private val seekAudioGuardHandler = Handler(Looper.getMainLooper())
+@@ -152,6 +155,21 @@ object PlaybackSession : MPVLib.EventObserver {
+ 
+   val state: StateFlow<PlaybackSessionState> = _state.asStateFlow()
+   val queue: StateFlow<PlaybackQueueState> = _queue.asStateFlow()
++  val videoZoom: StateFlow<Float> = _videoZoom.asStateFlow()
++  val videoPanX: StateFlow<Float> = _videoPanX.asStateFlow()
++  val videoPanY: StateFlow<Float> = _videoPanY.asStateFlow()
++
++  fun setVideoTransformZoom(zoom: Float) {
++    _videoZoom.value = zoom
++  }
++
++  fun setVideoTransformPan(
++    x: Float,
++    y: Float,
++  ) {
++    _videoPanX.value = x
++    _videoPanY.value = y
++  }
+ 
+   @Volatile
+   private var initialized = false
+@@ -575,6 +593,9 @@ object PlaybackSession : MPVLib.EventObserver {
+     observers.clear()
+     observedProperties.clear()
+     resetAmbientShaderTrackingLocked()
++    _videoZoom.value = 0f
++    _videoPanX.value = 0f
++    _videoPanY.value = 0f
+     initialized = false
+     nativeCoreReady = false
+     activeCoreConfigurationKey = null
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt b/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt
+index f209ff7a..ea5cc94b 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt
+@@ -97,6 +97,7 @@ import com.quantummpv.app.preferences.AudioPreferences
+ import com.quantummpv.app.preferences.BrowserPreferences
+ import com.quantummpv.app.preferences.DecoderPreferences
+ import com.quantummpv.app.preferences.MpvConfigOverridePolicy
++import com.quantummpv.app.preferences.MpvConfigControlledFeatures
+ import com.quantummpv.app.preferences.PlayerPreferences
+ import com.quantummpv.app.preferences.SubtitlesPreferences
+ import com.quantummpv.app.preferences.VideoSortType
+@@ -4351,6 +4352,10 @@ class PlayerActivity :
+ 
+     lifecycleScope.launch(Dispatchers.IO) {
+       try {
++        if (!MpvConfigOverridePolicy.ownsAny(MpvConfigControlledFeatures.VIDEO_ZOOM)) {
++          PlaybackSession.setPropertyDouble("video-zoom", 0.0)
++        }
++
+         // Load playback state (will skip track restoration if preferred language configured)
+         val hasState =
+           loadVideoPlaybackState(
+@@ -4370,7 +4375,6 @@ class PlayerActivity :
+           withContext(Dispatchers.Main) {
+             if (!PlaybackSession.isCurrentGeneration(loadGeneration)) return@withContext
+             val zoomPreference = playerPreferences.defaultVideoZoom.get()
+-            PlaybackSession.setPropertyDouble("video-zoom", zoomPreference.toDouble())
+             viewModel.setVideoZoom(zoomPreference)
+           }
+         }
+@@ -4839,7 +4843,7 @@ class PlayerActivity :
+       isPositionRestorePending =
+         PlaybackSession.isPositionRestorePending(PlaybackSession.state.value.activeGeneration),
+       playbackSpeed = PlaybackSession.getPropertyDouble("speed") ?: DEFAULT_PLAYBACK_SPEED,
+-      videoZoom = PlaybackSession.getPropertyDouble("video-zoom")?.toFloat() ?: viewModel.videoZoom.value,
++      videoZoom = PlaybackSession.videoZoom.value,
+       sid = player.sid,
+       secondarySid = player.secondarySid,
+       subDelayMs = ((PlaybackSession.getPropertyDouble("sub-delay") ?: 0.0) * MILLISECONDS_TO_SECONDS).toInt(),
+@@ -4994,7 +4998,6 @@ class PlayerActivity :
+     PlaybackSession.setPropertyDouble("sub-speed", state.subSpeed)
+ 
+     // Restore video zoom from saved state
+-    PlaybackSession.setPropertyDouble("video-zoom", state.videoZoom.toDouble())
+     viewModel.setVideoZoom(state.videoZoom)
+   }
+ 
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt b/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
+index 3071fcb9..611b311a 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
+@@ -1636,8 +1636,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
+   val isSnapshotLoading: StateFlow<Boolean> = _isSnapshotLoading.asStateFlow()
+ 
+   // Video zoom
+-  private val _videoZoom = MutableStateFlow(0f)
+-  val videoZoom: StateFlow<Float> = _videoZoom.asStateFlow()
++  val videoZoom: StateFlow<Float> = PlaybackSession.videoZoom
+ 
+   // Video aspect ratio (persisted in player preferences)
+   private val _videoAspect = MutableStateFlow(VideoAspect.Fit)
+@@ -3497,13 +3496,8 @@ val isBrightnessSliderShown = MutableStateFlow(false)
+       refreshChapterDerivedSegments(chapters.value)
+ 
+       // Reset Video Pan
+-      if (_videoPanX.value != 0f || _videoPanY.value != 0f) {
+-        _videoPanX.value = 0f
+-        _videoPanY.value = 0f
+-        runCatching {
+-          PlaybackSession.setPropertyDouble("video-pan-x", 0.0)
+-          PlaybackSession.setPropertyDouble("video-pan-y", 0.0)
+-        }
++      if (videoPanX.value != 0f || videoPanY.value != 0f) {
++        resetVideoPan()
+       }
+       // ---------------------------------------------------
+     }
+@@ -5580,26 +5574,24 @@ val isBrightnessSliderShown = MutableStateFlow(false)
+ 
+   fun setVideoZoom(zoom: Float) {
+     if (MpvConfigOverridePolicy.ownsAny(MpvConfigControlledFeatures.VIDEO_ZOOM)) {
+-      _videoZoom.value = 0f
++      PlaybackSession.setVideoTransformZoom(0f)
+       return
+     }
+-    _videoZoom.value = zoom
+-    runCatching { PlaybackSession.setPropertyDouble("video-zoom", zoom.toDouble()) }
++    PlaybackSession.setVideoTransformZoom(zoom)
+   }
+ 
+   // Video pan (for pan & zoom feature)
+-  private val _videoPanX = MutableStateFlow(0f)
+-  val videoPanX: StateFlow<Float> = _videoPanX.asStateFlow()
+-
+-  private val _videoPanY = MutableStateFlow(0f)
+-  val videoPanY: StateFlow<Float> = _videoPanY.asStateFlow()
++  val videoPanX: StateFlow<Float> = PlaybackSession.videoPanX
++  val videoPanY: StateFlow<Float> = PlaybackSession.videoPanY
+ 
+   fun setVideoPan(
+     x: Float,
+     y: Float,
+   ) {
+-    _videoPanX.value = if (MpvConfigOverridePolicy.isOwnedByMpvConf("video-pan-x")) 0f else x
+-    _videoPanY.value = if (MpvConfigOverridePolicy.isOwnedByMpvConf("video-pan-y")) 0f else y
++    PlaybackSession.setVideoTransformPan(
++      x = if (MpvConfigOverridePolicy.isOwnedByMpvConf("video-pan-x")) 0f else x,
++      y = if (MpvConfigOverridePolicy.isOwnedByMpvConf("video-pan-y")) 0f else y,
++    )
+   }
+ 
+   fun resetVideoPan() {
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/GestureHandler.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/GestureHandler.kt
+index e4e31ed2..376156b7 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/GestureHandler.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/GestureHandler.kt
+@@ -130,8 +130,8 @@ fun GestureHandler(
+   val currentOnLockedTouchSideChanged by rememberUpdatedState(onLockedTouchSideChanged)
+   val subtitleTracks by viewModel.subtitleTracks.collectAsState(emptyList())
+   val videoAspectState by PlaybackSession.propDouble["video-params/aspect"].collectAsState()
+-  val videoZoomState by PlaybackSession.propDouble["video-zoom"].collectAsState()
+-  val videoPanYState by PlaybackSession.propDouble["video-pan-y"].collectAsState()
++  val videoTransformZoom by viewModel.videoZoom.collectAsState()
++  val videoTransformPanY by viewModel.videoPanY.collectAsState()
+   val subUseMarginsState by PlaybackSession.propString["sub-use-margins"].collectAsState()
+ 
+   fun getSubtitleScreenY(
+@@ -158,11 +158,9 @@ fun GestureHandler(
+           } else {
+             height
+           }
+-        val zoom = videoZoomState?.toFloat() ?: 0f
+-        val videoScale = 2f.pow(zoom)
+-        val videoPanY = videoPanYState?.toFloat() ?: 0f
++        val videoScale = 2f.pow(videoTransformZoom)
+         val screenCenterY = height / 2f
+-        val subtitleScreenY = screenCenterY + (subPos / 100f - 0.5f + videoPanY) * videoHeight * videoScale
++        val subtitleScreenY = screenCenterY + (subPos / 100f - 0.5f) * videoHeight * videoScale + videoTransformPanY
+         return subtitleScreenY.coerceIn(0f, height)
+       }
+     }
+@@ -1119,6 +1117,7 @@ fun GestureHandler(
+                     }
+ 
+                     if (gestureStarted) {
++                      val previousScale = 2f.pow(viewModel.videoZoom.value)
+                       if (pinchToZoomGesture && prevDist > 0f && distDelta > 0.5f) {
+                         // Per-frame zoom: ratio of current distance to previous distance
+                         val zoomRatio = dist / prevDist
+@@ -1135,11 +1134,20 @@ fun GestureHandler(
+                         val extraHeight = (scale - 1f) * sh
+                         val maxX = (extraWidth / 2f).coerceAtLeast(0f)
+                         val maxY = (extraHeight / 2f).coerceAtLeast(0f)
+-
+-                        val panDx = midX - prevMidX
+-                        val panDy = midY - prevMidY
+-                        currentPanX = (currentPanX + panDx).coerceIn(-maxX, maxX)
+-                        currentPanY = (currentPanY + panDy).coerceIn(-maxY, maxY)
++                        val scaleRatio = scale / previousScale
++                        val centerX = sw / 2f
++                        val centerY = sh / 2f
++
++                        currentPanX =
++                          (
++                            midX - centerX -
++                              (prevMidX - centerX - currentPanX) * scaleRatio
++                          ).coerceIn(-maxX, maxX)
++                        currentPanY =
++                          (
++                            midY - centerY -
++                              (prevMidY - centerY - currentPanY) * scaleRatio
++                          ).coerceIn(-maxY, maxY)
+                         viewModel.setVideoPan(currentPanX, currentPanY)
+                       }
+                     }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/VideoZoomSheet.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/VideoZoomSheet.kt
+index 70e1ead3..30ed3d4e 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/VideoZoomSheet.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/VideoZoomSheet.kt
+@@ -9,8 +9,6 @@
+ 
+ package com.quantummpv.app.ui.player.controls.components.sheets
+ 
+-import com.quantummpv.app.ui.player.PlaybackSession
+-
+ import androidx.compose.animation.Crossfade
+ import androidx.compose.animation.core.tween
+ import androidx.compose.foundation.layout.Arrangement
+@@ -70,11 +68,6 @@ fun VideoZoomSheet(
+ 
+   val currentOnSetVideoZoom by rememberUpdatedState(onSetVideoZoom)
+ 
+-  LaunchedEffect(Unit) {
+-    val mpvZoom = PlaybackSession.getPropertyDouble("video-zoom")?.toFloat() ?: videoZoom
+-    zoom = mpvZoom
+-  }
+-
+   LaunchedEffect(zoom) {
+     if (zoomControlEnabled) currentOnSetVideoZoom(zoom)
+   }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/PreferencesScreen.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/PreferencesScreen.kt
+index 60254341..0edeee95 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/PreferencesScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/PreferencesScreen.kt
+@@ -125,7 +125,11 @@ object PreferencesScreen : Screen {
+         )
+         Box(modifier = Modifier.weight(0.6f).tvFocusGroup()) {
+           CompositionLocalProvider(LocalBackStack provides detailBackstack) {
+-            ScreenNavDisplay(backStack = detailBackstack, modifier = Modifier.fillMaxSize()) { screen ->
++            ScreenNavDisplay(
++              backStack = detailBackstack,
++              modifier = Modifier.fillMaxSize(),
++              opaqueBackground = true,
++            ) { screen ->
+               CompositionLocalProvider(LocalShowSettingsBackArrow provides (screen != selectedScreen)) {
+                 screen.Content()
+               }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/theme/AppWallpaper.kt b/app/src/main/java/com/quantummpv/app/ui/theme/AppWallpaper.kt
+index 16760bb0..e16bb83a 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/theme/AppWallpaper.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/theme/AppWallpaper.kt
+@@ -23,7 +23,7 @@ import androidx.compose.runtime.CompositionLocalProvider
+ import androidx.compose.runtime.DisposableEffect
+ import androidx.compose.runtime.getValue
+ import androidx.compose.runtime.produceState
+-import androidx.compose.runtime.staticCompositionLocalOf
++import androidx.compose.runtime.compositionLocalOf
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.draw.blur
+ import androidx.compose.ui.draw.clipToBounds
+@@ -41,7 +41,7 @@ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.withContext
+ import org.koin.compose.koinInject
+ 
+-val LocalAppWallpaperActive = staticCompositionLocalOf { false }
++val LocalAppWallpaperActive = compositionLocalOf { false }
+ 
+ enum class WallpaperScaleMode {
+   Fit,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/utils/ScreenNavigation.kt b/app/src/main/java/com/quantummpv/app/ui/utils/ScreenNavigation.kt
+index 907e5b58..69fb2ff9 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/utils/ScreenNavigation.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/utils/ScreenNavigation.kt
+@@ -19,6 +19,7 @@ import androidx.compose.animation.slideOutHorizontally
+ import androidx.compose.animation.togetherWith
+ import androidx.compose.foundation.background
+ import androidx.compose.foundation.layout.fillMaxSize
++import androidx.compose.material3.MaterialTheme
+ import androidx.compose.material3.Surface
+ import androidx.compose.runtime.Composable
+ import androidx.compose.runtime.getValue
+@@ -46,6 +47,7 @@ internal fun navigationDurationMillis(speed: Float, baseMillis: Int = 300): Int
+ internal fun ScreenNavDisplay(
+   backStack: NavBackStack<Screen>,
+   modifier: Modifier = Modifier,
++  opaqueBackground: Boolean = false,
+   onBack: () -> Unit = { backStack.popSafely() },
+   content: @Composable (Screen) -> Unit = { it.Content() },
+ ) {
+@@ -54,7 +56,7 @@ internal fun ScreenNavDisplay(
+   val speed by preferences.animationSpeed.collectAsState()
+   val layoutDirection = LocalLayoutDirection.current
+   val direction = if (layoutDirection == LayoutDirection.Ltr) 1 else -1
+-  val backgroundColor = wallpaperAwareBackgroundColor()
++  val backgroundColor = if (opaqueBackground) MaterialTheme.colorScheme.background else wallpaperAwareBackgroundColor()
+ 
+   NavDisplay(
+     backStack = backStack,
+-- 
+2.25.1
+

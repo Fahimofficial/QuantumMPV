@@ -1,0 +1,44 @@
+---
+title: Statistics and refresh rate
+description: Read playback diagnostics, evaluate thermal load, and match the display refresh rate to video FPS.
+---
+
+The diagnostics overlay is the quickest way to separate source, network, decoder, renderer, memory, and thermal problems.
+
+## What the statistics page shows
+
+Depending on the active source and device, the detailed page reports:
+
+- Media title, video output, video codec, and audio codec
+- Display FPS, source FPS, dropped frames, and decoder efficiency
+- Process CPU use and memory
+- Playback cache and network or torrent activity
+- Battery percentage, charge/discharge state, power, and temperature
+- HDR output state and selected HDR mode
+- Active play time, peak temperature, temperature rise, and thermal state
+
+Values can be unavailable when Android, the decoder, or the source does not expose them. Compare trends over several minutes rather than treating one sample as a benchmark.
+
+## Diagnose a playback problem
+
+| Symptom | First signals to compare |
+| --- | --- |
+| Periodic stalls | Cache duration, network activity, and source type |
+| Smooth audio but late video | Decoder, source FPS, display FPS, dropped frames |
+| Degrades after several minutes | Battery temperature, thermal state, CPU, shader load |
+| High power with smooth playback | Renderer, HDR conversion, Anime4K, visualizers, brightness |
+| Only one online source fails | Network throughput and extractor/server behavior |
+
+## Dynamic refresh rate
+
+On Android 11 and newer, mpvRx can request the current container frame rate from the playback surface. A compatible display may switch to a matching or related mode, such as 24, 30, or 60 Hz.
+
+The final choice remains with Android and the display. Mode switching can cause a brief blanking event, and some TVs or vendor ROMs ignore the request.
+
+:::tip
+Use refresh-rate matching for visible judder, not as a general performance switch. Disable it temporarily when diagnosing black flashes, HDMI resyncs, or unstable vendor display behavior.
+:::
+
+## Thermal interpretation
+
+Thermal headroom ranges from cool/full budget toward the device limit. mpvRx can reduce ambient shader samples as headroom falls and throttle Anime4K below severe thresholds. See [Performance and battery](/docs/reference/performance-and-battery) for a repeatable low-power baseline.

@@ -1,0 +1,81 @@
+From f46707543b0479fa1ed89874feb71b3ca6f46825 Mon Sep 17 00:00:00 2001
+From: "dependabot[bot]" <49699333+dependabot[bot]@users.noreply.github.com>
+Date: Tue, 8 Sep 2026 09:26:55 +0000
+Subject: [PATCH 053/140] chore(deps): bump actions/checkout from 6 to 7
+
+Bumps [actions/checkout](https://github.com/actions/checkout) from 6 to 7.
+- [Release notes](https://github.com/actions/checkout/releases)
+- [Changelog](https://github.com/actions/checkout/blob/main/CHANGELOG.md)
+- [Commits](https://github.com/actions/checkout/compare/v6...v7)
+
+---
+updated-dependencies:
+- dependency-name: actions/checkout
+  dependency-version: '7'
+  dependency-type: direct:production
+  update-type: version-update:semver-major
+...
+
+Signed-off-by: dependabot[bot] <support@github.com>
+---
+ .github/workflows/build.yml       | 2 +-
+ .github/workflows/pre-release.yml | 2 +-
+ .github/workflows/preview.yml     | 2 +-
+ .github/workflows/release.yml     | 2 +-
+ 4 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/.github/workflows/build.yml b/.github/workflows/build.yml
+index 800ec59b..8671b44d 100644
+--- a/.github/workflows/build.yml
++++ b/.github/workflows/build.yml
+@@ -37,7 +37,7 @@ jobs:
+ 
+     steps:
+       - name: Checkout repository
+-        uses: actions/checkout@v6
++        uses: actions/checkout@v7
+         with:
+           # BuildConfig.GIT_COUNT and preview build identities rely on the real repository history.
+           fetch-depth: 0
+diff --git a/.github/workflows/pre-release.yml b/.github/workflows/pre-release.yml
+index fc844fa7..3bf2cfb0 100644
+--- a/.github/workflows/pre-release.yml
++++ b/.github/workflows/pre-release.yml
+@@ -16,7 +16,7 @@ jobs:
+ 
+     steps:
+       - name: Checkout repository
+-        uses: actions/checkout@v6
++        uses: actions/checkout@v7
+         with:
+           fetch-depth: 0
+ 
+diff --git a/.github/workflows/preview.yml b/.github/workflows/preview.yml
+index ed64ce45..b0f5f280 100644
+--- a/.github/workflows/preview.yml
++++ b/.github/workflows/preview.yml
+@@ -24,7 +24,7 @@ jobs:
+ 
+     steps:
+       - name: Checkout preview source
+-        uses: actions/checkout@v6
++        uses: actions/checkout@v7
+         with:
+           fetch-depth: 0
+ 
+diff --git a/.github/workflows/release.yml b/.github/workflows/release.yml
+index 16023b9a..93adae90 100644
+--- a/.github/workflows/release.yml
++++ b/.github/workflows/release.yml
+@@ -22,7 +22,7 @@ jobs:
+ 
+     steps:
+       - name: Checkout repository
+-        uses: actions/checkout@v6
++        uses: actions/checkout@v7
+         with:
+           fetch-depth: 0
+ 
+-- 
+2.25.1
+

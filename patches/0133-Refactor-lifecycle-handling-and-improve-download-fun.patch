@@ -1,0 +1,1101 @@
+From 5c5d4d91a1bf49b180e0c5c8012dd9fbbd64ca37 Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <riteshp2001@gmail.com>
+Date: Fri, 18 Sep 2026 10:21:30 +0530
+Subject: [PATCH 133/140] Refactor lifecycle handling and improve download
+ functionality
+
+- Removed unnecessary lifecycle event observers from FileSystemBrowserScreen, MediaLibraryContent, MusicLibraryContent, VideoListScreen, and other components to streamline lifecycle management.
+- Implemented coroutine-based refresh logic in MediaLibraryViewModel to react to media library changes.
+- Enhanced download handling in NetworkStreamingScreen and PlayLinkSheet by utilizing coroutines for enqueueing downloads, improving responsiveness.
+- Introduced a new DownloadThumbnail composable to display thumbnails for downloads in DownloadsScreen, enhancing UI consistency.
+- Updated YtdlpManager to improve asset copying and installation checks, ensuring better error handling and logging.
+- Added permission state tracking in PermissionUtils to handle permission grants more effectively.
+---
+ app/src/main/assets/ytdl/setup.py             |   7 +-
+ .../domain/download/AppDownloadManager.kt     |  17 ++
+ .../domain/download/YtdlpDownloadEngine.kt    |  91 ++++--
+ .../filesystem/FileSystemBrowserScreen.kt     |  18 --
+ .../medialibrary/MediaLibraryContent.kt       |  17 --
+ .../medialibrary/MediaLibraryViewModel.kt     |   5 +
+ .../ui/browser/music/MusicLibraryContent.kt   |  29 --
+ .../ui/browser/videolist/VideoListScreen.kt   |  18 --
+ .../mpvrx/ui/downloads/DownloadsScreen.kt     | 287 ++++++++++--------
+ .../ui/player/controls/GestureHandler.kt      |   2 -
+ .../ui/player/controls/components/Seekbar.kt  |  13 -
+ .../mpvrx/ui/player/ytdlp/YtdlpManager.kt     |  75 +++--
+ .../mpvrx/utils/permission/PermissionUtils.kt |   8 +-
+ 13 files changed, 313 insertions(+), 274 deletions(-)
+
+diff --git a/app/src/main/assets/ytdl/setup.py b/app/src/main/assets/ytdl/setup.py
+index f227c184..24eac47d 100644
+--- a/app/src/main/assets/ytdl/setup.py
++++ b/app/src/main/assets/ytdl/setup.py
+@@ -1,4 +1,4 @@
+-import sys, os, urllib.request
++import sys, os, urllib.request, zipfile
+ 
+ # Argument 1: Native Library Directory (passed from Java)
+ native_lib_dir = sys.argv[1] if len(sys.argv) > 1 else ""
+@@ -27,6 +27,11 @@ try:
+     urllib.request.urlretrieve(url, download_name)
+     if not os.path.isfile(download_name) or os.path.getsize(download_name) == 0:
+         raise IOError("Downloaded yt-dlp file is empty")
++    with zipfile.ZipFile(download_name) as archive:
++        if not {"__main__.py", "yt_dlp/__init__.py"}.issubset(archive.namelist()):
++            raise IOError("Downloaded file is not a yt-dlp application")
++        if archive.testzip() is not None:
++            raise IOError("Downloaded yt-dlp archive is corrupted")
+     os.replace(download_name, name)
+     print("Download successful.")
+ except Exception as e:
+diff --git a/app/src/main/java/com/quantummpv/app/domain/download/AppDownloadManager.kt b/app/src/main/java/com/quantummpv/app/domain/download/AppDownloadManager.kt
+index 9737b3a2..6c7f770c 100644
+--- a/app/src/main/java/com/quantummpv/app/domain/download/AppDownloadManager.kt
++++ b/app/src/main/java/com/quantummpv/app/domain/download/AppDownloadManager.kt
+@@ -261,6 +261,7 @@ class AppDownloadManager(
+             ),
+           )
+         }
++        notifyCompletedMedia(context, finalFile)
+       }.onFailure { error ->
+         when {
+           error is CancelledDownloadException || id in cancelledIds -> {
+@@ -391,6 +392,22 @@ class AppDownloadManager(
+ 
+   companion object {
+     private const val TAG = "AppDownloadManager"
++
++    internal fun notifyCompletedMedia(context: Context, file: File) {
++      fun notifyLibraryChanged() {
++        com.quantummpv.app.repository.MediaFileRepository.clearCache()
++        com.quantummpv.app.utils.media.MediaLibraryEvents.notifyChanged()
++      }
++
++      runCatching {
++        android.media.MediaScannerConnection.scanFile(context, arrayOf(file.absolutePath), null) { _, _ ->
++          notifyLibraryChanged()
++        }
++      }.onFailure { error ->
++        Log.w(TAG, "Could not index downloaded media", error)
++        notifyLibraryChanged()
++      }
++    }
+     private const val PART_SUFFIX = ".part"
+     private const val PROGRESS_INTERVAL_MS = 750L
+     private const val DB_WRITE_INTERVAL_MS = 1_500L
+diff --git a/app/src/main/java/com/quantummpv/app/domain/download/YtdlpDownloadEngine.kt b/app/src/main/java/com/quantummpv/app/domain/download/YtdlpDownloadEngine.kt
+index c55fbd46..68becd25 100644
+--- a/app/src/main/java/com/quantummpv/app/domain/download/YtdlpDownloadEngine.kt
++++ b/app/src/main/java/com/quantummpv/app/domain/download/YtdlpDownloadEngine.kt
+@@ -10,10 +10,12 @@
+ package com.quantummpv.app.domain.download
+ 
+ import android.content.Context
++import android.net.Uri
+ import android.util.Log
+ import com.quantummpv.app.network.AndroidCookieJar
+ import com.quantummpv.app.preferences.YtdlPreferences
+ import com.quantummpv.app.ui.player.ytdlp.YtdlpManager
++import com.quantummpv.app.utils.media.HttpUtils
+ import kotlinx.coroutines.CancellationException
+ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.flow.MutableStateFlow
+@@ -45,6 +47,7 @@ class YtdlpDownloadEngine(
+     val directory: String,
+     val formatSelector: String? = null,
+     val mergeSeparateStreams: Boolean = false,
++    val posterUrl: String? = null,
+     val state: JobState = JobState.QUEUED,
+     val progressPercent: Float = 0f,
+     val detail: String = "",
+@@ -74,6 +77,7 @@ class YtdlpDownloadEngine(
+     directory: File,
+     formatSelector: String? = null,
+     mergeSeparateStreams: Boolean = false,
++    posterUrl: String? = null,
+   ): Int {
+     val id = nextId.getAndIncrement()
+     if (!directory.exists()) directory.mkdirs()
+@@ -87,6 +91,7 @@ class YtdlpDownloadEngine(
+           directory = directory.absolutePath,
+           formatSelector = formatSelector?.trim()?.takeIf(String::isNotBlank),
+           mergeSeparateStreams = mergeSeparateStreams,
++          posterUrl = posterUrl,
+         )
+     }
+     YtdlpDownloadService.start(context)
+@@ -145,13 +150,60 @@ class YtdlpDownloadEngine(
+     id: Int,
+     onJobUpdate: (Job) -> Unit,
+   ) {
+-    val job = currentJob(id) ?: return
++    val queuedJob = currentJob(id) ?: return
+     cancelRequested = false
+     activeJobId = id
+ 
+-    val ready = YtdlpManager.ensureRuntimeInstalled(context)
++    try {
++      if (queuedJob.posterUrl.isNullOrBlank() && HttpUtils.isYouTubeUrl(Uri.parse(queuedJob.url))) {
++        HttpUtils.fetchYouTubeMetadata(queuedJob.url)?.let { metadata ->
++          updateJob(id) {
++            it.copy(title = metadata.title.takeIf(String::isNotBlank) ?: it.title, posterUrl = metadata.thumbnailUrl)
++          }
++          currentJob(id)?.let(onJobUpdate)
++        }
++      }
++    } catch (error: CancellationException) {
++      activeJobId = -1
++      throw error
++    }
++    val job = currentJob(id)
++    if (cancelRequested || job == null) {
++      activeJobId = -1
++      updateJob(id) { it.copy(state = JobState.CANCELLED, detail = "") }
++      currentJob(id)?.let(onJobUpdate)
++      return
++    }
++
++    val runtimeOutput = StringBuilder()
++    val ready =
++      try {
++        YtdlpManager.ensureRuntimeInstalled(context) { message ->
++          runtimeOutput.append(message)
++          if (runtimeOutput.length > 8_192) runtimeOutput.delete(0, runtimeOutput.length - 8_192)
++        }
++      } catch (error: Exception) {
++        if (error is CancellationException) {
++          activeJobId = -1
++          throw error
++        }
++        runtimeOutput.append(error.message ?: error.javaClass.simpleName)
++        false
++      }
++    if (cancelRequested || currentJob(id) == null) {
++      activeJobId = -1
++      updateJob(id) { it.copy(state = JobState.CANCELLED, detail = "") }
++      currentJob(id)?.let(onJobUpdate)
++      return
++    }
+     if (!ready) {
+-      updateJob(id) { it.copy(state = JobState.FAILED, error = "yt-dlp runtime is not installed") }
++      activeJobId = -1
++      updateJob(id) {
++        it.copy(
++          state = JobState.FAILED,
++          error = runtimeOutput.toString().trim().ifBlank { "yt-dlp runtime is not installed" },
++        )
++      }
+       currentJob(id)?.let(onJobUpdate)
+       return
+     }
+@@ -173,14 +225,17 @@ class YtdlpDownloadEngine(
+         formatSelector = job.formatSelector,
+       )
+     val observedArtifacts = linkedSetOf<String>()
++    val errorOutput = ArrayDeque<String>()
+     var destination: String? = null
+     var printedOutput: String? = null
+ 
+     val result =
+       withContext(Dispatchers.IO) {
+         runCatching {
++          if (cancelRequested) return@runCatching -1
+           val process = startProcess(command)
+           activeProcess = process
++          if (cancelRequested) process.destroyForcibly()
+           BufferedReader(InputStreamReader(process.inputStream)).useLines { lines ->
+             lines.forEach { line ->
+               parseDestination(line)?.let { path ->
+@@ -195,6 +250,9 @@ class YtdlpDownloadEngine(
+               if (progress != null) {
+                 updateJob(id) { it.copy(progressPercent = progress.first, detail = progress.second) }
+                 currentJob(id)?.let(onJobUpdate)
++              } else if (line.isNotBlank()) {
++                errorOutput.addLast(line.take(2_048))
++                if (errorOutput.size > 8) errorOutput.removeFirst()
+               }
+             }
+           }
+@@ -253,6 +311,7 @@ class YtdlpDownloadEngine(
+                   artifactFiles = it.artifactFiles + artifacts,
+                 )
+               }
++              AppDownloadManager.notifyCompletedMedia(context, resolved)
+             }.onFailure { error ->
+               updateJob(id) {
+                 it.copy(
+@@ -269,7 +328,8 @@ class YtdlpDownloadEngine(
+             updateJob(id) {
+               it.copy(
+                 state = JobState.FAILED,
+-                error = "yt-dlp exited with code $exitCode",
++                error = errorOutput.lastOrNull { line -> line.startsWith("ERROR:", ignoreCase = true) }
++                  ?: errorOutput.joinToString("\n").ifBlank { "yt-dlp exited with code $exitCode" },
+                 artifactFiles = it.artifactFiles + observedArtifacts,
+               )
+             }
+@@ -279,8 +339,8 @@ class YtdlpDownloadEngine(
+         Log.e(TAG, "yt-dlp download failed", error)
+         updateJob(id) {
+           it.copy(
+-            state = JobState.FAILED,
+-            error = error.message ?: "Unknown error",
++            state = if (cancelRequested) JobState.CANCELLED else JobState.FAILED,
++            error = if (cancelRequested) null else error.message ?: "Unknown error",
+             artifactFiles = it.artifactFiles + observedArtifacts,
+           )
+         }
+@@ -355,27 +415,14 @@ class YtdlpDownloadEngine(
+         ?.let { quickJs ->
+           add("--js-runtimes")
+           add("quickjs:${quickJs.absolutePath}")
++          add("--remote-components")
++          add("ejs:github")
+         }
+       add("--")
+       add(url)
+     }
+ 
+-  private fun startProcess(command: List<String>): Process {
+-    val processBuilder =
+-      ProcessBuilder(command)
+-        .directory(YtdlpManager.getYtdlDir(context))
+-        .redirectErrorStream(true)
+-    val env = processBuilder.environment()
+-    val ytdlDir = YtdlpManager.getYtdlDir(context).absolutePath
+-    val nativeLibDir = context.applicationInfo.nativeLibraryDir
+-    env.remove("YTDL_SCRIPT")
+-    env["YTDL_PYTHON"] = File(nativeLibDir, "libpython.so").absolutePath
+-    env["PYTHONHOME"] = ytdlDir
+-    env["PYTHONPATH"] = "$ytdlDir/python313.zip"
+-    env["SSL_CERT_FILE"] = File(context.filesDir, "cacert.pem").absolutePath
+-    env["LD_LIBRARY_PATH"] = nativeLibDir
+-    return processBuilder.start()
+-  }
++  private fun startProcess(command: List<String>): Process = YtdlpManager.startPythonProcess(command, context)
+ 
+   private fun findNewestOutput(job: Job): String? {
+     return File(job.directory)
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/filesystem/FileSystemBrowserScreen.kt b/app/src/main/java/com/quantummpv/app/ui/browser/filesystem/FileSystemBrowserScreen.kt
+index 10f93c7c..2a907c88 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/filesystem/FileSystemBrowserScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/filesystem/FileSystemBrowserScreen.kt
+@@ -61,7 +61,6 @@ import androidx.compose.material3.TooltipDefaults
+ import androidx.compose.material3.animateFloatingActionButton
+ import androidx.compose.material3.rememberTooltipState
+ import androidx.compose.runtime.Composable
+-import androidx.compose.runtime.DisposableEffect
+ import androidx.compose.runtime.LaunchedEffect
+ import androidx.compose.runtime.collectAsState
+ import androidx.compose.runtime.derivedStateOf
+@@ -84,8 +83,6 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+ import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.unit.Dp
+ import androidx.compose.ui.unit.dp
+-import androidx.lifecycle.Lifecycle
+-import androidx.lifecycle.LifecycleEventObserver
+ import androidx.lifecycle.viewmodel.compose.viewModel
+ import com.quantummpv.app.R
+ import com.quantummpv.app.ui.browser.components.rememberVideoSwipeActions
+@@ -181,7 +178,6 @@ fun FileSystemBrowserScreen(path: String? = null) {
+   val showQuickPlayFab by appearancePreferences.showQuickPlayFab.collectAsState()
+   val quickPlayFabDirect by appearancePreferences.quickPlayFabDirect.collectAsState()
+   val playerPreferences = koinInject<com.quantummpv.app.preferences.PlayerPreferences>()
+-  val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+ 
+   // ViewModel - use path parameter if provided, otherwise show roots
+   val viewModel: FileSystemBrowserViewModel =
+@@ -395,20 +391,6 @@ fun FileSystemBrowserScreen(path: String? = null) {
+       }
+     }
+ 
+-  // Listen for lifecycle resume events
+-  DisposableEffect(lifecycleOwner) {
+-    val observer =
+-      LifecycleEventObserver { _, event ->
+-        if (event == Lifecycle.Event.ON_RESUME) {
+-          viewModel.refresh()
+-        }
+-      }
+-    lifecycleOwner.lifecycle.addObserver(observer)
+-    onDispose {
+-      lifecycleOwner.lifecycle.removeObserver(observer)
+-    }
+-  }
+-
+   // Search functionality - recursive search through all subfolders
+   LaunchedEffect(isSearching) {
+     if (isSearching) {
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/medialibrary/MediaLibraryContent.kt b/app/src/main/java/com/quantummpv/app/ui/browser/medialibrary/MediaLibraryContent.kt
+index a449bb13..746cd746 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/medialibrary/MediaLibraryContent.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/medialibrary/MediaLibraryContent.kt
+@@ -55,7 +55,6 @@ import androidx.compose.material3.TooltipDefaults
+ import androidx.compose.material3.animateFloatingActionButton
+ import androidx.compose.material3.rememberTooltipState
+ import androidx.compose.runtime.Composable
+-import androidx.compose.runtime.DisposableEffect
+ import androidx.compose.runtime.LaunchedEffect
+ import androidx.compose.runtime.collectAsState
+ import androidx.compose.runtime.derivedStateOf
+@@ -76,8 +75,6 @@ import androidx.compose.ui.platform.LocalContext
+ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+ import androidx.compose.ui.unit.dp
+ import androidx.compose.ui.res.stringResource
+-import androidx.lifecycle.Lifecycle
+-import androidx.lifecycle.LifecycleEventObserver
+ import androidx.lifecycle.viewmodel.compose.viewModel
+ import com.quantummpv.app.R
+ import com.quantummpv.app.database.repository.SecureFolderRepository
+@@ -133,7 +130,6 @@ fun MediaLibraryContent(forceAudio: Boolean = false) {
+   val appearancePreferences = koinInject<com.quantummpv.app.preferences.AppearancePreferences>()
+   val showQuickPlayFab by appearancePreferences.showQuickPlayFab.collectAsState()
+   val playerPreferences = koinInject<PlayerPreferences>()
+-  val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+   val navigationBarHeight = LocalNavigationBarHeight.current
+ 
+   val viewModel: MediaLibraryViewModel =
+@@ -386,19 +382,6 @@ fun MediaLibraryContent(forceAudio: Boolean = false) {
+     }
+   }
+ 
+-  DisposableEffect(lifecycleOwner) {
+-    val observer =
+-      LifecycleEventObserver { _, event ->
+-        if (event == Lifecycle.Event.ON_RESUME) {
+-          viewModel.refresh()
+-        }
+-      }
+-    lifecycleOwner.lifecycle.addObserver(observer)
+-    onDispose {
+-      lifecycleOwner.lifecycle.removeObserver(observer)
+-    }
+-  }
+-
+   Scaffold(
+     containerColor = com.quantummpv.app.ui.theme.wallpaperAwareBackgroundColor(),
+     topBar = {
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/medialibrary/MediaLibraryViewModel.kt b/app/src/main/java/com/quantummpv/app/ui/browser/medialibrary/MediaLibraryViewModel.kt
+index deb74ea0..04e697fa 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/medialibrary/MediaLibraryViewModel.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/medialibrary/MediaLibraryViewModel.kt
+@@ -57,6 +57,11 @@ class MediaLibraryViewModel(
+ 
+   init {
+     loadData()
++    viewModelScope.launch(Dispatchers.IO) {
++      com.quantummpv.app.utils.media.MediaLibraryEvents.changes.collectLatest {
++        loadData()
++      }
++    }
+     viewModelScope.launch(Dispatchers.IO) {
+       PlaybackStateEvents.changes.collectLatest { mediaIdentifier ->
+         if (_videos.value.isNotEmpty()) updatePlaybackInfo(mediaIdentifier)
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryContent.kt b/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryContent.kt
+index bad71c9b..48080a6d 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryContent.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryContent.kt
+@@ -82,7 +82,6 @@ import androidx.compose.material3.animateFloatingActionButton
+ import androidx.compose.material3.rememberBottomSheetState
+ import androidx.compose.material3.rememberTooltipState
+ import androidx.compose.runtime.Composable
+-import androidx.compose.runtime.DisposableEffect
+ import androidx.compose.runtime.LaunchedEffect
+ import androidx.compose.runtime.collectAsState
+ import androidx.compose.runtime.derivedStateOf
+@@ -162,8 +161,6 @@ import com.quantummpv.app.ui.utils.navigateTo
+ import com.quantummpv.app.ui.utils.rememberTabNavigation
+ import com.quantummpv.app.utils.media.MediaUtils
+ import com.quantummpv.app.utils.permission.PermissionUtils
+-import androidx.lifecycle.Lifecycle
+-import androidx.lifecycle.LifecycleEventObserver
+ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.launch
+ import kotlinx.coroutines.withContext
+@@ -340,37 +337,11 @@ fun MusicLibraryContent(
+   val pagerState = rememberPagerState(initialPage = initialPageIndex) { visibleTabs.size }
+   val navigateTab = rememberTabNavigation(pagerState)
+ 
+-  val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+-
+-  // Handle storage permission so onPermissionGranted triggers an immediate scan on first launch
+   val permissionState = PermissionUtils.handleStoragePermission(
+     audioOnly = true,
+     onPermissionGranted = { musicViewModel.scanLibrary(context) },
+   )
+ 
+-  // Rescan on resume if library is currently empty (e.g. after granting permissions)
+-  DisposableEffect(lifecycleOwner) {
+-    val observer = LifecycleEventObserver { _, event ->
+-      if (event == Lifecycle.Event.ON_RESUME) {
+-        if (songs.isEmpty() || musicViewModel.songs.value.isEmpty()) {
+-          musicViewModel.scanLibrary(context)
+-        }
+-      }
+-    }
+-    lifecycleOwner.lifecycle.addObserver(observer)
+-    onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+-  }
+-
+-  LaunchedEffect(Unit) {
+-    musicViewModel.scanLibrary(context)
+-  }
+-
+-  LaunchedEffect(selectedTab) {
+-    if (songs.isEmpty() && !isLoading) {
+-      musicViewModel.scanLibrary(context)
+-    }
+-  }
+-
+   LaunchedEffect(pagerState, visibleTabs) {
+     if (visibleTabs.isEmpty()) return@LaunchedEffect
+     // Restore by tab identity before publishing page indices after tabs are hidden/reordered.
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/videolist/VideoListScreen.kt b/app/src/main/java/com/quantummpv/app/ui/browser/videolist/VideoListScreen.kt
+index 4ed92227..bddc4f6f 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/videolist/VideoListScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/videolist/VideoListScreen.kt
+@@ -48,7 +48,6 @@ import androidx.compose.material3.TooltipDefaults
+ import androidx.compose.material3.animateFloatingActionButton
+ import androidx.compose.material3.rememberTooltipState
+ import androidx.compose.runtime.Composable
+-import androidx.compose.runtime.DisposableEffect
+ import androidx.compose.runtime.LaunchedEffect
+ import androidx.compose.runtime.collectAsState
+ import androidx.compose.runtime.derivedStateOf
+@@ -70,8 +69,6 @@ import androidx.compose.ui.platform.LocalContext
+ import androidx.compose.ui.platform.LocalDensity
+ import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.unit.dp
+-import androidx.lifecycle.Lifecycle
+-import androidx.lifecycle.LifecycleEventObserver
+ import androidx.lifecycle.viewmodel.compose.viewModel
+ import com.quantummpv.app.R
+ import com.quantummpv.app.database.repository.SecureFolderRepository
+@@ -151,7 +148,6 @@ data class VideoListScreen(
+     val appearancePreferences = koinInject<com.quantummpv.app.preferences.AppearancePreferences>()
+     val showQuickPlayFab by appearancePreferences.showQuickPlayFab.collectAsState()
+     val playerPreferences = koinInject<PlayerPreferences>()
+-    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+     val navigationBarHeight = com.quantummpv.app.ui.browser.LocalNavigationBarHeight.current
+ 
+     // ViewModel
+@@ -334,20 +330,6 @@ data class VideoListScreen(
+       selectionManager.clear()
+     }
+ 
+-    // Listen for lifecycle resume events and refresh videos when coming into focus
+-    DisposableEffect(lifecycleOwner) {
+-      val observer =
+-        LifecycleEventObserver { _, event ->
+-          if (event == Lifecycle.Event.ON_RESUME) {
+-            viewModel.refresh()
+-          }
+-        }
+-      lifecycleOwner.lifecycle.addObserver(observer)
+-      onDispose {
+-        lifecycleOwner.lifecycle.removeObserver(observer)
+-      }
+-    }
+-
+     Scaffold(
+       containerColor = com.quantummpv.app.ui.theme.wallpaperAwareBackgroundColor(),
+       topBar = {
+diff --git a/app/src/main/java/com/quantummpv/app/ui/downloads/DownloadsScreen.kt b/app/src/main/java/com/quantummpv/app/ui/downloads/DownloadsScreen.kt
+index 02aa01be..d0fd6e45 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/downloads/DownloadsScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/downloads/DownloadsScreen.kt
+@@ -17,11 +17,16 @@ import android.os.Build
+ import android.widget.Toast
+ import androidx.activity.compose.rememberLauncherForActivityResult
+ import androidx.activity.result.contract.ActivityResultContracts
++import androidx.compose.foundation.Image
++import androidx.compose.foundation.background
+ import androidx.compose.foundation.layout.Arrangement
++import androidx.compose.foundation.layout.Box
+ import androidx.compose.foundation.layout.Column
+ import androidx.compose.foundation.layout.PaddingValues
+ import androidx.compose.foundation.layout.Row
++import androidx.compose.foundation.layout.RowScope
+ import androidx.compose.foundation.layout.Spacer
++import androidx.compose.foundation.layout.aspectRatio
+ import androidx.compose.foundation.layout.fillMaxSize
+ import androidx.compose.foundation.layout.fillMaxWidth
+ import androidx.compose.foundation.layout.padding
+@@ -47,11 +52,17 @@ import androidx.compose.runtime.LaunchedEffect
+ import androidx.compose.runtime.collectAsState
+ import androidx.compose.runtime.getValue
+ import androidx.compose.runtime.mutableStateOf
++import androidx.compose.runtime.produceState
+ import androidx.compose.runtime.remember
+ import androidx.compose.runtime.setValue
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
++import androidx.compose.ui.draw.clip
++import androidx.compose.ui.graphics.ImageBitmap
++import androidx.compose.ui.graphics.asImageBitmap
++import androidx.compose.ui.layout.ContentScale
+ import androidx.compose.ui.platform.LocalContext
++import androidx.compose.ui.platform.LocalDensity
+ import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.text.font.FontWeight
+ import androidx.compose.ui.text.style.TextOverflow
+@@ -62,7 +73,10 @@ import com.quantummpv.app.domain.download.AppDownload
+ import com.quantummpv.app.domain.download.AppDownloadManager
+ import com.quantummpv.app.domain.download.AppDownloadStatus
+ import com.quantummpv.app.domain.download.YtdlpDownloadEngine
++import com.quantummpv.app.domain.thumbnail.ThumbnailRepository
+ import com.quantummpv.app.presentation.Screen
++import com.quantummpv.app.presentation.components.RemoteImage
++import com.quantummpv.app.repository.MediaFileRepository
+ import com.quantummpv.app.ui.browser.states.EmptyState
+ import com.quantummpv.app.ui.icons.Icon
+ import com.quantummpv.app.ui.icons.Icons
+@@ -192,6 +206,8 @@ object DownloadsScreen : Screen {
+             CompletedRow(
+               title = job.title,
+               subtitle = job.outputFile?.let { File(it).name }.orEmpty(),
++              posterUrl = job.posterUrl,
++              mediaPath = job.outputFile,
+               playable = job.outputFile?.let { File(it).isFile } == true,
+               onPlay = {
+                 job.outputFile?.let { path ->
+@@ -206,6 +222,8 @@ object DownloadsScreen : Screen {
+           items(completedDownloads, key = { "dl_done_${it.id}" }) { download ->
+             CompletedRow(
+               title = download.displayTitle,
++              posterUrl = download.entity.posterUrl,
++              mediaPath = download.file.absolutePath,
+               subtitle = buildString {
+                 append(download.entity.fileName)
+                 if (download.entity.totalBytes > 0) {
+@@ -328,59 +346,133 @@ private fun DownloadLocationCard(
+ }
+ 
+ @Composable
+-private fun ActiveDownloadRow(
+-  download: AppDownload,
+-  speedBytesPerSec: Long,
+-  onRetry: () -> Unit,
+-  onCancel: () -> Unit,
++private fun DownloadThumbnail(posterUrl: String?, mediaPath: String?) {
++  val context = LocalContext.current
++  val repository = koinInject<ThumbnailRepository>()
++  val density = LocalDensity.current
++  val widthPx = with(density) { 88.dp.roundToPx() }
++  val heightPx = (widthPx * 9f / 16f).toInt().coerceAtLeast(1)
++  val localThumbnail by produceState<ImageBitmap?>(null, mediaPath, widthPx, heightPx) {
++    val file = mediaPath?.let(::File)?.takeIf(File::isFile)
++    val video = file?.let { MediaFileRepository.getVideosFromFiles(context, listOf(it)).firstOrNull() }
++    value = video?.let { repository.getThumbnail(it, widthPx, heightPx)?.asImageBitmap() }
++  }
++  Box(
++    modifier = Modifier.width(88.dp).aspectRatio(16f / 9f)
++      .clip(RoundedCornerShape(8.dp))
++      .background(MaterialTheme.colorScheme.surfaceContainerHighest),
++    contentAlignment = Alignment.Center,
++  ) {
++    Icon(
++      Icons.RoundedFilled.FileDownload,
++      contentDescription = null,
++      tint = MaterialTheme.colorScheme.onSurfaceVariant,
++      modifier = Modifier.size(24.dp),
++    )
++    localThumbnail?.let { bitmap ->
++      Image(
++        bitmap = bitmap,
++        contentDescription = null,
++        modifier = Modifier.fillMaxSize(),
++        contentScale = ContentScale.Crop,
++      )
++    }
++    posterUrl?.takeIf(String::isNotBlank)?.let { url ->
++      RemoteImage(
++        url = url,
++        contentDescription = null,
++        modifier = Modifier.fillMaxSize(),
++        contentScale = ContentScale.Crop,
++      )
++    }
++  }
++}
++
++@Composable
++private fun DownloadMediaRow(
++  title: String,
++  subtitle: String,
++  posterUrl: String?,
++  mediaPath: String? = null,
++  isError: Boolean = false,
++  progress: Float? = null,
++  indeterminate: Boolean = false,
++  actions: @Composable RowScope.() -> Unit,
+ ) {
+-  val status = download.status
+   Card(
+-    shape = RoundedCornerShape(14.dp),
++    modifier = Modifier.fillMaxWidth(),
++    shape = RoundedCornerShape(8.dp),
+     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+   ) {
+-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)) {
++    Column(
++      modifier = Modifier.fillMaxWidth().padding(12.dp),
++      verticalArrangement = Arrangement.spacedBy(8.dp),
++    ) {
++      Row(
++        verticalAlignment = Alignment.CenterVertically,
++        horizontalArrangement = Arrangement.spacedBy(12.dp),
++      ) {
++        DownloadThumbnail(posterUrl, mediaPath)
++        Text(
++          text = title,
++          modifier = Modifier.weight(1f),
++          style = MaterialTheme.typography.titleSmall,
++          fontWeight = FontWeight.SemiBold,
++          maxLines = 2,
++          overflow = TextOverflow.Ellipsis,
++        )
++      }
+       Row(verticalAlignment = Alignment.CenterVertically) {
+-        Column(modifier = Modifier.weight(1f)) {
+-          Text(
+-            text = download.displayTitle,
+-            style = MaterialTheme.typography.bodyMedium,
+-            fontWeight = FontWeight.SemiBold,
+-            maxLines = 1,
+-            overflow = TextOverflow.Ellipsis,
+-          )
+-          Text(
+-            text = downloadStatusLine(download, speedBytesPerSec),
+-            style = MaterialTheme.typography.bodySmall,
+-            color =
+-              if (status == AppDownloadStatus.FAILED) {
+-                MaterialTheme.colorScheme.error
+-              } else {
+-                MaterialTheme.colorScheme.onSurfaceVariant
+-              },
+-            maxLines = 1,
+-            overflow = TextOverflow.Ellipsis,
+-          )
+-        }
+-        if (status == AppDownloadStatus.FAILED || status == AppDownloadStatus.CANCELLED) {
+-          IconButton(onClick = onRetry) {
+-            Icon(Icons.RoundedFilled.Refresh, contentDescription = stringResource(R.string.downloads_retry))
+-          }
+-        }
+-        IconButton(onClick = onCancel) {
+-          Icon(Icons.RoundedFilled.Close, contentDescription = stringResource(R.string.downloads_cancel))
+-        }
++        Text(
++          text = subtitle,
++          modifier = Modifier.weight(1f),
++          style = MaterialTheme.typography.bodySmall,
++          color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
++          maxLines = if (isError) 4 else 2,
++          overflow = TextOverflow.Ellipsis,
++        )
++        actions()
+       }
+-      if (status == AppDownloadStatus.RUNNING || status == AppDownloadStatus.QUEUED) {
++      if (indeterminate) {
++        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
++      } else if (progress != null) {
+         LinearProgressIndicator(
+-          progress = { (download.entity.progress / 100f).coerceIn(0f, 1f) },
+-          modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
++          progress = { progress.coerceIn(0f, 1f) },
++          modifier = Modifier.fillMaxWidth(),
+         )
+       }
+     }
+   }
+ }
+ 
++@Composable
++private fun ActiveDownloadRow(
++  download: AppDownload,
++  speedBytesPerSec: Long,
++  onRetry: () -> Unit,
++  onCancel: () -> Unit,
++) {
++  val status = download.status
++  DownloadMediaRow(
++    title = download.displayTitle,
++    subtitle = downloadStatusLine(download, speedBytesPerSec),
++    posterUrl = download.entity.posterUrl,
++    isError = status == AppDownloadStatus.FAILED,
++    progress = (download.entity.progress / 100f).takeIf { status == AppDownloadStatus.RUNNING },
++    indeterminate = status == AppDownloadStatus.QUEUED ||
++      status == AppDownloadStatus.RUNNING && download.entity.totalBytes <= 0,
++  ) {
++    if (status == AppDownloadStatus.FAILED || status == AppDownloadStatus.CANCELLED) {
++      IconButton(onClick = onRetry) {
++        Icon(Icons.RoundedFilled.Refresh, contentDescription = stringResource(R.string.downloads_retry))
++      }
++    }
++    IconButton(onClick = onCancel) {
++      Icon(Icons.RoundedFilled.Close, contentDescription = stringResource(R.string.downloads_cancel))
++    }
++  }
++}
++
+ @Composable
+ private fun YtdlpJobRow(
+   job: YtdlpDownloadEngine.Job,
+@@ -388,54 +480,28 @@ private fun YtdlpJobRow(
+   onRetry: () -> Unit,
+   onRemove: () -> Unit,
+ ) {
+-  Card(
+-    shape = RoundedCornerShape(14.dp),
+-    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
++  DownloadMediaRow(
++    title = job.title,
++    subtitle = ytdlpStatusLine(job),
++    posterUrl = job.posterUrl,
++    isError = job.state == YtdlpDownloadEngine.JobState.FAILED,
++    progress = (job.progressPercent / 100f).takeIf { job.state == YtdlpDownloadEngine.JobState.RUNNING },
++    indeterminate = job.state == YtdlpDownloadEngine.JobState.QUEUED ||
++      job.state == YtdlpDownloadEngine.JobState.RUNNING && job.progressPercent <= 0f,
+   ) {
+-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)) {
+-      Row(verticalAlignment = Alignment.CenterVertically) {
+-        Column(modifier = Modifier.weight(1f)) {
+-          Text(
+-            text = job.title,
+-            style = MaterialTheme.typography.bodyMedium,
+-            fontWeight = FontWeight.SemiBold,
+-            maxLines = 1,
+-            overflow = TextOverflow.Ellipsis,
+-          )
+-          Text(
+-            text = ytdlpStatusLine(job),
+-            style = MaterialTheme.typography.bodySmall,
+-            color =
+-              if (job.state == YtdlpDownloadEngine.JobState.FAILED) {
+-                MaterialTheme.colorScheme.error
+-              } else {
+-                MaterialTheme.colorScheme.onSurfaceVariant
+-              },
+-            maxLines = 1,
+-            overflow = TextOverflow.Ellipsis,
+-          )
++    when (job.state) {
++      YtdlpDownloadEngine.JobState.FAILED, YtdlpDownloadEngine.JobState.CANCELLED -> {
++        IconButton(onClick = onRetry) {
++          Icon(Icons.RoundedFilled.Refresh, contentDescription = stringResource(R.string.downloads_retry))
+         }
+-        when (job.state) {
+-          YtdlpDownloadEngine.JobState.FAILED, YtdlpDownloadEngine.JobState.CANCELLED -> {
+-            IconButton(onClick = onRetry) {
+-              Icon(Icons.RoundedFilled.Refresh, contentDescription = stringResource(R.string.downloads_retry))
+-            }
+-            IconButton(onClick = onRemove) {
+-              Icon(Icons.RoundedFilled.Close, contentDescription = stringResource(R.string.downloads_remove_entry))
+-            }
+-          }
+-          else -> {
+-            IconButton(onClick = onCancel) {
+-              Icon(Icons.RoundedFilled.Close, contentDescription = stringResource(R.string.downloads_cancel))
+-            }
+-          }
++        IconButton(onClick = onRemove) {
++          Icon(Icons.RoundedFilled.Close, contentDescription = stringResource(R.string.downloads_remove_entry))
+         }
+       }
+-      if (job.state == YtdlpDownloadEngine.JobState.RUNNING) {
+-        LinearProgressIndicator(
+-          progress = { (job.progressPercent / 100f).coerceIn(0f, 1f) },
+-          modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+-        )
++      else -> {
++        IconButton(onClick = onCancel) {
++          Icon(Icons.RoundedFilled.Close, contentDescription = stringResource(R.string.downloads_cancel))
++        }
+       }
+     }
+   }
+@@ -445,48 +511,27 @@ private fun YtdlpJobRow(
+ private fun CompletedRow(
+   title: String,
+   subtitle: String,
++  posterUrl: String?,
++  mediaPath: String?,
+   playable: Boolean,
+   onPlay: () -> Unit,
+   onDelete: () -> Unit,
+ ) {
+-  Card(
+-    shape = RoundedCornerShape(14.dp),
+-    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
++  DownloadMediaRow(
++    title = title,
++    subtitle = subtitle,
++    posterUrl = posterUrl,
++    mediaPath = mediaPath,
+   ) {
+-    Row(
+-      modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+-      verticalAlignment = Alignment.CenterVertically,
+-    ) {
+-      Column(modifier = Modifier.weight(1f)) {
+-        Text(
+-          text = title,
+-          style = MaterialTheme.typography.bodyMedium,
+-          fontWeight = FontWeight.SemiBold,
+-          maxLines = 1,
+-          overflow = TextOverflow.Ellipsis,
+-        )
+-        if (subtitle.isNotBlank()) {
+-          Text(
+-            text = subtitle,
+-            style = MaterialTheme.typography.bodySmall,
+-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+-            maxLines = 1,
+-            overflow = TextOverflow.Ellipsis,
+-          )
+-        }
+-      }
+-      if (playable) {
+-        IconButton(onClick = onPlay) {
+-          Icon(
+-            Icons.RoundedFilled.PlayArrow,
+-            contentDescription = stringResource(R.string.downloads_play),
+-            tint = MaterialTheme.colorScheme.primary,
+-          )
+-        }
+-      }
+-      IconButton(onClick = onDelete) {
+-        Icon(Icons.RoundedFilled.Delete, contentDescription = stringResource(R.string.downloads_delete_file))
+-      }
++    IconButton(onClick = onPlay, enabled = playable) {
++      Icon(
++        Icons.RoundedFilled.PlayArrow,
++        contentDescription = stringResource(R.string.downloads_play),
++        tint = if (playable) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
++      )
++    }
++    IconButton(onClick = onDelete) {
++      Icon(Icons.RoundedFilled.Delete, contentDescription = stringResource(R.string.downloads_delete_file))
+     }
+   }
+ }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/GestureHandler.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/GestureHandler.kt
+index 488e6e4b..28ae1782 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/GestureHandler.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/GestureHandler.kt
+@@ -1242,7 +1242,6 @@ fun GestureHandler(
+                       val isForward = if (isSwipeSubtitlesInverted) deltaX < 0 else deltaX > 0
+                       val direction = if (isForward) "1" else "-1"
+                       PlaybackSession.command("sub-seek", direction)
+-                      actionHaptics.tick()
+                       viewModel.playerUpdate.update {
+                         PlayerUpdates.ShowText(
+                           context.getString(
+@@ -1334,7 +1333,6 @@ fun GestureHandler(
+             if (hasStartedSeeking) {
+               pendingSeekPosition?.let { target ->
+                 viewModel.seekTo(target.toInt())
+-                if (target.toInt() != initialVideoPosition.toInt()) actionHaptics.confirm()
+               }
+               coroutineScope.launch {
+                 delay(300)
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/Seekbar.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/Seekbar.kt
+index d26fe234..db9ec7ea 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/Seekbar.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/Seekbar.kt
+@@ -488,15 +488,6 @@ private fun SeekbarContent(
+   val touchAreaHeight = if (isPortrait) 64.dp else 52.dp
+   val seekerState = rememberSeekerState()
+   val seekerInteractionSource = remember { MutableInteractionSource() }
+-  val seekHaptics = com.quantummpv.app.ui.utils.rememberAppHaptics()
+-  var seekStartPosition by remember { mutableStateOf<Float?>(null) }
+-  LaunchedEffect(seekerInteractionSource) {
+-    seekerInteractionSource.interactions.collect { interaction ->
+-      if (interaction is androidx.compose.foundation.interaction.DragInteraction.Cancel) {
+-        seekStartPosition = null
+-      }
+-    }
+-  }
+   val isSeekerPressed by seekerInteractionSource.collectIsPressedAsState()
+   val isSeekerDragged by seekerInteractionSource.collectIsDraggedAsState()
+   val isVisuallyInteracting = isUserInteracting || isSeekerPressed || isSeekerDragged
+@@ -762,7 +753,6 @@ private fun SeekbarContent(
+         ),
+       onValueChange = { newPosition ->
+         val targetPosition = newPosition.coerceIn(0f, safeDuration)
+-        if (seekStartPosition == null) seekStartPosition = safeCommittedPosition
+         onUserInteractionChange(true)
+         latestInteractionPosition = targetPosition
+         onUserPositionChange(targetPosition)
+@@ -770,13 +760,10 @@ private fun SeekbarContent(
+       },
+       onValueChangeFinished = {
+         val targetPosition = latestInteractionPosition.coerceIn(0f, safeDuration)
+-        val initialPosition = seekStartPosition
+-        seekStartPosition = null
+         scope.launch {
+           animatedPosition.snapTo(targetPosition)
+           onUserPositionChange(targetPosition)
+           onValueChangeFinished(targetPosition)
+-          if (initialPosition != null && initialPosition.toInt() != targetPosition.toInt()) seekHaptics.confirm()
+           onUserInteractionChange(false)
+         }
+       },
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/ytdlp/YtdlpManager.kt b/app/src/main/java/com/quantummpv/app/ui/player/ytdlp/YtdlpManager.kt
+index 1574ec82..ffe73b5e 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/ytdlp/YtdlpManager.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/ytdlp/YtdlpManager.kt
+@@ -380,48 +380,58 @@ object YtdlpManager {
+ 
+   suspend fun copyAssets(context: Context) =
+     withContext(Dispatchers.IO) {
+-      val ytdlDir = getYtdlDir(context)
+-
+-      // Clean up old potentially problematic scripts from multiple possible locations
+-      listOf("youtube-dl", "youtube-dl.sh").forEach { name ->
+-        File(context.filesDir, name).delete()
+-        File(ytdlDir, name).delete()
++      installMutex.withLock {
++        runtimeAssetsPrepared = copyRuntimeAssets(context)
+       }
++    }
+ 
+-      // Files to copy from assets/ytdl/ to filesDir/ytdl/
+-      val ytdlFiles = arrayOf("setup.py", "wrapper", "python313.zip")
+-      for (name in ytdlFiles) {
+-        copyAssetFile(context, "ytdl/$name", File(ytdlDir, name))
+-      }
++  private fun copyRuntimeAssets(context: Context, onLog: (String) -> Unit = {}): Boolean {
++    val ytdlDir = getYtdlDir(context)
+ 
+-      // cacert.pem goes to filesDir/
+-      copyAssetFile(context, "cacert.pem", File(context.filesDir, "cacert.pem"))
++    // Clean up old potentially problematic scripts from multiple possible locations
++    listOf("youtube-dl", "youtube-dl.sh").forEach { name ->
++      File(context.filesDir, name).delete()
++      File(ytdlDir, name).delete()
++    }
+ 
+-      // Set executable permission on wrapper (just in case it's used)
+-      File(ytdlDir, "wrapper").setExecutable(true)
++    // Files to copy from assets/ytdl/ to filesDir/ytdl/
++    val ytdlFiles = arrayOf("setup.py", "wrapper", "python313.zip")
++    var copied = true
++    for (name in ytdlFiles) {
++      copied = copyAssetFile(context, "ytdl/$name", File(ytdlDir, name), onLog) && copied
+     }
+ 
++    // cacert.pem goes to filesDir/
++    copied = copyAssetFile(context, "cacert.pem", File(context.filesDir, "cacert.pem"), onLog) && copied
++
++    // Set executable permission on wrapper (just in case it's used)
++    File(ytdlDir, "wrapper").setExecutable(true)
++    return copied
++  }
++
+   private fun copyAssetFile(
+     context: Context,
+     assetPath: String,
+     outFile: File,
++    onLog: (String) -> Unit,
+   ): Boolean {
++    val temporaryFile = File(outFile.parentFile, "${outFile.name}.tmp")
+     return try {
+       context.assets.open(assetPath).use { input ->
+-        val size = input.available().toLong()
+-        if (outFile.exists() && outFile.length() == size) {
+-          Log.v(TAG, "Skipping copy: $assetPath (exists same size)")
+-          return true
+-        }
+-        FileOutputStream(outFile).use { output ->
+-          input.copyTo(output)
++        FileOutputStream(temporaryFile).use { output ->
++          if (input.copyTo(output) == 0L) throw IOException("Bundled asset is empty: $assetPath")
++          output.fd.sync()
+         }
++        if (!temporaryFile.renameTo(outFile)) throw IOException("Could not replace bundled asset: $assetPath")
+         Log.d(TAG, "Copied asset: $assetPath")
+         true
+       }
+     } catch (e: IOException) {
+       Log.e(TAG, "Failed to copy asset: $assetPath", e)
++      onLog("$assetPath: ${e.message}\n")
+       false
++    } finally {
++      temporaryFile.delete()
+     }
+   }
+ 
+@@ -639,13 +649,7 @@ object YtdlpManager {
+     onLog: (String) -> Unit,
+   ): Boolean {
+     if (!runtimeAssetsPrepared) {
+-      copyAssets(context)
+-      runtimeAssetsPrepared =
+-        listOf(
+-          File(getYtdlDir(context), "setup.py"),
+-          File(getYtdlDir(context), "python313.zip"),
+-          File(context.filesDir, "cacert.pem"),
+-        ).all { file -> file.isFile && file.length() > 0L }
++      runtimeAssetsPrepared = copyRuntimeAssets(context, onLog)
+     }
+     if (!runtimeAssetsPrepared) onLog("Failed to prepare the bundled yt-dlp runtime assets.\n")
+     return runtimeAssetsPrepared
+@@ -653,7 +657,11 @@ object YtdlpManager {
+ 
+   fun isInstalled(context: Context): Boolean {
+     val ytDlp = File(getYtdlDir(context), "yt-dlp")
+-    return ytDlp.isFile && ytDlp.length() > 0L
++    return runCatching {
++      java.util.zip.ZipFile(ytDlp).use { archive ->
++        archive.getEntry("__main__.py") != null && archive.getEntry("yt_dlp/__init__.py") != null
++      }
++    }.getOrDefault(false)
+   }
+ 
+   private fun readInstallationInfo(context: Context): YtdlpInstallationInfo {
+@@ -818,7 +826,7 @@ object YtdlpManager {
+       }
+     }
+ 
+-  private fun startPythonProcess(
++  internal fun startPythonProcess(
+     command: List<String>,
+     context: Context,
+   ): Process {
+@@ -834,7 +842,10 @@ object YtdlpManager {
+     env.remove("YTDL_SCRIPT")
+     env["YTDL_PYTHON"] = File(nativeLibDir, "libpython.so").absolutePath
+     env["PYTHONHOME"] = ytdlDir
+-    env["PYTHONPATH"] = "$ytdlDir/python313.zip"
++    env["PYTHONPATH"] = "$ytdlDir/python313.zip:$ytdlDir:$nativeLibDir"
++    env["HOME"] = context.filesDir.absolutePath
++    env["XDG_CACHE_HOME"] = context.cacheDir.absolutePath
++    env["TMPDIR"] = context.cacheDir.absolutePath
+     env["SSL_CERT_FILE"] = File(context.filesDir, "cacert.pem").absolutePath
+     env["LD_LIBRARY_PATH"] = nativeLibDir
+     return processBuilder.start()
+diff --git a/app/src/main/java/com/quantummpv/app/utils/permission/PermissionUtils.kt b/app/src/main/java/com/quantummpv/app/utils/permission/PermissionUtils.kt
+index 62f8f24b..aa41a701 100644
+--- a/app/src/main/java/com/quantummpv/app/utils/permission/PermissionUtils.kt
++++ b/app/src/main/java/com/quantummpv/app/utils/permission/PermissionUtils.kt
+@@ -224,8 +224,14 @@ object PermissionUtils {
+         }
+       }
+ 
++    var previouslyGranted by androidx.compose.runtime.saveable.rememberSaveable(audioOnly) {
++      androidx.compose.runtime.mutableStateOf(effectivePermissionState.status == PermissionStatus.Granted)
++    }
+     LaunchedEffect(effectivePermissionState.status) {
+-      if (effectivePermissionState.status == PermissionStatus.Granted) {
++      val isGranted = effectivePermissionState.status == PermissionStatus.Granted
++      val becameGranted = isGranted && !previouslyGranted
++      previouslyGranted = isGranted
++      if (becameGranted) {
+         onPermissionGranted()
+       }
+     }
+-- 
+2.25.1
+

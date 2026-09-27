@@ -1,0 +1,109 @@
+From 68482a8e237f161f60199160bc495b77393f591f Mon Sep 17 00:00:00 2001
+From: Arnab Sadhukhan <arnab@Arnabs-Mac-Mini.local>
+Date: Wed, 9 Sep 2026 20:19:09 +0530
+Subject: [PATCH 070/140] fix(jellyfin): prevent music tab from hijacking
+ jellyfin browser tab home state
+
+---
+ .../gyrolet/mpvrx/ui/browser/MainScreen.kt    |  2 +-
+ .../ui/browser/jellyfin/JellyfinContent.kt    |  8 +++---
+ .../ui/browser/jellyfin/JellyfinViewModel.kt  | 26 ++++++++++++++-----
+ 3 files changed, 25 insertions(+), 11 deletions(-)
+
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/MainScreen.kt b/app/src/main/java/com/quantummpv/app/ui/browser/MainScreen.kt
+index b21c44e1..1f66c643 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/MainScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/MainScreen.kt
+@@ -462,7 +462,7 @@ object MainScreen : Screen {
+                       }
+                     } else {
+                       LaunchedEffect(jellyfinUiState.libraries) {
+-                        jellyfinViewModel.ensureMusicLibraryOpened()
++                        jellyfinViewModel.ensureMusicDataLoaded()
+                       }
+                       com.quantummpv.app.ui.browser.jellyfin.JellyfinContent(
+                         viewModel = jellyfinViewModel,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinContent.kt b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinContent.kt
+index b2482404..d881eac2 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinContent.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinContent.kt
+@@ -254,7 +254,7 @@ fun JellyfinContent(
+   val isBackEnabled =
+     if (isMusicOnlyMode) {
+       isSearching || selectionManager.isInSelectionMode || uiState.detailItem != null ||
+-        (uiState.openLibrary?.isMusic == true && uiState.musicActiveTab != JellyfinMusicTab.HOME) ||
++        uiState.musicActiveTab != JellyfinMusicTab.HOME ||
+         (isFabExpanded && !quickPlayFabDirect)
+     } else {
+       isSeerrRequestsOpen || isSearching || selectionManager.isInSelectionMode ||
+@@ -711,7 +711,7 @@ fun JellyfinContent(
+             }
+ 
+             // Root / Discovery Home View (Expressive UI)
+-            uiState.openLibrary == null && uiState.searchQuery.isBlank() -> {
++            !isMusicOnlyMode && uiState.openLibrary == null && uiState.searchQuery.isBlank() -> {
+               val server = uiState.activeServer
+ 
+               if (server != null) {
+@@ -905,8 +905,8 @@ fun JellyfinContent(
+ 
+             // Level / Search View: Inside a Library / Folder / Season / Search results
+             else -> {
+-              val openLib = uiState.openLibrary
+-              if (openLib?.isMusic == true && uiState.searchQuery.isBlank() && uiState.activeServer != null) {
++              val openLib = uiState.openLibrary ?: if (isMusicOnlyMode) viewModel.getMusicLibraryView() else null
++              if ((isMusicOnlyMode || openLib?.isMusic == true) && uiState.searchQuery.isBlank() && uiState.activeServer != null) {
+                 JellyfinMusicView(
+                   uiState = uiState,
+                   server = uiState.activeServer!!,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinViewModel.kt b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinViewModel.kt
+index d5e17dd6..d734b9d9 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinViewModel.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinViewModel.kt
+@@ -607,15 +607,29 @@ class JellyfinViewModel(
+     }
+   }
+ 
+-  fun ensureMusicLibraryOpened() {
++  fun getMusicLibraryView(): JellyfinLibraryView? {
++    val musicItem = _uiState.value.libraries.firstOrNull { isMusicLibrary(it) } ?: return null
++    return JellyfinLibraryView(
++      id = musicItem.id,
++      title = musicItem.name,
++      itemTypes = "Audio",
++      collectionType = musicItem.collectionType,
++      isMusic = true,
++    )
++  }
++
++  fun ensureMusicDataLoaded() {
+     val active = _uiState.value.activeServer ?: return
+-    if (_uiState.value.openLibrary?.isMusic == true) return
+-    val musicLib = _uiState.value.libraries.firstOrNull { isMusicLibrary(it) }
+-    if (musicLib != null) {
+-      navigateToItem(musicLib)
++    val musicLib = getMusicLibraryView() ?: return
++    if (loadedMusicHomeLibraryId != musicLib.id) {
++      loadMusicHomeDashboard(active, musicLib)
+     }
+   }
+ 
++  fun ensureMusicLibraryOpened() {
++    ensureMusicDataLoaded()
++  }
++
+   fun setGenreFilter(genre: String?) {
+     if (_uiState.value.selectedGenreFilter == genre) return
+     _uiState.update { it.copy(selectedGenreFilter = genre) }
+@@ -787,7 +801,7 @@ class JellyfinViewModel(
+     if (_uiState.value.musicActiveTab == tab) return
+     _uiState.update { it.copy(musicActiveTab = tab) }
+     val active = _uiState.value.activeServer ?: return
+-    val library = _uiState.value.openLibrary ?: return
++    val library = _uiState.value.openLibrary ?: getMusicLibraryView() ?: return
+ 
+     if (tab == JellyfinMusicTab.HOME) {
+       if (loadedMusicHomeLibraryId != library.id) loadMusicHomeDashboard(active, library)
+-- 
+2.25.1
+

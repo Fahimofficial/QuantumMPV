@@ -66,6 +66,7 @@ fun AddToPlaylistDialog(
   onSuccess: () -> Unit,
   isJellyfin: Boolean = false,
   modifier: Modifier = Modifier,
+  onItemsAdded: () -> Unit = {},
 ) {
   val viewModel: AddToPlaylistViewModel = viewModel()
   val playlistOptions by viewModel.playlistOptions.collectAsState()
@@ -104,6 +105,7 @@ fun AddToPlaylistDialog(
             }
           Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
           showCreateDialog = false
+          onItemsAdded()
           onSuccess()
           onDismiss()
         }

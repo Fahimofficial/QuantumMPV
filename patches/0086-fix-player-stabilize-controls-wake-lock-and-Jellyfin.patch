@@ -1,0 +1,282 @@
+From d42215090b1319f5a5239e116574804c82d1a35c Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <riteshp2001@gmail.com>
+Date: Fri, 11 Sep 2026 13:10:20 +0530
+Subject: [PATCH 086/140] fix(player): stabilize controls, wake lock, and
+ Jellyfin downloads
+
+---
+ .../gyrolet/mpvrx/ui/player/PlayerActivity.kt | 26 ++++---
+ .../mpvrx/ui/player/PlayerViewModel.kt        | 78 ++++++++++++++++---
+ .../ui/player/controls/PlayerControls.kt      |  2 +
+ .../mpvrx/ui/player/controls/PlayerSheets.kt  | 36 +++++++--
+ 4 files changed, 114 insertions(+), 28 deletions(-)
+
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt b/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt
+index 37c00082..f209ff7a 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt
+@@ -2012,7 +2012,7 @@ class PlayerActivity :
+     if (isAudio) {
+       WindowCompat.setDecorFitsSystemWindows(window, true)
+       window.clearFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS)
+-      window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
++      updateKeepScreenOn()
+       window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
+       return
+     }
+@@ -2021,10 +2021,21 @@ class PlayerActivity :
+       WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+       WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+     )
+-    window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
++    updateKeepScreenOn()
+     window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
+   }
+ 
++  private fun updateKeepScreenOn(isPaused: Boolean = viewModel.paused == true) {
++    val shouldKeepScreenOn =
++      externalDisplayManager?.isActive != true &&
++        (!isPaused || playerPreferences.keepScreenOnWhenPaused.get())
++    if (shouldKeepScreenOn) {
++      window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
++    } else {
++      window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
++    }
++  }
++
+   private fun onExternalDisplayStateChanged(active: Boolean) {
+     binding.externalDisplayOverlay.visibility = if (active) View.VISIBLE else View.GONE
+     if (active) {
+@@ -3295,6 +3306,7 @@ class PlayerActivity :
+     if (!mpvInitialized || !ownsPlaybackSession() || isDeviceScreenOffOrLocked()) return false
+     enableVideoAfterBackground()
+     viewModel.setAmbientLifecycleActive(true)
++    updateKeepScreenOn()
+     return true
+   }
+ 
+@@ -3322,6 +3334,7 @@ class PlayerActivity :
+             wasPlayingBeforePause = false
+             if (viewModel.paused == true && !isFinishing && !isUserFinishing) {
+               viewModel.unpause()
++              updateKeepScreenOn(isPaused = false)
+             }
+             return@launch
+           }
+@@ -3952,14 +3965,7 @@ class PlayerActivity :
+    * @param isPaused true if playback is paused, false if playing
+    */
+   private fun handlePauseStateChange(isPaused: Boolean) {
+-    if (isPaused) {
+-      // Only clear keep-screen-on if the preference is NOT enabled
+-      if (!playerPreferences.keepScreenOnWhenPaused.get()) {
+-        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+-      }
+-    } else {
+-      window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+-    }
++    updateKeepScreenOn(isPaused)
+     updateMediaSessionPlaybackState(!isPaused)
+     runCatching {
+       if (isInPictureInPictureMode) {
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt b/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
+index 5b9bb69b..3071fcb9 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
+@@ -693,30 +693,42 @@ class PlayerViewModel : ViewModel(),
+   data class QualityDownloadRequest(
+     val sourceUrl: String,
+     val title: String,
+-    val formatSelector: String,
+-    val mergeSeparateStreams: Boolean,
++    val formatSelector: String? = null,
++    val mergeSeparateStreams: Boolean = false,
++    val headers: Map<String, String> = emptyMap(),
++    val jellyfinItemId: String? = null,
++    val fileExtension: String = "mkv",
+   )
+ 
+-  fun canDownloadCurrentVideoQuality(): Boolean = currentYouTubeSource() != null
++  fun canDownloadCurrentVideoQuality(): Boolean =
++    currentYouTubeSource() != null || currentJellyfinVideoSource() != null
+ 
+   fun qualityDownloadRequest(track: TrackNode): QualityDownloadRequest? {
++    val itemTitle = PlaybackSession.state.value.currentItem?.title?.trim()?.takeIf(String::isNotBlank)
++    val jellyfinSource = currentJellyfinVideoSource()
++    if (jellyfinSource != null) {
++      val qualityLabel = videoQualityLabel(track)
++      val baseTitle = itemTitle ?: "Jellyfin"
++      return QualityDownloadRequest(
++        sourceUrl = jellyfinSource.sourceUrl,
++        title = if (qualityLabel.isBlank()) baseTitle else "$qualityLabel - $baseTitle",
++        headers = jellyfinSource.headers,
++        jellyfinItemId = jellyfinSource.itemId,
++        fileExtension = currentVideoContainerExtension(),
++      )
++    }
++
+     val sourceUrl = currentYouTubeSource() ?: return null
+     val selectedAudio =
+       pairedYtdlTrack(track, TrackNode::isAudio)
+         ?: allTracks.value.firstOrNull { candidate -> candidate.isAudio && candidate.isSelected }
+     val downloadSelection = buildYtdlDownloadSelection(videoTrack = track, audioTrack = selectedAudio) ?: return null
+-    val itemTitle = PlaybackSession.state.value.currentItem?.title?.trim()?.takeIf(String::isNotBlank)
+     val fallbackTitle =
+       runCatching { HttpUtils.extractYouTubeVideoId(Uri.parse(sourceUrl)) }
+         .getOrNull()
+         ?.takeIf(String::isNotBlank)
+         ?: "YouTube"
+-    val qualityLabel =
+-      buildList {
+-        videoQualityDimension(track).takeIf { it > 0L }?.let { dimension -> add("${dimension}p") }
+-        track.demuxFps?.takeIf { it > 0.0 }?.toInt()?.let { fps -> add("${fps}fps") }
+-        track.codec?.trim()?.takeIf(String::isNotBlank)?.uppercase(Locale.ROOT)?.let(::add)
+-      }.joinToString(" ")
++    val qualityLabel = videoQualityLabel(track)
+     val baseTitle = itemTitle ?: fallbackTitle
+     return QualityDownloadRequest(
+       sourceUrl = sourceUrl,
+@@ -726,6 +738,48 @@ class PlayerViewModel : ViewModel(),
+     )
+   }
+ 
++  private fun videoQualityLabel(track: TrackNode): String =
++    buildList {
++      videoQualityDimension(track).takeIf { it > 0L }?.let { dimension -> add("${dimension}p") }
++      track.demuxFps?.takeIf { it > 0.0 }?.toInt()?.let { fps -> add("${fps}fps") }
++      track.codec?.trim()?.takeIf(String::isNotBlank)?.uppercase(Locale.ROOT)?.let(::add)
++    }.joinToString(" ")
++
++  private data class JellyfinVideoSource(
++    val sourceUrl: String,
++    val headers: Map<String, String>,
++    val itemId: String,
++  )
++
++  private fun currentJellyfinVideoSource(): JellyfinVideoSource? {
++    val item = PlaybackSession.state.value.currentItem ?: return null
++    val sourceUrl = item.playableUri.trim().takeIf(String::isNotBlank) ?: return null
++    val uri = runCatching { Uri.parse(sourceUrl) }.getOrNull() ?: return null
++    val videoSegmentIndex = uri.pathSegments.indexOfFirst { it.equals("Videos", ignoreCase = true) }
++    val itemId = uri.pathSegments.getOrNull(videoSegmentIndex + 1)?.takeIf(String::isNotBlank) ?: return null
++    val isStaticStream = runCatching { uri.getQueryParameter("static")?.equals("true", ignoreCase = true) }.getOrNull() == true
++    val hasAuthentication =
++      item.headers.any { (name, value) -> name.equals("X-Emby-Token", ignoreCase = true) && value.isNotBlank() } ||
++        runCatching { !uri.getQueryParameter("api_key").isNullOrBlank() }.getOrDefault(false)
++    return if (videoSegmentIndex >= 0 && isStaticStream && hasAuthentication) {
++      JellyfinVideoSource(sourceUrl = sourceUrl, headers = item.headers, itemId = itemId)
++    } else {
++      null
++    }
++  }
++
++  private fun currentVideoContainerExtension(): String {
++    val format = PlaybackSession.getPropertyString("file-format")?.lowercase(Locale.ROOT).orEmpty()
++    return when {
++      "matroska" in format -> "mkv"
++      "webm" in format -> "webm"
++      "mp4" in format || "mov" in format -> "mp4"
++      "mpegts" in format -> "ts"
++      "avi" in format -> "avi"
++      else -> "mkv"
++    }
++  }
++
+   fun selectVideoQuality(track: TrackNode) {
+     if (currentItemRequiresYtdlp() && !MpvConfigOverridePolicy.isOwnedByMpvConf("ytdl-format")) {
+       val selectedAudio = pairedYtdlTrack(track, TrackNode::isAudio)
+@@ -1522,6 +1576,9 @@ class PlayerViewModel : ViewModel(),
+   private val _controlsShown = MutableStateFlow(false)
+   val controlsShown: StateFlow<Boolean> = _controlsShown.asStateFlow()
+ 
++  private val _controlsInteractionEpoch = MutableStateFlow(0L)
++  val controlsInteractionEpoch: StateFlow<Long> = _controlsInteractionEpoch.asStateFlow()
++
+   private val _seekBarShown = MutableStateFlow(false)
+   val seekBarShown: StateFlow<Boolean> = _seekBarShown.asStateFlow()
+ 
+@@ -4362,6 +4419,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
+       }
+     }
+     _controlsShown.value = true
++    _controlsInteractionEpoch.value++
+     controlsVisibleForPolling = true
+   }
+ 
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControls.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControls.kt
+index b4cdc068..9aa9d7fc 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControls.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControls.kt
+@@ -219,6 +219,7 @@ fun PlayerControls(
+   val showControlsDrawer by playerPreferences.showControlsDrawer.collectAsState()
+   val interactionSource = remember { MutableInteractionSource() }
+   val controlsShown by viewModel.controlsShown.collectAsState()
++  val controlsInteractionEpoch by viewModel.controlsInteractionEpoch.collectAsState()
+   val tvPlayFocusRequester = rememberTvInitialFocusRequester(enabled = controlsShown)
+   val statisticsPage by advancedPreferences.enabledStatisticsPage.collectAsState()
+   val areControlsLocked by viewModel.areControlsLocked.collectAsState()
+@@ -522,6 +523,7 @@ fun PlayerControls(
+ 
+   LaunchedEffect(
+     controlsShown,
++    controlsInteractionEpoch,
+     paused,
+     isSeeking,
+     resetControlsTimestamp,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerSheets.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerSheets.kt
+index 5b7f48ef..26108581 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerSheets.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerSheets.kt
+@@ -24,6 +24,9 @@ import androidx.compose.runtime.setValue
+ import androidx.compose.ui.platform.LocalContext
+ import com.quantummpv.app.R
+ import com.quantummpv.app.domain.download.AppDownloadManager
++import com.quantummpv.app.domain.download.DownloadLocations
++import com.quantummpv.app.domain.download.DownloadMetadata
++import com.quantummpv.app.domain.download.DownloadSources
+ import com.quantummpv.app.domain.download.YtdlpDownloadEngine
+ import com.quantummpv.app.preferences.AdvancedPreferences
+ import com.quantummpv.app.preferences.MpvConfigControlledFeatures
+@@ -619,14 +622,31 @@ private fun rememberQualityDownloadAction(viewModel: PlayerViewModel): ((TrackNo
+   val ytdlpEngine = koinInject<YtdlpDownloadEngine>()
+   var pendingRequest by remember { mutableStateOf<PlayerViewModel.QualityDownloadRequest?>(null) }
+ 
+-  val enqueueRequest: (PlayerViewModel.QualityDownloadRequest) -> Unit = { request ->
+-    ytdlpEngine.enqueue(
+-      url = request.sourceUrl,
+-      title = request.title,
+-      directory = downloadManager.locations.linksDir(),
+-      formatSelector = request.formatSelector,
+-      mergeSeparateStreams = request.mergeSeparateStreams,
+-    )
++  val enqueueRequest: (PlayerViewModel.QualityDownloadRequest) -> Unit = enqueue@{ request ->
++    if (request.jellyfinItemId != null) {
++      downloadManager.enqueueVideo(
++        url = request.sourceUrl,
++        directory = downloadManager.locations.linksDir(),
++        fileName = "${DownloadLocations.sanitizeName(request.title)}.${request.fileExtension}",
++        meta =
++          DownloadMetadata(
++            source = DownloadSources.JELLYFIN,
++            title = request.title,
++            sourceUrl = request.sourceUrl,
++            jellyfinItemId = request.jellyfinItemId,
++          ),
++        headers = request.headers,
++      )
++    } else {
++      val formatSelector = request.formatSelector ?: return@enqueue
++      ytdlpEngine.enqueue(
++        url = request.sourceUrl,
++        title = request.title,
++        directory = downloadManager.locations.linksDir(),
++        formatSelector = formatSelector,
++        mergeSeparateStreams = request.mergeSeparateStreams,
++      )
++    }
+     Toast.makeText(context, R.string.downloads_queued, Toast.LENGTH_SHORT).show()
+   }
+   val locationPicker =
+-- 
+2.25.1
+

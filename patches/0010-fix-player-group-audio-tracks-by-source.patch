@@ -1,0 +1,223 @@
+From ff16f77bb2a25a0eba8bb43b15df0ba4e585880e Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <riteshp2001@gmail.com>
+Date: Fri, 4 Sep 2026 10:38:51 +0530
+Subject: [PATCH 010/140] fix(player): group audio tracks by source
+
+---
+ .../components/sheets/AudioTracksSheet.kt     | 39 ++++++++++++++++++-
+ app/src/main/res/values-ar/strings.xml        |  2 +
+ app/src/main/res/values-de/strings.xml        |  2 +
+ app/src/main/res/values-es/strings.xml        |  2 +
+ app/src/main/res/values-fr/strings.xml        |  2 +
+ app/src/main/res/values-hi/strings.xml        |  2 +
+ app/src/main/res/values-ja/strings.xml        |  2 +
+ app/src/main/res/values-pt-rBR/strings.xml    |  2 +
+ app/src/main/res/values-ru/strings.xml        |  2 +
+ app/src/main/res/values-zh-rCN/strings.xml    |  2 +
+ app/src/main/res/values/strings.xml           |  2 +
+ 11 files changed, 58 insertions(+), 1 deletion(-)
+
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/AudioTracksSheet.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/AudioTracksSheet.kt
+index f56afa05..6a52f99a 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/AudioTracksSheet.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/AudioTracksSheet.kt
+@@ -30,6 +30,7 @@ import androidx.compose.material3.RadioButton
+ import androidx.compose.material3.Text
+ import androidx.compose.runtime.Composable
+ import androidx.compose.runtime.getValue
++import androidx.compose.runtime.remember
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.res.stringResource
+@@ -64,6 +65,10 @@ fun AudioTracksSheet(
+ ) {
+   val audioPreferences = koinInject<AudioPreferences>()
+   val audioChannels by audioPreferences.audioChannels.collectAsState()
++  val (embeddedTracks, externalTracks) =
++    remember(tracks) {
++      tracks.partition { track -> track.external != true }
++    }
+ 
+   PlayerSheet(onDismissRequest) {
+     Column(modifier) {
+@@ -83,7 +88,25 @@ fun AudioTracksSheet(
+       )
+ 
+       LazyColumn {
+-        items(tracks, key = { it.id }) {
++        if (embeddedTracks.isNotEmpty()) {
++          item(key = "embedded_audio_tracks_header") {
++            AudioTrackSectionHeader(stringResource(R.string.player_sheets_embedded_audio_tracks))
++          }
++        }
++        items(embeddedTracks, key = { it.id }) {
++          AudioTrackRow(
++            title = getTrackTitle(it),
++            details = audioTrackDetails(it),
++            isSelected = it.isSelected,
++            onClick = { onSelect(it) },
++          )
++        }
++        if (externalTracks.isNotEmpty()) {
++          item(key = "external_audio_tracks_header") {
++            AudioTrackSectionHeader(stringResource(R.string.player_sheets_external_audio_tracks))
++          }
++        }
++        items(externalTracks, key = { it.id }) {
+           AudioTrackRow(
+             title = getTrackTitle(it),
+             details = audioTrackDetails(it),
+@@ -165,6 +188,20 @@ fun AudioTracksSheet(
+   }
+ }
+ 
++@Composable
++private fun AudioTrackSectionHeader(title: String) {
++  Text(
++    text = title,
++    modifier =
++      Modifier
++        .fillMaxWidth()
++        .padding(horizontal = MaterialTheme.spacing.medium, vertical = MaterialTheme.spacing.extraSmall),
++    style = MaterialTheme.typography.labelLarge,
++    color = MaterialTheme.colorScheme.primary,
++    fontWeight = FontWeight.Bold,
++  )
++}
++
+ @Composable
+ fun AudioTrackRow(
+   title: String,
+diff --git a/app/src/main/res/values-ar/strings.xml b/app/src/main/res/values-ar/strings.xml
+index fa8ec1cd..64776c44 100644
+--- a/app/src/main/res/values-ar/strings.xml
++++ b/app/src/main/res/values-ar/strings.xml
+@@ -373,6 +373,8 @@
+   <string name="pref_about_donate_upi">UPI</string>
+   <string name="player_sheets_add_ext_sub">إضافة ترجمة خارجية</string>
+   <string name="player_sheets_add_ext_audio">إضافة مسارات صوت خارجية</string>
++  <string name="player_sheets_embedded_audio_tracks">مسارات صوت مضمنة</string>
++  <string name="player_sheets_external_audio_tracks">مسارات صوت خارجية</string>
+   <string name="player_sheets_tracks_off">إيقاف</string>
+   <string name="player_sheets_off">إيقاف</string>
+   <string name="player_sheets_subtitles_settings_title">إعدادات الترجمة</string>
+diff --git a/app/src/main/res/values-de/strings.xml b/app/src/main/res/values-de/strings.xml
+index 02e05142..55369d1e 100644
+--- a/app/src/main/res/values-de/strings.xml
++++ b/app/src/main/res/values-de/strings.xml
+@@ -373,6 +373,8 @@ Weiter: NEXT</string>
+   <string name="pref_about_donate_upi">UPI</string>
+   <string name="player_sheets_add_ext_sub">Externe Untertitel hinzufügen</string>
+   <string name="player_sheets_add_ext_audio">Externe Audiospuren hinzufügen</string>
++  <string name="player_sheets_embedded_audio_tracks">Eingebettete Audiospuren</string>
++  <string name="player_sheets_external_audio_tracks">Externe Audiospuren</string>
+   <string name="player_sheets_tracks_off">Aus</string>
+   <string name="player_sheets_off">Aus</string>
+   <string name="player_sheets_subtitles_settings_title">Untertiteleinstellungen</string>
+diff --git a/app/src/main/res/values-es/strings.xml b/app/src/main/res/values-es/strings.xml
+index df3442b1..4295991c 100644
+--- a/app/src/main/res/values-es/strings.xml
++++ b/app/src/main/res/values-es/strings.xml
+@@ -373,6 +373,8 @@ Siguiente: NEXT</string>
+   <string name="pref_about_donate_upi">UPI</string>
+   <string name="player_sheets_add_ext_sub">Añadir subtítulos externos</string>
+   <string name="player_sheets_add_ext_audio">Añadir pistas de audio externas</string>
++  <string name="player_sheets_embedded_audio_tracks">Pistas de audio incrustadas</string>
++  <string name="player_sheets_external_audio_tracks">Pistas de audio externas</string>
+   <string name="player_sheets_tracks_off">Desactivado</string>
+   <string name="player_sheets_off">Desactivado</string>
+   <string name="player_sheets_subtitles_settings_title">Ajustes de subtítulos</string>
+diff --git a/app/src/main/res/values-fr/strings.xml b/app/src/main/res/values-fr/strings.xml
+index 431d482a..e4b8c91b 100644
+--- a/app/src/main/res/values-fr/strings.xml
++++ b/app/src/main/res/values-fr/strings.xml
+@@ -373,6 +373,8 @@ Suivant : NEXT</string>
+   <string name="pref_about_donate_upi">UPI</string>
+   <string name="player_sheets_add_ext_sub">Ajouter des sous-titres externes</string>
+   <string name="player_sheets_add_ext_audio">Ajouter des pistes audio externes</string>
++  <string name="player_sheets_embedded_audio_tracks">Pistes audio intégrées</string>
++  <string name="player_sheets_external_audio_tracks">Pistes audio externes</string>
+   <string name="player_sheets_tracks_off">Désactivé</string>
+   <string name="player_sheets_off">Désactivé</string>
+   <string name="player_sheets_subtitles_settings_title">Paramètres des sous-titres</string>
+diff --git a/app/src/main/res/values-hi/strings.xml b/app/src/main/res/values-hi/strings.xml
+index f1f838b3..2ab5f324 100644
+--- a/app/src/main/res/values-hi/strings.xml
++++ b/app/src/main/res/values-hi/strings.xml
+@@ -366,6 +366,8 @@
+   <string name="pref_about_donate_upi_id">aadiinarvekar@upi</string>
+   <string name="player_sheets_add_ext_sub">बाहरी सबटाइटल जोड़ें</string>
+   <string name="player_sheets_add_ext_audio">बाहरी ऑडियो ट्रैक जोड़ें</string>
++  <string name="player_sheets_embedded_audio_tracks">एंबेडेड ऑडियो ट्रैक</string>
++  <string name="player_sheets_external_audio_tracks">बाहरी ऑडियो ट्रैक</string>
+   <string name="player_sheets_tracks_off">बंद</string>
+   <string name="player_sheets_track_title_w_lang">#%1$d: %2$s (%3$s)</string>
+   <string name="player_sheets_track_title_wo_lang">#%1$d: %2$s</string>
+diff --git a/app/src/main/res/values-ja/strings.xml b/app/src/main/res/values-ja/strings.xml
+index 30ad86e2..9b70c8f1 100644
+--- a/app/src/main/res/values-ja/strings.xml
++++ b/app/src/main/res/values-ja/strings.xml
+@@ -373,6 +373,8 @@
+   <string name="pref_about_donate_upi">UPI</string>
+   <string name="player_sheets_add_ext_sub">外部字幕を追加</string>
+   <string name="player_sheets_add_ext_audio">外部音声トラックを追加</string>
++  <string name="player_sheets_embedded_audio_tracks">埋め込み音声トラック</string>
++  <string name="player_sheets_external_audio_tracks">外部音声トラック</string>
+   <string name="player_sheets_tracks_off">オフ</string>
+   <string name="player_sheets_off">オフ</string>
+   <string name="player_sheets_subtitles_settings_title">字幕設定</string>
+diff --git a/app/src/main/res/values-pt-rBR/strings.xml b/app/src/main/res/values-pt-rBR/strings.xml
+index aebadc16..2a2ac834 100644
+--- a/app/src/main/res/values-pt-rBR/strings.xml
++++ b/app/src/main/res/values-pt-rBR/strings.xml
+@@ -373,6 +373,8 @@ Próximo: NEXT</string>
+   <string name="pref_about_donate_upi">UPI</string>
+   <string name="player_sheets_add_ext_sub">Adicionar legendas externas</string>
+   <string name="player_sheets_add_ext_audio">Adicionar faixas de áudio externas</string>
++  <string name="player_sheets_embedded_audio_tracks">Faixas de áudio embutidas</string>
++  <string name="player_sheets_external_audio_tracks">Faixas de áudio externas</string>
+   <string name="player_sheets_tracks_off">Desativado</string>
+   <string name="player_sheets_off">Desativado</string>
+   <string name="player_sheets_subtitles_settings_title">Configurações de legendas</string>
+diff --git a/app/src/main/res/values-ru/strings.xml b/app/src/main/res/values-ru/strings.xml
+index b5bea05e..ba0dbc1e 100644
+--- a/app/src/main/res/values-ru/strings.xml
++++ b/app/src/main/res/values-ru/strings.xml
+@@ -373,6 +373,8 @@
+   <string name="pref_about_donate_upi">UPI</string>
+   <string name="player_sheets_add_ext_sub">Добавить внешние субтитры</string>
+   <string name="player_sheets_add_ext_audio">Добавить внешние аудиодорожки</string>
++  <string name="player_sheets_embedded_audio_tracks">Встроенные аудиодорожки</string>
++  <string name="player_sheets_external_audio_tracks">Внешние аудиодорожки</string>
+   <string name="player_sheets_tracks_off">Выкл.</string>
+   <string name="player_sheets_off">Выкл.</string>
+   <string name="player_sheets_subtitles_settings_title">Настройки субтитров</string>
+diff --git a/app/src/main/res/values-zh-rCN/strings.xml b/app/src/main/res/values-zh-rCN/strings.xml
+index 11f55d7b..62241d82 100644
+--- a/app/src/main/res/values-zh-rCN/strings.xml
++++ b/app/src/main/res/values-zh-rCN/strings.xml
+@@ -373,6 +373,8 @@
+   <string name="pref_about_donate_upi">UPI</string>
+   <string name="player_sheets_add_ext_sub">添加外部字幕</string>
+   <string name="player_sheets_add_ext_audio">添加外部音轨</string>
++  <string name="player_sheets_embedded_audio_tracks">内嵌音轨</string>
++  <string name="player_sheets_external_audio_tracks">外部音轨</string>
+   <string name="player_sheets_tracks_off">关闭</string>
+   <string name="player_sheets_off">关闭</string>
+   <string name="player_sheets_subtitles_settings_title">字幕设置</string>
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index 8237db36..b7900454 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -433,6 +433,8 @@
+   <string name="pref_about_donate_upi_id" translatable="false">aadiinarvekar@upi</string>
+   <string name="player_sheets_add_ext_sub">Add external subtitles</string>
+   <string name="player_sheets_add_ext_audio">Add external audio tracks</string>
++  <string name="player_sheets_embedded_audio_tracks">Embedded Audio</string>
++  <string name="player_sheets_external_audio_tracks">External Audio</string>
+   <string name="player_sheets_tracks_off">Off</string>
+   <string name="player_sheets_track_title_w_lang" translatable="false">#%1$d: %2$s (%3$s)</string>
+   <string name="player_sheets_track_title_wo_lang" translatable="false">#%1$d: %2$s</string>
+-- 
+2.25.1
+

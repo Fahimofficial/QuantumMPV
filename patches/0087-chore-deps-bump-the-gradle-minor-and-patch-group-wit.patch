@@ -1,0 +1,169 @@
+From 4c37e503e094658fdcf64daad59b4087c37bf917 Mon Sep 17 00:00:00 2001
+From: "dependabot[bot]" <49699333+dependabot[bot]@users.noreply.github.com>
+Date: Mon, 14 Sep 2026 04:38:10 +0000
+Subject: [PATCH 087/140] chore(deps): bump the gradle-minor-and-patch group
+ with 9 updates
+
+Bumps the gradle-minor-and-patch group with 9 updates:
+
+| Package | From | To |
+| --- | --- | --- |
+| androidx.compose:compose-bom | `2026.08.00` | `2026.09.00` |
+| [org.jetbrains.kotlin:kotlin-test](https://github.com/JetBrains/kotlin) | `2.4.10` | `2.4.20` |
+| androidx.room:room-runtime | `2.8.4` | `2.8.5` |
+| androidx.room:room-compiler | `2.8.4` | `2.8.5` |
+| androidx.room:room-ktx | `2.8.4` | `2.8.5` |
+| androidx.room | `2.8.4` | `2.8.5` |
+| [com.google.devtools.ksp](https://github.com/google/ksp) | `2.3.11` | `2.3.12` |
+| [org.jetbrains.kotlin.plugin.compose](https://github.com/JetBrains/kotlin) | `2.4.10` | `2.4.20` |
+| [org.jetbrains.kotlin.plugin.serialization](https://github.com/JetBrains/kotlin) | `2.4.10` | `2.4.20` |
+
+
+Updates `androidx.compose:compose-bom` from 2026.08.00 to 2026.09.00
+
+Updates `org.jetbrains.kotlin:kotlin-test` from 2.4.10 to 2.4.20
+- [Release notes](https://github.com/JetBrains/kotlin/releases)
+- [Changelog](https://github.com/JetBrains/kotlin/blob/master/ChangeLog.md)
+- [Commits](https://github.com/JetBrains/kotlin/compare/v2.4.10...v2.4.20)
+
+Updates `androidx.room:room-runtime` from 2.8.4 to 2.8.5
+
+Updates `androidx.room:room-compiler` from 2.8.4 to 2.8.5
+
+Updates `androidx.room:room-ktx` from 2.8.4 to 2.8.5
+
+Updates `androidx.room` from 2.8.4 to 2.8.5
+
+Updates `androidx.room:room-compiler` from 2.8.4 to 2.8.5
+
+Updates `androidx.room:room-ktx` from 2.8.4 to 2.8.5
+
+Updates `com.google.devtools.ksp` from 2.3.11 to 2.3.12
+- [Release notes](https://github.com/google/ksp/releases)
+- [Commits](https://github.com/google/ksp/compare/2.3.11...2.3.12)
+
+Updates `org.jetbrains.kotlin.plugin.compose` from 2.4.10 to 2.4.20
+- [Release notes](https://github.com/JetBrains/kotlin/releases)
+- [Changelog](https://github.com/JetBrains/kotlin/blob/master/ChangeLog.md)
+- [Commits](https://github.com/JetBrains/kotlin/compare/v2.4.10...v2.4.20)
+
+Updates `org.jetbrains.kotlin.plugin.serialization` from 2.4.10 to 2.4.20
+- [Release notes](https://github.com/JetBrains/kotlin/releases)
+- [Changelog](https://github.com/JetBrains/kotlin/blob/master/ChangeLog.md)
+- [Commits](https://github.com/JetBrains/kotlin/compare/v2.4.10...v2.4.20)
+
+Updates `androidx.room` from 2.8.4 to 2.8.5
+
+Updates `org.jetbrains.kotlin.plugin.serialization` from 2.4.10 to 2.4.20
+- [Release notes](https://github.com/JetBrains/kotlin/releases)
+- [Changelog](https://github.com/JetBrains/kotlin/blob/master/ChangeLog.md)
+- [Commits](https://github.com/JetBrains/kotlin/compare/v2.4.10...v2.4.20)
+
+---
+updated-dependencies:
+- dependency-name: androidx.compose:compose-bom
+  dependency-version: 2026.09.00
+  dependency-type: direct:production
+  dependency-group: gradle-minor-and-patch
+- dependency-name: org.jetbrains.kotlin:kotlin-test
+  dependency-version: 2.4.20
+  dependency-type: direct:production
+  update-type: version-update:semver-patch
+  dependency-group: gradle-minor-and-patch
+- dependency-name: androidx.room:room-runtime
+  dependency-version: 2.8.5
+  dependency-type: direct:production
+  update-type: version-update:semver-patch
+  dependency-group: gradle-minor-and-patch
+- dependency-name: androidx.room:room-compiler
+  dependency-version: 2.8.5
+  dependency-type: direct:production
+  update-type: version-update:semver-patch
+  dependency-group: gradle-minor-and-patch
+- dependency-name: androidx.room:room-ktx
+  dependency-version: 2.8.5
+  dependency-type: direct:production
+  update-type: version-update:semver-patch
+  dependency-group: gradle-minor-and-patch
+- dependency-name: androidx.room
+  dependency-version: 2.8.5
+  dependency-type: direct:production
+  update-type: version-update:semver-patch
+  dependency-group: gradle-minor-and-patch
+- dependency-name: androidx.room:room-compiler
+  dependency-version: 2.8.5
+  dependency-type: direct:production
+  update-type: version-update:semver-patch
+  dependency-group: gradle-minor-and-patch
+- dependency-name: androidx.room:room-ktx
+  dependency-version: 2.8.5
+  dependency-type: direct:production
+  update-type: version-update:semver-patch
+  dependency-group: gradle-minor-and-patch
+- dependency-name: com.google.devtools.ksp
+  dependency-version: 2.3.12
+  dependency-type: direct:production
+  update-type: version-update:semver-patch
+  dependency-group: gradle-minor-and-patch
+- dependency-name: org.jetbrains.kotlin.plugin.compose
+  dependency-version: 2.4.20
+  dependency-type: direct:production
+  update-type: version-update:semver-patch
+  dependency-group: gradle-minor-and-patch
+- dependency-name: org.jetbrains.kotlin.plugin.serialization
+  dependency-version: 2.4.20
+  dependency-type: direct:production
+  update-type: version-update:semver-patch
+  dependency-group: gradle-minor-and-patch
+- dependency-name: androidx.room
+  dependency-version: 2.8.5
+  dependency-type: direct:production
+  update-type: version-update:semver-patch
+  dependency-group: gradle-minor-and-patch
+- dependency-name: org.jetbrains.kotlin.plugin.serialization
+  dependency-version: 2.4.20
+  dependency-type: direct:production
+  update-type: version-update:semver-patch
+  dependency-group: gradle-minor-and-patch
+...
+
+Signed-off-by: dependabot[bot] <support@github.com>
+---
+ gradle/libs.versions.toml | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/gradle/libs.versions.toml b/gradle/libs.versions.toml
+index 25799b95..f58d511b 100644
+--- a/gradle/libs.versions.toml
++++ b/gradle/libs.versions.toml
+@@ -3,14 +3,14 @@ agp = "9.4.0"
+ commonsNet = "3.13.0"
+ smbj = "0.15.0"
+ jsch = "2.28.7"
+-kotlin = "2.4.10"
+-ksp = "2.3.11"
+-composeBom = "2026.08.00"
++kotlin = "2.4.20"
++ksp = "2.3.12"
++composeBom = "2026.09.00"
+ activityCompose = "1.13.0"
+ koin = "4.2.2"
+ lazycolumnscrollbar = "2.2.0"
+ nanohttpd = "2.3.1"
+-room = "2.8.4"
++room = "2.8.5"
+ navigation3 = "1.1.7"
+ lifecycle = "2.10.0"
+ kotlinx-serialization = "1.11.0"
+@@ -41,7 +41,7 @@ fsaf = "1.1.3"
+ materialSymbols = "2.2.1"
+ seeker = "2.0.1"
+ markdownRenderer = "0.45.0"
+-kotlinTest = "2.4.10"
++kotlinTest = "2.4.20"
+ mediainfo = "v1.0.0-fix"
+ mpvlib = "1.0.9"
+ googleCast = "22.3.1"
+-- 
+2.25.1
+

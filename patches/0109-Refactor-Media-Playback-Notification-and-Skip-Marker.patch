@@ -1,0 +1,2001 @@
+From be610f0795939e047ad1eb2bc03c5009ba312e4d Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <riteshp2001@gmail.com>
+Date: Wed, 16 Sep 2026 13:30:15 +0530
+Subject: [PATCH 109/140] Refactor Media Playback Notification and Skip Marker
+ Logic
+
+- Updated MediaPlaybackService to utilize NotificationCompat.ProgressStyle for progress notifications, enhancing the visual representation of playback progress.
+- Removed the custom notification layout and replaced it with a more streamlined approach using built-in notification styles.
+- Improved the handling of intro segment lookups in PlayerViewModel, introducing a generation mechanism to prevent outdated lookups.
+- Enhanced SkipMarkerResolver to simplify segment validation and merging logic, ensuring more accurate skip markers.
+- Updated various string resources across multiple languages to reflect the addition of SkipDB as a marker provider option.
+---
+ README.md                                     |   2 +-
+ .../mpvrx/preferences/PlayerPreferences.kt    |   1 +
+ .../mpvrx/repository/IntroDbRepository.kt     | 538 +++++++++++-------
+ .../mpvrx/ui/player/MediaPlaybackService.kt   | 111 ++--
+ .../mpvrx/ui/player/PlaybackSession.kt        |  14 +-
+ .../mpvrx/ui/player/PlayerViewModel.kt        | 130 ++---
+ .../mpvrx/ui/player/SkipMarkerResolver.kt     |  78 +--
+ .../ui/player/controls/AudioPlayerControls.kt |  53 +-
+ .../layout/notification_playback_progress.xml | 130 -----
+ app/src/main/res/values-ar/strings.xml        |   4 +-
+ app/src/main/res/values-de/strings.xml        |   4 +-
+ app/src/main/res/values-es/strings.xml        |   4 +-
+ app/src/main/res/values-fr/strings.xml        |   4 +-
+ app/src/main/res/values-hi/strings.xml        |   4 +-
+ app/src/main/res/values-ja/strings.xml        |   4 +-
+ app/src/main/res/values-pt-rBR/strings.xml    |   4 +-
+ app/src/main/res/values-ru/strings.xml        |   4 +-
+ app/src/main/res/values-zh-rCN/strings.xml    |   4 +-
+ app/src/main/res/values/strings.xml           |   4 +-
+ 19 files changed, 509 insertions(+), 588 deletions(-)
+ delete mode 100644 app/src/main/res/layout/notification_playback_progress.xml
+
+diff --git a/README.md b/README.md
+index 1f36aa1f..d30de5bd 100644
+--- a/README.md
++++ b/README.md
+@@ -319,7 +319,7 @@ mpvRx pushes the mpv-android experience further with deep customization, thermal
+ | **Stats Page 6** | Live system monitor: FPS, dropped frames, codecs, network sparkline, battery |
+ | **Video Compressor** | Built-in FFmpeg-based compression with presets |
+ | **12 Video Filter Presets** | Vivid, Cinematic, Dramatic, Ghibli Style, Neon Pop, Deep Black, and more |
+-| **Custom Skip Segments** | Intro/outro/recap/credits/preview detection from IntroDB, TIDB, AniSkip, Anime Skip |
++| **Custom Skip Segments** | Intro/outro/recap/credits/preview detection from IntroDB, TIDB v3, AniSkip v2, Anime Skip, and SkipDB (requires an IMDb ID). Hybrid uses one validated provider result; duration-aware caches keep release versions separate. |
+ | **A-B Loop** | In-player looping with visual markers on seekbar |
+ | **Frame Navigation** | Frame-by-frame forward/backward with frame number display |
+ | **Sleep Timer** | Built-in with quick presets (15/30/45/60 min) |
+diff --git a/app/src/main/java/com/quantummpv/app/preferences/PlayerPreferences.kt b/app/src/main/java/com/quantummpv/app/preferences/PlayerPreferences.kt
+index 831960fe..cb25a4b0 100644
+--- a/app/src/main/java/com/quantummpv/app/preferences/PlayerPreferences.kt
++++ b/app/src/main/java/com/quantummpv/app/preferences/PlayerPreferences.kt
+@@ -31,6 +31,7 @@ enum class IntroSegmentProvider(
+   ANI_SKIP("AniSkip (Anime)", "aniskip"),
+   ANIME_SKIP("Anime Skip", "animeskip"),
+   HYBRID("Hybrid (Fastest)", "hybrid"),
++  SKIP_DB("SkipDB", "skipdb"),
+ }
+ 
+ enum class PlayerClockFormat(
+diff --git a/app/src/main/java/com/quantummpv/app/repository/IntroDbRepository.kt b/app/src/main/java/com/quantummpv/app/repository/IntroDbRepository.kt
+index 0162be66..7f68a9d4 100644
+--- a/app/src/main/java/com/quantummpv/app/repository/IntroDbRepository.kt
++++ b/app/src/main/java/com/quantummpv/app/repository/IntroDbRepository.kt
+@@ -10,10 +10,16 @@
+ package com.quantummpv.app.repository
+ 
+ import android.util.Log
++import com.quantummpv.app.network.awaitResponse
+ import com.quantummpv.app.preferences.IntroSegmentProvider
+ import com.quantummpv.app.utils.media.MediaInfoParser
++import kotlinx.coroutines.CancellationException
+ import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.channels.Channel
++import kotlinx.coroutines.coroutineScope
++import kotlinx.coroutines.launch
+ import kotlinx.coroutines.withContext
++import kotlinx.coroutines.withTimeoutOrNull
+ import kotlinx.serialization.SerialName
+ import kotlinx.serialization.Serializable
+ import kotlinx.serialization.json.Json
+@@ -29,12 +35,16 @@ import okhttp3.OkHttpClient
+ import okhttp3.Request
+ import okhttp3.RequestBody.Companion.toRequestBody
+ import java.net.URLEncoder
++import java.util.concurrent.TimeUnit
++import kotlin.math.abs
++import kotlin.math.roundToLong
+ 
+ enum class IntroDbResolutionSource {
+   DIRECT_IMDB,
+   DIRECT_MAL,
+   EXPLICIT_TMDB,
+   MAL_SEARCH,
++  ANIME_SKIP_SEARCH,
+   TMDB_SEARCH,
+ }
+ 
+@@ -48,6 +58,7 @@ data class IntroDbLookupRequest(
+   val season: Int? = null,
+   val episode: Int? = null,
+   val provider: IntroSegmentProvider = IntroSegmentProvider.INTRO_DB,
++  val durationSeconds: Double? = null,
+ )
+ 
+ sealed interface IntroDbLookupOutcome {
+@@ -99,10 +110,10 @@ data class IntroDbSegment(
+   val end: Double? = null,
+ ) {
+   val startSecondsOrNull: Double?
+-    get() = (startSec ?: start)?.coerceAtLeast(0.0)
++    get() = startSec ?: start
+ 
+   val endSecondsOrNull: Double?
+-    get() = (endSec ?: end)?.coerceAtLeast(0.0)
++    get() = endSec ?: end
+ 
+   val normalizedStart: Double
+     get() = startSecondsOrNull ?: 0.0
+@@ -112,6 +123,31 @@ data class IntroDbSegment(
+ 
+   val hasTimingBounds: Boolean
+     get() = startSecondsOrNull != null || endSecondsOrNull != null
++
++  internal fun validatedForDuration(durationSeconds: Double?): IntroDbSegment? {
++    val type =
++      when (segmentType?.trim()?.lowercase()) {
++        null, "intro", "opening", "op" -> "intro"
++        "recap", "summary" -> "recap"
++        "outro", "ending", "ed" -> "outro"
++        "credit", "credits" -> "credits"
++        "preview", "next", "next episode preview" -> "preview"
++        else -> return null
++      }
++    val startsAtBeginning = type == "intro" || type == "recap"
++    val duration = durationSeconds?.takeIf { it.isFinite() && it > 0.0 }
++    if (!startsAtBeginning && startSecondsOrNull == null) return null
++    if (startsAtBeginning && endSecondsOrNull == null) return null
++    val start = startSecondsOrNull ?: 0.0
++    val end = endSecondsOrNull ?: duration ?: return null
++    if (!start.isFinite() || !end.isFinite() || start < 0.0 || end <= start) return null
++    if (duration != null && (start >= duration || end > duration + 2.0)) return null
++    return IntroDbSegment(
++      segmentType = type,
++      start = start,
++      end = if (duration != null) end.coerceAtMost(duration) else end,
++    )
++  }
+ }
+ 
+ @Serializable
+@@ -136,15 +172,12 @@ private data class AniSkipLookupResponse(
+ @Serializable
+ private data class AniSkipLookupResult(
+   val interval: AniSkipInterval? = null,
+-  @SerialName("skip_type")
+   val skipType: String? = null,
+ )
+ 
+ @Serializable
+ private data class AniSkipInterval(
+-  @SerialName("start_time")
+   val startTime: Double? = null,
+-  @SerialName("end_time")
+   val endTime: Double? = null,
+ )
+ 
+@@ -176,6 +209,17 @@ private data class JikanAnimeTitle(
+ @Serializable
+ private data class AnimeSkipGraphqlResponse(
+   val data: AnimeSkipData? = null,
++  val errors: List<AnimeSkipGraphqlError> = emptyList(),
++)
++
++@Serializable
++private data class AnimeSkipGraphqlError(
++  val message: String,
++)
++
++private data class AnimeSkipSegmentMatch(
++  val episodeId: String,
++  val segments: List<IntroDbSegment>,
+ )
+ 
+ @Serializable
+@@ -196,6 +240,7 @@ private data class AnimeSkipEpisode(
+   val id: String,
+   val season: String? = null,
+   val number: String? = null,
++  val baseDuration: Double? = null,
+   val timestamps: List<AnimeSkipTimestamp> = emptyList(),
+ )
+ 
+@@ -211,16 +256,22 @@ private data class AnimeSkipTimestampType(
+ )
+ 
+ class IntroDbRepository(
+-  private val client: OkHttpClient,
++  client: OkHttpClient,
+   private val json: Json,
+ ) {
++  private val client = client.newBuilder().callTimeout(PROVIDER_LOOKUP_TIMEOUT_MS, TimeUnit.MILLISECONDS).build()
++
+   suspend fun lookupSegments(request: IntroDbLookupRequest): IntroDbLookupOutcome =
+     withContext(Dispatchers.IO) {
+       runCatching {
+         val titleForLookup = request.canonicalTitle?.takeIf { it.isNotBlank() } ?: request.mediaTitle
+         val parsed = MediaInfoParser.parse(titleForLookup)
+         val normalizedTitle = parsed.title.ifBlank { titleForLookup.substringBeforeLast('.') }.trim()
+-        val effectiveMediaType = request.mediaType ?: parsed.type
++        val effectiveMediaType =
++          when ((request.mediaType ?: parsed.type).lowercase()) {
++            "series", "tv" -> "tv"
++            else -> "movie"
++          }
+         val effectiveSeason = request.season ?: parsed.season
+         val effectiveEpisode = request.episode ?: parsed.episode
+         if (normalizedTitle.isBlank()) {
+@@ -230,50 +281,59 @@ class IntroDbRepository(
+           )
+         }
+ 
+-        when (request.provider) {
+-          IntroSegmentProvider.INTRO_DB ->
+-            lookupViaIntroDbApp(
+-              request = request,
+-              normalizedTitle = normalizedTitle,
+-              parsedYear = parsed.year,
+-              mediaType = effectiveMediaType,
+-              season = effectiveSeason,
+-              episode = effectiveEpisode,
+-            )
++        val outcome =
++          when (request.provider) {
++            IntroSegmentProvider.INTRO_DB, IntroSegmentProvider.SKIP_DB ->
++              lookupViaImdbProvider(
++                request = request,
++                normalizedTitle = normalizedTitle,
++                parsedYear = parsed.year,
++                mediaType = effectiveMediaType,
++                season = effectiveSeason,
++                episode = effectiveEpisode,
++              )
+ 
+-          IntroSegmentProvider.THE_INTRO_DB ->
+-            lookupViaTheIntroDb(
+-              request = request,
+-              normalizedTitle = normalizedTitle,
+-              parsedYear = parsed.year,
+-              mediaType = effectiveMediaType,
+-              season = effectiveSeason,
+-              episode = effectiveEpisode,
+-            )
++            IntroSegmentProvider.THE_INTRO_DB ->
++              lookupViaTheIntroDb(
++                request = request,
++                normalizedTitle = normalizedTitle,
++                parsedYear = parsed.year,
++                mediaType = effectiveMediaType,
++                season = effectiveSeason,
++                episode = effectiveEpisode,
++              )
+ 
+-          IntroSegmentProvider.ANI_SKIP ->
+-            lookupViaAniSkip(
+-              request = request,
+-              normalizedTitle = normalizedTitle,
+-              season = effectiveSeason,
+-              episode = effectiveEpisode,
+-            )
++            IntroSegmentProvider.ANI_SKIP ->
++              lookupViaAniSkip(
++                request = request,
++                normalizedTitle = normalizedTitle,
++                season = effectiveSeason,
++                episode = effectiveEpisode,
++              )
+ 
+-          IntroSegmentProvider.ANIME_SKIP ->
+-            lookupViaAnimeSkip(
+-              request = request,
+-              normalizedTitle = normalizedTitle,
+-              season = effectiveSeason,
+-              episode = effectiveEpisode,
+-            )
++            IntroSegmentProvider.ANIME_SKIP ->
++              lookupViaAnimeSkip(
++                request = request,
++                normalizedTitle = normalizedTitle,
++                season = effectiveSeason,
++                episode = effectiveEpisode,
++              )
+ 
+-          IntroSegmentProvider.HYBRID ->
+-            IntroDbLookupOutcome.Error(
+-              reason = "Hybrid provider cannot be resolved sequentially",
+-              provider = IntroSegmentProvider.HYBRID,
+-            )
++            IntroSegmentProvider.HYBRID ->
++              lookupHybridSegments(request)
++          }
++        if (outcome is IntroDbLookupOutcome.Loaded) {
++          val segments = outcome.segments.mapNotNull { it.validatedForDuration(request.durationSeconds) }.distinct()
++          if (segments.isEmpty()) {
++            IntroDbLookupOutcome.NoSegments(outcome.imdbId, outcome.source, outcome.provider)
++          } else {
++            outcome.copy(segments = segments)
++          }
++        } else {
++          outcome
+         }
+       }.getOrElse { error ->
++        if (error is CancellationException) throw error
+         Log.w(TAG, "Online marker lookup failed for ${request.mediaTitle}", error)
+         IntroDbLookupOutcome.Error(
+           reason = error.message ?: "unknown error",
+@@ -282,6 +342,40 @@ class IntroDbRepository(
+       }
+     }
+ 
++  private suspend fun lookupHybridSegments(request: IntroDbLookupRequest): IntroDbLookupOutcome =
++    coroutineScope {
++      val providers = IntroSegmentProvider.entries.filter { it != IntroSegmentProvider.HYBRID }
++      val results = Channel<IntroDbLookupOutcome>(providers.size)
++      val jobs =
++        providers.map { provider ->
++          launch {
++            val result =
++              withTimeoutOrNull(PROVIDER_LOOKUP_TIMEOUT_MS) {
++                lookupSegments(request.copy(provider = provider))
++              } ?: IntroDbLookupOutcome.Error("${provider.displayName} timed out", provider)
++            results.send(result)
++          }
++        }
++      var noSegments: IntroDbLookupOutcome.NoSegments? = null
++      var failure: IntroDbLookupOutcome.Error? = null
++      try {
++        repeat(providers.size) {
++          when (val outcome = results.receive()) {
++            is IntroDbLookupOutcome.Loaded -> return@coroutineScope outcome
++            is IntroDbLookupOutcome.NoSegments -> if (noSegments == null) noSegments = outcome
++            is IntroDbLookupOutcome.Error -> if (failure == null) failure = outcome
++            is IntroDbLookupOutcome.Unresolved -> Unit
++          }
++        }
++        failure?.copy(provider = IntroSegmentProvider.HYBRID)
++          ?: noSegments?.copy(provider = IntroSegmentProvider.HYBRID)
++          ?: IntroDbLookupOutcome.Unresolved(request.mediaTitle, IntroSegmentProvider.HYBRID)
++      } finally {
++        jobs.forEach { it.cancel() }
++        results.cancel()
++      }
++    }
++
+   suspend fun getIntroDbAppSegments(
+     imdbId: String,
+     season: Int? = null,
+@@ -309,7 +403,7 @@ class IntroDbRepository(
+ 
+         client
+           .newCall(request)
+-          .execute()
++          .awaitResponse()
+           .use { response ->
+             if (response.code == 404) {
+               return@use emptyList()
+@@ -328,72 +422,87 @@ class IntroDbRepository(
+       }
+     }
+ 
++  private suspend fun getSkipDbSegments(
++    imdbId: String,
++    season: Int?,
++    episode: Int?,
++    durationSeconds: Double?,
++  ): Result<List<IntroDbSegment>> =
++    withContext(Dispatchers.IO) {
++      runCatching {
++        val url =
++          SKIPDB_SEGMENTS_URL.toHttpUrl().newBuilder()
++            .addQueryParameter("imdb_id", imdbId)
++            .addQueryParameter("adjust", "conservative")
++            .apply {
++              if (season != null) addQueryParameter("season", season.toString())
++              if (episode != null) addQueryParameter("episode", episode.toString())
++              durationSeconds?.takeIf { it.isFinite() && it > 0.0 }?.let { duration ->
++                addQueryParameter("duration", duration.toString())
++              }
++            }.build()
++        val request =
++          Request.Builder()
++            .url(url)
++            .header("User-Agent", MARKER_PROVIDER_USER_AGENT)
++            .header("Accept", "application/json")
++            .get()
++            .build()
++        client.newCall(request).awaitResponse().use { response ->
++          if (response.code == 404) return@use emptyList()
++          check(response.isSuccessful) { "SkipDB request failed with HTTP ${response.code}" }
++          val payload = json.parseToJsonElement(response.body.string()).jsonObject
++          val segments = payload["segments"] as? JsonObject ?: error("SkipDB response is missing segments")
++          listOf("intro", "recap", "outro", "preview").mapNotNull { type ->
++            val segment = (segments[type] as? JsonObject)?.toIntroDbSegment(type) ?: return@mapNotNull null
++            val start = segment.startSecondsOrNull ?: return@mapNotNull null
++            val end = segment.endSecondsOrNull ?: return@mapNotNull null
++            segment.takeIf { start.isFinite() && end.isFinite() && end > start }
++          }
++        }
++      }
++    }
++
+   suspend fun getTheIntroDbSegments(
+     tmdbId: Int? = null,
+     imdbId: String? = null,
+     mediaType: String,
+     season: Int? = null,
+     episode: Int? = null,
++    durationSeconds: Double? = null,
+   ): Result<List<IntroDbSegment>> =
+     withContext(Dispatchers.IO) {
+       runCatching {
+-        fun buildUrl(baseUrl: String): okhttp3.HttpUrl {
+-          val urlBuilder = baseUrl.toHttpUrl().newBuilder()
+-
+-          when {
+-            tmdbId != null && tmdbId > 0 -> urlBuilder.addQueryParameter("tmdb_id", tmdbId.toString())
+-            !imdbId.isNullOrBlank() -> urlBuilder.addQueryParameter("imdb_id", imdbId)
+-            else -> error("TheIntroDB lookup requires a TMDB or IMDb id")
+-          }
+-
+-          if (mediaType.equals("tv", ignoreCase = true) || mediaType.equals("series", ignoreCase = true) || season != null || episode != null) {
+-            if (season != null) urlBuilder.addQueryParameter("season", season.toString())
+-            if (episode != null) urlBuilder.addQueryParameter("episode", episode.toString())
++        val urlBuilder = THEINTRODB_MEDIA_URL.toHttpUrl().newBuilder()
++        when {
++          tmdbId != null && tmdbId > 0 -> urlBuilder.addQueryParameter("tmdb_id", tmdbId.toString())
++          !imdbId.isNullOrBlank() -> urlBuilder.addQueryParameter("imdb_id", imdbId)
++          else -> error("TheIntroDB lookup requires a TMDB or IMDb id")
++        }
++        if (mediaType.equals("tv", ignoreCase = true) || mediaType.equals("series", ignoreCase = true)) {
++          require(season != null && season > 0 && episode != null && episode > 0) {
++            "TheIntroDB episode lookup requires a season and episode"
+           }
+-          return urlBuilder.build()
++          urlBuilder.addQueryParameter("season", season.toString())
++          urlBuilder.addQueryParameter("episode", episode.toString())
+         }
+-
+-        val requestV2 =
++        durationSeconds?.takeIf { it.isFinite() && it > 0.0 }?.let { duration ->
++          urlBuilder.addQueryParameter("duration_ms", (duration * 1000.0).roundToLong().toString())
++        }
++        val request =
+           Request
+             .Builder()
+-            .url(buildUrl(THEINTRODB_MEDIA_V2_URL))
++            .url(urlBuilder.build())
+             .header("User-Agent", MARKER_PROVIDER_USER_AGENT)
+             .header("Accept", "application/json")
+             .get()
+             .build()
+ 
+-        var responseBody = ""
+-        client.newCall(requestV2).execute().use { response ->
+-          if (response.isSuccessful) {
+-            responseBody = response.body.string()
+-          } else if (response.code == 404) {
+-            // Fall back to v1 endpoint
+-            val requestV1 =
+-              Request
+-                .Builder()
+-                .url(buildUrl(THEINTRODB_MEDIA_V1_URL))
+-                .header("User-Agent", MARKER_PROVIDER_USER_AGENT)
+-                .header("Accept", "application/json")
+-                .get()
+-                .build()
+-
+-            client.newCall(requestV1).execute().use { v1Response ->
+-              if (v1Response.isSuccessful) {
+-                responseBody = v1Response.body.string()
+-              } else if (v1Response.code == 404) {
+-                return@use
+-              } else {
+-                error("TheIntroDB v1 request failed with HTTP ${v1Response.code}")
+-              }
+-            }
+-          } else {
+-            error("TheIntroDB request failed with HTTP ${response.code}")
+-          }
++        client.newCall(request).awaitResponse().use { response ->
++          if (response.code == 404) return@use emptyList()
++          check(response.isSuccessful) { "TheIntroDB request failed with HTTP ${response.code}" }
++          parseTheIntroDbMediaBody(response.body.string())
+         }
+-
+-        if (responseBody.isBlank()) return@runCatching emptyList()
+-
+-        parseTheIntroDbMediaBody(responseBody)
+       }.onFailure { error ->
+         Log.w(TAG, "Failed to fetch TheIntroDB data for tmdbId=$tmdbId imdbId=$imdbId", error)
+       }
+@@ -402,13 +511,25 @@ class IntroDbRepository(
+   suspend fun getAniSkipSegments(
+     malId: Int,
+     episode: Int,
++    durationSeconds: Double? = null,
+   ): Result<List<IntroDbSegment>> =
+     withContext(Dispatchers.IO) {
+       runCatching {
++        val url =
++          "$ANISKIP_SKIP_TIMES_URL/$malId/$episode"
++            .toHttpUrl()
++            .newBuilder()
++            .addQueryParameter("types", "op")
++            .addQueryParameter("types", "ed")
++            .addQueryParameter("types", "recap")
++            .addQueryParameter(
++              "episodeLength",
++              durationSeconds?.takeIf { it.isFinite() && it > 0.0 }?.toString() ?: "0",
++            ).build()
+         val request =
+           Request
+             .Builder()
+-            .url("$ANISKIP_SKIP_TIMES_URL/$malId/$episode?types=op&types=ed&types=mixed-op&types=mixed-ed&types=recap&types=preview&episodeLength=0")
++            .url(url)
+             .header("User-Agent", MARKER_PROVIDER_USER_AGENT)
+             .header("Accept", "application/json")
+             .get()
+@@ -416,7 +537,7 @@ class IntroDbRepository(
+ 
+         client
+           .newCall(request)
+-          .execute()
++          .awaitResponse()
+           .use { response ->
+             if (response.code == 404) {
+               return@use emptyList()
+@@ -438,14 +559,12 @@ class IntroDbRepository(
+               val start = interval.startTime
+               val end = interval.endTime
+               if (start == null && end == null) return@mapNotNull null
+-              val rawType = result.skipType?.lowercase().orEmpty()
+               val segmentType =
+-                when {
+-                  "recap" in rawType -> "recap"
+-                  "preview" in rawType -> "preview"
+-                  "ed" in rawType || "ending" in rawType -> "ending"
+-                  "op" in rawType || "opening" in rawType -> "opening"
+-                  else -> result.skipType ?: "intro"
++                when (result.skipType) {
++                  "recap" -> "recap"
++                  "ed" -> "ending"
++                  "op" -> "opening"
++                  else -> return@mapNotNull null
+                 }
+               IntroDbSegment(
+                 segmentType = segmentType,
+@@ -463,12 +582,14 @@ class IntroDbRepository(
+     showName: String,
+     season: Int?,
+     episode: Int?,
+-  ): Result<List<IntroDbSegment>> =
++    durationSeconds: Double?,
++  ): Result<AnimeSkipSegmentMatch?> =
+     withContext(Dispatchers.IO) {
+       runCatching {
+         val searchArg = json.encodeToString(JsonPrimitive(showName))
+         val gqlQuery =
+-          "{searchShows(search: $searchArg, limit: 3) {id name episodes {id season number timestamps {at type {name}}}}}"
++          "{searchShows(search: $searchArg, limit: 3) {id name episodes " +
++            "{id season number baseDuration timestamps {at type {name}}}}}"
+         val requestBody =
+           json
+             .encodeToString(
+@@ -486,7 +607,7 @@ class IntroDbRepository(
+             .build()
+ 
+         val responseBody =
+-          client.newCall(request).execute().use { response ->
++          client.newCall(request).awaitResponse().use { response ->
+             val body = response.body.string()
+             if (!response.isSuccessful) {
+               val details = body.take(300)
+@@ -496,35 +617,49 @@ class IntroDbRepository(
+             body
+           }
+ 
+-        if (responseBody.isBlank()) return@runCatching emptyList()
+-
+         val payload = json.decodeFromString<AnimeSkipGraphqlResponse>(responseBody)
+-        val shows = payload.data?.searchShows ?: emptyList()
+-        if (shows.isEmpty()) return@runCatching emptyList()
++        if (payload.errors.isNotEmpty()) {
++          error(payload.errors.joinToString("; ") { it.message })
++        }
++        val data = checkNotNull(payload.data) { "Anime Skip response is missing data" }
++        val shows = data.searchShows.orEmpty()
++        if (shows.isEmpty()) return@runCatching null
+ 
+         val normalizedSearch = normalizeTitle(showName)
++        val rankedShows =
++          shows.map { show -> show to scoreNormalizedTitleMatch(normalizedSearch, normalizeTitle(show.name)) }
++        val bestScore = rankedShows.maxOfOrNull { it.second } ?: return@runCatching null
+         val bestShow =
+-          shows.maxByOrNull { show ->
+-            scoreNormalizedTitleMatch(normalizedSearch, normalizeTitle(show.name))
+-          } ?: return@runCatching emptyList()
+-
+-        val episodeStr = episode?.toString()
+-        val seasonStr = season?.toString()
++          rankedShows.singleOrNull { it.second == bestScore && bestScore >= ANISKIP_MATCH_THRESHOLD }?.first
++            ?: return@runCatching null
++
++        val expectedEpisode = episode?.toDouble() ?: return@runCatching null
++        val duration = durationSeconds?.takeIf { it.isFinite() && it > 0.0 }
++        val episodeMatches =
++          bestShow.episodes.filter { candidate ->
++            val baseDuration = candidate.baseDuration?.takeIf { it.isFinite() && it > 0.0 }
++            candidate.number?.toDoubleOrNull() == expectedEpisode &&
++              (duration == null || baseDuration == null ||
++                abs(duration - baseDuration) <= ANIME_SKIP_DURATION_TOLERANCE_SECONDS)
++          }
++        val seasonMatches =
++          if (season == null) {
++            episodeMatches
++          } else {
++            episodeMatches.filter { it.season?.toDoubleOrNull() == season.toDouble() }.ifEmpty {
++              if (season == 1 && bestShow.episodes.all { it.season.isNullOrBlank() }) episodeMatches else emptyList()
++            }
++          }
+         val matchingEpisode =
+-          bestShow.episodes.firstOrNull { ep ->
+-            (seasonStr == null || ep.season == null || ep.season == seasonStr) &&
+-              (ep.number == episodeStr || ep.number?.toDoubleOrNull()?.toInt() == episode)
+-          } ?: return@runCatching emptyList()
++          seasonMatches.singleOrNull() ?: return@runCatching null
+ 
+         val timestamps =
+           matchingEpisode
+             .timestamps
+-            .filter { it.at != null && it.type?.name != null }
++            .filter { it.at?.isFinite() == true && it.type?.name != null }
+             .sortedBy { it.at }
+ 
+-        if (timestamps.isEmpty()) return@runCatching emptyList()
+-
+-        buildAnimeSkipSegments(timestamps)
++        AnimeSkipSegmentMatch(matchingEpisode.id, buildAnimeSkipSegments(timestamps))
+       }.onFailure { error ->
+         Log.w(TAG, "Failed to fetch Anime Skip data for $showName S${season}E$episode", error)
+       }
+@@ -532,19 +667,20 @@ class IntroDbRepository(
+ 
+   private fun buildAnimeSkipSegments(timestamps: List<AnimeSkipTimestamp>): List<IntroDbSegment> {
+     val segments = mutableListOf<IntroDbSegment>()
+-    for (i in timestamps.indices) {
+-      val current = timestamps[i]
+-      val typeName = current.type?.name?.lowercase().orEmpty()
++    for (index in timestamps.indices) {
++      val current = timestamps[index]
++      val typeName = current.type?.name?.trim()?.lowercase().orEmpty()
+       val segmentType =
+-        when {
+-          "recap" in typeName || "summary" in typeName -> "recap"
+-          "opening" in typeName || "intro" in typeName || "op" in typeName -> "opening"
+-          "ending" in typeName || "outro" in typeName || "credit" in typeName || "ed" in typeName -> "ending"
+-          "preview" in typeName || "next" in typeName -> "preview"
++        when (typeName) {
++          "recap", "summary" -> "recap"
++          "opening", "intro", "op", "new intro" -> "opening"
++          "ending", "outro", "credit", "credits", "ed", "new credits" -> "ending"
++          "preview", "next", "next episode preview" -> "preview"
+           else -> continue
+         }
+       val start = current.at ?: continue
+-      val end = timestamps.getOrNull(i + 1)?.at
++      val end = timestamps.getOrNull(index + 1)?.at
++      if (end == null && segmentType != "ending" && segmentType != "preview") continue
+       segments.add(IntroDbSegment(segmentType = segmentType, start = start, end = end))
+     }
+     return segments
+@@ -575,32 +711,20 @@ class IntroDbRepository(
+         }
+     }.getOrDefault(emptyList())
+ 
+-  private fun parseTheIntroDbMediaBody(body: String): List<IntroDbSegment> =
+-    runCatching {
+-      val element = json.parseToJsonElement(body)
+-      if (element is JsonArray) {
+-        return parseSegmentsBody(body)
+-      }
+-      val payload = element.jsonObject
+-      val segmentsArray = (payload["segments"] ?: payload["data"] ?: payload["results"]) as? JsonArray
+-      if (segmentsArray != null) {
+-        return segmentsArray.mapNotNull { it as? JsonObject }.mapNotNull { it.toIntroDbSegment("intro") }
+-      }
+-
+-      payload.entries.flatMap { (segmentType, value) ->
+-        when (value) {
+-          is JsonArray -> {
+-            value.mapNotNull { it as? JsonObject }.mapNotNull { it.toIntroDbSegment(segmentType) }
+-          }
+-          is JsonObject -> {
+-            listOfNotNull(value.toIntroDbSegment(segmentType))
+-          }
+-          else -> emptyList()
+-        }
+-      }.ifEmpty {
+-        payload.toLegacyIntroDbSegments()
++  private fun parseTheIntroDbMediaBody(body: String): List<IntroDbSegment> {
++    val payload = json.parseToJsonElement(body).jsonObject
++    check(payload["tmdb_id"] is JsonPrimitive && payload["type"] is JsonPrimitive) {
++      "Invalid TheIntroDB media response"
++    }
++    return listOf("intro", "recap", "credits", "preview").flatMap { type ->
++      val value = payload[type] ?: return@flatMap emptyList()
++      check(value is JsonArray) { "Invalid TheIntroDB $type collection" }
++      value.mapNotNull { element ->
++        check(element is JsonObject) { "Invalid TheIntroDB $type marker" }
++        element.toIntroDbSegment(type)
+       }
+-    }.getOrDefault(emptyList())
++    }
++  }
+ 
+   private fun JsonObject.toLegacyIntroDbSegments(): List<IntroDbSegment> {
+     val start = this["start"]?.jsonPrimitive?.doubleOrNull
+@@ -639,7 +763,7 @@ class IntroDbRepository(
+     }
+   }
+ 
+-  private suspend fun lookupViaIntroDbApp(
++  private suspend fun lookupViaImdbProvider(
+     request: IntroDbLookupRequest,
+     normalizedTitle: String,
+     parsedYear: String?,
+@@ -649,7 +773,7 @@ class IntroDbRepository(
+   ): IntroDbLookupOutcome {
+     request.imdbId?.takeIf { it.isNotBlank() }?.let { imdbId ->
+       return fetchSegmentsForResolvedId(
+-        provider = request.provider,
++        request = request,
+         lookupId = imdbId,
+         imdbId = imdbId,
+         mediaType = mediaType,
+@@ -661,7 +785,7 @@ class IntroDbRepository(
+ 
+     extractImdbId(request.mediaTitle, request.lookupHint, request.canonicalTitle)?.let { imdbId ->
+       return fetchSegmentsForResolvedId(
+-        provider = request.provider,
++        request = request,
+         lookupId = imdbId,
+         imdbId = imdbId,
+         mediaType = mediaType,
+@@ -671,9 +795,13 @@ class IntroDbRepository(
+       )
+     }
+ 
++    if (request.provider == IntroSegmentProvider.SKIP_DB) {
++      return IntroDbLookupOutcome.Unresolved(title = normalizedTitle, provider = request.provider)
++    }
++
+     request.tmdbId?.let { tmdbId ->
+       return fetchSegmentsForResolvedId(
+-        provider = request.provider,
++        request = request,
+         lookupId = "tmdb:$tmdbId",
+         tmdbId = tmdbId,
+         imdbId = null,
+@@ -687,7 +815,7 @@ class IntroDbRepository(
+     val match = searchTmdb(normalizedTitle, parsedYear, mediaType)
+     if (match != null) {
+       return fetchSegmentsForResolvedId(
+-        provider = request.provider,
++        request = request,
+         lookupId = "tmdb:${match.id}",
+         tmdbId = match.id,
+         imdbId = null,
+@@ -714,7 +842,7 @@ class IntroDbRepository(
+   ): IntroDbLookupOutcome {
+     request.tmdbId?.let { tmdbId ->
+       return fetchSegmentsForResolvedId(
+-        provider = request.provider,
++        request = request,
+         lookupId = "tmdb:$tmdbId",
+         tmdbId = tmdbId,
+         imdbId = request.imdbId?.takeIf { it.isNotBlank() },
+@@ -727,7 +855,7 @@ class IntroDbRepository(
+ 
+     request.imdbId?.takeIf { it.isNotBlank() }?.let { imdbId ->
+       return fetchSegmentsForResolvedId(
+-        provider = request.provider,
++        request = request,
+         lookupId = imdbId,
+         imdbId = imdbId,
+         mediaType = mediaType,
+@@ -739,7 +867,7 @@ class IntroDbRepository(
+ 
+     extractImdbId(request.mediaTitle, request.lookupHint, request.canonicalTitle)?.let { imdbId ->
+       return fetchSegmentsForResolvedId(
+-        provider = request.provider,
++        request = request,
+         lookupId = imdbId,
+         imdbId = imdbId,
+         mediaType = mediaType,
+@@ -757,7 +885,7 @@ class IntroDbRepository(
+         )
+ 
+     return fetchSegmentsForResolvedId(
+-      provider = request.provider,
++      request = request,
+       lookupId = "tmdb:${match.id}",
+       tmdbId = match.id,
+       imdbId = null,
+@@ -783,7 +911,7 @@ class IntroDbRepository(
+ 
+     extractMalId(request.mediaTitle, request.lookupHint, request.canonicalTitle)?.let { malId ->
+       return fetchSegmentsForResolvedId(
+-        provider = request.provider,
++        request = request,
+         lookupId = "MAL $malId",
+         malId = malId,
+         mediaType = "tv",
+@@ -802,7 +930,7 @@ class IntroDbRepository(
+         )
+ 
+     return fetchSegmentsForResolvedId(
+-      provider = request.provider,
++      request = request,
+       lookupId = "MAL ${match.malId}",
+       malId = match.malId,
+       mediaType = "tv",
+@@ -825,48 +953,35 @@ class IntroDbRepository(
+       )
+     }
+ 
+-    val malId =
+-      extractMalId(request.mediaTitle, request.lookupHint, request.canonicalTitle)
+-        ?: run {
+-          val searchQueries = buildAniSkipQueryCandidates(request, normalizedTitle, season)
+-          searchAniSkipAnime(searchQueries, season)?.malId
+-        }
+-
+-    if (malId == null) {
+-      return IntroDbLookupOutcome.Unresolved(
+-        title = normalizedTitle,
+-        provider = request.provider,
+-      )
+-    }
+-
+     val searchTitle = request.canonicalTitle?.takeIf { it.isNotBlank() } ?: normalizedTitle
+-    val segments =
+-      getAnimeSkipSegments(searchTitle, season, episode).getOrElse { error ->
++    val match =
++      getAnimeSkipSegments(searchTitle, season, episode, request.durationSeconds).getOrElse { error ->
++        if (error is CancellationException) throw error
+         return IntroDbLookupOutcome.Error(
+           reason = error.message ?: "Anime Skip request failed",
+           provider = request.provider,
+         )
+-      }
++      } ?: return IntroDbLookupOutcome.Unresolved(title = searchTitle, provider = request.provider)
+ 
+-    val lookupId = "mal:$malId"
+-    return if (segments.isEmpty()) {
++    val lookupId = "anime-skip:${match.episodeId}"
++    return if (match.segments.isEmpty()) {
+       IntroDbLookupOutcome.NoSegments(
+         imdbId = lookupId,
+-        source = IntroDbResolutionSource.MAL_SEARCH,
++        source = IntroDbResolutionSource.ANIME_SKIP_SEARCH,
+         provider = request.provider,
+       )
+     } else {
+       IntroDbLookupOutcome.Loaded(
+         imdbId = lookupId,
+-        segments = segments,
+-        source = IntroDbResolutionSource.MAL_SEARCH,
++        segments = match.segments,
++        source = IntroDbResolutionSource.ANIME_SKIP_SEARCH,
+         provider = request.provider,
+       )
+     }
+   }
+ 
+   private suspend fun fetchSegmentsForResolvedId(
+-    provider: IntroSegmentProvider,
++    request: IntroDbLookupRequest,
+     lookupId: String,
+     imdbId: String? = null,
+     tmdbId: Int? = null,
+@@ -876,6 +991,8 @@ class IntroDbRepository(
+     episode: Int?,
+     source: IntroDbResolutionSource,
+   ): IntroDbLookupOutcome {
++    val provider = request.provider
++    val durationSeconds = request.durationSeconds
+     val useEpisodeHints = mediaType.equals("tv", ignoreCase = true)
+     val segments =
+       when (provider) {
+@@ -893,6 +1010,7 @@ class IntroDbRepository(
+               mediaType = mediaType,
+               season = season.takeIf { useEpisodeHints },
+               episode = episode.takeIf { useEpisodeHints },
++              durationSeconds = durationSeconds,
+             )
+           } else {
+             Result.failure(IllegalArgumentException("IntroDB lookup requires an IMDb or TMDB ID"))
+@@ -905,12 +1023,26 @@ class IntroDbRepository(
+             mediaType = mediaType,
+             season = season.takeIf { useEpisodeHints },
+             episode = episode.takeIf { useEpisodeHints },
++            durationSeconds = durationSeconds,
+           )
+ 
++        IntroSegmentProvider.SKIP_DB ->
++          if (!imdbId.isNullOrBlank()) {
++            getSkipDbSegments(
++              imdbId = imdbId,
++              season = season.takeIf { useEpisodeHints },
++              episode = episode.takeIf { useEpisodeHints },
++              durationSeconds = durationSeconds,
++            )
++          } else {
++            return IntroDbLookupOutcome.Unresolved(title = request.mediaTitle, provider = provider)
++          }
++
+         IntroSegmentProvider.ANI_SKIP ->
+           getAniSkipSegments(
+             malId = malId ?: error("AniSkip lookup requires a MAL id"),
+             episode = episode.takeIf { useEpisodeHints } ?: error("AniSkip lookup requires an episode number"),
++            durationSeconds = durationSeconds,
+           )
+ 
+         IntroSegmentProvider.ANIME_SKIP ->
+@@ -922,14 +1054,20 @@ class IntroDbRepository(
+         throw error
+       }
+ 
++    val resolvedProvider =
++      if (provider == IntroSegmentProvider.INTRO_DB && imdbId.isNullOrBlank()) {
++        IntroSegmentProvider.THE_INTRO_DB
++      } else {
++        provider
++      }
+     return if (segments.isEmpty()) {
+-      IntroDbLookupOutcome.NoSegments(imdbId = lookupId, source = source, provider = provider)
++      IntroDbLookupOutcome.NoSegments(imdbId = lookupId, source = source, provider = resolvedProvider)
+     } else {
+       IntroDbLookupOutcome.Loaded(
+         imdbId = lookupId,
+         segments = segments,
+         source = source,
+-        provider = provider,
++        provider = resolvedProvider,
+       )
+     }
+   }
+@@ -1016,7 +1154,7 @@ class IntroDbRepository(
+         .get()
+         .build()
+ 
+-    return client.newCall(request).execute().use { response ->
++    return client.newCall(request).awaitResponse().use { response ->
+       if (!response.isSuccessful) {
+         error("AniSkip MAL search failed with HTTP ${response.code}")
+       }
+@@ -1158,7 +1296,7 @@ class IntroDbRepository(
+       else -> "${season}th"
+     }
+ 
+-  private fun searchTmdb(
++  private suspend fun searchTmdb(
+     title: String,
+     year: String?,
+     mediaType: String,
+@@ -1172,7 +1310,7 @@ class IntroDbRepository(
+         .build()
+ 
+     val results =
+-      client.newCall(request).execute().use { response ->
++      client.newCall(request).awaitResponse().use { response ->
+         if (!response.isSuccessful) {
+           error("TMDB search failed with HTTP ${response.code}")
+         }
+@@ -1254,9 +1392,10 @@ class IntroDbRepository(
+ 
+   companion object {
+     private const val TAG = "IntroDbRepository"
+-    private const val THEINTRODB_MEDIA_V2_URL = "https://api.theintrodb.org/v2/media"
+-    private const val THEINTRODB_MEDIA_V1_URL = "https://api.theintrodb.org/v1/media"
+-    private const val ANISKIP_SKIP_TIMES_URL = "https://api.aniskip.com/v1/skip-times"
++    private const val PROVIDER_LOOKUP_TIMEOUT_MS = 8_000L
++    private const val THEINTRODB_MEDIA_URL = "https://api.theintrodb.org/v3/media"
++    private const val SKIPDB_SEGMENTS_URL = "https://api.skipdb.tv/api/segments"
++    private const val ANISKIP_SKIP_TIMES_URL = "https://api.aniskip.com/v2/skip-times"
+     private const val JIKAN_SEARCH_URL = "https://api.jikan.moe/v4/anime"
+     private const val MARKER_PROVIDER_USER_AGENT =
+       "Mozilla/5.0 (Windows NT 6.1; Win64; rv:109.0) Gecko/20100101 Firefox/109.0"
+@@ -1265,6 +1404,7 @@ class IntroDbRepository(
+     private const val ANISKIP_MATCH_THRESHOLD = 60
+     private const val TMDB_SEARCH_URL = "https://sub.wyzie.io/api/tmdb/search"
+     private const val ANIME_SKIP_GRAPHQL_URL = "https://api.anime-skip.com/graphql"
++    private const val ANIME_SKIP_DURATION_TOLERANCE_SECONDS = 2.0
+     private const val ANIME_SKIP_CLIENT_ID = "ZGfO0sMF3eCwLYf8yMSCJjlynwNGRXWE"
+     private val JSON_MEDIA_TYPE = "application/json".toMediaType()
+     private val imdbIdRegex = Regex("""tt\d{7,9}""", RegexOption.IGNORE_CASE)
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/MediaPlaybackService.kt b/app/src/main/java/com/quantummpv/app/ui/player/MediaPlaybackService.kt
+index 78e69aec..6f18be39 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/MediaPlaybackService.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/MediaPlaybackService.kt
+@@ -1156,7 +1156,7 @@ class MediaPlaybackService :
+   private fun useProgressNotification(): Boolean = currentNotificationStyle() == NotificationStyle.Progress
+ 
+   /**
+-  * A custom progress notification and an active MediaSession are two independent System UI
++  * A ProgressStyle notification and an active MediaSession are two independent System UI
+    * surfaces on Android 16. Publishing both makes one selected notification preference appear as
+    * two playback cards. Media Controls owns the MediaSession surface; Progress with Chapters owns
+    * only the foreground notification and keeps its transport actions on explicit PendingIntents.
+@@ -1479,53 +1479,29 @@ class MediaPlaybackService :
+       resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK ==
+         android.content.res.Configuration.UI_MODE_NIGHT_YES
+     val progressColor = getColor(if (isDark) android.R.color.system_accent1_200 else android.R.color.system_accent1_600)
+-    val progressBitmap = if (maximum > 0) notificationProgressBitmap(maximum, position, progressColor) else null
+-    val actions = listOf(prevAction(), playPauseAction(), nextAction(), favoriteAction(), stopAction())
+-    val actionViews = listOf(
+-      R.id.notification_previous,
+-      R.id.notification_play_pause,
+-      R.id.notification_next,
+-      R.id.notification_favorite,
+-      R.id.notification_stop,
+-    )
+-
+-    fun contentView(expanded: Boolean): android.widget.RemoteViews =
+-      android.widget.RemoteViews(packageName, R.layout.notification_playback_progress).apply {
+-        setTextViewText(R.id.notification_media_title, title)
+-        setTextViewText(R.id.notification_timeline, timeline)
+-        setTextViewText(R.id.notification_chapter, chapterText)
+-        val expandedVisibility = if (expanded) android.view.View.VISIBLE else android.view.View.GONE
+-        setViewVisibility(R.id.notification_chapter, expandedVisibility)
+-        setViewVisibility(R.id.notification_actions, expandedVisibility)
+-        setContentDescription(R.id.notification_artwork, title)
+-        val artwork = thumbnail?.takeUnless { it.isRecycled }
+-        if (artwork != null) {
+-          setImageViewBitmap(R.id.notification_artwork, artwork)
+-        } else {
+-          setImageViewResource(R.id.notification_artwork, Icons.Platform.Play)
+-          setInt(R.id.notification_artwork, "setColorFilter", if (isDark) Color.WHITE else Color.BLACK)
+-        }
+-        if (progressBitmap != null) {
+-          setImageViewBitmap(R.id.notification_chapter_progress, progressBitmap)
+-          setContentDescription(R.id.notification_chapter_progress, "$timeline; $chapterText")
+-        }
+-        setViewVisibility(
+-          R.id.notification_chapter_progress,
+-          if (progressBitmap != null) android.view.View.VISIBLE else android.view.View.GONE,
+-        )
+-        setViewVisibility(
+-          R.id.notification_loading_progress,
+-          if (progressBitmap == null) android.view.View.VISIBLE else android.view.View.GONE,
+-        )
+-        setProgressBar(R.id.notification_loading_progress, 100, 0, true)
+-        actions.forEachIndexed { index, action ->
+-          val viewId = actionViews[index]
+-          action.getIconCompat()?.let { setImageViewResource(viewId, it.resId) }
+-          setInt(viewId, "setColorFilter", if (isDark) Color.WHITE else Color.BLACK)
+-          setContentDescription(viewId, action.title)
+-          action.actionIntent?.let { setOnClickPendingIntent(viewId, it) }
++    val style = NotificationCompat.ProgressStyle().setStyledByProgress(true)
++    if (maximum <= 0) {
++      style.addProgressSegment(NotificationCompat.ProgressStyle.Segment(100).setColor(progressColor))
++      style.setProgressIndeterminate(true)
++    } else {
++      val boundaries =
++        buildList {
++          add(0)
++          chapters.forEach { chapter ->
++            chapter.time
++              .takeIf { it.isFinite() && it >= 1f && it < maximum }
++              ?.let { add(it.toInt()) }
++          }
++          add(maximum)
++        }.distinct().sorted()
++      boundaries.zipWithNext().forEach { (start, end) ->
++        style.addProgressSegment(NotificationCompat.ProgressStyle.Segment(end - start).setColor(progressColor))
++        if (start > 0) {
++          style.addProgressPoint(NotificationCompat.ProgressStyle.Point(start).setColor(progressColor))
+         }
+       }
++      style.setProgress(position)
++    }
+ 
+     val builder =
+       NotificationCompat
+@@ -1533,9 +1509,12 @@ class MediaPlaybackService :
+         .setSmallIcon(R.drawable.ic_launcher_monochrome)
+         .setContentTitle(title)
+         .setContentText(timeline)
++        .setSubText(chapterText)
++        .setLargeIcon(thumbnail?.takeUnless { it.isRecycled })
+         .setContentIntent(buildContentIntent())
+         .setDeleteIntent(buildTransportIntent(ACTION_NOTIFICATION_STOP, 1005))
+         .setOngoing(!paused)
++        .setRequestPromotedOngoing(!paused)
+         .setAutoCancel(false)
+         .setSilent(true)
+         .setCategory(NotificationCompat.CATEGORY_TRANSPORT)
+@@ -1545,41 +1524,19 @@ class MediaPlaybackService :
+         .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+         .setOnlyAlertOnce(true)
+         .setShowWhen(false)
+-        .setProgress(maximum, position, maximum <= 0)
+-        .setCustomContentView(contentView(expanded = false))
+-        .setCustomBigContentView(contentView(expanded = true))
+-        .setStyle(NotificationCompat.DecoratedCustomViewStyle())
+-    actions.forEach { builder.addInvisibleAction(it) }
++        .setStyle(style)
++        .addAction(prevAction())
++        .addAction(playPauseAction())
++        .addAction(nextAction())
++        .addAction(favoriteAction())
++        .addAction(stopAction())
++    if (maximum > 0) {
++      builder.setShortCriticalText("${position.toLong() * 100 / maximum}%")
++    }
+ 
+     return builder.build()
+   }
+ 
+-  private fun notificationProgressBitmap(maximum: Int, position: Int, color: Int): Bitmap {
+-    val bitmap = Bitmap.createBitmap(1024, 16, Bitmap.Config.ARGB_8888)
+-    val canvas = android.graphics.Canvas(bitmap)
+-    val width = bitmap.width.toFloat()
+-    val height = bitmap.height.toFloat()
+-    if (resources.configuration.layoutDirection == android.view.View.LAYOUT_DIRECTION_RTL) {
+-      canvas.scale(-1f, 1f, width / 2f, height / 2f)
+-    }
+-    val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+-    paint.color = ColorUtils.setAlphaComponent(color, 64)
+-    canvas.drawRoundRect(0f, 0f, width, height, height / 2f, height / 2f, paint)
+-    val playedWidth = width * (position.toFloat() / maximum).coerceIn(0f, 1f)
+-    canvas.save()
+-    canvas.clipRect(0f, 0f, playedWidth, height)
+-    paint.color = color
+-    canvas.drawRoundRect(0f, 0f, width, height, height / 2f, height / 2f, paint)
+-    canvas.restore()
+-    paint.xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR)
+-    chapters.mapNotNull { chapter ->
+-      chapter.time.takeIf { it.isFinite() && it > 0f && it < maximum }?.let { width * it / maximum }
+-    }.distinct().forEach { chapterPosition ->
+-      canvas.drawRect(chapterPosition - 2f, 0f, chapterPosition + 2f, height, paint)
+-    }
+-    return bitmap
+-  }
+-
+   /**
+    * Pre-Android 16: Classic MediaStyle notification with linear progress bar and chapter text.
+    * Uses the system notification surface instead of forcing a colorized card tint.
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/PlaybackSession.kt b/app/src/main/java/com/quantummpv/app/ui/player/PlaybackSession.kt
+index 41b1da6f..fd196695 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/PlaybackSession.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/PlaybackSession.kt
+@@ -921,9 +921,20 @@ object PlaybackSession : MPVLib.EventObserver {
+   }
+ 
+   fun command(vararg command: String) {
++    dispatchCommand(command, guardSeekAudio = false)
++  }
++
++  fun commandWithSeekAudioGuard(vararg command: String) {
++    dispatchCommand(command, guardSeekAudio = true)
++  }
++
++  private fun dispatchCommand(
++    command: Array<out String>,
++    guardSeekAudio: Boolean,
++  ) {
+     if (MpvConfigOverridePolicy.shouldSuppress(command)) return
+     withCore(Unit) {
+-      if (command.firstOrNull() == "seek") beginSeekAudioGuardLocked()
++      if (guardSeekAudio && command.firstOrNull() == "seek") beginSeekAudioGuardLocked()
+       if (handleAmbientShaderCommandLocked(command)) return@withCore
+       MPVLib.command(*command)
+     }
+@@ -937,7 +948,6 @@ object PlaybackSession : MPVLib.EventObserver {
+     nativeLock.withLock {
+       if (!initialized || _state.value.generation != expectedGeneration) return@withLock false
+       if (MpvConfigOverridePolicy.shouldSuppress(command)) return@withLock true
+-      if (command.firstOrNull() == "seek") beginSeekAudioGuardLocked()
+       if (!handleAmbientShaderCommandLocked(command)) MPVLib.command(*command)
+       true
+     }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt b/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
+index d4081621..557104f2 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
+@@ -98,8 +98,6 @@ import kotlinx.collections.immutable.toImmutableList
+ import kotlinx.coroutines.CoroutineScope
+ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.Job
+-import kotlinx.coroutines.async
+-import kotlinx.coroutines.awaitAll
+ import kotlinx.coroutines.currentCoroutineContext
+ import kotlinx.coroutines.delay
+ import kotlinx.coroutines.ensureActive
+@@ -335,6 +333,7 @@ class PlayerViewModel : ViewModel(),
+   private var introDbSegments: List<com.quantummpv.app.repository.IntroDbSegment> = emptyList()
+   private var introDbSourceKey: String = IntroSegmentProvider.INTRO_DB.sourceKey
+   private var introLookupJob: Job? = null
++  private var introLookupGeneration = 0L
+   private val introKeywordPatterns =
+     listOf(
+       // English/general
+@@ -2012,6 +2011,18 @@ val isBrightnessSliderShown = MutableStateFlow(false)
+         }
+     }
+ 
++    viewModelScope.launch {
++      combine(
++        playerPreferences.enableIntroDb.changes(),
++        playerPreferences.introSegmentProvider.changes(),
++      ) { enabled, provider -> enabled to provider }
++        .distinctUntilChanged()
++        .drop(1)
++        .collect {
++          currentMediaTitle.takeIf { it.isNotBlank() }?.let(::lookupIntroSegments)
++        }
++    }
++
+     viewModelScope.launch(playbackStateDispatcher) {
+       chapters
+         .collect { chapterList ->
+@@ -2746,9 +2757,10 @@ val isBrightnessSliderShown = MutableStateFlow(false)
+     const val PLAYLIST_METADATA_PREFETCH_RADIUS = 40
+     const val PLAYLIST_METADATA_PREFETCH_LIMIT = 120
+     const val INTRO_MARKER_CACHE_PREFS = "intro_marker_cache"
+-    const val INTRO_MARKER_CACHE_PREFIX = "intro_marker:v2:"
++    const val INTRO_MARKER_CACHE_PREFIX = "intro_marker:v3:"
+     const val INTRO_MARKER_CACHE_MAX_ENTRIES = 200
+-    const val INTRO_MARKER_CACHE_TTL_MS = 30L * 24L * 60L * 60L * 1000L
++    const val INTRO_MARKER_CACHE_TTL_MS = 7L * 24L * 60L * 60L * 1000L
++    const val INTRO_MARKER_EMPTY_CACHE_TTL_MS = 60L * 60L * 1000L
+     const val INTRO_MARKER_CACHE_LOADED = "loaded"
+     const val INTRO_MARKER_CACHE_NO_SEGMENTS = "no_segments"
+     const val INTRO_MARKER_CACHE_UNRESOLVED = "unresolved"
+@@ -3559,7 +3571,17 @@ val isBrightnessSliderShown = MutableStateFlow(false)
+   }
+ 
+   private fun mergeSkipSegments() {
+-    val merged = SkipMarkerResolver.merge(resolveIntroDbSegments() + chapterDerivedSegments)
++    val providerSegments = resolveIntroDbSegments()
++    val endingTypes = setOf(SkipSegmentType.OUTRO, SkipSegmentType.CREDITS)
++    val chapterFallbacks =
++      chapterDerivedSegments.filter { chapter ->
++        providerSegments.none { provider ->
++          provider.type == chapter.type ||
++            (provider.type in endingTypes && chapter.type in endingTypes) ||
++            (provider.startSeconds < chapter.endSeconds && chapter.startSeconds < provider.endSeconds)
++        }
++      }
++    val merged = SkipMarkerResolver.merge(providerSegments + chapterFallbacks)
+     skipSegmentsSnapshot = merged
+     _skipSegments.value = merged
+   }
+@@ -3584,10 +3606,20 @@ val isBrightnessSliderShown = MutableStateFlow(false)
+   }
+ 
+   private fun lookupIntroSegments(mediaTitle: String) {
++    val generation = ++introLookupGeneration
++    introLookupJob?.cancel()
++    introLookupJob = null
++    introDbSegments = emptyList()
++    _currentSkippableSegment.value = null
++    _showSkipChipAuto.value = false
++    mergeSkipSegments()
+     if (!playerPreferences.enableIntroDb.get()) {
+       pendingIntroLookupTitle = null
+-      introDbSegments = emptyList()
+-      mergeSkipSegments()
++      _introDbStatus.value =
++        IntroDbStatus(
++          state = IntroDbStatusState.DISABLED,
++          message = "Online skip markers are disabled",
++        )
+       return
+     }
+ 
+@@ -3613,6 +3645,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
+         season = lookupHints.season,
+         episode = lookupHints.episode,
+         provider = provider,
++        durationSeconds = durationSec,
+       )
+     val cacheKey = buildIntroMarkerCacheKey(lookupRequest)
+ 
+@@ -3629,76 +3662,15 @@ val isBrightnessSliderShown = MutableStateFlow(false)
+         message = "${provider.displayName}: matching title",
+       )
+ 
+-    introLookupJob?.cancel()
+     introLookupJob =
+       viewModelScope.launch {
+-        val outcome =
+-          if (provider == IntroSegmentProvider.HYBRID) {
+-            val providers =
+-              listOf(
+-                IntroSegmentProvider.INTRO_DB,
+-                IntroSegmentProvider.THE_INTRO_DB,
+-                IntroSegmentProvider.ANI_SKIP,
+-                IntroSegmentProvider.ANIME_SKIP,
+-              )
+-            val receivedOutcomes =
+-              providers
+-                .map { lookupProvider ->
+-                  async(Dispatchers.IO) {
+-                    try {
+-                      introDbRepository.lookupSegments(lookupRequest.copy(provider = lookupProvider))
+-                    } catch (cancellation: kotlinx.coroutines.CancellationException) {
+-                      throw cancellation
+-                    } catch (error: Exception) {
+-                      IntroDbLookupOutcome.Error(error.message ?: "unknown", lookupProvider)
+-                    }
+-                  }
+-                }.awaitAll()
+-            val loadedOutcomes = receivedOutcomes.filterIsInstance<IntroDbLookupOutcome.Loaded>()
+-
+-            if (loadedOutcomes.isNotEmpty()) {
+-              val primary = loadedOutcomes.first()
+-              IntroDbLookupOutcome.Loaded(
+-                imdbId = primary.imdbId,
+-                segments = loadedOutcomes.flatMap(IntroDbLookupOutcome.Loaded::segments).distinct(),
+-                source = primary.source,
+-                provider = IntroSegmentProvider.HYBRID,
+-              )
+-            } else {
+-              val fallbackOutcome =
+-                receivedOutcomes.firstOrNull { it is IntroDbLookupOutcome.NoSegments }
+-                  ?: receivedOutcomes.firstOrNull { it is IntroDbLookupOutcome.Unresolved }
+-                  ?: receivedOutcomes.firstOrNull()
+-
+-              if (fallbackOutcome != null) {
+-                when (fallbackOutcome) {
+-                  is IntroDbLookupOutcome.NoSegments ->
+-                    IntroDbLookupOutcome.NoSegments(
+-                      fallbackOutcome.imdbId,
+-                      fallbackOutcome.source,
+-                      IntroSegmentProvider.HYBRID,
+-                    )
+-                  is IntroDbLookupOutcome.Unresolved ->
+-                    IntroDbLookupOutcome.Unresolved(
+-                      fallbackOutcome.title,
+-                      IntroSegmentProvider.HYBRID,
+-                    )
+-                  is IntroDbLookupOutcome.Error ->
+-                    IntroDbLookupOutcome.Error(
+-                      fallbackOutcome.reason,
+-                      IntroSegmentProvider.HYBRID,
+-                    )
+-                  else -> fallbackOutcome
+-                }
+-              } else {
+-                IntroDbLookupOutcome.Error("No outcomes", IntroSegmentProvider.HYBRID)
+-              }
+-            }
+-          } else {
+-            introDbRepository.lookupSegments(lookupRequest)
+-          }
+-
+-        if (currentMediaTitle != lookupKey) return@launch
++        val outcome = introDbRepository.lookupSegments(lookupRequest)
++        if (
++          generation != introLookupGeneration || currentMediaTitle != lookupKey ||
++          !playerPreferences.enableIntroDb.get() || playerPreferences.introSegmentProvider.get() != provider
++        ) {
++          return@launch
++        }
+ 
+         applyIntroDbOutcome(outcome)
+         cacheIntroDbOutcome(cacheKey, outcome)
+@@ -3744,6 +3716,8 @@ val isBrightnessSliderShown = MutableStateFlow(false)
+       append(request.season?.toString().orEmpty())
+       append('|')
+       append(request.episode?.toString().orEmpty())
++      append('|')
++      append(request.durationSeconds?.toString().orEmpty())
+     }.md5()
+ 
+   private fun readIntroMarkerCacheEntry(cacheKey: String): IntroMarkerCacheEntry? {
+@@ -3756,7 +3730,9 @@ val isBrightnessSliderShown = MutableStateFlow(false)
+           return null
+         }
+ 
+-    if ((System.currentTimeMillis() - entry.cachedAtMs) > INTRO_MARKER_CACHE_TTL_MS) {
++    val ttl =
++      if (entry.outcomeType == INTRO_MARKER_CACHE_LOADED) INTRO_MARKER_CACHE_TTL_MS else INTRO_MARKER_EMPTY_CACHE_TTL_MS
++    if ((System.currentTimeMillis() - entry.cachedAtMs) > ttl) {
+       introMarkerCachePrefs.edit().remove(prefKey).apply()
+       return null
+     }
+@@ -4499,7 +4475,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
+               return
+             }
+         }
+-      PlaybackSession.command("seek", target.toString(), "absolute+keyframes")
++      PlaybackSession.commandWithSeekAudioGuard("seek", target.toString(), "absolute+keyframes")
+       delay(PREVIEW_SEEK_INTERVAL_MS)
+     }
+   }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/SkipMarkerResolver.kt b/app/src/main/java/com/quantummpv/app/ui/player/SkipMarkerResolver.kt
+index 69b66ddd..7753b32f 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/SkipMarkerResolver.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/SkipMarkerResolver.kt
+@@ -9,8 +9,8 @@
+ 
+ package com.quantummpv.app.ui.player
+ 
++import com.quantummpv.app.repository.IntroDbSegment
+ import java.util.Locale
+-import kotlin.math.abs
+ 
+ internal data class ChapterSkipMarker(
+   val title: String?,
+@@ -25,7 +25,6 @@ internal data class ProviderSkipMarker(
+ 
+ /** Shared, deterministic skip-marker rules kept independent from mpv and Android lifecycle state. */
+ internal object SkipMarkerResolver {
+-  private const val DUPLICATE_TOLERANCE_SECONDS = 0.001
+   private const val EOF_SEEK_GUARD_SECONDS = 0.25
+ 
+   fun parseCustomKeywords(value: String): List<String> =
+@@ -117,38 +116,22 @@ internal object SkipMarkerResolver {
+     durationSeconds: Double,
+     source: String,
+   ): SkipSegment? {
+-    val finiteStart = startSeconds?.takeIf { it.isFinite() }
+-    val finiteEnd = endSeconds?.takeIf { it.isFinite() }
+-    if (finiteStart == null && finiteEnd == null) return null
+-    val start = finiteStart?.coerceAtLeast(0.0) ?: 0.0
+-    val end =
+-      finiteEnd
+-        ?: durationSeconds.takeIf { it.isFinite() && it > start }
+-        ?: return null
+-    val normalizedEnd =
+-      if (durationSeconds.isFinite() && durationSeconds > 0.0) {
+-        end.coerceAtMost(durationSeconds)
+-      } else {
+-        end
+-      }
+-    if (normalizedEnd <= start) return null
+-
+-    val loweredType = segmentType?.lowercase(Locale.ROOT).orEmpty().trim()
++    val marker =
++      IntroDbSegment(segmentType = segmentType, start = startSeconds, end = endSeconds)
++        .validatedForDuration(durationSeconds) ?: return null
+     val type =
+-      when {
+-        "recap" in loweredType || "summary" in loweredType -> SkipSegmentType.RECAP
+-        "credit" in loweredType -> SkipSegmentType.CREDITS
+-        "preview" in loweredType || "next" in loweredType -> SkipSegmentType.PREVIEW
+-        "out" in loweredType ||
+-          "ending" in loweredType ||
+-          "ed" == loweredType ||
+-          "mixed-ed" in loweredType -> SkipSegmentType.OUTRO
+-        else -> SkipSegmentType.INTRO
++      when (marker.segmentType) {
++        "intro" -> SkipSegmentType.INTRO
++        "recap" -> SkipSegmentType.RECAP
++        "outro" -> SkipSegmentType.OUTRO
++        "credits" -> SkipSegmentType.CREDITS
++        "preview" -> SkipSegmentType.PREVIEW
++        else -> return null
+       }
+     return SkipSegment(
+       type = type,
+-      startSeconds = start,
+-      endSeconds = normalizedEnd,
++      startSeconds = marker.normalizedStart,
++      endSeconds = marker.normalizedEnd,
+       source = source,
+     )
+   }
+@@ -157,31 +140,16 @@ internal object SkipMarkerResolver {
+     markers: List<ProviderSkipMarker>,
+     durationSeconds: Double,
+     source: String,
+-  ): List<SkipSegment> {
+-    val ordered =
+-      markers
+-        .filter { marker ->
+-          marker.startSeconds?.isFinite() == true || marker.endSeconds?.isFinite() == true
+-        }.sortedBy { marker -> marker.startSeconds?.takeIf { it.isFinite() } ?: 0.0 }
+-
+-    return ordered.mapIndexedNotNull { index, marker ->
+-      val start = marker.startSeconds?.takeIf { it.isFinite() }?.coerceAtLeast(0.0) ?: 0.0
+-      val nextStart =
+-        ordered
+-          .asSequence()
+-          .drop(index + 1)
+-          .mapNotNull(ProviderSkipMarker::startSeconds)
+-          .filter { it.isFinite() }
+-          .firstOrNull { it > start }
++  ): List<SkipSegment> =
++    markers.mapNotNull { marker ->
+       resolveProviderSegment(
+         segmentType = marker.type,
+         startSeconds = marker.startSeconds,
+-        endSeconds = marker.endSeconds ?: nextStart,
++        endSeconds = marker.endSeconds,
+         durationSeconds = durationSeconds,
+         source = source,
+       )
+     }
+-  }
+ 
+   fun merge(segments: Iterable<SkipSegment>): List<SkipSegment> {
+     val merged = mutableListOf<SkipSegment>()
+@@ -192,19 +160,17 @@ internal object SkipMarkerResolver {
+           segment.startSeconds >= 0.0 &&
+           segment.isValid
+       }.sortedWith(
+-        compareBy<SkipSegment>(SkipSegment::startSeconds)
+-          .thenBy(SkipSegment::endSeconds)
++        compareBy<SkipSegment> { it.endSeconds - it.startSeconds }
++          .thenBy(SkipSegment::startSeconds)
+           .thenBy { it.type.ordinal },
+       ).forEach { candidate ->
+-        val duplicate =
++        val overlaps =
+           merged.any { existing ->
+-            existing.type == candidate.type &&
+-              abs(existing.startSeconds - candidate.startSeconds) <= DUPLICATE_TOLERANCE_SECONDS &&
+-              abs(existing.endSeconds - candidate.endSeconds) <= DUPLICATE_TOLERANCE_SECONDS
++            existing.startSeconds < candidate.endSeconds && candidate.startSeconds < existing.endSeconds
+           }
+-        if (!duplicate) merged += candidate
++        if (!overlaps) merged += candidate
+       }
+-    return merged
++    return merged.sortedBy(SkipSegment::startSeconds)
+   }
+ 
+   /** Avoids seeking to mpv's exact EOF while still allowing a final marker to be skipped. */
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/AudioPlayerControls.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/AudioPlayerControls.kt
+index 72b20271..8ee06d3e 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/AudioPlayerControls.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/AudioPlayerControls.kt
+@@ -15,7 +15,6 @@ import android.Manifest
+ import android.content.pm.PackageManager
+ import android.content.res.Configuration
+ import android.graphics.Bitmap
+-import android.graphics.Color as AndroidColor
+ import android.media.MediaMetadataRetriever
+ import android.net.Uri
+ import android.util.LruCache
+@@ -329,26 +328,26 @@ private fun contrastingVisualizerTone(
+   colorArgb: Int,
+   backgrounds: List<Int>,
+ ): Int {
+-  fun contrast(candidate: Int): Double = backgrounds.minOf { ColorUtils.calculateContrast(candidate, it) }
+-
+-  val base = ColorUtils.setAlphaComponent(colorArgb, 255)
+-  val contrastTarget =
+-    if (contrast(AndroidColor.BLACK) >= contrast(AndroidColor.WHITE)) AndroidColor.BLACK else AndroidColor.WHITE
+-  val minimumContrast = minOf(3.0, contrast(contrastTarget))
+-  if (contrast(base) >= minimumContrast) return base
+-
+-  var insufficientFraction = 0f
+-  var sufficientFraction = 1f
+-  repeat(12) {
+-    val fraction = (insufficientFraction + sufficientFraction) / 2f
+-    val candidate = ColorUtils.blendARGB(base, contrastTarget, fraction)
+-    if (contrast(candidate) >= minimumContrast) {
+-      sufficientFraction = fraction
+-    } else {
+-      insufficientFraction = fraction
++  val hsl = FloatArray(3)
++  ColorUtils.colorToHSL(colorArgb, hsl)
++  if (hsl[1] >= 0.12f) hsl[1] = hsl[1].coerceIn(0.45f, 0.85f)
++  val originalLightness = hsl[2].coerceIn(0.18f, 0.82f)
++  val candidates =
++    (0..32).map { step ->
++      val lightness = 0.18f + step * 0.02f
++      hsl[2] = lightness
++      val color = ColorUtils.HSLToColor(hsl)
++      val contrast =
++        backgrounds.minOf { background ->
++          ColorUtils.calculateContrast(
++            ColorUtils.compositeColors(ColorUtils.setAlphaComponent(color, 220), background),
++            background,
++          )
++        }
++      Triple(color, contrast, abs(lightness - originalLightness))
+     }
+-  }
+-  return ColorUtils.blendARGB(base, contrastTarget, sufficientFraction)
++  return candidates.filter { it.second >= 3.0 }.minByOrNull { it.third }?.first
++    ?: candidates.maxBy { it.second }.first
+ }
+ 
+ private fun VisualizerPalette.withThemeContrast(backgrounds: List<Int>): VisualizerPalette =
+@@ -366,6 +365,8 @@ private fun artworkVisualizerPalette(
+   val maximumPopulation = extracted.swatches.maxOfOrNull { it.population }?.coerceAtLeast(1) ?: 1
+   val rankedSwatches =
+     extracted.swatches
++      .filter { it.hsl[1] >= 0.18f && it.hsl[2] in 0.12f..0.88f }
++      .ifEmpty { extracted.swatches.filter { it.hsl[2] in 0.08f..0.92f }.ifEmpty { extracted.swatches } }
+       .sortedByDescending { swatch ->
+         val population = swatch.population.toFloat() / maximumPopulation
+         val centeredLightness = 1f - abs(swatch.hsl[2] - 0.52f)
+@@ -1101,17 +1102,17 @@ fun AudioPlayerControls(
+     label = "ambient_bottom_color",
+   )
+   val visualizerPalette =
+-    remember(artworkPalette, animatedAmbientTop, animatedAmbientBottom) {
++    remember(artworkPalette, targetTopColor, targetBottomColor) {
+       val surface = artworkPalette.background
+       val topBackdrop =
+         ColorUtils.compositeColors(
+-          animatedAmbientTop.copy(alpha = animatedAmbientTop.alpha * 0.65f).toArgb(),
+-          ColorUtils.compositeColors(animatedAmbientTop.toArgb(), surface),
++          targetTopColor.copy(alpha = targetTopColor.alpha * 0.65f).toArgb(),
++          ColorUtils.compositeColors(targetTopColor.toArgb(), surface),
+         )
+       val bottomBackdrop =
+         ColorUtils.compositeColors(
+-          animatedAmbientBottom.copy(alpha = animatedAmbientBottom.alpha * 0.35f).toArgb(),
+-          ColorUtils.compositeColors(animatedAmbientBottom.toArgb(), surface),
++          targetBottomColor.copy(alpha = targetBottomColor.alpha * 0.35f).toArgb(),
++          ColorUtils.compositeColors(targetBottomColor.toArgb(), surface),
+         )
+       artworkPalette.withThemeContrast(
+         listOf(surface, topBackdrop, bottomBackdrop, ColorUtils.blendARGB(topBackdrop, bottomBackdrop, 0.5f)),
+@@ -1686,7 +1687,7 @@ fun AudioPlayerControls(
+                 imageVector = if (isCurrentTrackFavorite) Icons.RoundedFilled.Favorite else Icons.RoundedFilled.FavoriteBorder,
+                 contentDescription = if (isCurrentTrackFavorite) "Remove from Favorites" else "Add to Favorites",
+                 tint = if (isCurrentTrackFavorite) Color.White else MaterialTheme.colorScheme.onSurface,
+-                modifier = Modifier.size(30.dp),
++                modifier = Modifier.size(28.dp),
+               )
+             }
+ 
+diff --git a/app/src/main/res/layout/notification_playback_progress.xml b/app/src/main/res/layout/notification_playback_progress.xml
+deleted file mode 100644
+index ca524377..00000000
+--- a/app/src/main/res/layout/notification_playback_progress.xml
++++ /dev/null
+@@ -1,130 +0,0 @@
+-<?xml version="1.0" encoding="utf-8"?>
+-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+-    android:layout_width="match_parent"
+-    android:layout_height="wrap_content"
+-    android:orientation="vertical">
+-
+-    <LinearLayout
+-        android:layout_width="match_parent"
+-        android:layout_height="40dp"
+-        android:gravity="center_vertical"
+-        android:orientation="horizontal">
+-
+-        <ImageView
+-            android:id="@+id/notification_artwork"
+-            android:layout_width="40dp"
+-            android:layout_height="40dp"
+-            android:layout_marginEnd="10dp"
+-            android:scaleType="centerCrop" />
+-
+-        <LinearLayout
+-            android:layout_width="0dp"
+-            android:layout_height="match_parent"
+-            android:layout_weight="1"
+-            android:gravity="center_vertical"
+-            android:orientation="vertical">
+-
+-            <TextView
+-                android:id="@+id/notification_media_title"
+-                android:layout_width="match_parent"
+-                android:layout_height="wrap_content"
+-                android:ellipsize="end"
+-                android:maxLines="1"
+-                android:textAppearance="@style/TextAppearance.Compat.Notification.Title"
+-                android:textSize="14sp" />
+-
+-            <TextView
+-                android:id="@+id/notification_timeline"
+-                android:layout_width="match_parent"
+-                android:layout_height="wrap_content"
+-                android:ellipsize="end"
+-                android:maxLines="1"
+-                android:textAppearance="@style/TextAppearance.Compat.Notification"
+-                android:textSize="12sp" />
+-        </LinearLayout>
+-    </LinearLayout>
+-
+-    <FrameLayout
+-        android:layout_width="match_parent"
+-        android:layout_height="4dp"
+-        android:layout_marginTop="4dp">
+-
+-        <ImageView
+-            android:id="@+id/notification_chapter_progress"
+-            android:layout_width="match_parent"
+-            android:layout_height="match_parent"
+-            android:scaleType="fitXY" />
+-
+-        <ProgressBar
+-            android:id="@+id/notification_loading_progress"
+-            style="?android:attr/progressBarStyleHorizontal"
+-            android:layout_width="match_parent"
+-            android:layout_height="match_parent"
+-            android:indeterminate="true"
+-            android:visibility="gone" />
+-    </FrameLayout>
+-
+-    <TextView
+-        android:id="@+id/notification_chapter"
+-        android:layout_width="match_parent"
+-        android:layout_height="wrap_content"
+-        android:layout_marginTop="8dp"
+-        android:ellipsize="end"
+-        android:maxLines="2"
+-        android:textAppearance="@style/TextAppearance.Compat.Notification"
+-        android:visibility="gone" />
+-
+-    <LinearLayout
+-        android:id="@+id/notification_actions"
+-        android:layout_width="match_parent"
+-        android:layout_height="48dp"
+-        android:layout_marginTop="4dp"
+-        android:orientation="horizontal"
+-        android:visibility="gone">
+-
+-        <ImageButton
+-            android:id="@+id/notification_previous"
+-            android:layout_width="0dp"
+-            android:layout_height="match_parent"
+-            android:layout_weight="1"
+-            android:background="?android:attr/selectableItemBackgroundBorderless"
+-            android:padding="12dp"
+-            android:scaleType="fitCenter" />
+-
+-        <ImageButton
+-            android:id="@+id/notification_play_pause"
+-            android:layout_width="0dp"
+-            android:layout_height="match_parent"
+-            android:layout_weight="1"
+-            android:background="?android:attr/selectableItemBackgroundBorderless"
+-            android:padding="12dp"
+-            android:scaleType="fitCenter" />
+-
+-        <ImageButton
+-            android:id="@+id/notification_next"
+-            android:layout_width="0dp"
+-            android:layout_height="match_parent"
+-            android:layout_weight="1"
+-            android:background="?android:attr/selectableItemBackgroundBorderless"
+-            android:padding="12dp"
+-            android:scaleType="fitCenter" />
+-
+-        <ImageButton
+-            android:id="@+id/notification_favorite"
+-            android:layout_width="0dp"
+-            android:layout_height="match_parent"
+-            android:layout_weight="1"
+-            android:background="?android:attr/selectableItemBackgroundBorderless"
+-            android:padding="12dp"
+-            android:scaleType="fitCenter" />
+-
+-        <ImageButton
+-            android:id="@+id/notification_stop"
+-            android:layout_width="0dp"
+-            android:layout_height="match_parent"
+-            android:layout_weight="1"
+-            android:background="?android:attr/selectableItemBackgroundBorderless"
+-            android:padding="12dp"
+-            android:scaleType="fitCenter" />
+-    </LinearLayout>
+-</LinearLayout>
+\ No newline at end of file
+diff --git a/app/src/main/res/values-ar/strings.xml b/app/src/main/res/values-ar/strings.xml
+index 7bd858d8..2d2e6666 100644
+--- a/app/src/main/res/values-ar/strings.xml
++++ b/app/src/main/res/values-ar/strings.xml
+@@ -647,7 +647,7 @@
+   <string name="pref_online_skip_markers_title">استخدام علامات تخطي عبر الإنترنت</string>
+   <string name="pref_online_skip_markers_summary">جلب علامات المقدمة والملخص والنهاية والشارات والمعاينة من المزوّد المحدد</string>
+   <string name="pref_marker_provider_title">مزوّد العلامات عبر الإنترنت</string>
+-  <string name="pref_marker_provider_summary">اختر IntroDB أو TIDB أو AniSkip أو Anime Skip لعلامات المقدمة/النهاية عبر الإنترنت</string>
++  <string name="pref_marker_provider_summary">اختر IntroDB أو TIDB أو AniSkip أو Anime Skip أو SkipDB. يستخدم وضع Hybrid أول نتيجة صالحة.</string>
+   <string name="pref_chapter_detect_title">اكتشاف المقدمة/النهاية من عناوين الفصول</string>
+   <string name="pref_chapter_detect_summary">تحليل صيغ أسماء الفصول مثل البداية/النهاية/الشارات وإنشاء علامات تخطٍ</string>
+   <string name="pref_auto_skip_intro_title">تخطي المقدمة تلقائيًا</string>
+@@ -1845,7 +1845,7 @@
+   <string name="pref_audio_effects">معالجة الصوت</string>
+   <string name="toast_file_not_found">الملف لم يعد موجودًا</string>
+   <string name="pref_audio_visualizer_style_particle">جسيمات</string>
+-  <string name="pref_section_p2p_streaming">بث P2P</string>
++  <string name="pref_section_p2p_streaming">بث P2P, مدير Ytdlp</string>
+   <string name="toast_torrent_streaming_disabled">فعّل بث التورنت P2P في الإعدادات المتقدمة أولاً</string>
+   <string name="ui_recent_stream_links">الروابط الأخيرة</string>
+   <string name="ui_torrent_files">تورنت</string>
+diff --git a/app/src/main/res/values-de/strings.xml b/app/src/main/res/values-de/strings.xml
+index da532343..33e3253b 100644
+--- a/app/src/main/res/values-de/strings.xml
++++ b/app/src/main/res/values-de/strings.xml
+@@ -647,7 +647,7 @@ Weiter: NEXT</string>
+   <string name="pref_online_skip_markers_title">Online-Sprungmarken verwenden</string>
+   <string name="pref_online_skip_markers_summary">Intro-, Rückblick-, Outro-, Abspann- und Vorschaumarken vom gewählten Anbieter abrufen</string>
+   <string name="pref_marker_provider_title">Anbieter für Online-Marken</string>
+-  <string name="pref_marker_provider_summary">IntroDB, TIDB, AniSkip oder Anime Skip für Online-Intro-/Outro-Marken auswählen</string>
++  <string name="pref_marker_provider_summary">IntroDB, TIDB, AniSkip, Anime Skip oder SkipDB auswählen. Hybrid verwendet das erste gültige Ergebnis.</string>
+   <string name="pref_chapter_detect_title">Intro/Outro anhand von Kapiteltiteln erkennen</string>
+   <string name="pref_chapter_detect_summary">Varianten wie Opening/Ending/Abspann analysieren und Sprungmarken erstellen</string>
+   <string name="pref_auto_skip_intro_title">Intro automatisch überspringen</string>
+@@ -1831,7 +1831,7 @@ Bitte starten Sie die App neu, damit alle Änderungen wirksam werden.</string>
+   <string name="pref_audio_effects">Audioverarbeitung</string>
+   <string name="toast_file_not_found">Datei ist nicht mehr vorhanden</string>
+   <string name="pref_audio_visualizer_style_particle">Partikel</string>
+-  <string name="pref_section_p2p_streaming">P2P-Streaming</string>
++  <string name="pref_section_p2p_streaming">P2P-Streaming, Ytdlp-Manager</string>
+   <string name="toast_torrent_streaming_disabled">Aktiviere zuerst P2P-Torrent-Streaming in den erweiterten Einstellungen</string>
+   <string name="ui_recent_stream_links">Letzte Links</string>
+   <string name="ui_torrent_files">Torrents</string>
+diff --git a/app/src/main/res/values-es/strings.xml b/app/src/main/res/values-es/strings.xml
+index ae5a00bf..0ebce29d 100644
+--- a/app/src/main/res/values-es/strings.xml
++++ b/app/src/main/res/values-es/strings.xml
+@@ -647,7 +647,7 @@ Siguiente: NEXT</string>
+   <string name="pref_online_skip_markers_title">Usar marcadores de salto en línea</string>
+   <string name="pref_online_skip_markers_summary">Obtener marcadores de introducción, resumen, cierre, créditos y vista previa del proveedor seleccionado</string>
+   <string name="pref_marker_provider_title">Proveedor de marcadores en línea</string>
+-  <string name="pref_marker_provider_summary">Elige IntroDB, TIDB, AniSkip o Anime Skip para marcadores en línea de introducción/cierre</string>
++  <string name="pref_marker_provider_summary">Elige IntroDB, TIDB, AniSkip, Anime Skip o SkipDB. Hybrid usa el primer resultado válido.</string>
+   <string name="pref_chapter_detect_title">Detectar introducción/cierre en los títulos de capítulos</string>
+   <string name="pref_chapter_detect_summary">Analizar variantes de nombres de capítulos como apertura/final/créditos y crear marcadores de salto</string>
+   <string name="pref_auto_skip_intro_title">Saltar introducción automáticamente</string>
+@@ -1831,7 +1831,7 @@ Reinicia la aplicación para que se apliquen todos los cambios.</string>
+   <string name="pref_audio_effects">Procesamiento de audio</string>
+   <string name="toast_file_not_found">El archivo ya no existe</string>
+   <string name="pref_audio_visualizer_style_particle">Partículas</string>
+-  <string name="pref_section_p2p_streaming">Transmisión P2P</string>
++  <string name="pref_section_p2p_streaming">Transmisión P2P, Administrador Ytdlp</string>
+   <string name="toast_torrent_streaming_disabled">Active primero la transmisión de torrents P2P en los ajustes avanzados</string>
+   <string name="ui_recent_stream_links">Enlaces recientes</string>
+   <string name="ui_torrent_files">Torrents</string>
+diff --git a/app/src/main/res/values-fr/strings.xml b/app/src/main/res/values-fr/strings.xml
+index 6fef173e..e98ae579 100644
+--- a/app/src/main/res/values-fr/strings.xml
++++ b/app/src/main/res/values-fr/strings.xml
+@@ -647,7 +647,7 @@ Suivant : NEXT</string>
+   <string name="pref_online_skip_markers_title">Utiliser les marqueurs de saut en ligne</string>
+   <string name="pref_online_skip_markers_summary">Récupérer les marqueurs d’introduction, résumé, fin, générique et aperçu auprès du fournisseur choisi</string>
+   <string name="pref_marker_provider_title">Fournisseur de marqueurs en ligne</string>
+-  <string name="pref_marker_provider_summary">Choisir IntroDB, TIDB, AniSkip ou Anime Skip pour les marqueurs d’introduction/fin en ligne</string>
++  <string name="pref_marker_provider_summary">Choisir IntroDB, TIDB, AniSkip, Anime Skip ou SkipDB. Hybrid utilise le premier résultat valide.</string>
+   <string name="pref_chapter_detect_title">Détecter l’introduction/la fin à partir des titres de chapitres</string>
+   <string name="pref_chapter_detect_summary">Analyser les variantes de titres comme ouverture/fin/générique et créer des marqueurs de saut</string>
+   <string name="pref_auto_skip_intro_title">Ignorer automatiquement l’introduction</string>
+@@ -1831,7 +1831,7 @@ Veuillez redémarrer l’application pour appliquer toutes les modifications.</s
+   <string name="pref_audio_effects">Traitement audio</string>
+   <string name="toast_file_not_found">Le fichier n\'existe plus</string>
+   <string name="pref_audio_visualizer_style_particle">Particules</string>
+-  <string name="pref_section_p2p_streaming">Streaming P2P</string>
++  <string name="pref_section_p2p_streaming">Streaming P2P, Gestionnaire Ytdlp</string>
+   <string name="toast_torrent_streaming_disabled">Activez d\'abord le streaming torrent P2P dans les paramètres avancés</string>
+   <string name="ui_recent_stream_links">Liens récents</string>
+   <string name="ui_torrent_files">Torrents</string>
+diff --git a/app/src/main/res/values-hi/strings.xml b/app/src/main/res/values-hi/strings.xml
+index 22e246a4..7b580c72 100644
+--- a/app/src/main/res/values-hi/strings.xml
++++ b/app/src/main/res/values-hi/strings.xml
+@@ -627,7 +627,7 @@
+   <string name="pref_online_skip_markers_title">ऑनलाइन स्किप मार्कर इस्तेमाल करें</string>
+   <string name="pref_online_skip_markers_summary">चुने गए प्रोवाइडर से इंट्रो, रीकैप, आउट्रो, क्रेडिट्स और प्रीव्यू मार्कर लाएं</string>
+   <string name="pref_marker_provider_title">ऑनलाइन मार्कर प्रोवाइडर</string>
+-  <string name="pref_marker_provider_summary">ऑनलाइन इंट्रो/आउट्रो मार्कर के लिए IntroDB, TIDB, AniSkip या Anime Skip चुनें</string>
++  <string name="pref_marker_provider_summary">IntroDB, TIDB, AniSkip, Anime Skip या SkipDB चुनें। Hybrid पहले मान्य परिणाम का उपयोग करता है।</string>
+   <string name="pref_chapter_detect_title">चैप्टर टाइटल से इंट्रो/आउट्रो पहचानें</string>
+   <string name="pref_chapter_detect_summary">opening/ending/credits जैसे चैप्टर नाम वेरिएंट का विश्लेषण करके स्किप मार्कर बनाएं</string>
+   <string name="pref_auto_skip_intro_title">इंट्रो ऑटो-स्किप करें</string>
+@@ -1735,7 +1735,7 @@
+   <string name="lyrics_source_local">लोकल (.lrc)</string>
+   <string name="pref_enable_p2p_streaming_title">P2P टोरेंट स्ट्रीमिंग सक्षम करें</string>
+   <string name="pref_enable_p2p_streaming_summary">मैग्नेट लिंक और टोरेंट फ़ाइलों से चलाने योग्य मीडिया स्ट्रीम करें</string>
+-  <string name="pref_section_p2p_streaming">P2P स्ट्रीमिंग</string>
++  <string name="pref_section_p2p_streaming">P2P स्ट्रीमिंग, Ytdlp मैनेजर</string>
+   <string name="toast_torrent_streaming_disabled">पहले उन्नत सेटिंग्स में P2P टोरेंट स्ट्रीमिंग सक्षम करें</string>
+   <string name="ui_recent_stream_links">हाल के लिंक</string>
+   <string name="ui_torrent_files">टोरेंट</string>
+diff --git a/app/src/main/res/values-ja/strings.xml b/app/src/main/res/values-ja/strings.xml
+index a089f75b..84e4e548 100644
+--- a/app/src/main/res/values-ja/strings.xml
++++ b/app/src/main/res/values-ja/strings.xml
+@@ -647,7 +647,7 @@
+   <string name="pref_online_skip_markers_title">オンラインのスキップマーカーを使用</string>
+   <string name="pref_online_skip_markers_summary">選択した提供元からイントロ、振り返り、アウトロ、クレジット、プレビューのマーカーを取得します</string>
+   <string name="pref_marker_provider_title">オンラインマーカーの提供元</string>
+-  <string name="pref_marker_provider_summary">オンラインのイントロ/アウトロマーカーにIntroDB、TIDB、AniSkip、Anime Skipのいずれかを選択します</string>
++  <string name="pref_marker_provider_summary">IntroDB、TIDB、AniSkip、Anime Skip、SkipDBから選択します。Hybridは最初の有効な結果を使用します。</string>
+   <string name="pref_chapter_detect_title">チャプター名からイントロ/アウトロを検出</string>
+   <string name="pref_chapter_detect_summary">opening/ending/creditsなどのチャプター名を解析し、スキップマーカーを作成します</string>
+   <string name="pref_auto_skip_intro_title">イントロを自動スキップ</string>
+@@ -1827,7 +1827,7 @@
+   <string name="pref_audio_effects">音声処理</string>
+   <string name="toast_file_not_found">ファイルはもう存在しません</string>
+   <string name="pref_audio_visualizer_style_particle">粒子</string>
+-  <string name="pref_section_p2p_streaming">P2P ストリーミング</string>
++  <string name="pref_section_p2p_streaming">P2P ストリーミング, Ytdlp マネージャー</string>
+   <string name="toast_torrent_streaming_disabled">最初に詳細設定で P2P トレントストリーミングを有効化してください</string>
+   <string name="ui_recent_stream_links">最近のリンク</string>
+   <string name="ui_torrent_files">トレント</string>
+diff --git a/app/src/main/res/values-pt-rBR/strings.xml b/app/src/main/res/values-pt-rBR/strings.xml
+index aa87f2a6..d54133e8 100644
+--- a/app/src/main/res/values-pt-rBR/strings.xml
++++ b/app/src/main/res/values-pt-rBR/strings.xml
+@@ -647,7 +647,7 @@ Próximo: NEXT</string>
+   <string name="pref_online_skip_markers_title">Usar marcadores de salto on-line</string>
+   <string name="pref_online_skip_markers_summary">Buscar marcadores de introdução, resumo, encerramento, créditos e prévia do provedor selecionado</string>
+   <string name="pref_marker_provider_title">Provedor de marcadores on-line</string>
+-  <string name="pref_marker_provider_summary">Escolher IntroDB, TIDB, AniSkip ou Anime Skip para marcadores on-line de introdução/encerramento</string>
++  <string name="pref_marker_provider_summary">Escolher IntroDB, TIDB, AniSkip, Anime Skip ou SkipDB. Hybrid usa o primeiro resultado válido.</string>
+   <string name="pref_chapter_detect_title">Detectar introdução/encerramento pelos títulos dos capítulos</string>
+   <string name="pref_chapter_detect_summary">Analisar variações como abertura/final/créditos e criar marcadores de salto</string>
+   <string name="pref_auto_skip_intro_title">Pular introdução automaticamente</string>
+@@ -1831,7 +1831,7 @@ Reinicie o aplicativo para que todas as alterações entrem em vigor.</string>
+   <string name="pref_audio_effects">Processamento de áudio</string>
+   <string name="toast_file_not_found">O arquivo não existe mais</string>
+   <string name="pref_audio_visualizer_style_particle">Partículas</string>
+-  <string name="pref_section_p2p_streaming">Streaming P2P</string>
++  <string name="pref_section_p2p_streaming">Streaming P2P, Gerenciador Ytdlp</string>
+   <string name="toast_torrent_streaming_disabled">Ative primeiro o streaming de torrents P2P nas configurações avançadas</string>
+   <string name="ui_recent_stream_links">Links recentes</string>
+   <string name="ui_torrent_files">Torrents</string>
+diff --git a/app/src/main/res/values-ru/strings.xml b/app/src/main/res/values-ru/strings.xml
+index f3c8d4a3..95ec1584 100644
+--- a/app/src/main/res/values-ru/strings.xml
++++ b/app/src/main/res/values-ru/strings.xml
+@@ -647,7 +647,7 @@
+   <string name="pref_online_skip_markers_title">Использовать сетевые метки пропуска</string>
+   <string name="pref_online_skip_markers_summary">Получать метки вступления, повтора, концовки, титров и превью от выбранного поставщика</string>
+   <string name="pref_marker_provider_title">Поставщик сетевых меток</string>
+-  <string name="pref_marker_provider_summary">Выберите IntroDB, TIDB, AniSkip или Anime Skip для сетевых меток вступления/концовки</string>
++  <string name="pref_marker_provider_summary">Выберите IntroDB, TIDB, AniSkip, Anime Skip или SkipDB. Hybrid использует первый корректный результат.</string>
+   <string name="pref_chapter_detect_title">Определять вступление/концовку по названиям глав</string>
+   <string name="pref_chapter_detect_summary">Анализировать варианты названий вроде opening/ending/credits и создавать метки пропуска</string>
+   <string name="pref_auto_skip_intro_title">Автоматически пропускать вступление</string>
+@@ -1839,7 +1839,7 @@
+   <string name="pref_audio_effects">Обработка звука</string>
+   <string name="toast_file_not_found">Файл больше не существует</string>
+   <string name="pref_audio_visualizer_style_particle">Частицы</string>
+-  <string name="pref_section_p2p_streaming">P2P-стриминг</string>
++  <string name="pref_section_p2p_streaming">P2P-стриминг, Менеджер Ytdlp</string>
+   <string name="toast_torrent_streaming_disabled">Сначала включите P2P-стриминг торрентов в расширенных настройках</string>
+   <string name="ui_recent_stream_links">Недавние ссылки</string>
+   <string name="ui_torrent_files">Торренты</string>
+diff --git a/app/src/main/res/values-zh-rCN/strings.xml b/app/src/main/res/values-zh-rCN/strings.xml
+index 3705f28c..90af93e1 100644
+--- a/app/src/main/res/values-zh-rCN/strings.xml
++++ b/app/src/main/res/values-zh-rCN/strings.xml
+@@ -649,7 +649,7 @@
+   <string name="pref_online_skip_markers_title">使用在线跳过标记</string>
+   <string name="pref_online_skip_markers_summary">从所选提供商获取片头、回顾、片尾、演职员表和预览标记</string>
+   <string name="pref_marker_provider_title">在线标记提供商</string>
+-  <string name="pref_marker_provider_summary">选择 IntroDB、TIDB、AniSkip 或 Anime Skip 获取在线片头/片尾标记</string>
++  <string name="pref_marker_provider_summary">选择 IntroDB、TIDB、AniSkip、Anime Skip 或 SkipDB。Hybrid 使用首个有效结果。</string>
+   <string name="pref_chapter_detect_title">从章节标题检测片头/片尾</string>
+   <string name="pref_chapter_detect_summary">分析 opening/ending/credits 等章节名称变体并创建跳过标记</string>
+   <string name="pref_auto_skip_intro_title">自动跳过片头</string>
+@@ -1829,7 +1829,7 @@
+   <string name="pref_audio_effects">音频处理</string>
+   <string name="toast_file_not_found">文件已不存在</string>
+   <string name="pref_audio_visualizer_style_particle">粒子</string>
+-  <string name="pref_section_p2p_streaming">P2P 流媒体播放</string>
++  <string name="pref_section_p2p_streaming">P2P 流媒体播放, Ytdlp 管理器</string>
+   <string name="toast_torrent_streaming_disabled">请先在高级设置中启用 P2P 种子流媒体播放</string>
+   <string name="ui_recent_stream_links">最近的链接</string>
+   <string name="ui_torrent_files">种子</string>
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index 7b35f581..9107b903 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -745,7 +745,7 @@
+   <string name="pref_online_skip_markers_title">Use online skip markers</string>
+   <string name="pref_online_skip_markers_summary">Fetch intro, recap, outro, credits, and preview markers from the selected provider</string>
+   <string name="pref_marker_provider_title">Online marker provider</string>
+-  <string name="pref_marker_provider_summary">Choose IntroDB, TIDB, AniSkip, or Anime Skip for online intro/outro markers</string>
++  <string name="pref_marker_provider_summary">Choose IntroDB, TIDB, AniSkip, Anime Skip, or SkipDB. Hybrid uses the first valid result.</string>
+   <string name="pref_chapter_detect_title">Detect intro/outro from chapter titles</string>
+   <string name="pref_chapter_detect_summary">Analyze chapter name variants like opening/ending/credits and create skip markers</string>
+   <string name="pref_auto_skip_intro_title">Auto-skip intro</string>
+@@ -876,7 +876,7 @@
+   <string name="pref_section_mpv_config">MPV Configuration</string>
+   <string name="pref_config_edit_summary">Tap to edit configuration</string>
+   <string name="pref_section_scripts">Scripts (Lua / JS)</string>
+-  <string name="pref_section_p2p_streaming">P2P streaming</string>
++  <string name="pref_section_p2p_streaming">P2P streaming, Ytdlp Manager</string>
+   <string name="toast_torrent_streaming_disabled">Enable P2P torrent streaming in Advanced settings first</string>
+   <string name="ui_recent_stream_links">Recent links</string>
+   <string name="ui_torrent_files">Torrents</string>
+-- 
+2.25.1
+

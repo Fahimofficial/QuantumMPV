@@ -1,0 +1,94 @@
+From 9fc52ec89744f116741d4bc604ecb99bf156fe05 Mon Sep 17 00:00:00 2001
+From: Arnab Sadhukhan <arnab@Arnabs-Mac-Mini.local>
+Date: Wed, 9 Sep 2026 21:03:36 +0530
+Subject: [PATCH 075/140] refactor(preferences): remove duplicate autoplay next
+ audio from player settings
+
+---
+ .../ui/preferences/PlayerPreferencesScreen.kt | 20 -------------------
+ .../ui/preferences/SearchablePreference.kt    | 11 +++++++++-
+ .../preferences/SettingsSearchNavigation.kt   |  1 +
+ 3 files changed, 11 insertions(+), 21 deletions(-)
+
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/PlayerPreferencesScreen.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/PlayerPreferencesScreen.kt
+index 4d143ceb..a5b95330 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/PlayerPreferencesScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/PlayerPreferencesScreen.kt
+@@ -260,26 +260,6 @@ val savePositionOnQuit by preferences.savePositionOnQuit.collectAsState()
+ 
+               PreferenceDivider()
+ 
+-              val autoplayNextAudio by preferences.autoplayNextAudio.collectAsState()
+-              SwitchPreference(
+-                modifier = Modifier.settingsSearchTarget(R.string.pref_autoplay_next_audio_title),
+-                value = autoplayNextAudio,
+-                onValueChange = preferences.autoplayNextAudio::set,
+-                title = { Text(stringResource(R.string.pref_autoplay_next_audio_title)) },
+-                summary = {
+-                  Text(
+-                    if (autoplayNextAudio) {
+-                      stringResource(R.string.pref_autoplay_next_audio_summary)
+-                    } else {
+-                      stringResource(R.string.pref_autoplay_next_audio_summary_disabled)
+-                    },
+-                    color = MaterialTheme.colorScheme.outline,
+-                  )
+-                },
+-              )
+-
+-              PreferenceDivider()
+-
+               val playlistMode by preferences.playlistMode.collectAsState()
+               SwitchPreference(
+                 modifier = Modifier.settingsSearchTarget(R.string.pref_playlist_mode_title),
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/SearchablePreference.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/SearchablePreference.kt
+index 0b741552..8da5403b 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/SearchablePreference.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/SearchablePreference.kt
+@@ -943,6 +943,15 @@ object SearchablePreferences {
+           screen = AudioPreferencesScreen,
+         ),
+       )
++      add(
++        SearchablePreference(
++          titleRes = R.string.pref_autoplay_next_audio_title,
++          summaryRes = R.string.pref_autoplay_next_audio_summary,
++          keywords = listOf("autoplay", "next", "audio", "music", "advance", "continuous"),
++          category = "Audio",
++          screen = AudioPreferencesScreen,
++        ),
++      )
+       add(
+         SearchablePreference(
+           titleRes = R.string.pref_video_background_playback_title,
+@@ -1332,7 +1341,6 @@ object SearchablePreferences {
+         category = "Player",
+         screen = PlayerPreferencesScreen,
+         anchorItemIndex = 1,
+-        SearchEntrySpec(R.string.pref_autoplay_next_audio_title, listOf("autoplay", "next", "audio", "music")),
+         SearchEntrySpec(R.string.pref_playlist_mode_title, listOf("playlist", "next", "previous", "navigation", "queue")),
+         SearchEntrySpec(R.string.pref_enable_video_mini_player_title, listOf("mini player", "video", "background", "continue")),
+         SearchEntrySpec(R.string.ui_show_media_info_in_chooser, listOf("media info", "chooser", "open with", "system")),
+@@ -1442,6 +1450,7 @@ object SearchablePreferences {
+         category = "Audio",
+         screen = AudioPreferencesScreen,
+         anchorItemIndex = 5,
++        SearchEntrySpec(R.string.pref_autoplay_next_audio_title, listOf("autoplay", "next", "audio", "music")),
+         SearchEntrySpec(R.string.pref_audio_drc_title, listOf("audio", "dynamic range", "compression", "drc", "loudness")),
+         SearchEntrySpec(R.string.pref_lyrics_auto_translate, listOf("lyrics", "translation", "automatic", "language")),
+         SearchEntrySpec(R.string.pref_lyrics_target_language, listOf("lyrics", "translation", "target", "language")),
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/SettingsSearchNavigation.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/SettingsSearchNavigation.kt
+index e7941c0f..f88519da 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/SettingsSearchNavigation.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/SettingsSearchNavigation.kt
+@@ -152,6 +152,7 @@ private val settingsSearchListAnchors: Map<Screen, List<SettingsSearchListAnchor
+         SettingsSearchListAnchor(titleRes = R.string.pref_audio_pitch_correction_title, itemIndex = 5),
+         SettingsSearchListAnchor(titleRes = R.string.pref_audio_volume_normalization_title, itemIndex = 5),
+         SettingsSearchListAnchor(titleRes = R.string.pref_audio_background_playback_title, itemIndex = 5),
++        SettingsSearchListAnchor(titleRes = R.string.pref_autoplay_next_audio_title, itemIndex = 5),
+         SettingsSearchListAnchor(titleRes = R.string.pref_audio_channels, itemIndex = 5),
+         SettingsSearchListAnchor(titleRes = R.string.pref_audio_volume_boost_cap, itemIndex = 5),
+       ),
+-- 
+2.25.1
+

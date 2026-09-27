@@ -1,0 +1,290 @@
+From 41c37b23d7cac610a046e2317d02a62fb0022f65 Mon Sep 17 00:00:00 2001
+From: Arnab Sadhukhan <arnab@Arnabs-Mac-Mini.local>
+Date: Mon, 7 Sep 2026 21:37:40 +0530
+Subject: [PATCH 046/140] feat(music): add configurable cover art size for grid
+ view
+
+---
+ .../mpvrx/preferences/BrowserPreferences.kt     |  1 +
+ .../ui/browser/dialogs/BrowserSortDialogs.kt    | 10 +++++++++-
+ .../ui/browser/jellyfin/JellyfinMusicView.kt    |  9 +++++----
+ .../ui/browser/music/MusicLibraryContent.kt     | 17 +++++++++++++----
+ .../ui/browser/navidrome/NavidromeMusicView.kt  |  9 +++++----
+ .../ui/browser/videolist/VideoListScreen.kt     |  6 +++++-
+ 6 files changed, 38 insertions(+), 14 deletions(-)
+
+diff --git a/app/src/main/java/com/quantummpv/app/preferences/BrowserPreferences.kt b/app/src/main/java/com/quantummpv/app/preferences/BrowserPreferences.kt
+index 440f38ed..e6a5eafd 100644
+--- a/app/src/main/java/com/quantummpv/app/preferences/BrowserPreferences.kt
++++ b/app/src/main/java/com/quantummpv/app/preferences/BrowserPreferences.kt
+@@ -103,6 +103,7 @@ class BrowserPreferences(
+   val separateFolderVideoLayout = preferenceStore.getBoolean("separate_folder_video_layout", false)
+   val manualGridColumnsEnabled = preferenceStore.getBoolean("manual_grid_columns_enabled", false)
+   val musicCoverArtSize = preferenceStore.getInt("music_cover_art_size", 48)
++  val musicGridCoverArtSize = preferenceStore.getInt("music_grid_cover_art_size", 145)
+ 
+   // Visibility preferences for folder card chips
+   val showTotalVideosChip = preferenceStore.getBoolean("show_total_videos_chip", true)
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/dialogs/BrowserSortDialogs.kt b/app/src/main/java/com/quantummpv/app/ui/browser/dialogs/BrowserSortDialogs.kt
+index 9e06c53d..86b1adc8 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/dialogs/BrowserSortDialogs.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/dialogs/BrowserSortDialogs.kt
+@@ -1092,6 +1092,7 @@ fun MusicSortDialog(
+ ) {
+   val browserPreferences = koinInject<BrowserPreferences>()
+   val musicCoverArtSize by browserPreferences.musicCoverArtSize.collectAsState()
++  val musicGridCoverArtSize by browserPreferences.musicGridCoverArtSize.collectAsState()
+ 
+   val fieldIcon = { field: MusicSortField ->
+     when (field) {
+@@ -1152,7 +1153,14 @@ fun MusicSortDialog(
+           unitSuffix = "dp",
+         )
+       } else {
+-        null
++        GridColumnSelector(
++          label = "Cover Art Size",
++          currentValue = musicGridCoverArtSize,
++          onValueChange = { browserPreferences.musicGridCoverArtSize.set(it) },
++          valueRange = 100f..260f,
++          steps = 31,
++          unitSuffix = "dp",
++        )
+       },
+   )
+ }
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinMusicView.kt b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinMusicView.kt
+index d187812c..bbfb4a98 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinMusicView.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinMusicView.kt
+@@ -93,6 +93,7 @@ fun JellyfinMusicView(
+ ) {
+   val browserPreferences = koinInject<BrowserPreferences>()
+   val coverArtSizeDp by browserPreferences.musicCoverArtSize.collectAsState()
++  val gridCoverArtSizeDp by browserPreferences.musicGridCoverArtSize.collectAsState()
+   val queueState by PlaybackSession.queue.collectAsStateWithLifecycle()
+   val currentSessionItem = queueState.currentItem
+ 
+@@ -151,7 +152,7 @@ fun JellyfinMusicView(
+ 
+             if (uiState.musicViewMode == MusicViewMode.GRID) {
+               LazyVerticalGrid(
+-                columns = GridCells.Adaptive(minSize = 145.dp),
++                columns = GridCells.Adaptive(minSize = gridCoverArtSizeDp.dp),
+                 modifier = Modifier.fillMaxSize(),
+                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = navigationBarHeight + 84.dp),
+                 horizontalArrangement = Arrangement.spacedBy(14.dp),
+@@ -253,7 +254,7 @@ fun JellyfinMusicView(
+ 
+             if (uiState.musicViewMode == MusicViewMode.GRID) {
+               LazyVerticalGrid(
+-                columns = GridCells.Adaptive(minSize = 145.dp),
++                columns = GridCells.Adaptive(minSize = gridCoverArtSizeDp.dp),
+                 modifier = Modifier.fillMaxSize(),
+                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = navigationBarHeight + 84.dp),
+                 horizontalArrangement = Arrangement.spacedBy(14.dp),
+@@ -333,7 +334,7 @@ fun JellyfinMusicView(
+ 
+             if (uiState.musicViewMode == MusicViewMode.GRID) {
+               LazyVerticalGrid(
+-                columns = GridCells.Adaptive(minSize = 160.dp),
++                columns = GridCells.Adaptive(minSize = (gridCoverArtSizeDp * 1.1f).toInt().dp),
+                 modifier = Modifier.fillMaxSize(),
+                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = navigationBarHeight + 84.dp),
+                 horizontalArrangement = Arrangement.spacedBy(16.dp),
+@@ -417,7 +418,7 @@ fun JellyfinMusicView(
+ 
+             if (uiState.musicViewMode == MusicViewMode.GRID) {
+               LazyVerticalGrid(
+-                columns = GridCells.Adaptive(minSize = 145.dp),
++                columns = GridCells.Adaptive(minSize = gridCoverArtSizeDp.dp),
+                 modifier = Modifier.fillMaxSize(),
+                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = navigationBarHeight + 84.dp),
+                 horizontalArrangement = Arrangement.spacedBy(14.dp),
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryContent.kt b/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryContent.kt
+index 91b26b78..bef5de4e 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryContent.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryContent.kt
+@@ -232,6 +232,7 @@ fun MusicLibraryContent(
+   val folderSortType by browserPreferences.folderSortType.collectAsState()
+   val folderSortOrder by browserPreferences.folderSortOrder.collectAsState()
+   val coverArtSizeDp by browserPreferences.musicCoverArtSize.collectAsState()
++  val gridCoverArtSizeDp by browserPreferences.musicGridCoverArtSize.collectAsState()
+ 
+   val isRefreshing = remember { mutableStateOf(false) }
+   var isSearchActive by remember { mutableStateOf(false) }
+@@ -933,6 +934,7 @@ fun MusicLibraryContent(
+                 recentlyPlayedFilePath = recentlyPlayedFilePath,
+                 isPlaybackActive = isPlaybackActive,
+                 coverArtSizeDp = coverArtSizeDp,
++                gridCoverArtSizeDp = gridCoverArtSizeDp,
+                 onSongClick = { song ->
+                   if (songSelectionManager.isInSelectionMode) {
+                     songSelectionManager.toggle(song)
+@@ -952,6 +954,7 @@ fun MusicLibraryContent(
+                 albums = albums,
+                 viewMode = viewMode,
+                 coverArtSizeDp = coverArtSizeDp,
++                gridCoverArtSizeDp = gridCoverArtSizeDp,
+                 onAlbumClick = { album ->
+                   if (albumSelectionManager.isInSelectionMode) {
+                     albumSelectionManager.toggle(album)
+@@ -971,6 +974,7 @@ fun MusicLibraryContent(
+                 artists = artists,
+                 viewMode = viewMode,
+                 coverArtSizeDp = coverArtSizeDp,
++                gridCoverArtSizeDp = gridCoverArtSizeDp,
+                 onArtistClick = { artist ->
+                   if (artistSelectionManager.isInSelectionMode) {
+                     artistSelectionManager.toggle(artist)
+@@ -991,6 +995,7 @@ fun MusicLibraryContent(
+                 songs = songs,
+                 viewMode = viewMode,
+                 coverArtSizeDp = coverArtSizeDp.dp,
++                gridCoverArtSizeDp = gridCoverArtSizeDp,
+                 onPlaylistClick = { playlist ->
+                   if (playlistSelectionManager.isInSelectionMode) {
+                     playlistSelectionManager.toggle(playlist)
+@@ -1544,6 +1549,7 @@ private fun SongsTabContent(
+   recentlyPlayedFilePath: String?,
+   isPlaybackActive: Boolean = false,
+   coverArtSizeDp: Int = 48,
++  gridCoverArtSizeDp: Int = 145,
+   onSongClick: (MusicSong) -> Unit,
+   onSongLongClick: (MusicSong) -> Unit,
+   selectionManager: com.quantummpv.app.ui.browser.selection.SelectionManager<MusicSong, Long>,
+@@ -1572,7 +1578,7 @@ private fun SongsTabContent(
+     if (viewMode == MusicViewMode.GRID) {
+       LazyVerticalGrid(
+         state = gridState,
+-        columns = GridCells.Adaptive(minSize = 145.dp),
++        columns = GridCells.Adaptive(minSize = gridCoverArtSizeDp.dp),
+         modifier = Modifier.fillMaxSize(),
+         contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = navBarHeight + 16.dp),
+         verticalArrangement = Arrangement.spacedBy(14.dp),
+@@ -1749,6 +1755,7 @@ private fun AlbumsTabContent(
+   albums: List<MusicAlbum>,
+   viewMode: MusicViewMode,
+   coverArtSizeDp: Int = 48,
++  gridCoverArtSizeDp: Int = 145,
+   onAlbumClick: (MusicAlbum) -> Unit,
+   onAlbumLongClick: (MusicAlbum) -> Unit,
+   selectionManager: com.quantummpv.app.ui.browser.selection.SelectionManager<MusicAlbum, Long>,
+@@ -1764,7 +1771,7 @@ private fun AlbumsTabContent(
+   if (viewMode == MusicViewMode.GRID) {
+     LazyVerticalGrid(
+       state = gridState,
+-      columns = GridCells.Adaptive(minSize = 145.dp),
++      columns = GridCells.Adaptive(minSize = gridCoverArtSizeDp.dp),
+       modifier = Modifier.fillMaxSize(),
+       contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = navBarHeight + 16.dp),
+       verticalArrangement = Arrangement.spacedBy(14.dp),
+@@ -1973,6 +1980,7 @@ private fun ArtistsTabContent(
+   artists: List<MusicArtist>,
+   viewMode: MusicViewMode,
+   coverArtSizeDp: Int = 48,
++  gridCoverArtSizeDp: Int = 145,
+   onArtistClick: (MusicArtist) -> Unit,
+   onArtistLongClick: (MusicArtist) -> Unit,
+   selectionManager: com.quantummpv.app.ui.browser.selection.SelectionManager<MusicArtist, Long>,
+@@ -1988,7 +1996,7 @@ private fun ArtistsTabContent(
+   if (viewMode == MusicViewMode.GRID) {
+     LazyVerticalGrid(
+       state = gridState,
+-      columns = GridCells.Adaptive(minSize = 160.dp),
++      columns = GridCells.Adaptive(minSize = (gridCoverArtSizeDp * 1.1f).toInt().dp),
+       modifier = Modifier.fillMaxSize(),
+       contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = navBarHeight + 16.dp),
+       verticalArrangement = Arrangement.spacedBy(16.dp),
+@@ -2476,6 +2484,7 @@ private fun PlaylistsTabContent(
+   songs: List<MusicSong>,
+   viewMode: MusicViewMode,
+   coverArtSizeDp: Dp = 52.dp,
++  gridCoverArtSizeDp: Int = 145,
+   onPlaylistClick: (PlaylistEntity) -> Unit,
+   onPlaylistLongClick: (PlaylistEntity) -> Unit,
+   selectionManager: com.quantummpv.app.ui.browser.selection.SelectionManager<PlaylistEntity, Long>,
+@@ -2518,7 +2527,7 @@ private fun PlaylistsTabContent(
+       if (viewMode == MusicViewMode.GRID) {
+         LazyVerticalGrid(
+           state = gridState,
+-          columns = GridCells.Adaptive(minSize = 145.dp),
++          columns = GridCells.Adaptive(minSize = gridCoverArtSizeDp.dp),
+           modifier = Modifier.fillMaxSize(),
+           contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = navBarHeight + 16.dp),
+           verticalArrangement = Arrangement.spacedBy(14.dp),
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/navidrome/NavidromeMusicView.kt b/app/src/main/java/com/quantummpv/app/ui/browser/navidrome/NavidromeMusicView.kt
+index 6d1d1c28..69f1f53c 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/navidrome/NavidromeMusicView.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/navidrome/NavidromeMusicView.kt
+@@ -80,6 +80,7 @@ fun NavidromeMusicView(
+   val navidromeRepository = koinInject<NavidromeRepository>()
+   val browserPreferences = koinInject<BrowserPreferences>()
+   val coverArtSizeDp by browserPreferences.musicCoverArtSize.collectAsState()
++  val gridCoverArtSizeDp by browserPreferences.musicGridCoverArtSize.collectAsState()
+   val queueState by PlaybackSession.queue.collectAsStateWithLifecycle()
+   val currentSessionItem = queueState.currentItem
+ 
+@@ -134,7 +135,7 @@ fun NavidromeMusicView(
+ 
+             if (uiState.viewMode == MusicViewMode.GRID) {
+               LazyVerticalGrid(
+-                columns = GridCells.Adaptive(minSize = 145.dp),
++                columns = GridCells.Adaptive(minSize = gridCoverArtSizeDp.dp),
+                 modifier = Modifier.fillMaxSize(),
+                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = navigationBarHeight + 84.dp),
+                 horizontalArrangement = Arrangement.spacedBy(14.dp),
+@@ -210,7 +211,7 @@ fun NavidromeMusicView(
+ 
+             if (uiState.viewMode == MusicViewMode.GRID) {
+               LazyVerticalGrid(
+-                columns = GridCells.Adaptive(minSize = 145.dp),
++                columns = GridCells.Adaptive(minSize = gridCoverArtSizeDp.dp),
+                 modifier = Modifier.fillMaxSize(),
+                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = navigationBarHeight + 84.dp),
+                 horizontalArrangement = Arrangement.spacedBy(14.dp),
+@@ -262,7 +263,7 @@ fun NavidromeMusicView(
+ 
+             if (uiState.viewMode == MusicViewMode.GRID) {
+               LazyVerticalGrid(
+-                columns = GridCells.Adaptive(minSize = 160.dp),
++                columns = GridCells.Adaptive(minSize = (gridCoverArtSizeDp * 1.1f).toInt().dp),
+                 modifier = Modifier.fillMaxSize(),
+                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = navigationBarHeight + 84.dp),
+                 horizontalArrangement = Arrangement.spacedBy(16.dp),
+@@ -320,7 +321,7 @@ fun NavidromeMusicView(
+ 
+             if (uiState.viewMode == MusicViewMode.GRID) {
+               LazyVerticalGrid(
+-                columns = GridCells.Adaptive(minSize = 145.dp),
++                columns = GridCells.Adaptive(minSize = gridCoverArtSizeDp.dp),
+                 modifier = Modifier.fillMaxSize(),
+                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = navigationBarHeight + 84.dp),
+                 horizontalArrangement = Arrangement.spacedBy(14.dp),
+diff --git a/app/src/main/java/com/quantummpv/app/ui/browser/videolist/VideoListScreen.kt b/app/src/main/java/com/quantummpv/app/ui/browser/videolist/VideoListScreen.kt
+index 962e1147..430b9ab1 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/browser/videolist/VideoListScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/browser/videolist/VideoListScreen.kt
+@@ -878,6 +878,7 @@ internal fun VideoListContent(
+   val gesturePreferences = koinInject<GesturePreferences>()
+   val browserPreferences = koinInject<BrowserPreferences>()
+   val appearancePreferences = koinInject<AppearancePreferences>()
++  val musicGridCoverArtSize by browserPreferences.musicGridCoverArtSize.collectAsState()
+   val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+   val isTablet = configuration.smallestScreenWidthDp >= 600
+   val density = LocalDensity.current
+@@ -983,7 +984,10 @@ internal fun VideoListContent(
+         val itemSpacing = 4.dp
+         val usableWidth = maxWidth - (contentHorizontalPadding * 2) - itemSpacing
+         val videoGridColumns =
+-          if (manualGridColumnsEnabled) {
++          if (isAudio) {
++            val audioMinWidth = musicGridCoverArtSize.dp
++            (usableWidth / audioMinWidth).toInt().coerceAtLeast(1)
++          } else if (manualGridColumnsEnabled) {
+             videoGridColumnsPref.coerceAtLeast(1)
+           } else {
+             val videoMinWidth = 130.dp
+-- 
+2.25.1
+

@@ -1,0 +1,1820 @@
+From 37bf4182e31b63f35d2a677e46fddeb840507e4a Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <riteshp2001@gmail.com>
+Date: Fri, 4 Sep 2026 14:02:21 +0530
+Subject: [PATCH 012/140] feat(player): add professional media scopes
+
+Add selected-track multichannel audio waveforms and realtime luma, RGBY, and vectorscope analysis to the video player. Include configurable performance settings, responsive overlays, keyboard shortcuts, localized UI, and Aagedal Media Player attribution.
+---
+ .../preferences/AppearancePreferences.kt      |   4 +-
+ .../gyrolet/mpvrx/preferences/PlayerButton.kt |   2 +
+ .../mpvrx/preferences/PlayerPreferences.kt    |   2 +
+ .../gyrolet/mpvrx/ui/player/PlayerActivity.kt |  16 +
+ .../gyrolet/mpvrx/ui/player/PlayerEnums.kt    |   1 +
+ .../mpvrx/ui/player/PlayerViewModel.kt        |  50 ++
+ .../ui/player/controls/PlayerControls.kt      |  12 +
+ .../player/controls/PlayerControlsShared.kt   |  17 +
+ .../mpvrx/ui/player/controls/PlayerSheets.kt  |  10 +
+ .../controls/components/MediaScopesOverlay.kt | 451 ++++++++++++++++++
+ .../controls/components/sheets/ScopesSheet.kt | 249 ++++++++++
+ .../ui/player/scopes/AudioWaveformDecoder.kt  | 282 +++++++++++
+ .../ui/player/scopes/MediaScopesModels.kt     |  31 ++
+ .../ui/player/scopes/VideoScopeAnalyzer.kt    | 182 +++++++
+ app/src/main/res/values-ar/strings.xml        |  18 +
+ app/src/main/res/values-de/strings.xml        |  18 +
+ app/src/main/res/values-es/strings.xml        |  18 +
+ app/src/main/res/values-fr/strings.xml        |  18 +
+ app/src/main/res/values-hi/strings.xml        |  18 +
+ app/src/main/res/values-ja/strings.xml        |  18 +
+ app/src/main/res/values-pt-rBR/strings.xml    |  18 +
+ app/src/main/res/values-ru/strings.xml        |  18 +
+ app/src/main/res/values-zh-rCN/strings.xml    |  18 +
+ app/src/main/res/values/strings.xml           |  17 +
+ 24 files changed, 1486 insertions(+), 2 deletions(-)
+ create mode 100644 app/src/main/java/com/quantummpv/app/ui/player/controls/components/MediaScopesOverlay.kt
+ create mode 100644 app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/ScopesSheet.kt
+ create mode 100644 app/src/main/java/com/quantummpv/app/ui/player/scopes/AudioWaveformDecoder.kt
+ create mode 100644 app/src/main/java/com/quantummpv/app/ui/player/scopes/MediaScopesModels.kt
+ create mode 100644 app/src/main/java/com/quantummpv/app/ui/player/scopes/VideoScopeAnalyzer.kt
+
+diff --git a/app/src/main/java/com/quantummpv/app/preferences/AppearancePreferences.kt b/app/src/main/java/com/quantummpv/app/preferences/AppearancePreferences.kt
+index b52a2f77..2cbc6ee3 100644
+--- a/app/src/main/java/com/quantummpv/app/preferences/AppearancePreferences.kt
++++ b/app/src/main/java/com/quantummpv/app/preferences/AppearancePreferences.kt
+@@ -78,7 +78,7 @@ class AppearancePreferences(
+   val bottomRightControls =
+     preferenceStore.getString(
+       "bottom_right_controls",
+-      "FRAME_NAVIGATION,CLIP,VIDEO_ZOOM,PICTURE_IN_PICTURE,ASPECT_RATIO",
++      "FRAME_NAVIGATION,CLIP,SCOPES,VIDEO_ZOOM,PICTURE_IN_PICTURE,ASPECT_RATIO",
+     )
+ 
+   val bottomLeftControls =
+@@ -90,7 +90,7 @@ class AppearancePreferences(
+   val portraitBottomControls =
+     preferenceStore.getString(
+       "portrait_bottom_controls",
+-      "CAST,SCREEN_ROTATION,DECODER,AUDIO_TRACK,SUBTITLES,BOOKMARKS_CHAPTERS,PLAYBACK_SPEED,BACKGROUND_PLAYBACK,REPEAT_MODE,SHUFFLE,VIDEO_ZOOM,FRAME_NAVIGATION,CLIP,ASPECT_RATIO,PICTURE_IN_PICTURE,LOCK_CONTROLS,MORE_OPTIONS",
++      "CAST,SCREEN_ROTATION,DECODER,AUDIO_TRACK,SUBTITLES,BOOKMARKS_CHAPTERS,PLAYBACK_SPEED,BACKGROUND_PLAYBACK,REPEAT_MODE,SHUFFLE,VIDEO_ZOOM,FRAME_NAVIGATION,CLIP,SCOPES,ASPECT_RATIO,PICTURE_IN_PICTURE,LOCK_CONTROLS,MORE_OPTIONS",
+     )
+ 
+   private val castButtonMigrationComplete =
+diff --git a/app/src/main/java/com/quantummpv/app/preferences/PlayerButton.kt b/app/src/main/java/com/quantummpv/app/preferences/PlayerButton.kt
+index 83cab7b8..59e57605 100644
+--- a/app/src/main/java/com/quantummpv/app/preferences/PlayerButton.kt
++++ b/app/src/main/java/com/quantummpv/app/preferences/PlayerButton.kt
+@@ -51,6 +51,7 @@ enum class PlayerButton(
+   AMBIENT_MODE(Icons.RoundedFilled.BlurOff),
+   TIME_NETWORK(Icons.RoundedFilled.AccessTime),
+   EQUALIZER(Icons.RoundedFilled.Equalizer),
++  SCOPES(Icons.RoundedFilled.Tune),
+   NONE(Icons.RoundedFilled.Bookmarks),
+ }
+ 
+@@ -100,5 +101,6 @@ fun getPlayerButtonLabel(button: PlayerButton): String =
+     PlayerButton.AMBIENT_MODE -> stringResource(R.string.btn_label_ambient)
+     PlayerButton.TIME_NETWORK -> stringResource(R.string.btn_label_time_network)
+     PlayerButton.EQUALIZER -> stringResource(R.string.btn_label_equalizer)
++    PlayerButton.SCOPES -> stringResource(R.string.btn_label_scopes)
+     PlayerButton.NONE -> stringResource(R.string.btn_label_none)
+   }
+diff --git a/app/src/main/java/com/quantummpv/app/preferences/PlayerPreferences.kt b/app/src/main/java/com/quantummpv/app/preferences/PlayerPreferences.kt
+index 69fa4f1d..1b19acb9 100644
+--- a/app/src/main/java/com/quantummpv/app/preferences/PlayerPreferences.kt
++++ b/app/src/main/java/com/quantummpv/app/preferences/PlayerPreferences.kt
+@@ -98,6 +98,8 @@ class PlayerPreferences(
+   val screenshotQuality = preferenceStore.getInt("screenshot_quality", 90)
+   val screenshotPngCompression = preferenceStore.getInt("screenshot_png_compression", 7)
+   val screenshotWebpLossless = preferenceStore.getBoolean("screenshot_webp_lossless", false)
++  val mediaScopeAnalysisResolution = preferenceStore.getInt("media_scope_analysis_resolution", 360)
++  val mediaScopeFrameRate = preferenceStore.getInt("media_scope_frame_rate", 5)
+ 
+   val playlistMode = preferenceStore.getBoolean("playlist_mode", true)
+   val playlistViewMode = preferenceStore.getBoolean("playlist_view_mode_list", true) // true = list, false = grid
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt b/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt
+index ec090c05..ff73f546 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt
+@@ -6010,6 +6010,22 @@ class PlayerActivity :
+       }
+     val hasModifiers = modifierEvent != null
+ 
++    if (!viewModel.isAudioOnly.value &&
++      event?.isShiftPressed == true &&
++      (event.isCtrlPressed || event.isMetaPressed)
++    ) {
++      when (keyCode) {
++        KeyEvent.KEYCODE_A -> {
++          viewModel.toggleMediaScopes(com.quantummpv.app.ui.player.scopes.MediaScopeTab.Audio)
++          return true
++        }
++        KeyEvent.KEYCODE_W -> {
++          viewModel.toggleMediaScopes(com.quantummpv.app.ui.player.scopes.MediaScopeTab.Video)
++          return true
++        }
++      }
++    }
++
+     when (keyCode) {
+       KeyEvent.KEYCODE_DPAD_UP -> {
+         if (hasModifiers) {
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/PlayerEnums.kt b/app/src/main/java/com/quantummpv/app/ui/player/PlayerEnums.kt
+index 0a140bd9..2d581fd1 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/PlayerEnums.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/PlayerEnums.kt
+@@ -128,6 +128,7 @@ enum class Sheets {
+   AudioProperties,
+   VisualizerStyle,
+   Lyrics,
++  Scopes,
+ }
+ 
+ enum class Panels {
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt b/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
+index dea1b4b1..76a2856d 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
+@@ -844,6 +844,56 @@ class PlayerViewModel : ViewModel(),
+ 
+   val lyricsUiState = MutableStateFlow(LyricsUiState())
+ 
++  private val _mediaScopesUiState =
++    MutableStateFlow(
++      com.quantummpv.app.ui.player.scopes.MediaScopesUiState(
++        analysisResolution = playerPreferences.mediaScopeAnalysisResolution.get().coerceIn(256, 720),
++        frameRate = playerPreferences.mediaScopeFrameRate.get().coerceIn(5, 30),
++      ),
++    )
++  val mediaScopesUiState = _mediaScopesUiState.asStateFlow()
++
++  fun setMediaScopesOverlayVisible(visible: Boolean) {
++    _mediaScopesUiState.update { state ->
++      state.copy(overlayVisible = visible, expanded = state.expanded && visible)
++    }
++  }
++
++  fun setMediaScopeTab(tab: com.quantummpv.app.ui.player.scopes.MediaScopeTab) {
++    _mediaScopesUiState.update { it.copy(tab = tab) }
++  }
++
++  fun toggleMediaScopes(tab: com.quantummpv.app.ui.player.scopes.MediaScopeTab) {
++    _mediaScopesUiState.update { state ->
++      val closing = state.overlayVisible && state.tab == tab
++      state.copy(
++        overlayVisible = !closing,
++        tab = tab,
++        expanded = state.expanded && !closing,
++      )
++    }
++  }
++
++  fun setVideoScopeMode(mode: com.quantummpv.app.ui.player.scopes.VideoScopeMode) {
++    _mediaScopesUiState.update { it.copy(videoMode = mode) }
++  }
++
++  fun toggleMediaScopesExpanded() {
++    _mediaScopesUiState.update { it.copy(expanded = !it.expanded, overlayVisible = true) }
++  }
++
++  fun setMediaScopeAnalysisResolution(resolution: Int) {
++    val bounded = resolution.coerceIn(256, 720)
++    playerPreferences.mediaScopeAnalysisResolution.set(bounded)
++    _mediaScopesUiState.update { it.copy(analysisResolution = bounded) }
++  }
++
++  fun setMediaScopeFrameRate(frameRate: Int) {
++    val bounded = frameRate.coerceIn(5, 30)
++    playerPreferences.mediaScopeFrameRate.set(bounded)
++    _mediaScopesUiState.update { it.copy(frameRate = bounded) }
++  }
++
+   private data class LyricsLoadRequest(
+     val path: String,
+     val title: String,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControls.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControls.kt
+index 7edb9b03..6b7507c4 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControls.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControls.kt
+@@ -148,6 +148,7 @@ import com.quantummpv.app.ui.player.controls.components.AnimatedPlayPauseIcon
+ import com.quantummpv.app.ui.player.controls.components.BrightnessSlider
+ import com.quantummpv.app.ui.player.controls.components.LocalForceDarkPlayerButtonsBackground
+ import com.quantummpv.app.ui.player.controls.components.LocalHidePlayerButtonsBackground
++import com.quantummpv.app.ui.player.controls.components.MediaScopesOverlay
+ import com.quantummpv.app.ui.player.controls.components.MultipleSpeedPlayerUpdate
+ import com.quantummpv.app.ui.player.controls.components.SeekPlayerUpdate
+ import com.quantummpv.app.ui.player.controls.components.SeekbarWithTimers
+@@ -219,6 +220,8 @@ fun PlayerControls(
+   val duration by PlaybackSession.propInt["duration"].collectAsState()
+   val playbackQueue by PlaybackSession.queue.collectAsStateWithLifecycle()
+   val preciseDuration by viewModel.preciseDuration.collectAsState()
++  val scopeAudioTracks by viewModel.audioTracks.collectAsState(persistentListOf())
++  val mediaScopesState by viewModel.mediaScopesUiState.collectAsState()
+   val demuxerCacheTime by PlaybackSession.propDouble["demuxer-cache-time"].collectAsState()
+   val playbackSpeed by PlaybackSession.propFloat["speed"].collectAsState()
+   val seekbarDuration = if (preciseDuration > 0) preciseDuration else duration?.toFloat() ?: 0f
+@@ -583,6 +586,13 @@ fun PlayerControls(
+       )
+     }
+ 
++    MediaScopesOverlay(
++      viewModel = viewModel,
++      audioTracks = scopeAudioTracks.toImmutableList(),
++      durationSeconds = seekbarDuration,
++      modifier = Modifier.fillMaxSize(),
++    )
++
+     CompositionLocalProvider(
+       LocalRippleConfiguration provides playerRippleConfiguration,
+       LocalPlayerButtonsClickEvent provides { resetControlsTimestamp = System.currentTimeMillis() },
+@@ -1942,6 +1952,7 @@ fun PlayerControls(
+         isAmbientEnabled,
+         backgroundPlaybackEnabled,
+         statisticsPage,
++        mediaScopesState.overlayVisible,
+       ) {
+         buildSet {
+           if (isSpeedNonOne) add(PlayerButton.PLAYBACK_SPEED)
+@@ -1955,6 +1966,7 @@ fun PlayerControls(
+           if (isAmbientEnabled) add(PlayerButton.AMBIENT_MODE)
+           if (backgroundPlaybackEnabled) add(PlayerButton.BACKGROUND_PLAYBACK)
+           if (statisticsPage == 6) add(PlayerButton.TIME_NETWORK)
++          if (mediaScopesState.overlayVisible) add(PlayerButton.SCOPES)
+         }
+       }
+ 
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControlsShared.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControlsShared.kt
+index a902a186..10b2a4c9 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControlsShared.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerControlsShared.kt
+@@ -756,6 +756,23 @@ fun RenderPlayerButton(
+       )
+     }
+ 
++    PlayerButton.SCOPES -> {
++      val scopeState by viewModel.mediaScopesUiState.collectAsState()
++      ControlsButton(
++        icon = button.icon,
++        onClick = { onOpenSheet(Sheets.Scopes) },
++        color =
++          if (scopeState.overlayVisible) {
++            MaterialTheme.colorScheme.primary
++          } else if (hideBackground) {
++            controlColor
++          } else {
++            MaterialTheme.colorScheme.onSurface
++          },
++        modifier = Modifier.size(buttonSize),
++      )
++    }
++
+     PlayerButton.CURRENT_CHAPTER -> {
+       if (isPortrait) {
+       } else if (compact) {
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerSheets.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerSheets.kt
+index 090ae123..4b3a97b6 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerSheets.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/PlayerSheets.kt
+@@ -38,6 +38,7 @@ import com.quantummpv.app.ui.player.controls.components.sheets.MoreSheet
+ import com.quantummpv.app.ui.player.controls.components.sheets.OnlineSubtitleSearchSheet
+ import com.quantummpv.app.ui.player.controls.components.sheets.PlaybackSpeedSheet
+ import com.quantummpv.app.ui.player.controls.components.sheets.PlaylistSheet
++import com.quantummpv.app.ui.player.controls.components.sheets.ScopesSheet
+ import com.quantummpv.app.ui.player.controls.components.sheets.SubtitlesSheet
+ import com.quantummpv.app.ui.player.controls.components.sheets.VideoZoomSheet
+ import com.quantummpv.app.ui.player.controls.components.sheets.VideoQualitySheet
+@@ -574,6 +575,15 @@ fun PlayerSheets(
+         onDismiss = onDismissRequest,
+       )
+     }
++
++    Sheets.Scopes -> {
++      ScopesSheet(
++        viewModel = viewModel,
++        audioTracks = audioTracks,
++        onSelectAudio = onSelectAudio,
++        onDismissRequest = onDismissRequest,
++      )
++    }
+   }
+ }
+ 
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/MediaScopesOverlay.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/MediaScopesOverlay.kt
+new file mode 100644
+index 00000000..d516bf69
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/MediaScopesOverlay.kt
+@@ -0,0 +1,451 @@
++/*
++ * SPDX-License-Identifier: AGPL-3.0-or-later
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Affero General Public License as published
++ * by the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ */
++
++package com.quantummpv.app.ui.player.controls.components
++
++import android.content.res.Configuration
++import android.graphics.Bitmap
++import androidx.compose.foundation.Canvas
++import androidx.compose.foundation.Image
++import androidx.compose.foundation.background
++import androidx.compose.foundation.gestures.detectTapGestures
++import androidx.compose.foundation.layout.Arrangement
++import androidx.compose.foundation.layout.Box
++import androidx.compose.foundation.layout.Column
++import androidx.compose.foundation.layout.Row
++import androidx.compose.foundation.layout.fillMaxHeight
++import androidx.compose.foundation.layout.fillMaxSize
++import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.layout.size
++import androidx.compose.foundation.shape.RoundedCornerShape
++import androidx.compose.material3.CircularProgressIndicator
++import androidx.compose.material3.Icon
++import androidx.compose.material3.IconButton
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.Surface
++import androidx.compose.material3.Text
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.DisposableEffect
++import androidx.compose.runtime.LaunchedEffect
++import androidx.compose.runtime.collectAsState
++import androidx.compose.runtime.getValue
++import androidx.compose.runtime.mutableStateOf
++import androidx.compose.runtime.remember
++import androidx.compose.runtime.setValue
++import androidx.compose.ui.Alignment
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.geometry.Offset
++import androidx.compose.ui.graphics.Color
++import androidx.compose.ui.graphics.Path
++import androidx.compose.ui.graphics.asImageBitmap
++import androidx.compose.ui.graphics.drawscope.Stroke
++import androidx.compose.ui.graphics.lerp
++import androidx.compose.ui.input.pointer.pointerInput
++import androidx.compose.ui.layout.ContentScale
++import androidx.compose.ui.platform.LocalConfiguration
++import androidx.compose.ui.platform.LocalContext
++import androidx.compose.ui.res.stringResource
++import androidx.compose.ui.text.font.FontWeight
++import androidx.compose.ui.text.style.TextAlign
++import androidx.compose.ui.unit.dp
++import com.quantummpv.app.R
++import com.quantummpv.app.ui.icons.Icon
++import com.quantummpv.app.ui.icons.Icons
++import com.quantummpv.app.ui.player.PlaybackSession
++import com.quantummpv.app.ui.player.PlayerViewModel
++import com.quantummpv.app.ui.player.TrackNode
++import com.quantummpv.app.ui.player.scopes.AudioWaveformData
++import com.quantummpv.app.ui.player.scopes.AudioWaveformDecoder
++import com.quantummpv.app.ui.player.scopes.MediaScopeTab
++import com.quantummpv.app.ui.player.scopes.VideoScopeAnalyzer
++import com.quantummpv.app.ui.player.scopes.VideoScopeMode
++import com.quantummpv.app.ui.theme.fontFamilyForText
++import kotlinx.collections.immutable.ImmutableList
++import kotlinx.coroutines.CancellationException
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.currentCoroutineContext
++import kotlinx.coroutines.delay
++import kotlinx.coroutines.ensureActive
++import kotlinx.coroutines.isActive
++import kotlinx.coroutines.withContext
++import java.util.concurrent.atomic.AtomicReference
++import kotlin.math.max
++
++private sealed interface AudioWaveformLoadState {
++  data object Loading : AudioWaveformLoadState
++
++  data class Ready(val data: AudioWaveformData) : AudioWaveformLoadState
++
++  data class Error(val message: String) : AudioWaveformLoadState
++}
++
++@Composable
++fun MediaScopesOverlay(
++  viewModel: PlayerViewModel,
++  audioTracks: ImmutableList<TrackNode>,
++  durationSeconds: Float,
++  modifier: Modifier = Modifier,
++) {
++  val state by viewModel.mediaScopesUiState.collectAsState()
++  if (!state.overlayVisible) return
++
++  val configuration = LocalConfiguration.current
++  val isPortrait = configuration.orientation == Configuration.ORIENTATION_PORTRAIT
++
++  Box(modifier = modifier.fillMaxSize()) {
++    val panelModifier =
++      when {
++        state.expanded ->
++          Modifier
++            .fillMaxSize()
++            .padding(12.dp)
++        isPortrait ->
++          Modifier
++            .align(Alignment.BottomCenter)
++            .fillMaxWidth()
++            .fillMaxHeight(0.42f)
++            .padding(start = 10.dp, end = 10.dp, bottom = 96.dp)
++        else ->
++          Modifier
++            .align(Alignment.CenterEnd)
++            .fillMaxWidth(0.44f)
++            .fillMaxHeight(0.74f)
++            .padding(end = 14.dp)
++      }
++    Surface(
++      modifier = panelModifier,
++      shape = RoundedCornerShape(8.dp),
++      color = Color.Black.copy(alpha = if (state.expanded) 0.96f else 0.82f),
++      contentColor = Color.White,
++      tonalElevation = 0.dp,
++      shadowElevation = 8.dp,
++    ) {
++      Column(modifier = Modifier.fillMaxSize()) {
++        Row(
++          modifier = Modifier.fillMaxWidth().padding(start = 12.dp, top = 4.dp, end = 4.dp),
++          verticalAlignment = Alignment.CenterVertically,
++        ) {
++          Text(
++            text =
++              stringResource(
++                if (state.tab == MediaScopeTab.Audio) R.string.scopes_audio_waveform else R.string.scopes_video,
++              ),
++            style = MaterialTheme.typography.labelLarge,
++            fontWeight = FontWeight.Bold,
++            modifier = Modifier.weight(1f),
++          )
++          IconButton(onClick = viewModel::toggleMediaScopesExpanded) {
++            Icon(Icons.RoundedFilled.ZoomOutMap, stringResource(R.string.scopes_expand))
++          }
++          IconButton(onClick = { viewModel.setMediaScopesOverlayVisible(false) }) {
++            Icon(Icons.RoundedFilled.Close, stringResource(R.string.ui_close))
++          }
++        }
++
++        when (state.tab) {
++          MediaScopeTab.Audio ->
++            AudioWaveformScope(
++              viewModel = viewModel,
++              audioTracks = audioTracks,
++              durationSeconds = durationSeconds,
++              modifier = Modifier.fillMaxSize(),
++            )
++          MediaScopeTab.Video ->
++            VideoScope(
++              mode = state.videoMode,
++              resolution = state.analysisResolution,
++              frameRate = state.frameRate,
++              modifier = Modifier.fillMaxSize(),
++            )
++        }
++      }
++    }
++  }
++}
++
++@Composable
++private fun AudioWaveformScope(
++  viewModel: PlayerViewModel,
++  audioTracks: ImmutableList<TrackNode>,
++  durationSeconds: Float,
++  modifier: Modifier = Modifier,
++) {
++  val context = LocalContext.current
++  val noTrackMessage = stringResource(R.string.scopes_no_audio_track)
++  val unavailableMessage = stringResource(R.string.scopes_audio_unavailable)
++  val path by PlaybackSession.propString["path"].collectAsState()
++  val streamPath by PlaybackSession.propString["stream-open-filename"].collectAsState()
++  val precisePosition by viewModel.precisePosition.collectAsState()
++  val selectedTrack = audioTracks.firstOrNull(TrackNode::isSelected)
++  val source =
++    when {
++      selectedTrack == null -> ""
++      selectedTrack.external == true -> selectedTrack.externalFilename?.takeIf(String::isNotBlank).orEmpty()
++      else -> path?.takeIf(String::isNotBlank) ?: streamPath?.takeIf(String::isNotBlank).orEmpty()
++    }
++  val audioTrackOrdinal =
++    selectedTrack?.takeIf { it.external != true }?.let { selected ->
++      audioTracks.filter { it.external != true }.indexOfFirst { it.id == selected.id }.coerceAtLeast(0)
++    } ?: 0
++
++  var loadState by remember(source, selectedTrack?.id, durationSeconds) {
++    mutableStateOf<AudioWaveformLoadState>(AudioWaveformLoadState.Loading)
++  }
++
++  LaunchedEffect(source, selectedTrack?.id, audioTrackOrdinal, durationSeconds) {
++    val track = selectedTrack
++    if (track == null) {
++      loadState = AudioWaveformLoadState.Error(noTrackMessage)
++      return@LaunchedEffect
++    }
++    loadState = AudioWaveformLoadState.Loading
++    loadState =
++      try {
++        val waveform =
++          withContext(Dispatchers.IO) {
++            AudioWaveformDecoder.decode(
++              context = context.applicationContext,
++              source = source,
++              track = track,
++              audioTrackOrdinal = audioTrackOrdinal,
++              durationSeconds = durationSeconds,
++              columnCount = 1_536,
++            )
++          }
++        AudioWaveformLoadState.Ready(waveform)
++      } catch (cancellation: CancellationException) {
++        throw cancellation
++      } catch (_: Exception) {
++        AudioWaveformLoadState.Error(unavailableMessage)
++      }
++  }
++
++  when (val current = loadState) {
++    AudioWaveformLoadState.Loading ->
++      Box(modifier = modifier, contentAlignment = Alignment.Center) {
++        Row(
++          horizontalArrangement = Arrangement.spacedBy(8.dp),
++          verticalAlignment = Alignment.CenterVertically,
++        ) {
++          CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
++          Text(stringResource(R.string.scopes_generating_waveform))
++        }
++      }
++
++    is AudioWaveformLoadState.Error ->
++      Box(modifier = modifier.padding(16.dp), contentAlignment = Alignment.Center) {
++        Text(
++          text = current.message,
++          color = MaterialTheme.colorScheme.error,
++          fontFamily = fontFamilyForText(current.message),
++          textAlign = TextAlign.Center,
++        )
++      }
++
++    is AudioWaveformLoadState.Ready -> {
++      val waveform = current.data
++      Column(
++        modifier =
++          modifier.pointerInput(waveform.durationSeconds) {
++            detectTapGestures { offset ->
++              if (size.width > 0 && waveform.durationSeconds > 0f) {
++                val target = (offset.x / size.width).coerceIn(0f, 1f) * waveform.durationSeconds
++                PlaybackSession.command("seek", target.toString(), "absolute+exact")
++              }
++            }
++          },
++      ) {
++        waveform.channels.forEachIndexed { index, channel ->
++          val channelColor =
++            lerp(
++              MaterialTheme.colorScheme.primary,
++              MaterialTheme.colorScheme.tertiary,
++              index / max(1f, waveform.channels.lastIndex.toFloat()),
++            )
++          Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
++            Canvas(modifier = Modifier.fillMaxSize()) {
++              val centerY = size.height / 2f
++              drawLine(
++                color = Color.White.copy(alpha = 0.14f),
++                start = Offset(0f, centerY),
++                end = Offset(size.width, centerY),
++                strokeWidth = 1.dp.toPx(),
++              )
++              val columns = minOf(channel.minimum.size, channel.maximum.size)
++              if (columns > 1) {
++                val path = Path()
++                for (column in 0 until columns) {
++                  val x = column * size.width / (columns - 1)
++                  val y = centerY - channel.maximum[column] * centerY * 0.92f
++                  if (column == 0) path.moveTo(x, y) else path.lineTo(x, y)
++                }
++                for (column in columns - 1 downTo 0) {
++                  val x = column * size.width / (columns - 1)
++                  val y = centerY - channel.minimum[column] * centerY * 0.92f
++                  path.lineTo(x, y)
++                }
++                path.close()
++                drawPath(path, color = channelColor.copy(alpha = 0.74f))
++              }
++              val positionFraction =
++                if (waveform.durationSeconds > 0f) {
++                  (precisePosition / waveform.durationSeconds).coerceIn(0f, 1f)
++                } else {
++                  0f
++                }
++              val playheadX = positionFraction * size.width
++              drawLine(
++                color = Color.White,
++                start = Offset(playheadX, 0f),
++                end = Offset(playheadX, size.height),
++                strokeWidth = 1.5.dp.toPx(),
++              )
++              if (index < waveform.channels.lastIndex) {
++                drawLine(
++                  color = Color.White.copy(alpha = 0.18f),
++                  start = Offset(0f, size.height - 0.5.dp.toPx()),
++                  end = Offset(size.width, size.height - 0.5.dp.toPx()),
++                  strokeWidth = 1.dp.toPx(),
++                )
++              }
++            }
++            Text(
++              text = channel.label,
++              style = MaterialTheme.typography.labelSmall,
++              color = Color.White.copy(alpha = 0.72f),
++              modifier = Modifier.align(Alignment.TopStart).padding(start = 5.dp, top = 2.dp),
++            )
++          }
++        }
++      }
++    }
++  }
++}
++
++@Composable
++private fun VideoScope(
++  mode: VideoScopeMode,
++  resolution: Int,
++  frameRate: Int,
++  modifier: Modifier = Modifier,
++) {
++  val unavailableMessage = stringResource(R.string.scopes_video_unavailable)
++  val paused by PlaybackSession.propBoolean["pause"].collectAsState()
++  var scopeBitmap by remember(mode, resolution) { mutableStateOf<Bitmap?>(null) }
++  var errorMessage by remember(mode, resolution) { mutableStateOf<String?>(null) }
++  var loading by remember(mode, resolution) { mutableStateOf(true) }
++  val displayedFrame = remember(mode, resolution) { AtomicReference<Bitmap?>() }
++
++  DisposableEffect(mode, resolution) {
++    onDispose { scopeBitmap?.takeUnless(Bitmap::isRecycled)?.recycle() }
++  }
++
++  LaunchedEffect(mode, resolution, frameRate, paused) {
++    val frameIntervalMs = 1_000L / frameRate.coerceIn(5, 30)
++    val pendingFrame = AtomicReference<Bitmap?>()
++    try {
++      do {
++        currentCoroutineContext().ensureActive()
++        val startedAt = System.nanoTime()
++        withContext(Dispatchers.Default) {
++          val source = PlaybackSession.grabThumbnail(resolution)
++            ?: return@withContext
++          try {
++            pendingFrame.set(VideoScopeAnalyzer.analyze(source, mode))
++          } finally {
++            source.recycle()
++          }
++        }
++        val analyzed = pendingFrame.getAndSet(null)
++        if (analyzed == null) {
++          errorMessage = unavailableMessage
++        } else {
++          val previous = scopeBitmap
++          scopeBitmap = analyzed
++          if (previous != null && previous !== displayedFrame.get()) {
++            previous.takeUnless(Bitmap::isRecycled)?.recycle()
++          }
++          errorMessage = null
++          loading = false
++        }
++        if (paused == true) break
++        val elapsedMs = (System.nanoTime() - startedAt) / 1_000_000L
++        delay((frameIntervalMs - elapsedMs).coerceAtLeast(1L))
++      } while (isActive)
++    } finally {
++      pendingFrame.getAndSet(null)?.takeUnless(Bitmap::isRecycled)?.recycle()
++    }
++  }
++
++  Box(modifier = modifier.background(Color.Black), contentAlignment = Alignment.Center) {
++    val bitmap = scopeBitmap
++    if (bitmap != null && !bitmap.isRecycled) {
++      DisposableEffect(bitmap) {
++        displayedFrame.set(bitmap)
++        onDispose {
++          displayedFrame.compareAndSet(bitmap, null)
++          bitmap.takeUnless(Bitmap::isRecycled)?.recycle()
++        }
++      }
++      Image(
++        bitmap = bitmap.asImageBitmap(),
++        contentDescription = null,
++        contentScale = if (mode == VideoScopeMode.Vectorscope) ContentScale.Fit else ContentScale.FillBounds,
++        modifier = Modifier.fillMaxSize(),
++      )
++      ScopeGraticule(mode = mode, modifier = Modifier.fillMaxSize())
++    } else if (loading && errorMessage == null) {
++      CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
++    }
++
++    errorMessage?.let { message ->
++      Text(
++        text = message,
++        color = MaterialTheme.colorScheme.error,
++        textAlign = TextAlign.Center,
++        modifier = Modifier.padding(16.dp),
++      )
++    }
++  }
++}
++
++@Composable
++private fun ScopeGraticule(
++  mode: VideoScopeMode,
++  modifier: Modifier = Modifier,
++) {
++  Canvas(modifier = modifier) {
++    val gridColor = Color.White.copy(alpha = 0.22f)
++    when (mode) {
++      VideoScopeMode.LumaWaveform,
++      VideoScopeMode.RgbyParade,
++      -> {
++        for (step in 0..4) {
++          val y = size.height * step / 4f
++          drawLine(gridColor, Offset(0f, y), Offset(size.width, y), 0.75.dp.toPx())
++        }
++        if (mode == VideoScopeMode.RgbyParade) {
++          for (step in 1..3) {
++            val x = size.width * step / 4f
++            drawLine(gridColor, Offset(x, 0f), Offset(x, size.height), 0.75.dp.toPx())
++          }
++        }
++      }
++
++      VideoScopeMode.Vectorscope -> {
++        val center = Offset(size.width / 2f, size.height / 2f)
++        val radius = minOf(size.width, size.height) * 0.375f
++        drawCircle(gridColor, radius, center, style = Stroke(width = 0.75.dp.toPx()))
++        drawLine(gridColor, Offset(center.x, center.y - radius), Offset(center.x, center.y + radius), 0.75.dp.toPx())
++        drawLine(gridColor, Offset(center.x - radius, center.y), Offset(center.x + radius, center.y), 0.75.dp.toPx())
++      }
++    }
++  }
++}
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/ScopesSheet.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/ScopesSheet.kt
+new file mode 100644
+index 00000000..a78e02af
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/ScopesSheet.kt
+@@ -0,0 +1,249 @@
++/*
++ * SPDX-License-Identifier: AGPL-3.0-or-later
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Affero General Public License as published
++ * by the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ */
++
++package com.quantummpv.app.ui.player.controls.components.sheets
++
++import android.content.Intent
++import android.net.Uri
++import androidx.compose.foundation.clickable
++import androidx.compose.foundation.horizontalScroll
++import androidx.compose.foundation.layout.Arrangement
++import androidx.compose.foundation.layout.Column
++import androidx.compose.foundation.layout.Row
++import androidx.compose.foundation.layout.Spacer
++import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.layout.width
++import androidx.compose.foundation.rememberScrollState
++import androidx.compose.material3.FilterChip
++import androidx.compose.material3.Icon
++import androidx.compose.material3.IconButton
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.SegmentedButton
++import androidx.compose.material3.SegmentedButtonDefaults
++import androidx.compose.material3.SingleChoiceSegmentedButtonRow
++import androidx.compose.material3.Switch
++import androidx.compose.material3.Text
++import androidx.compose.material3.TextButton
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.collectAsState
++import androidx.compose.runtime.getValue
++import androidx.compose.ui.Alignment
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.platform.LocalContext
++import androidx.compose.ui.res.stringResource
++import androidx.compose.ui.text.font.FontWeight
++import androidx.compose.ui.text.style.TextDecoration
++import androidx.compose.ui.unit.dp
++import com.quantummpv.app.R
++import com.quantummpv.app.presentation.components.PlayerSheet
++import com.quantummpv.app.ui.components.themedSegmentedButtonColors
++import com.quantummpv.app.ui.icons.Icon
++import com.quantummpv.app.ui.icons.Icons
++import com.quantummpv.app.ui.player.PlayerViewModel
++import com.quantummpv.app.ui.player.TrackNode
++import com.quantummpv.app.ui.player.scopes.MediaScopeTab
++import com.quantummpv.app.ui.player.scopes.VideoScopeMode
++import com.quantummpv.app.ui.theme.spacing
++import kotlinx.collections.immutable.ImmutableList
++
++@Composable
++fun ScopesSheet(
++  viewModel: PlayerViewModel,
++  audioTracks: ImmutableList<TrackNode>,
++  onSelectAudio: (TrackNode) -> Unit,
++  onDismissRequest: () -> Unit,
++  modifier: Modifier = Modifier,
++) {
++  val context = LocalContext.current
++  val state by viewModel.mediaScopesUiState.collectAsState()
++  val tabs = MediaScopeTab.entries
++
++  PlayerSheet(onDismissRequest) {
++    Column(
++      modifier = modifier.fillMaxWidth().padding(MaterialTheme.spacing.medium),
++      verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.medium),
++    ) {
++      Row(
++        modifier = Modifier.fillMaxWidth(),
++        verticalAlignment = Alignment.CenterVertically,
++      ) {
++        Text(
++          text = stringResource(R.string.scopes_title),
++          style = MaterialTheme.typography.titleLarge,
++          fontWeight = FontWeight.Bold,
++          modifier = Modifier.weight(1f),
++        )
++        IconButton(
++          onClick = {
++            viewModel.toggleMediaScopesExpanded()
++            onDismissRequest()
++          },
++        ) {
++          Icon(Icons.RoundedFilled.ZoomOutMap, stringResource(R.string.scopes_expand))
++        }
++        IconButton(onClick = onDismissRequest) {
++          Icon(Icons.RoundedFilled.Close, stringResource(R.string.ui_close))
++        }
++      }
++
++      SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
++        tabs.forEachIndexed { index, tab ->
++          SegmentedButton(
++            selected = state.tab == tab,
++            onClick = { viewModel.setMediaScopeTab(tab) },
++            shape = SegmentedButtonDefaults.itemShape(index, tabs.size),
++            colors = themedSegmentedButtonColors(),
++            label = {
++              Text(
++                stringResource(
++                  if (tab == MediaScopeTab.Audio) R.string.pref_audio else R.string.media_info_tab_video,
++                ),
++              )
++            },
++          )
++        }
++      }
++
++      Row(
++        modifier =
++          Modifier
++            .fillMaxWidth()
++            .clickable { viewModel.setMediaScopesOverlayVisible(!state.overlayVisible) },
++        verticalAlignment = Alignment.CenterVertically,
++      ) {
++        Text(
++          text = stringResource(R.string.scopes_show_overlay),
++          style = MaterialTheme.typography.bodyLarge,
++          modifier = Modifier.weight(1f),
++        )
++        Switch(
++          checked = state.overlayVisible,
++          onCheckedChange = viewModel::setMediaScopesOverlayVisible,
++        )
++      }
++
++      when (state.tab) {
++        MediaScopeTab.Audio -> {
++          val selectedTrack = audioTracks.firstOrNull(TrackNode::isSelected)
++          Text(
++            text = selectedTrack?.let(::getTrackTitle) ?: stringResource(R.string.scopes_no_audio_track),
++            style = MaterialTheme.typography.titleMedium,
++            color = MaterialTheme.colorScheme.primary,
++          )
++          Row(
++            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
++            horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.smaller),
++          ) {
++            audioTracks.forEach { track ->
++              FilterChip(
++                selected = track.isSelected,
++                onClick = {
++                  onSelectAudio(track)
++                  viewModel.setMediaScopesOverlayVisible(true)
++                },
++                label = { Text(getTrackTitle(track), maxLines = 1) },
++              )
++            }
++          }
++          Text(
++            text =
++              stringResource(
++                R.string.scopes_channel_count,
++                selectedTrack?.demuxChannelCount?.toInt()?.coerceAtLeast(1) ?: 0,
++              ),
++            style = MaterialTheme.typography.bodyMedium,
++            color = MaterialTheme.colorScheme.onSurfaceVariant,
++          )
++        }
++
++        MediaScopeTab.Video -> {
++          val modes = VideoScopeMode.entries
++          SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
++            modes.forEachIndexed { index, mode ->
++              SegmentedButton(
++                selected = state.videoMode == mode,
++                onClick = { viewModel.setVideoScopeMode(mode) },
++                shape = SegmentedButtonDefaults.itemShape(index, modes.size),
++                colors = themedSegmentedButtonColors(),
++                label = {
++                  Text(
++                    stringResource(
++                      when (mode) {
++                        VideoScopeMode.LumaWaveform -> R.string.scopes_luma
++                        VideoScopeMode.RgbyParade -> R.string.scopes_rgby
++                        VideoScopeMode.Vectorscope -> R.string.scopes_vectorscope
++                      },
++                    ),
++                  )
++                },
++              )
++            }
++          }
++
++          ScopeOptionRow(
++            label = stringResource(R.string.scopes_resolution),
++            values = listOf(256, 360, 540, 720),
++            selected = state.analysisResolution,
++            valueLabel = { "$it px" },
++            onSelect = viewModel::setMediaScopeAnalysisResolution,
++          )
++          ScopeOptionRow(
++            label = stringResource(R.string.scopes_frame_rate),
++            values = listOf(5, 10, 15, 30),
++            selected = state.frameRate,
++            valueLabel = { "$it fps" },
++            onSelect = viewModel::setMediaScopeFrameRate,
++          )
++        }
++      }
++
++      TextButton(
++        onClick = {
++          runCatching {
++            context.startActivity(
++              Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/aagedal/Aagedal-Media-Player")),
++            )
++          }
++        },
++      ) {
++        Text(
++          text = stringResource(R.string.scopes_credit),
++          color = MaterialTheme.colorScheme.primary,
++          textDecoration = TextDecoration.Underline,
++        )
++      }
++    }
++  }
++}
++
++@Composable
++private fun ScopeOptionRow(
++  label: String,
++  values: List<Int>,
++  selected: Int,
++  valueLabel: (Int) -> String,
++  onSelect: (Int) -> Unit,
++) {
++  Row(
++    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
++    horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.smaller),
++    verticalAlignment = Alignment.CenterVertically,
++  ) {
++    Text(label, style = MaterialTheme.typography.labelLarge)
++    Spacer(Modifier.width(2.dp))
++    values.forEach { value ->
++      FilterChip(
++        selected = selected == value,
++        onClick = { onSelect(value) },
++        label = { Text(valueLabel(value)) },
++      )
++    }
++  }
++}
+\ No newline at end of file
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/scopes/AudioWaveformDecoder.kt b/app/src/main/java/com/quantummpv/app/ui/player/scopes/AudioWaveformDecoder.kt
+new file mode 100644
+index 00000000..ec26d098
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/ui/player/scopes/AudioWaveformDecoder.kt
+@@ -0,0 +1,282 @@
++/*
++ * SPDX-License-Identifier: AGPL-3.0-or-later
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Affero General Public License as published
++ * by the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ */
++
++package com.quantummpv.app.ui.player.scopes
++
++import android.content.Context
++import android.media.AudioFormat
++import android.media.MediaCodec
++import android.media.MediaExtractor
++import android.media.MediaFormat
++import android.net.Uri
++import com.quantummpv.app.ui.player.TrackNode
++import kotlinx.coroutines.currentCoroutineContext
++import kotlinx.coroutines.ensureActive
++import java.nio.ByteBuffer
++import java.nio.ByteOrder
++import kotlin.math.max
++
++data class AudioWaveformChannel(
++  val label: String,
++  val minimum: FloatArray,
++  val maximum: FloatArray,
++)
++
++data class AudioWaveformData(
++  val trackId: Int,
++  val durationSeconds: Float,
++  val channels: List<AudioWaveformChannel>,
++)
++
++internal object AudioWaveformDecoder {
++  private const val DEQUEUE_TIMEOUT_US = 10_000L
++  private const val SAMPLES_PER_COLUMN = 96L
++
++  suspend fun decode(
++    context: Context,
++    source: String,
++    track: TrackNode,
++    audioTrackOrdinal: Int,
++    durationSeconds: Float,
++    columnCount: Int,
++  ): AudioWaveformData {
++    require(source.isNotBlank()) { "Media source is unavailable" }
++    val extractor = MediaExtractor()
++    var codec: MediaCodec? = null
++    try {
++      setDataSource(extractor, context, source)
++      val extractorTrack = resolveTrackIndex(extractor, track, audioTrackOrdinal)
++      val inputFormat = extractor.getTrackFormat(extractorTrack)
++      val mime = inputFormat.getString(MediaFormat.KEY_MIME)
++        ?.takeIf { it.startsWith("audio/") }
++        ?: error("Selected stream is not audio")
++
++      extractor.selectTrack(extractorTrack)
++      codec = MediaCodec.createDecoderByType(mime)
++      codec.configure(inputFormat, null, null, 0)
++      codec.start()
++
++      val durationUs =
++        inputFormat.longOrNull(MediaFormat.KEY_DURATION)
++          ?.takeIf { it > 0L }
++          ?: (durationSeconds.coerceAtLeast(0.1f) * 1_000_000L).toLong()
++      var outputFormat = inputFormat
++      var accumulator: WaveformAccumulator? = null
++      var inputEnded = false
++      var outputEnded = false
++      val bufferInfo = MediaCodec.BufferInfo()
++
++      while (!outputEnded) {
++        currentCoroutineContext().ensureActive()
++
++        if (!inputEnded) {
++          val inputIndex = codec.dequeueInputBuffer(DEQUEUE_TIMEOUT_US)
++          if (inputIndex >= 0) {
++            val inputBuffer = codec.getInputBuffer(inputIndex) ?: error("Audio decoder input buffer unavailable")
++            val sampleSize = extractor.readSampleData(inputBuffer, 0)
++            if (sampleSize < 0) {
++              codec.queueInputBuffer(inputIndex, 0, 0, 0L, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
++              inputEnded = true
++            } else {
++              codec.queueInputBuffer(inputIndex, 0, sampleSize, extractor.sampleTime.coerceAtLeast(0L), 0)
++              extractor.advance()
++            }
++          }
++        }
++
++        when (val outputIndex = codec.dequeueOutputBuffer(bufferInfo, DEQUEUE_TIMEOUT_US)) {
++          MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> outputFormat = codec.outputFormat
++          MediaCodec.INFO_TRY_AGAIN_LATER -> Unit
++          else -> {
++            if (outputIndex >= 0) {
++              val outputBuffer = codec.getOutputBuffer(outputIndex)
++              if (outputBuffer != null && bufferInfo.size > 0) {
++                val channelCount = outputFormat.integerOrNull(MediaFormat.KEY_CHANNEL_COUNT)?.coerceAtLeast(1)
++                  ?: track.demuxChannelCount?.toInt()?.coerceAtLeast(1)
++                  ?: 2
++                val sampleRate = outputFormat.integerOrNull(MediaFormat.KEY_SAMPLE_RATE)?.coerceAtLeast(1)
++                  ?: track.demuxSampleRate?.toInt()?.coerceAtLeast(1)
++                  ?: 48_000
++                val pcmEncoding = outputFormat.integerOrNull(MediaFormat.KEY_PCM_ENCODING) ?: AudioFormat.ENCODING_PCM_16BIT
++                val currentAccumulator = accumulator ?: WaveformAccumulator(
++                  width = columnCount.coerceIn(256, 4_096),
++                  channelCount = channelCount,
++                  durationUs = durationUs,
++                  sampleRate = sampleRate,
++                ).also { accumulator = it }
++                currentAccumulator.consume(
++                  buffer = outputBuffer,
++                  offset = bufferInfo.offset,
++                  size = bufferInfo.size,
++                  presentationTimeUs = bufferInfo.presentationTimeUs,
++                  pcmEncoding = pcmEncoding,
++                )
++              }
++              outputEnded = bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0
++              codec.releaseOutputBuffer(outputIndex, false)
++            }
++          }
++        }
++      }
++
++      val waveform = accumulator?.finish(channelLabels(track, accumulator.channelCount))
++        ?: error("Decoder produced no audio samples")
++      return AudioWaveformData(
++        trackId = track.id,
++        durationSeconds = durationUs / 1_000_000f,
++        channels = waveform,
++      )
++    } finally {
++      runCatching { codec?.stop() }
++      runCatching { codec?.release() }
++      runCatching { extractor.release() }
++    }
++  }
++
++  private fun setDataSource(
++    extractor: MediaExtractor,
++    context: Context,
++    source: String,
++  ) {
++    val uri = Uri.parse(source)
++    when (uri.scheme?.lowercase()) {
++      "content", "android.resource" -> extractor.setDataSource(context, uri, null)
++      "file" -> extractor.setDataSource(requireNotNull(uri.path))
++      "http", "https" -> extractor.setDataSource(source, emptyMap())
++      null -> extractor.setDataSource(source)
++      else -> extractor.setDataSource(context, uri, null)
++    }
++  }
++
++  private fun resolveTrackIndex(
++    extractor: MediaExtractor,
++    track: TrackNode,
++    audioTrackOrdinal: Int,
++  ): Int {
++    track.ffIndex?.toInt()?.takeIf { index ->
++      index in 0 until extractor.trackCount &&
++        extractor.getTrackFormat(index).getString(MediaFormat.KEY_MIME)?.startsWith("audio/") == true
++    }?.let { return it }
++
++    val audioTracks =
++      (0 until extractor.trackCount).filter { index ->
++        extractor.getTrackFormat(index).getString(MediaFormat.KEY_MIME)?.startsWith("audio/") == true
++      }
++    return audioTracks.getOrNull(audioTrackOrdinal.coerceAtLeast(0))
++      ?: audioTracks.firstOrNull()
++      ?: error("No decodable audio stream found")
++  }
++
++  private fun channelLabels(track: TrackNode, count: Int): List<String> {
++    val normalized = track.demuxChannels.orEmpty().lowercase()
++    val known =
++      when (normalized) {
++        "mono" -> listOf("Mono")
++        "stereo" -> listOf("Left", "Right")
++        "2.1" -> listOf("Left", "Right", "LFE")
++        "3.0" -> listOf("Left", "Right", "Center")
++        "3.1" -> listOf("Left", "Right", "Center", "LFE")
++        "quad" -> listOf("Left", "Right", "Back Left", "Back Right")
++        "5.0" -> listOf("Left", "Right", "Center", "Back Left", "Back Right")
++        "5.0(side)" -> listOf("Left", "Right", "Center", "Side Left", "Side Right")
++        "5.1" -> listOf("Left", "Right", "Center", "LFE", "Back Left", "Back Right")
++        "5.1(side)" -> listOf("Left", "Right", "Center", "LFE", "Side Left", "Side Right")
++        "6.1" -> listOf("Left", "Right", "Center", "LFE", "Back Center", "Side Left", "Side Right")
++        "7.1" -> listOf("Left", "Right", "Center", "LFE", "Back Left", "Back Right", "Side Left", "Side Right")
++        else -> emptyList()
++      }
++    if (known.size == count) return known
++    return List(count) { index -> "Channel ${index + 1}" }
++  }
++
++  private fun MediaFormat.integerOrNull(key: String): Int? =
++    if (containsKey(key)) runCatching { getInteger(key) }.getOrNull() else null
++
++  private fun MediaFormat.longOrNull(key: String): Long? =
++    if (containsKey(key)) runCatching { getLong(key) }.getOrNull() else null
++
++  private class WaveformAccumulator(
++    private val width: Int,
++    val channelCount: Int,
++    private val durationUs: Long,
++    private val sampleRate: Int,
++  ) {
++    private val minimum = Array(channelCount) { FloatArray(width) }
++    private val maximum = Array(channelCount) { FloatArray(width) }
++    private val touched = Array(channelCount) { BooleanArray(width) }
++    private val estimatedFrameCount = max(1L, durationUs * sampleRate / 1_000_000L)
++    private val sampleStride = max(1L, estimatedFrameCount / (width * SAMPLES_PER_COLUMN)).toInt()
++
++    fun consume(
++      buffer: ByteBuffer,
++      offset: Int,
++      size: Int,
++      presentationTimeUs: Long,
++      pcmEncoding: Int,
++    ) {
++      val bytesPerSample = bytesPerSample(pcmEncoding)
++      val frameSize = bytesPerSample * channelCount
++      if (frameSize <= 0 || size < frameSize) return
++      val frameCount = size / frameSize
++      val data = buffer.duplicate().order(ByteOrder.LITTLE_ENDIAN)
++
++      var frame = 0
++      while (frame < frameCount) {
++        val timeUs = presentationTimeUs + frame * 1_000_000L / sampleRate
++        val column = ((timeUs.coerceIn(0L, durationUs) * width) / durationUs).toInt().coerceIn(0, width - 1)
++        for (channel in 0 until channelCount) {
++          val sampleOffset = offset + (frame * channelCount + channel) * bytesPerSample
++          if (sampleOffset + bytesPerSample > offset + size) break
++          val sample = readSample(data, sampleOffset, pcmEncoding).coerceIn(-1f, 1f)
++          if (!touched[channel][column]) {
++            minimum[channel][column] = sample
++            maximum[channel][column] = sample
++            touched[channel][column] = true
++          } else {
++            minimum[channel][column] = minOf(minimum[channel][column], sample)
++            maximum[channel][column] = maxOf(maximum[channel][column], sample)
++          }
++        }
++        frame += sampleStride
++      }
++    }
++
++    fun finish(labels: List<String>): List<AudioWaveformChannel> =
++      List(channelCount) { channel ->
++        AudioWaveformChannel(
++          label = labels.getOrElse(channel) { "Channel ${channel + 1}" },
++          minimum = minimum[channel],
++          maximum = maximum[channel],
++        )
++      }
++
++    private fun bytesPerSample(encoding: Int): Int =
++      when (encoding) {
++        AudioFormat.ENCODING_PCM_FLOAT, AudioFormat.ENCODING_PCM_32BIT -> 4
++        AudioFormat.ENCODING_PCM_24BIT_PACKED -> 3
++        AudioFormat.ENCODING_PCM_8BIT -> 1
++        else -> 2
++      }
++
++    private fun readSample(buffer: ByteBuffer, offset: Int, encoding: Int): Float =
++      when (encoding) {
++        AudioFormat.ENCODING_PCM_FLOAT -> buffer.getFloat(offset)
++        AudioFormat.ENCODING_PCM_32BIT -> buffer.getInt(offset) / Int.MAX_VALUE.toFloat()
++        AudioFormat.ENCODING_PCM_24BIT_PACKED -> {
++          val value =
++            (buffer.get(offset).toInt() and 0xFF) or
++              ((buffer.get(offset + 1).toInt() and 0xFF) shl 8) or
++              (buffer.get(offset + 2).toInt() shl 16)
++          value / 8_388_607f
++        }
++        AudioFormat.ENCODING_PCM_8BIT -> ((buffer.get(offset).toInt() and 0xFF) - 128) / 128f
++        else -> buffer.getShort(offset) / Short.MAX_VALUE.toFloat()
++      }
++  }
++}
+\ No newline at end of file
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/scopes/MediaScopesModels.kt b/app/src/main/java/com/quantummpv/app/ui/player/scopes/MediaScopesModels.kt
+new file mode 100644
+index 00000000..a6df5fee
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/ui/player/scopes/MediaScopesModels.kt
+@@ -0,0 +1,31 @@
++/*
++ * SPDX-License-Identifier: AGPL-3.0-or-later
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Affero General Public License as published
++ * by the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ */
++
++package com.quantummpv.app.ui.player.scopes
++
++// Inspired by https://github.com/aagedal/Aagedal-Media-Player.
++enum class MediaScopeTab {
++  Audio,
++  Video,
++}
++
++enum class VideoScopeMode {
++  LumaWaveform,
++  RgbyParade,
++  Vectorscope,
++}
++
++data class MediaScopesUiState(
++  val overlayVisible: Boolean = false,
++  val tab: MediaScopeTab = MediaScopeTab.Video,
++  val videoMode: VideoScopeMode = VideoScopeMode.LumaWaveform,
++  val expanded: Boolean = false,
++  val analysisResolution: Int = 360,
++  val frameRate: Int = 5,
++)
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/scopes/VideoScopeAnalyzer.kt b/app/src/main/java/com/quantummpv/app/ui/player/scopes/VideoScopeAnalyzer.kt
+new file mode 100644
+index 00000000..371e1f7f
+--- /dev/null
++++ b/app/src/main/java/com/quantummpv/app/ui/player/scopes/VideoScopeAnalyzer.kt
+@@ -0,0 +1,182 @@
++/*
++ * SPDX-License-Identifier: AGPL-3.0-or-later
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Affero General Public License as published
++ * by the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ */
++
++package com.quantummpv.app.ui.player.scopes
++
++import android.graphics.Bitmap
++import android.graphics.Color
++import kotlin.math.ln
++import kotlin.math.max
++import kotlin.math.min
++
++internal object VideoScopeAnalyzer {
++  private const val OUTPUT_WIDTH = 320
++  private const val OUTPUT_HEIGHT = 180
++  private const val VECTOR_SIZE = 220
++
++  fun analyze(source: Bitmap, mode: VideoScopeMode): Bitmap =
++    when (mode) {
++      VideoScopeMode.LumaWaveform -> lumaWaveform(source)
++      VideoScopeMode.RgbyParade -> rgbyParade(source)
++      VideoScopeMode.Vectorscope -> vectorscope(source)
++    }
++
++  private fun lumaWaveform(source: Bitmap): Bitmap {
++    val sourcePixels = source.readPixels()
++    val bins = IntArray(OUTPUT_WIDTH * OUTPUT_HEIGHT)
++    val sumRed = LongArray(bins.size)
++    val sumGreen = LongArray(bins.size)
++    val sumBlue = LongArray(bins.size)
++
++    for (y in 0 until source.height) {
++      val row = y * source.width
++      for (x in 0 until source.width) {
++        val color = sourcePixels[row + x]
++        val red = Color.red(color)
++        val green = Color.green(color)
++        val blue = Color.blue(color)
++        val luma = (red * 0.2126f + green * 0.7152f + blue * 0.0722f) / 255f
++        val column = x * OUTPUT_WIDTH / source.width
++        val level = (luma * (OUTPUT_HEIGHT - 1)).toInt().coerceIn(0, OUTPUT_HEIGHT - 1)
++        val index = column * OUTPUT_HEIGHT + level
++        bins[index]++
++        sumRed[index] += red
++        sumGreen[index] += green
++        sumBlue[index] += blue
++      }
++    }
++
++    val maximum = bins.maxOrNull()?.coerceAtLeast(1) ?: 1
++    val logMaximum = ln(1f + maximum)
++    val output = IntArray(OUTPUT_WIDTH * OUTPUT_HEIGHT)
++    for (column in 0 until OUTPUT_WIDTH) {
++      for (level in 0 until OUTPUT_HEIGHT) {
++        val sourceIndex = column * OUTPUT_HEIGHT + level
++        val count = bins[sourceIndex]
++        if (count == 0) continue
++        val intensity = (ln(1f + count) / logMaximum * 2.4f).coerceIn(0f, 1f)
++        val averageRed = sumRed[sourceIndex].toFloat() / count
++        val averageGreen = sumGreen[sourceIndex].toFloat() / count
++        val averageBlue = sumBlue[sourceIndex].toFloat() / count
++        val colorMax = max(averageRed, max(averageGreen, averageBlue)).coerceAtLeast(1f)
++        val outputIndex = (OUTPUT_HEIGHT - 1 - level) * OUTPUT_WIDTH + column
++        output[outputIndex] = Color.argb(
++          (intensity * 255).toInt(),
++          (averageRed / colorMax * 255).toInt(),
++          (averageGreen / colorMax * 255).toInt(),
++          (averageBlue / colorMax * 255).toInt(),
++        )
++      }
++    }
++    return output.toBitmap(OUTPUT_WIDTH, OUTPUT_HEIGHT)
++  }
++
++  private fun rgbyParade(source: Bitmap): Bitmap {
++    val sourcePixels = source.readPixels()
++    val gap = 2
++    val channelWidth = (OUTPUT_WIDTH - gap * 3) / 4
++    val bins = Array(4) { IntArray(channelWidth * OUTPUT_HEIGHT) }
++
++    for (y in 0 until source.height) {
++      val row = y * source.width
++      for (x in 0 until source.width) {
++        val color = sourcePixels[row + x]
++        val red = Color.red(color)
++        val green = Color.green(color)
++        val blue = Color.blue(color)
++        val column = x * channelWidth / source.width
++        val columnOffset = column * OUTPUT_HEIGHT
++        bins[0][columnOffset + red * (OUTPUT_HEIGHT - 1) / 255]++
++        bins[1][columnOffset + green * (OUTPUT_HEIGHT - 1) / 255]++
++        bins[2][columnOffset + blue * (OUTPUT_HEIGHT - 1) / 255]++
++        val lumaLevel =
++          ((red * 0.2126f + green * 0.7152f + blue * 0.0722f) * (OUTPUT_HEIGHT - 1) / 255f)
++            .toInt()
++            .coerceIn(0, OUTPUT_HEIGHT - 1)
++        bins[3][columnOffset + lumaLevel]++
++      }
++    }
++
++    val maximum = bins.maxOf { it.maxOrNull() ?: 0 }.coerceAtLeast(1)
++    val colors = intArrayOf(Color.rgb(255, 45, 45), Color.rgb(45, 255, 70), Color.rgb(65, 95, 255), Color.rgb(225, 225, 225))
++    val output = IntArray(OUTPUT_WIDTH * OUTPUT_HEIGHT)
++    for (channel in bins.indices) {
++      val xOffset = channel * (channelWidth + gap)
++      for (column in 0 until channelWidth) {
++        for (level in 0 until OUTPUT_HEIGHT) {
++          val count = bins[channel][column * OUTPUT_HEIGHT + level]
++          if (count == 0) continue
++          val intensity = (count.toFloat() / (maximum * 0.22f)).coerceIn(0f, 1f)
++          val tint = colors[channel]
++          output[(OUTPUT_HEIGHT - 1 - level) * OUTPUT_WIDTH + xOffset + column] = Color.argb(
++            255,
++            (Color.red(tint) * intensity).toInt(),
++            (Color.green(tint) * intensity).toInt(),
++            (Color.blue(tint) * intensity).toInt(),
++          )
++        }
++      }
++    }
++    return output.toBitmap(OUTPUT_WIDTH, OUTPUT_HEIGHT)
++  }
++
++  private fun vectorscope(source: Bitmap): Bitmap {
++    val sourcePixels = source.readPixels()
++    val bins = IntArray(VECTOR_SIZE * VECTOR_SIZE)
++    val sumRed = LongArray(bins.size)
++    val sumGreen = LongArray(bins.size)
++    val sumBlue = LongArray(bins.size)
++    val half = VECTOR_SIZE / 2f
++    val scale = half * 0.9f
++
++    for (color in sourcePixels) {
++      val red = Color.red(color) / 255f
++      val green = Color.green(color) / 255f
++      val blue = Color.blue(color) / 255f
++      val cb = -0.1146f * red - 0.3854f * green + 0.5f * blue
++      val cr = 0.5f * red - 0.4542f * green - 0.0458f * blue
++      val x = (half + cb * scale * 2f).toInt()
++      val y = (half - cr * scale * 2f).toInt()
++      if (x !in 0 until VECTOR_SIZE || y !in 0 until VECTOR_SIZE) continue
++      val index = y * VECTOR_SIZE + x
++      bins[index]++
++      sumRed[index] += Color.red(color)
++      sumGreen[index] += Color.green(color)
++      sumBlue[index] += Color.blue(color)
++    }
++
++    val maximum = bins.maxOrNull()?.coerceAtLeast(1) ?: 1
++    val logMaximum = ln(1f + maximum)
++    val output = IntArray(VECTOR_SIZE * VECTOR_SIZE)
++    for (index in bins.indices) {
++      val count = bins[index]
++      if (count == 0) continue
++      val intensity = (ln(1f + count) / logMaximum * 2.8f).coerceIn(0f, 1f)
++      val averageRed = sumRed[index].toFloat() / count
++      val averageGreen = sumGreen[index].toFloat() / count
++      val averageBlue = sumBlue[index].toFloat() / count
++      val colorMax = max(averageRed, max(averageGreen, averageBlue)).coerceAtLeast(1f)
++      output[index] = Color.argb(
++        (intensity * 255).toInt(),
++        (averageRed / colorMax * 255).toInt(),
++        (averageGreen / colorMax * 255).toInt(),
++        (averageBlue / colorMax * 255).toInt(),
++      )
++    }
++    return output.toBitmap(VECTOR_SIZE, VECTOR_SIZE)
++  }
++
++  private fun Bitmap.readPixels(): IntArray =
++    IntArray(width * height).also { pixels ->
++      getPixels(pixels, 0, width, 0, 0, width, height)
++    }
++
++  private fun IntArray.toBitmap(width: Int, height: Int): Bitmap =
++    Bitmap.createBitmap(this, width, height, Bitmap.Config.ARGB_8888)
++}
+\ No newline at end of file
+diff --git a/app/src/main/res/values-ar/strings.xml b/app/src/main/res/values-ar/strings.xml
+index 734d2c90..75b2bae2 100644
+--- a/app/src/main/res/values-ar/strings.xml
++++ b/app/src/main/res/values-ar/strings.xml
+@@ -2009,6 +2009,24 @@
+   <string name="pref_player_web_stream_links_title">فتح روابط مواقع البث</string>
+   <string name="pref_player_web_stream_links_summary">عرض mpvRx لروابط YouTube وVimeo وTwitch وOdysee وBilibili. أوقف الخيار لتركها لتطبيقاتها الأصلية.</string>
+ 
++  <string name="btn_label_scopes">النطاقات</string>
++  <string name="scopes_title">النطاقات</string>
++  <string name="scopes_expand">توسيع النطاقات</string>
++  <string name="scopes_show_overlay">إظهار التراكب</string>
++  <string name="scopes_no_audio_track">لم يتم تحديد مسار صوتي</string>
++  <string name="scopes_channel_count">القنوات: %1$d</string>
++  <string name="scopes_luma">الإضاءة</string>
++  <string name="scopes_rgby">RGBY</string>
++  <string name="scopes_vectorscope">نطاق المتجهات</string>
++  <string name="scopes_resolution">الدقة</string>
++  <string name="scopes_frame_rate">معدل الإطارات</string>
++  <string name="scopes_credit">مستوحى من Aagedal Media Player</string>
++  <string name="scopes_audio_waveform">موجة الصوت</string>
++  <string name="scopes_video">نطاقات الفيديو</string>
++  <string name="scopes_generating_waveform">جارٍ إنشاء الموجة…</string>
++  <string name="scopes_audio_unavailable">لا يمكن فك ترميز المسار الصوتي المحدد لمعاينة الموجة.</string>
++  <string name="scopes_video_unavailable">تعذر التقاط إطار فيديو للنطاقات.</string>
++
+   <!-- Downloads -->
+   <string name="downloads_title">التنزيلات</string>
+   <string name="downloads_notification_channel">التنزيلات</string>
+diff --git a/app/src/main/res/values-de/strings.xml b/app/src/main/res/values-de/strings.xml
+index bbdb827f..59eab01d 100644
+--- a/app/src/main/res/values-de/strings.xml
++++ b/app/src/main/res/values-de/strings.xml
+@@ -2007,6 +2007,24 @@ Bitte starten Sie die App neu, damit alle Änderungen wirksam werden.</string>
+   <string name="pref_player_web_stream_links_title">Streaming-Website-Links öffnen</string>
+   <string name="pref_player_web_stream_links_summary">mpvRx für Links von YouTube, Vimeo, Twitch, Odysee und Bilibili anbieten. Deaktivieren, damit deren eigene Apps sie öffnen.</string>
+ 
++  <string name="btn_label_scopes">Scopes</string>
++  <string name="scopes_title">Scopes</string>
++  <string name="scopes_expand">Scopes erweitern</string>
++  <string name="scopes_show_overlay">Overlay anzeigen</string>
++  <string name="scopes_no_audio_track">Keine Audiospur ausgewählt</string>
++  <string name="scopes_channel_count">Kanäle: %1$d</string>
++  <string name="scopes_luma">Luma</string>
++  <string name="scopes_rgby">RGBY</string>
++  <string name="scopes_vectorscope">Vektorskop</string>
++  <string name="scopes_resolution">Auflösung</string>
++  <string name="scopes_frame_rate">Bildrate</string>
++  <string name="scopes_credit">Inspiriert von Aagedal Media Player</string>
++  <string name="scopes_audio_waveform">Audio-Wellenform</string>
++  <string name="scopes_video">Video-Scopes</string>
++  <string name="scopes_generating_waveform">Wellenform wird erstellt…</string>
++  <string name="scopes_audio_unavailable">Die ausgewählte Audiospur kann für die Wellenformvorschau nicht decodiert werden.</string>
++  <string name="scopes_video_unavailable">Für die Scopes konnte kein Videobild erfasst werden.</string>
++
+   <!-- Downloads -->
+   <string name="downloads_title">Downloads</string>
+   <string name="downloads_notification_channel">Downloads</string>
+diff --git a/app/src/main/res/values-es/strings.xml b/app/src/main/res/values-es/strings.xml
+index 40023f05..c50634b3 100644
+--- a/app/src/main/res/values-es/strings.xml
++++ b/app/src/main/res/values-es/strings.xml
+@@ -2007,6 +2007,24 @@ Reinicia la aplicación para que se apliquen todos los cambios.</string>
+   <string name="pref_player_web_stream_links_title">Abrir enlaces de sitios de streaming</string>
+   <string name="pref_player_web_stream_links_summary">Ofrecer mpvRx para enlaces de YouTube, Vimeo, Twitch, Odysee y Bilibili. Desactívalo para que los abran sus propias apps.</string>
+ 
++  <string name="btn_label_scopes">Monitores</string>
++  <string name="scopes_title">Monitores</string>
++  <string name="scopes_expand">Ampliar monitores</string>
++  <string name="scopes_show_overlay">Mostrar superposición</string>
++  <string name="scopes_no_audio_track">No hay ninguna pista de audio seleccionada</string>
++  <string name="scopes_channel_count">Canales: %1$d</string>
++  <string name="scopes_luma">Luma</string>
++  <string name="scopes_rgby">RGBY</string>
++  <string name="scopes_vectorscope">Vectorscopio</string>
++  <string name="scopes_resolution">Resolución</string>
++  <string name="scopes_frame_rate">Frecuencia de imagen</string>
++  <string name="scopes_credit">Inspirado en Aagedal Media Player</string>
++  <string name="scopes_audio_waveform">Forma de onda de audio</string>
++  <string name="scopes_video">Monitores de vídeo</string>
++  <string name="scopes_generating_waveform">Generando forma de onda…</string>
++  <string name="scopes_audio_unavailable">No se puede decodificar la pista de audio seleccionada para la vista previa de la forma de onda.</string>
++  <string name="scopes_video_unavailable">No se pudo capturar un fotograma para los monitores.</string>
++
+   <!-- Downloads -->
+   <string name="downloads_title">Descargas</string>
+   <string name="downloads_notification_channel">Descargas</string>
+diff --git a/app/src/main/res/values-fr/strings.xml b/app/src/main/res/values-fr/strings.xml
+index 0d472531..65f5db17 100644
+--- a/app/src/main/res/values-fr/strings.xml
++++ b/app/src/main/res/values-fr/strings.xml
+@@ -2007,6 +2007,24 @@ Veuillez redémarrer l’application pour appliquer toutes les modifications.</s
+   <string name="pref_player_web_stream_links_title">Ouvrir les liens de sites de streaming</string>
+   <string name="pref_player_web_stream_links_summary">Proposer mpvRx pour les liens YouTube, Vimeo, Twitch, Odysee et Bilibili. Désactivez pour laisser leurs applications les ouvrir.</string>
+ 
++  <string name="btn_label_scopes">Scopes</string>
++  <string name="scopes_title">Scopes</string>
++  <string name="scopes_expand">Agrandir les scopes</string>
++  <string name="scopes_show_overlay">Afficher la superposition</string>
++  <string name="scopes_no_audio_track">Aucune piste audio sélectionnée</string>
++  <string name="scopes_channel_count">Canaux : %1$d</string>
++  <string name="scopes_luma">Luma</string>
++  <string name="scopes_rgby">RGBY</string>
++  <string name="scopes_vectorscope">Vectorscope</string>
++  <string name="scopes_resolution">Résolution</string>
++  <string name="scopes_frame_rate">Fréquence d’images</string>
++  <string name="scopes_credit">Inspiré par Aagedal Media Player</string>
++  <string name="scopes_audio_waveform">Forme d’onde audio</string>
++  <string name="scopes_video">Scopes vidéo</string>
++  <string name="scopes_generating_waveform">Génération de la forme d’onde…</string>
++  <string name="scopes_audio_unavailable">La piste audio sélectionnée ne peut pas être décodée pour l’aperçu de la forme d’onde.</string>
++  <string name="scopes_video_unavailable">Impossible de capturer une image vidéo pour les scopes.</string>
++
+   <!-- Downloads -->
+   <string name="downloads_title">Téléchargements</string>
+   <string name="downloads_notification_channel">Téléchargements</string>
+diff --git a/app/src/main/res/values-hi/strings.xml b/app/src/main/res/values-hi/strings.xml
+index 09ee154d..99104132 100644
+--- a/app/src/main/res/values-hi/strings.xml
++++ b/app/src/main/res/values-hi/strings.xml
+@@ -1911,6 +1911,24 @@
+   <string name="pref_player_web_stream_links_title">स्ट्रीमिंग साइट लिंक खोलें</string>
+   <string name="pref_player_web_stream_links_summary">YouTube, Vimeo, Twitch, Odysee और Bilibili लिंक के लिए mpvRx दिखाएं। बंद करने पर उनके अपने ऐप उन्हें खोलेंगे।</string>
+ 
++  <string name="btn_label_scopes">स्कोप</string>
++  <string name="scopes_title">स्कोप</string>
++  <string name="scopes_expand">स्कोप बड़ा करें</string>
++  <string name="scopes_show_overlay">ओवरले दिखाएँ</string>
++  <string name="scopes_no_audio_track">कोई ऑडियो ट्रैक नहीं चुना गया</string>
++  <string name="scopes_channel_count">चैनल: %1$d</string>
++  <string name="scopes_luma">ल्यूमा</string>
++  <string name="scopes_rgby">RGBY</string>
++  <string name="scopes_vectorscope">वेक्टरस्कोप</string>
++  <string name="scopes_resolution">रिज़ॉल्यूशन</string>
++  <string name="scopes_frame_rate">फ़्रेम दर</string>
++  <string name="scopes_credit">Aagedal Media Player से प्रेरित</string>
++  <string name="scopes_audio_waveform">ऑडियो वेवफ़ॉर्म</string>
++  <string name="scopes_video">वीडियो स्कोप</string>
++  <string name="scopes_generating_waveform">वेवफ़ॉर्म बनाया जा रहा है…</string>
++  <string name="scopes_audio_unavailable">चुने गए ऑडियो ट्रैक को वेवफ़ॉर्म पूर्वावलोकन के लिए डिकोड नहीं किया जा सकता।</string>
++  <string name="scopes_video_unavailable">स्कोप के लिए वीडियो फ़्रेम कैप्चर नहीं हो सका।</string>
++
+   <!-- Downloads -->
+   <string name="downloads_title">डाउनलोड</string>
+   <string name="downloads_notification_channel">डाउनलोड</string>
+diff --git a/app/src/main/res/values-ja/strings.xml b/app/src/main/res/values-ja/strings.xml
+index eb19eed4..675eaf98 100644
+--- a/app/src/main/res/values-ja/strings.xml
++++ b/app/src/main/res/values-ja/strings.xml
+@@ -2007,6 +2007,24 @@
+   <string name="pref_player_web_stream_links_title">ストリーミングサイトのリンクを開く</string>
+   <string name="pref_player_web_stream_links_summary">YouTube、Vimeo、Twitch、Odysee、Bilibili のリンクで mpvRx を候補に表示。オフにすると各アプリが開きます。</string>
+ 
++  <string name="btn_label_scopes">スコープ</string>
++  <string name="scopes_title">スコープ</string>
++  <string name="scopes_expand">スコープを拡大</string>
++  <string name="scopes_show_overlay">オーバーレイを表示</string>
++  <string name="scopes_no_audio_track">音声トラックが選択されていません</string>
++  <string name="scopes_channel_count">チャンネル：%1$d</string>
++  <string name="scopes_luma">輝度</string>
++  <string name="scopes_rgby">RGBY</string>
++  <string name="scopes_vectorscope">ベクトルスコープ</string>
++  <string name="scopes_resolution">解像度</string>
++  <string name="scopes_frame_rate">フレームレート</string>
++  <string name="scopes_credit">Aagedal Media Player に着想を得ています</string>
++  <string name="scopes_audio_waveform">音声波形</string>
++  <string name="scopes_video">ビデオスコープ</string>
++  <string name="scopes_generating_waveform">波形を生成しています…</string>
++  <string name="scopes_audio_unavailable">選択した音声トラックを波形プレビュー用にデコードできません。</string>
++  <string name="scopes_video_unavailable">スコープ用のビデオフレームを取得できませんでした。</string>
++
+   <!-- Downloads -->
+   <string name="downloads_title">ダウンロード</string>
+   <string name="downloads_notification_channel">ダウンロード</string>
+diff --git a/app/src/main/res/values-pt-rBR/strings.xml b/app/src/main/res/values-pt-rBR/strings.xml
+index 51dc9f1d..2996df9d 100644
+--- a/app/src/main/res/values-pt-rBR/strings.xml
++++ b/app/src/main/res/values-pt-rBR/strings.xml
+@@ -2007,6 +2007,24 @@ Reinicie o aplicativo para que todas as alterações entrem em vigor.</string>
+   <string name="pref_player_web_stream_links_title">Abrir links de sites de streaming</string>
+   <string name="pref_player_web_stream_links_summary">Oferecer o mpvRx para links do YouTube, Vimeo, Twitch, Odysee e Bilibili. Desative para que os próprios apps os abram.</string>
+ 
++  <string name="btn_label_scopes">Escopos</string>
++  <string name="scopes_title">Escopos</string>
++  <string name="scopes_expand">Expandir escopos</string>
++  <string name="scopes_show_overlay">Mostrar sobreposição</string>
++  <string name="scopes_no_audio_track">Nenhuma faixa de áudio selecionada</string>
++  <string name="scopes_channel_count">Canais: %1$d</string>
++  <string name="scopes_luma">Luma</string>
++  <string name="scopes_rgby">RGBY</string>
++  <string name="scopes_vectorscope">Vectorscópio</string>
++  <string name="scopes_resolution">Resolução</string>
++  <string name="scopes_frame_rate">Taxa de quadros</string>
++  <string name="scopes_credit">Inspirado no Aagedal Media Player</string>
++  <string name="scopes_audio_waveform">Forma de onda de áudio</string>
++  <string name="scopes_video">Escopos de vídeo</string>
++  <string name="scopes_generating_waveform">Gerando forma de onda…</string>
++  <string name="scopes_audio_unavailable">A faixa de áudio selecionada não pode ser decodificada para a visualização da forma de onda.</string>
++  <string name="scopes_video_unavailable">Não foi possível capturar um quadro de vídeo para os escopos.</string>
++
+   <!-- Downloads -->
+   <string name="downloads_title">Downloads</string>
+   <string name="downloads_notification_channel">Downloads</string>
+diff --git a/app/src/main/res/values-ru/strings.xml b/app/src/main/res/values-ru/strings.xml
+index 30981655..eaa7dc41 100644
+--- a/app/src/main/res/values-ru/strings.xml
++++ b/app/src/main/res/values-ru/strings.xml
+@@ -2007,6 +2007,24 @@
+   <string name="pref_player_web_stream_links_title">Открывать ссылки стриминговых сайтов</string>
+   <string name="pref_player_web_stream_links_summary">Предлагать mpvRx для ссылок YouTube, Vimeo, Twitch, Odysee и Bilibili. Отключите, чтобы их открывали собственные приложения.</string>
+ 
++  <string name="btn_label_scopes">Скопы</string>
++  <string name="scopes_title">Скопы</string>
++  <string name="scopes_expand">Развернуть скопы</string>
++  <string name="scopes_show_overlay">Показывать наложение</string>
++  <string name="scopes_no_audio_track">Аудиодорожка не выбрана</string>
++  <string name="scopes_channel_count">Каналы: %1$d</string>
++  <string name="scopes_luma">Яркость</string>
++  <string name="scopes_rgby">RGBY</string>
++  <string name="scopes_vectorscope">Векторскоп</string>
++  <string name="scopes_resolution">Разрешение</string>
++  <string name="scopes_frame_rate">Частота кадров</string>
++  <string name="scopes_credit">Вдохновлено Aagedal Media Player</string>
++  <string name="scopes_audio_waveform">Звуковая волна</string>
++  <string name="scopes_video">Видеоскопы</string>
++  <string name="scopes_generating_waveform">Создание волновой формы…</string>
++  <string name="scopes_audio_unavailable">Выбранную аудиодорожку не удалось декодировать для предварительного просмотра.</string>
++  <string name="scopes_video_unavailable">Не удалось захватить кадр видео для скопов.</string>
++
+   <!-- Downloads -->
+   <string name="downloads_title">Загрузки</string>
+   <string name="downloads_notification_channel">Загрузки</string>
+diff --git a/app/src/main/res/values-zh-rCN/strings.xml b/app/src/main/res/values-zh-rCN/strings.xml
+index 64652587..34dd4f22 100644
+--- a/app/src/main/res/values-zh-rCN/strings.xml
++++ b/app/src/main/res/values-zh-rCN/strings.xml
+@@ -2009,6 +2009,24 @@
+   <string name="pref_player_web_stream_links_title">打开流媒体网站链接</string>
+   <string name="pref_player_web_stream_links_summary">为 YouTube、Vimeo、Twitch、Odysee 和 Bilibili 链接提供 mpvRx 选项。关闭后由它们自己的应用打开。</string>
+ 
++  <string name="btn_label_scopes">示波器</string>
++  <string name="scopes_title">示波器</string>
++  <string name="scopes_expand">展开示波器</string>
++  <string name="scopes_show_overlay">显示叠加层</string>
++  <string name="scopes_no_audio_track">未选择音轨</string>
++  <string name="scopes_channel_count">声道：%1$d</string>
++  <string name="scopes_luma">亮度</string>
++  <string name="scopes_rgby">RGBY</string>
++  <string name="scopes_vectorscope">矢量示波器</string>
++  <string name="scopes_resolution">分辨率</string>
++  <string name="scopes_frame_rate">帧率</string>
++  <string name="scopes_credit">灵感来自 Aagedal Media Player</string>
++  <string name="scopes_audio_waveform">音频波形</string>
++  <string name="scopes_video">视频示波器</string>
++  <string name="scopes_generating_waveform">正在生成波形…</string>
++  <string name="scopes_audio_unavailable">无法解码所选音轨以预览波形。</string>
++  <string name="scopes_video_unavailable">无法为示波器捕获视频帧。</string>
++
+   <!-- Downloads -->
+   <string name="downloads_title">下载</string>
+   <string name="downloads_notification_channel">下载</string>
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index 0bc5965e..f3cebaf6 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -1240,7 +1240,24 @@
+   <string name="btn_label_ambient">Ambience Mode</string>
+   <string name="btn_label_time_network">Time + Network</string>
+   <string name="btn_label_equalizer">Equalizer</string>
++  <string name="btn_label_scopes">Scopes</string>
+   <string name="btn_label_none">None</string>
++  <string name="scopes_title">Scopes</string>
++  <string name="scopes_expand">Expand scopes</string>
++  <string name="scopes_show_overlay">Show overlay</string>
++  <string name="scopes_no_audio_track">No audio track selected</string>
++  <string name="scopes_channel_count">Channels: %1$d</string>
++  <string name="scopes_luma">Luma</string>
++  <string name="scopes_rgby">RGBY</string>
++  <string name="scopes_vectorscope">Vectorscope</string>
++  <string name="scopes_resolution">Resolution</string>
++  <string name="scopes_frame_rate">Frame rate</string>
++  <string name="scopes_credit">Inspired by Aagedal Media Player</string>
++  <string name="scopes_audio_waveform">Audio waveform</string>
++  <string name="scopes_video">Video scopes</string>
++  <string name="scopes_generating_waveform">Generating waveform…</string>
++  <string name="scopes_audio_unavailable">The selected audio track cannot be decoded for waveform preview.</string>
++  <string name="scopes_video_unavailable">A video frame could not be captured for scopes.</string>
+   <string name="media_info_tab_overview">Overview</string>
+   <string name="media_info_tab_video">Video</string>
+   <string name="media_info_tab_audio">Audio</string>
+-- 
+2.25.1
+

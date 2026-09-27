@@ -1,0 +1,47 @@
+From 1a9674ead964bd901322f99698c8dc6318821ffa Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <riteshp2001@gmail.com>
+Date: Tue, 15 Sep 2026 10:24:57 +0530
+Subject: [PATCH 095/140] revert: restore original seekbar track alphas
+
+---
+ .../mpvrx/ui/player/controls/components/Seekbar.kt | 14 +++-----------
+ 1 file changed, 3 insertions(+), 11 deletions(-)
+
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/Seekbar.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/Seekbar.kt
+index d0329147..13827317 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/Seekbar.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/Seekbar.kt
+@@ -52,7 +52,6 @@ import androidx.compose.material3.Text
+ import androidx.compose.material3.ripple
+ import androidx.compose.runtime.Composable
+ import androidx.compose.runtime.collectAsState
+-import androidx.compose.foundation.isSystemInDarkTheme
+ import androidx.compose.runtime.LaunchedEffect
+ import androidx.compose.runtime.getValue
+ import androidx.compose.runtime.mutableFloatStateOf
+@@ -112,19 +111,12 @@ private data class SkipSegmentOverlay(
+   val edgeColor: Color,
+ )
+ 
+-private const val READ_AHEAD_TRACK_ALPHA_DARK = 0.40f
+-private const val EMPTY_TRACK_ALPHA_DARK = 0.24f
+-private const val READ_AHEAD_TRACK_ALPHA_LIGHT = 0.60f
+-private const val EMPTY_TRACK_ALPHA_LIGHT = 0.38f
++private const val READ_AHEAD_TRACK_ALPHA = 0.40f
++private const val EMPTY_TRACK_ALPHA = 0.24f
+ 
+ @Composable
+ private fun rememberSeekbarTrackAlphas(): Pair<Float, Float> {
+-  val isDark = isSystemInDarkTheme()
+-  return if (isDark) {
+-    READ_AHEAD_TRACK_ALPHA_DARK to EMPTY_TRACK_ALPHA_DARK
+-  } else {
+-    READ_AHEAD_TRACK_ALPHA_LIGHT to EMPTY_TRACK_ALPHA_LIGHT
+-  }
++  return READ_AHEAD_TRACK_ALPHA to EMPTY_TRACK_ALPHA
+ }
+ 
+ private fun bufferedEndPx(
+-- 
+2.25.1
+
