@@ -76,3 +76,7 @@ The refreshed graph still contains seven advisory matches in transitive Android 
 ## Final remediation result
 
 After adding the buildscript classpath resolution rules and rerunning dependency submission, the latest SBOM contains only patched versions: Bouncy Castle modules 1.85, Commons Lang 3.18.0, jose4j 0.9.6, and JDOM 2.0.6.1. A fresh OSV batch query over all 717 Maven components reports **zero advisory matches**.
+
+## Website dependency remediation
+
+The website lockfile was audited separately because it is an npm project and is not represented in the Gradle SBOM. The lockfile-only audit initially found nine npm advisories; safe upgrades reduced this to four path-to-regexp findings in Blume's Vercel adapter chain. A reproducible npm manifest and lockfile override now pin `path-to-regexp` to 6.3.0 while retaining Blume 1.6.3. `npm ci --ignore-scripts --dry-run` succeeds and `npm audit` reports **zero vulnerabilities**.

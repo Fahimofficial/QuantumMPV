@@ -1,0 +1,15 @@
+{
+  "name": "mpvrxweb",
+  "private": true,
+  "engines": {
+    "node": "22.x"
+  },
+  "dependencies": {
+    "@lucide/astro": "1.42.0",
+    "blume": "1.6.3",
+    "simple-icons": "16.30.0"
+  },
+  "overrides": {
+    "path-to-regexp": "6.3.0"
+  }
+}
