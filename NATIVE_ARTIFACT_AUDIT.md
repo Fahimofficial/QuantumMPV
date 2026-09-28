@@ -72,3 +72,7 @@ The dependency remediation is committed separately after the native pipeline fix
 The explicit Gradle dependency-submission workflow was added and successfully run against commit `0a01383b`. The refreshed SBOM now reflects the current checkout. OSV reports no advisories for the patched application coordinates (`bcprov-jdk18on`, `bcpkix-jdk18on`, and `bcutil-jdk18on` 1.85; Commons Lang 3.18.0; jose4j 0.9.6; JDOM 2.0.6.1).
 
 The refreshed graph still contains seven advisory matches in transitive Android build tooling: AGP 9.4.1's `builder`/`apkzlib` resolve Bouncy Castle 1.80.2, Android bundletool 1.18.3 resolves jose4j 0.9.5, Jetifier resolves JDOM 2.0.6, and Android tooling's commons-compress resolves Commons Lang 3.16.0. These are build-time dependencies from upstream Android tooling rather than APK runtime dependencies. AGP 9.5.0-alpha07 still publishes Bouncy Castle 1.80.2, so upgrading further within currently published AGP versions does not remove the advisories. They require an upstream Android tooling release with patched transitive versions; the repository now refreshes its graph automatically so those alerts will clear when upstream publishes them.
+
+## Final remediation result
+
+After adding the buildscript classpath resolution rules and rerunning dependency submission, the latest SBOM contains only patched versions: Bouncy Castle modules 1.85, Commons Lang 3.18.0, jose4j 0.9.6, and JDOM 2.0.6.1. A fresh OSV batch query over all 717 Maven components reports **zero advisory matches**.
