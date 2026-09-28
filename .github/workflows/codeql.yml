@@ -74,8 +74,9 @@ jobs:
             -Dorg.gradle.daemon=false
             -Dorg.gradle.parallel=false
             -Dorg.gradle.workers.max=1
-            -Dorg.gradle.jvmargs=-Xmx4g
-            -Dkotlin.daemon.jvm.options=-Xmx2g
+            -Dorg.gradle.jvmargs=-Xmx3g
+            -Dkotlin.daemon.jvm.options=-Xmx4g
+            -Dkotlin.daemon.jvmargs=-Xmx4g
         run: |
           chmod +x ./gradlew
           ./gradlew :app:assembleStandardDebug --stacktrace --no-daemon --max-workers=1
