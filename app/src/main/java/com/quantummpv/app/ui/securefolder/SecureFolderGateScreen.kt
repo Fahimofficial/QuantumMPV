@@ -11,6 +11,9 @@
 
 package com.quantummpv.app.ui.securefolder
 
+import android.os.Build
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.biometric.BiometricManager
@@ -99,6 +102,50 @@ import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
+import java.security.KeyStore
+import javax.crypto.Cipher
+import javax.crypto.KeyGenerator
+import javax.crypto.SecretKey
+
+private const val SECURE_FOLDER_BIOMETRIC_KEYSTORE = "AndroidKeyStore"
+private const val SECURE_FOLDER_BIOMETRIC_KEY_ALIAS = "mpvrx.secure-folder-biometric.v1"
+private const val SECURE_FOLDER_BIOMETRIC_TRANSFORMATION = "AES/GCM/NoPadding"
+private val SECURE_FOLDER_BIOMETRIC_CHALLENGE = byteArrayOf(0x6d, 0x70, 0x76, 0x72, 0x78)
+
+@Synchronized
+private fun getOrCreateSecretKey(): SecretKey {
+  val keyStore = KeyStore.getInstance(SECURE_FOLDER_BIOMETRIC_KEYSTORE).apply { load(null) }
+  (keyStore.getKey(SECURE_FOLDER_BIOMETRIC_KEY_ALIAS, null) as? SecretKey)?.let { return it }
+
+  val keyGenerator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, SECURE_FOLDER_BIOMETRIC_KEYSTORE)
+  val keySpecBuilder =
+    KeyGenParameterSpec
+      .Builder(
+        SECURE_FOLDER_BIOMETRIC_KEY_ALIAS,
+        KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT,
+      ).setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+      .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+      .setRandomizedEncryptionRequired(true)
+      .setUserAuthenticationRequired(true)
+  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+    keySpecBuilder.setUserAuthenticationParameters(
+      0,
+      KeyProperties.AUTH_BIOMETRIC_STRONG or KeyProperties.AUTH_DEVICE_CREDENTIAL,
+    )
+  } else {
+    @Suppress("DEPRECATION")
+    keySpecBuilder.setUserAuthenticationValidityDurationSeconds(-1)
+  }
+  keyGenerator.init(keySpecBuilder.build())
+  return keyGenerator.generateKey()
+}
+
+private fun buildBiometricCipherOrNull(): Cipher? =
+  runCatching {
+    Cipher.getInstance(SECURE_FOLDER_BIOMETRIC_TRANSFORMATION).apply {
+      init(Cipher.ENCRYPT_MODE, getOrCreateSecretKey())
+    }
+  }.getOrNull()
 
 /** Preset security question resource IDs — no free-text question, only the answer is typed. */
 val SECURITY_QUESTION_PRESET_RES_IDS =
@@ -146,10 +193,16 @@ data object SecureFolderGateScreen : Screen {
       // on this screen). If that request gets delivered after the biometric prompt dismisses, it
       // flashes the numeric keyboard on whatever screen we've navigated to next. Hide it up front.
       keyboardController?.hide()
+      val biometricCipher = if (canAuthenticateBiometric) buildBiometricCipherOrNull() else null
+      if (canAuthenticateBiometric && biometricCipher == null) return
       val executor = ContextCompat.getMainExecutor(context)
       val callback = object : BiometricPrompt.AuthenticationCallback() {
         override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
           super.onAuthenticationSucceeded(result)
+          if (canAuthenticateBiometric) {
+            val cipher = result.cryptoObject?.cipher ?: return
+            runCatching { cipher.doFinal(SECURE_FOLDER_BIOMETRIC_CHALLENGE) }.getOrNull() ?: return
+          }
           backstack.replaceTop(SecureFolderScreen)
         }
         override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
@@ -168,7 +221,12 @@ data object SecureFolderGateScreen : Screen {
       } else {
         promptInfoBuilder.setAllowedAuthenticators(BiometricManager.Authenticators.DEVICE_CREDENTIAL)
       }
-      biometricPrompt.authenticate(promptInfoBuilder.build())
+      val promptInfo = promptInfoBuilder.build()
+      if (canAuthenticateBiometric) {
+        biometricPrompt.authenticate(promptInfo, BiometricPrompt.CryptoObject(biometricCipher!!))
+      } else {
+        biometricPrompt.authenticate(promptInfo)
+      }
     }
 
     LaunchedEffect(Unit) {
