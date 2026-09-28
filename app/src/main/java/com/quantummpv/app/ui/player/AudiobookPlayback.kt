@@ -9,7 +9,6 @@ import com.quantummpv.app.database.dao.AudiobookDao
 import com.quantummpv.app.database.entities.Audiobook
 import com.quantummpv.app.database.entities.AudiobookChapter
 import com.quantummpv.app.database.entities.AudiobookChapterEntity
-import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineExceptionHandler
@@ -30,6 +29,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import org.koin.core.context.GlobalContext
+import java.util.concurrent.atomic.AtomicBoolean
 
 internal data class AudiobookProgress(
   val item: AudiobookPlaybackInfo,

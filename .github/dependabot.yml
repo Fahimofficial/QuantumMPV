@@ -8,6 +8,20 @@ updates:
     labels:
       - dependencies
       - android
+    # These libraries are pinned on purpose by the root build.gradle.kts
+    # `resolutionStrategy.eachDependency` security block (and mirrored as
+    # `constraints` in app/build.gradle.kts). Dependabot's Gradle parser
+    # cannot model forced/constraint versions for buildscript + plugin-classpath
+    # coordinates, so it fails the run with `dependency_not_found` instead of
+    # simply skipping them. Ignore them here: the pins are maintained manually,
+    # and this stops the updater from erroring out on the whole ecosystem.
+    ignore:
+      - dependency-name: "org.jetbrains.kotlin:kotlin-gradle-plugin"
+      - dependency-name: "org.apache.commons:commons-lang3"
+      - dependency-name: "org.bitbucket.b_c:jose4j"
+      - dependency-name: "org.bouncycastle:bcprov-jdk18on"
+      - dependency-name: "org.bouncycastle:bcpkix-jdk18on"
+      - dependency-name: "org.jdom:jdom2"
 
   - package-ecosystem: github-actions
     directory: /

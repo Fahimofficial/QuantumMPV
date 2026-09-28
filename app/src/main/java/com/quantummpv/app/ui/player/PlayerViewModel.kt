@@ -567,9 +567,9 @@ class PlayerViewModel : ViewModel(),
   val duration: Int? get() = _duration.value
 
   private val _volumeBoostCap = MutableStateFlow<Int?>(null)
-  private val volumeBoostCap: Int? get() = _volumeBoostCap.value
+  val volumeBoostCap: Int? get() = _volumeBoostCap.value
 
-  private val _isMpvCoreReady = MutableStateFlow(false)
+  private val isMpvCoreReadyFlow = MutableStateFlow(false)
   private var mpvStateCollectorsJob: Job? = null
 
   // High-precision position and duration for smooth seekbar
@@ -1583,11 +1583,11 @@ val isBrightnessSliderShown = MutableStateFlow(false)
   private val _hdrScreenMode = MutableStateFlow(initialHdrScreenMode())
   val hdrScreenMode: StateFlow<HdrScreenMode> = _hdrScreenMode.asStateFlow()
 
-  private val _isGpuNextEnabled = MutableStateFlow(decoderPreferences.gpuNext.get())
-  private val _isVulkanEnabled = MutableStateFlow(decoderPreferences.useVulkan.get())
+  private val isGpuNextEnabledFlow = MutableStateFlow(decoderPreferences.gpuNext.get())
+  private val isVulkanEnabledFlow = MutableStateFlow(decoderPreferences.useVulkan.get())
   val isLinearHdrAvailable: StateFlow<Boolean> =
-    combine(_isGpuNextEnabled, _isVulkanEnabled) { gpuNext, vulkan -> gpuNext && vulkan }
-      .stateIn(viewModelScope, SharingStarted.Eagerly, _isGpuNextEnabled.value && _isVulkanEnabled.value)
+    combine(isGpuNextEnabledFlow, isVulkanEnabledFlow) { gpuNext, vulkan -> gpuNext && vulkan }
+      .stateIn(viewModelScope, SharingStarted.Eagerly, isGpuNextEnabledFlow.value && isVulkanEnabledFlow.value)
 
   private val _isHdrScreenOutputPipelineReady = MutableStateFlow(isHdrScreenOutputAvailable())
   val isHdrScreenOutputPipelineReady: StateFlow<Boolean> = _isHdrScreenOutputPipelineReady.asStateFlow()
@@ -1722,13 +1722,13 @@ val isBrightnessSliderShown = MutableStateFlow(false)
   init {
     viewModelScope.launch {
       decoderPreferences.gpuNext.changes().collect { enabled ->
-        _isGpuNextEnabled.value = enabled
+        isGpuNextEnabledFlow.value = enabled
         reconcileHdrModeWithRenderer()
       }
     }
     viewModelScope.launch {
       decoderPreferences.useVulkan.changes().collect { enabled ->
-        _isVulkanEnabled.value = enabled
+        isVulkanEnabledFlow.value = enabled
         reconcileHdrModeWithRenderer()
       }
     }
@@ -1775,7 +1775,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
       while (isActive) {
         val playbackPhase = PlaybackSession.state.value.phase
         val hasActiveTimeline = playbackPhase == PlaybackPhase.READY || playbackPhase == PlaybackPhase.BACKGROUND
-        if (!_isMpvCoreReady.value || !hasActiveTimeline) {
+        if (!isMpvCoreReadyFlow.value || !hasActiveTimeline) {
           delay(250L)
           continue
         }
@@ -1813,7 +1813,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
     // which would otherwise manifest as dropped frames and accelerated battery drain.
     viewModelScope.launch(playbackStateDispatcher) {
       while (isActive) {
-        if (_isMpvCoreReady.value && paused == false) {
+        if (isMpvCoreReadyFlow.value && paused == false) {
           val newHeadroom = ThermalMonitor.getHeadroom(appContext)
           if (kotlin.math.abs(newHeadroom - thermalHeadroom) > 0.08f) {
             thermalHeadroom = newHeadroom
@@ -1833,7 +1833,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
     // Update precise duration when the integer duration changes (avoid polling)
     viewModelScope.launch(playbackStateDispatcher) {
       _duration.collect { observedDuration ->
-        if (!_isMpvCoreReady.value) return@collect
+        if (!isMpvCoreReadyFlow.value) return@collect
         if (observedDuration == null || observedDuration <= 0) {
           _preciseDuration.value = 0f
           return@collect
@@ -1871,7 +1871,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
       combine(
         PlaybackSession.propString["video-crop"],
         activeGeneration,
-        _isMpvCoreReady,
+        isMpvCoreReadyFlow,
       ) { crop, generation, coreReady -> Triple(crop, generation, coreReady) }
         .distinctUntilChanged()
         .collect { (_, generation, coreReady) ->
@@ -1931,7 +1931,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
         audioPreferences.drcEnabled.changes(),
         audioPreferences.audioChannels.changes(),
       ) { _, _, _ -> }.collect {
-        if (!_isMpvCoreReady.value) return@collect
+        if (!isMpvCoreReadyFlow.value) return@collect
         applyEqualizerMpvFilters(immediate = true)
       }
     }
@@ -1941,7 +1941,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
       combine(_duration, abLoopState) { duration, abLoop ->
         Pair(duration, abLoop)
       }.collect { (duration, abLoop) ->
-        if (!_isMpvCoreReady.value) return@collect
+        if (!isMpvCoreReadyFlow.value) return@collect
         val videoDuration = duration ?: 0
         val isLoopActive = abLoop.a != null || abLoop.b != null
         val shouldUsePreciseSeeking = playerPreferences.usePreciseSeeking.get() || videoDuration < 120 || isLoopActive
@@ -1983,7 +1983,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
   }
 
   fun onMpvCoreInitialized() {
-    _isMpvCoreReady.value = true
+    isMpvCoreReadyFlow.value = true
     scheduleAmbientUpdate(0)
     startMpvStateCollectors()
     isMpvReadyForCustomButtons = true
@@ -1996,7 +1996,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
     stopRealtimeSubtitles(showToastMessage = false)
     cancelAutoCropAnalysis()
     disableAmbientShader()
-    _isMpvCoreReady.value = false
+    isMpvCoreReadyFlow.value = false
     isMpvReadyForCustomButtons = false
     runCatching { syncplayManager.clearPlayerBindings() }
     mpvStateCollectorsJob?.cancel()
@@ -6423,7 +6423,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
 
   private fun isAmbientRuntimeActive(): Boolean =
     _isAmbientLifecycleActive.value &&
-      _isMpvCoreReady.value &&
+      isMpvCoreReadyFlow.value &&
       _isAmbientEnabled.value &&
       !MpvConfigOverridePolicy.ownsAny(MpvConfigControlledFeatures.AMBIENT)
 

@@ -9,6 +9,7 @@
 
 package com.quantummpv.app.ui.theme
 
+import android.util.Base64
 import androidx.annotation.StringRes
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.darkColorScheme
@@ -18,7 +19,6 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import com.quantummpv.app.R
 import com.quantummpv.app.ui.player.visualizer.VisualizerPalette
-import android.util.Base64
 import java.nio.charset.StandardCharsets
 
 data class CustomThemeDefinition(

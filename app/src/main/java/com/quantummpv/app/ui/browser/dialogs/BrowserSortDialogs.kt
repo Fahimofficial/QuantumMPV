@@ -1249,7 +1249,6 @@ fun JellyfinSortDialog(
   )
 }
 
-
 @Composable
 fun AudiobookSortDialog(
   isOpen: Boolean,

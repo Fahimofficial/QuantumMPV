@@ -25,7 +25,7 @@ concurrency:
 jobs:
   build-preview:
     name: Build preview APKs
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     outputs:
       should_build: ${{ steps.activity.outputs.should_build }}
@@ -357,7 +357,7 @@ jobs:
     name: Publish preview download page
     needs: build-preview
     if: needs.build-preview.outputs.should_build == 'true' && needs.build-preview.outputs.pages_configured == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     environment:
       name: github-pages

@@ -23,7 +23,7 @@ env:
 jobs:
   ktlint-detekt:
     name: ktlint + detekt
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
 
     steps:
@@ -67,6 +67,29 @@ jobs:
           if [ -f app/build/reports/detekt/detekt.txt ]; then
             echo "detekt findings: $(grep -c '^[^ ]' app/build/reports/detekt/detekt.txt || true)"
           fi
+
+      # Quality gate: the two tools above always both run (see continue-on-error),
+      # but neither finding is ever swallowed. Any genuine ktlint or detekt
+      # violation fails this job, so the gate stays blocking as documented.
+      - name: Enforce static analysis gate
+        if: ${{ always() }}
+        run: |
+          echo "ktlint outcome: ${{ steps.ktlint.outcome }}"
+          echo "detekt outcome: ${{ steps.detekt.outcome }}"
+          failed=0
+          if [ "${{ steps.ktlint.outcome }}" != "success" ]; then
+            echo "::error::ktlint reported violations (see the ktlint step log and the uploaded report)."
+            failed=1
+          fi
+          if [ "${{ steps.detekt.outcome }}" != "success" ]; then
+            echo "::error::detekt reported findings (see the detekt step log and the uploaded report)."
+            failed=1
+          fi
+          if [ "$failed" -ne 0 ]; then
+            echo "Static analysis gate failed."
+            exit 1
+          fi
+          echo "Static analysis gate passed."
 
       - name: Upload reports
         if: ${{ always() }}
