@@ -239,6 +239,19 @@ room {
 }
 
 dependencies {
+  constraints {
+    // Keep security-patched transitive libraries visible to Dependabot's Gradle snapshot.
+    add("implementation", "io.netty:netty-codec:4.1.137.Final")
+    add("implementation", "org.bouncycastle:bcprov-jdk18on:1.84")
+    add("implementation", "org.bouncycastle:bcpkix-jdk18on:1.84")
+    add("implementation", "org.apache.commons:commons-lang3:3.18.0")
+    add("implementation", "org.apache.httpcomponents:httpclient:4.5.14")
+    add("implementation", "org.bitbucket.b_c:jose4j:0.9.6")
+    add("implementation", "org.jdom:jdom2:2.0.6.1")
+    add("implementation", "ch.qos.logback:logback-core:1.5.34")
+    add("implementation", "ch.qos.logback:logback-classic:1.5.34")
+  }
+
   implementation(libs.androidx.activity.compose)
   implementation(platform(libs.androidx.compose.bom))
   implementation(libs.androidx.ui)
