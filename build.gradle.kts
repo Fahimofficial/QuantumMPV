@@ -13,7 +13,7 @@ allprojects {
     resolutionStrategy.eachDependency {
       when {
         requested.group == "io.netty" -> useVersion("4.1.137.Final")
-        requested.group == "org.bouncycastle" -> useVersion("1.84")
+        requested.group == "org.bouncycastle" -> useVersion("1.85")
         requested.group == "org.apache.commons" && requested.name == "commons-lang3" -> useVersion("3.18.0")
         requested.group == "org.apache.httpcomponents" && requested.name == "httpclient" -> useVersion("4.5.14")
         requested.group == "org.bitbucket.b_c" && requested.name == "jose4j" -> useVersion("0.9.6")
