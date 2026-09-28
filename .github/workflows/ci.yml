@@ -30,19 +30,21 @@ jobs:
 
     steps:
       - name: Check out source
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 0
 
+      - name: Fetch and verify pinned native artifacts
+        run: python3 tools/verify_native_artifacts.py --download
       - name: Set up JDK 17
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           distribution: temurin
           java-version: '17'
           cache: gradle
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v4
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
 
       - name: Install Android build toolchain
         run: |
@@ -56,7 +58,7 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Validate Gradle wrapper
-        uses: gradle/actions/wrapper-validation@v6
+        uses: gradle/actions/wrapper-validation@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6
 
       - name: Validate QuantumMPV identity and protected behavior
         run: python3 tools/validate_quantummpv_identity.py
@@ -71,9 +73,16 @@ jobs:
           echo "Gradle validation exited with status $status"
           exit "$status"
 
+      - name: Verify final APK native contents
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' apk; do
+            python3 tools/verify_native_artifacts.py --apk "$apk"
+          done < <(find app/build/outputs/apk -type f -name '*.apk' -print0)
       - name: Upload debug lint reports
         if: ${{ always() }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: quantummpv-debug-lint-reports-${{ github.sha }}
           path: |
@@ -87,7 +96,7 @@ jobs:
         run: ./gradlew :app:lintStandardRelease --stacktrace --no-daemon --max-workers=1
 
       - name: Upload debug APK
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: quantummpv-debug-apk-${{ github.sha }}
           path: app/build/outputs/apk/standard/debug/*.apk

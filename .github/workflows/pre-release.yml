@@ -26,18 +26,20 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 0
 
+      - name: Fetch and verify pinned native artifacts
+        run: python3 tools/verify_native_artifacts.py --download
       - name: Set up JDK 17
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           distribution: temurin
           java-version: '17'
           cache: gradle
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v4
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
       - name: Install Android build toolchain
         shell: bash
         run: |
@@ -62,7 +64,7 @@ jobs:
       - name: Make Gradle wrapper executable
         run: chmod +x ./gradlew
       - name: Validate Gradle wrapper
-        uses: gradle/actions/wrapper-validation@v6
+        uses: gradle/actions/wrapper-validation@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6
 
       - name: Build preview APKs
         shell: bash
@@ -74,18 +76,25 @@ jobs:
 
       - name: Sign and verify preview APKs
         shell: bash
+        env:
+          SIGNING_KEYSTORE: ${{ secrets.SIGNING_KEYSTORE }}
+          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          KS_PASS: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          KEY_PASS: ${{ secrets.KEY_PASSWORD }}
         run: |
           set -euo pipefail
           apksigner="$ANDROID_HOME/build-tools/37.0.0/apksigner"
 
-          if [[ -z "${{ secrets.SIGNING_KEYSTORE }}" || -z "${{ secrets.SIGNING_KEY_ALIAS }}" || -z "${{ secrets.SIGNING_STORE_PASSWORD }}" || -z "${{ secrets.KEY_PASSWORD }}" ]]; then
+          if [[ -z "$SIGNING_KEYSTORE" || -z "$SIGNING_KEY_ALIAS" || -z "$KS_PASS" || -z "$KEY_PASS" ]]; then
             echo "Tagged preview releases require all signing secrets."
             exit 1
           fi
           test -x "$apksigner"
 
-          printf '%s' "${{ secrets.SIGNING_KEYSTORE }}" | base64 --decode > release.keystore
-          trap 'rm -f release.keystore' EXIT
+          umask 077
+          keystore="$(mktemp "${RUNNER_TEMP:-/tmp}/quantummpv-keystore.XXXXXX")"
+          trap 'rm -f "$keystore"' EXIT
+          printf '%s' "$SIGNING_KEYSTORE" | base64 --decode > "$keystore"
 
           sign_apk() {
             local unsigned="$1"
@@ -98,10 +107,10 @@ jobs:
             fi
 
             "$apksigner" sign \
-              --ks release.keystore \
-              --ks-key-alias "${{ secrets.SIGNING_KEY_ALIAS }}" \
-              --ks-pass "pass:${{ secrets.SIGNING_STORE_PASSWORD }}" \
-              --key-pass "pass:${{ secrets.KEY_PASSWORD }}" \
+              --ks "$keystore" \
+              --ks-key-alias "$SIGNING_KEY_ALIAS" \
+              --ks-pass env:KS_PASS \
+              --key-pass env:KEY_PASS \
               --out "$signed" \
               "$unsigned"
             "$apksigner" verify --verbose "$signed"
@@ -132,6 +141,13 @@ jobs:
             "$flavor_dir/app-noVulkan-universal-preview.apk" \
             "non-Vulkan universal preview"
 
+      - name: Verify final APK native contents
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' apk; do
+            python3 tools/verify_native_artifacts.py --apk "$apk"
+          done < <(find app/build/outputs/apk -type f -name '*.apk' ! -name '*unsigned.apk' -print0)
       - name: Stage pre-release assets and checksums
         shell: bash
         run: |
@@ -188,7 +204,7 @@ jobs:
           printf '%s\n' '```' >> pre-release-notes.md
 
       - name: Create GitHub pre-release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           tag_name: ${{ env.VERSION_TAG }}
           name: QuantumMPV ${{ env.VERSION_TAG }}

@@ -11,6 +11,11 @@ val localProperties =
   }
 
 val targetAbiProp = project.findProperty("targetAbi")?.toString() ?: localProperties.getProperty("targetAbi")
+val nativeMetadata = Properties().apply {
+  rootProject.file("native-artifacts.properties").inputStream().use { load(it) }
+}
+fun nativeProperty(flavor: String, key: String): String =
+  nativeMetadata.getProperty("$flavor.$key") ?: error("Missing native artifact metadata: $flavor.$key")
 val enableX86 = project.findProperty("enableX86") != "false"
 val x86Abis = if (enableX86) listOf("x86", "x86_64") else emptyList()
 val activeAbis =
@@ -56,6 +61,7 @@ android {
 
     buildConfigField("String", "GIT_SHA", "\"${getCommitSha()}\"")
     buildConfigField("int", "GIT_COUNT", getCommitCount())
+    buildConfigField("String", "NATIVE_MANIFEST_SCHEMA", "\"1\"")
 
     externalNativeBuild {
       cmake {
@@ -81,6 +87,12 @@ android {
       buildConfigField("boolean", "SCOPED_STORAGE_ONLY", "false")
       buildConfigField("boolean", "MPV_SUPPORTS_VULKAN", "true")
       buildConfigField("boolean", "MPV_SUPPORTS_MEDIACODEC_VULKAN", "false")
+
+      buildConfigField("String", "NATIVE_ARTIFACT_REVISION", "\"${nativeProperty("standard", "artifact_revision")}\"")
+      buildConfigField("String", "MPV_REVISION", "\"${nativeProperty("standard", "mpv_revision")}\"")
+      buildConfigField("String", "FFMPEG_REVISION", "\"${nativeProperty("standard", "ffmpeg_revision")}\"")
+      buildConfigField("String", "YTDLP_REVISION", "\"${nativeProperty("standard", "yt_dlp_revision")}\"")
+      buildConfigField("String", "MEDIA_SERVER_REVISION", "\"${nativeProperty("standard", "media_server_revision")}\"")
     }
 
     create("noVulkan") {
@@ -90,6 +102,11 @@ android {
       buildConfigField("boolean", "SCOPED_STORAGE_ONLY", "false")
       buildConfigField("boolean", "MPV_SUPPORTS_VULKAN", "false")
       buildConfigField("boolean", "MPV_SUPPORTS_MEDIACODEC_VULKAN", "false")
+      buildConfigField("String", "NATIVE_ARTIFACT_REVISION", "\"${nativeProperty("noVulkan", "artifact_revision")}\"")
+      buildConfigField("String", "MPV_REVISION", "\"${nativeProperty("noVulkan", "mpv_revision")}\"")
+      buildConfigField("String", "FFMPEG_REVISION", "\"${nativeProperty("noVulkan", "ffmpeg_revision")}\"")
+      buildConfigField("String", "YTDLP_REVISION", "\"${nativeProperty("noVulkan", "yt_dlp_revision")}\"")
+      buildConfigField("String", "MEDIA_SERVER_REVISION", "\"${nativeProperty("noVulkan", "media_server_revision")}\"")
     }
 
     create("fongmi") {
@@ -99,6 +116,12 @@ android {
       buildConfigField("boolean", "SCOPED_STORAGE_ONLY", "false")
       buildConfigField("boolean", "MPV_SUPPORTS_VULKAN", "true")
       buildConfigField("boolean", "MPV_SUPPORTS_MEDIACODEC_VULKAN", "true")
+
+      buildConfigField("String", "NATIVE_ARTIFACT_REVISION", "\"${nativeProperty("fongmi", "artifact_revision")}\"")
+      buildConfigField("String", "MPV_REVISION", "\"${nativeProperty("fongmi", "mpv_revision")}\"")
+      buildConfigField("String", "FFMPEG_REVISION", "\"${nativeProperty("fongmi", "ffmpeg_revision")}\"")
+      buildConfigField("String", "YTDLP_REVISION", "\"${nativeProperty("fongmi", "yt_dlp_revision")}\"")
+      buildConfigField("String", "MEDIA_SERVER_REVISION", "\"${nativeProperty("fongmi", "media_server_revision")}\"")
     }
   }
 
@@ -324,7 +347,7 @@ dependencies {
   androidTestImplementation("androidx.room:room-testing:2.8.4")
 
   "standardImplementation"(files("libs/mpvlib.aar"))
-  "noVulkanImplementation"(files("libs/mpvlib-no-vulkun.aar"))
+  "noVulkanImplementation"(files("libs/mpvlib-no-vulkan.aar"))
   "fongmiImplementation"(files("libs/mpvlib-fongmi.aar"))
 
   // Network protocol libraries
