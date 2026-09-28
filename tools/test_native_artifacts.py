@@ -9,6 +9,7 @@ app_gradle = (root / 'app/build.gradle.kts').read_text()
 assert 'mpvlib-no-vulkan.aar' in app_gradle
 assert 'mpvlib-no-vulkun.aar' not in app_gradle
 assert 'agp = \"9.4.1\"' in (root / 'gradle/libs.versions.toml').read_text()
+assert 'gradle-9.6.0-bin.zip' in (root / 'gradle/wrapper/gradle-wrapper.properties').read_text()
 assert 'org.bouncycastle:bcprov-jdk18on:1.85' in app_gradle
 assert 'org.bouncycastle:bcpkix-jdk18on:1.85' in app_gradle
 assert 'requested.group == \"org.bouncycastle\" -> useVersion(\"1.85\")' in (root / 'build.gradle.kts').read_text()
