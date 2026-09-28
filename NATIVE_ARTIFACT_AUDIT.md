@@ -66,3 +66,9 @@ After the release hardening commit, GitHub reported 19 Dependabot findings. The 
 The vulnerable build-tool copies were traced to Android Gradle Plugin 9.3.2, whose `builder` and `apkzlib` POMs require Bouncy Castle 1.79. AGP 9.4.1 changes those dependencies to 1.80.2. The application security constraints were upgraded to Bouncy Castle 1.85 for `bcprov-jdk18on`, `bcpkix-jdk18on`, and `bcutil-jdk18on`. OSV reports no matching advisories for the selected Bouncy Castle 1.85 artifacts or the already-constrained Commons Lang 3.18.0, jose4j 0.9.6, and JDOM 2.0.6.1 versions.
 
 The dependency remediation is committed separately after the native pipeline fix. A full Android build remains dependent on an Android SDK-equipped runner; the sandbox still lacks `ANDROID_HOME`.
+
+## Dependency graph refresh result
+
+The explicit Gradle dependency-submission workflow was added and successfully run against commit `0a01383b`. The refreshed SBOM now reflects the current checkout. OSV reports no advisories for the patched application coordinates (`bcprov-jdk18on`, `bcpkix-jdk18on`, and `bcutil-jdk18on` 1.85; Commons Lang 3.18.0; jose4j 0.9.6; JDOM 2.0.6.1).
+
+The refreshed graph still contains seven advisory matches in transitive Android build tooling: AGP 9.4.1's `builder`/`apkzlib` resolve Bouncy Castle 1.80.2, Android bundletool 1.18.3 resolves jose4j 0.9.5, Jetifier resolves JDOM 2.0.6, and Android tooling's commons-compress resolves Commons Lang 3.16.0. These are build-time dependencies from upstream Android tooling rather than APK runtime dependencies. AGP 9.5.0-alpha07 still publishes Bouncy Castle 1.80.2, so upgrading further within currently published AGP versions does not remove the advisories. They require an upstream Android tooling release with patched transitive versions; the repository now refreshes its graph automatically so those alerts will clear when upstream publishes them.
