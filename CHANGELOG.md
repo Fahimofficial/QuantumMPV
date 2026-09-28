@@ -1,4 +1,11 @@
 # Changelog
+## 1.2.0-preview.3
+This preview includes the secure-folder authentication hardening and Android CI reliability fixes.
+### What's New
+- **Secure Folder protection**: Biometric unlock is now cryptographically bound to an Android Keystore-backed cipher, while device-credential fallback remains available.
+- **Android CI reliability**: Instrumentation-test APKs are no longer incorrectly treated as application APKs during native artifact verification.
+- **Dependency and native hardening**: Pinned native artifacts and patched dependency resolution remain enforced across build and release workflows.
+
 
 These notes are written in plain English and focus on changes that matter in everyday use.
 
