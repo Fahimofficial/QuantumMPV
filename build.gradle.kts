@@ -1,3 +1,18 @@
+buildscript {
+  // Plugin classpath dependencies are resolved before project configurations. Keep
+  // Android tooling's transitive security-sensitive libraries on patched versions.
+  configurations.classpath {
+    resolutionStrategy.eachDependency {
+      when {
+        requested.group == "org.bouncycastle" -> useVersion("1.85")
+        requested.group == "org.apache.commons" && requested.name == "commons-lang3" -> useVersion("3.18.0")
+        requested.group == "org.bitbucket.b_c" && requested.name == "jose4j" -> useVersion("0.9.6")
+        requested.group == "org.jdom" && requested.name == "jdom2" -> useVersion("2.0.6.1")
+      }
+    }
+  }
+}
+
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 plugins {
   alias(libs.plugins.android.application) apply false

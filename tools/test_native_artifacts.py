@@ -13,6 +13,7 @@ assert 'gradle-9.6.0-bin.zip' in (root / 'gradle/wrapper/gradle-wrapper.properti
 assert 'org.bouncycastle:bcprov-jdk18on:1.85' in app_gradle
 assert 'org.bouncycastle:bcpkix-jdk18on:1.85' in app_gradle
 assert 'requested.group == \"org.bouncycastle\" -> useVersion(\"1.85\")' in (root / 'build.gradle.kts').read_text()
+assert 'configurations.classpath' in (root / 'build.gradle.kts').read_text()
 assert 'standard.artifact_revision=mpvlib-v1.0.10' in (root / 'app/src/main/assets/native-build-metadata.properties').read_text()
 assert (root / 'native-artifacts.properties').read_text() == (root / 'app/src/main/assets/native-build-metadata.properties').read_text()
 for flavor, spec in manifest['artifacts'].items():
