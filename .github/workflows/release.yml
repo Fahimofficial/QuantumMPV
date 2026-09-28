@@ -22,10 +22,15 @@ env:
 permissions:
   contents: read
 
+concurrency:
+  group: production-release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   release-for-github:
     name: Release for GitHub
     runs-on: ubuntu-latest
+    environment: production
     permissions:
       contents: write
     timeout-minutes: 60
@@ -99,12 +104,14 @@ jobs:
         run: |
           set -euo pipefail
           apksigner="$ANDROID_HOME/build-tools/37.0.0/apksigner"
+          aapt="$ANDROID_HOME/build-tools/37.0.0/aapt"
 
           if [[ -z "${{ secrets.SIGNING_KEYSTORE }}" || -z "${{ secrets.SIGNING_KEY_ALIAS }}" || -z "${{ secrets.SIGNING_STORE_PASSWORD }}" || -z "${{ secrets.KEY_PASSWORD }}" ]]; then
             echo "Stable releases require all signing secrets."
             exit 1
           fi
           test -x "$apksigner"
+          test -x "$aapt"
 
           printf '%s' "${{ secrets.SIGNING_KEYSTORE }}" | base64 --decode > release.keystore
           trap 'rm -f release.keystore' EXIT
@@ -127,6 +134,16 @@ jobs:
               --out "$signed" \
               "$unsigned"
             "$apksigner" verify --verbose "$signed"
+            package_line=$("$aapt" dump badging "$signed" | sed -n '1p')
+            grep -q "package: name='com.quantummpv.app'" <<< "$package_line" || {
+              echo "Unexpected application ID in $label: $package_line"
+              exit 1
+            }
+            version_code=$(sed -n "s/.*versionCode='\([^']*\)'.*/\1/p" <<< "$package_line")
+            [[ "$version_code" =~ ^[0-9]+$ ]] || {
+              echo "Missing or invalid versionCode in $label: $package_line"
+              exit 1
+            }
             rm -f "$unsigned"
           }
 
