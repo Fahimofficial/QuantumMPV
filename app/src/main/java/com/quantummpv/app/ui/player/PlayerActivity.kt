@@ -616,6 +616,7 @@ class PlayerActivity :
     }
 
   override fun onCreate(savedInstanceState: Bundle?) {
+    applyInitialVideoOrientation(intent)
     enableEdgeToEdge()
     super.onCreate(savedInstanceState)
     if (redirectUnselectedTorrentToPicker(intent, finishCurrent = true)) return
@@ -631,7 +632,6 @@ class PlayerActivity :
     }
     // Read from the actual launch intent now that it's safe to (see isSecureFolderLaunch kdoc).
     isSecureFolderLaunch = intent.getStringExtra("launch_source") == "secure_folder"
-    applyInitialVideoOrientation(intent)
     setContentView(binding.root)
     setupSystemBarsAutoHide()
     setupPipHelper()
@@ -6009,10 +6009,10 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
           // For video orientation, check if aspect is available
           val aspect = runCatching { player.getVideoOutAspect() }.getOrNull()
           Log.d(TAG, "setOrientation - Video mode: aspect=$aspect")
-          if (aspect == null || aspect <= 0.0) {
-            // Aspect not available yet - wait for video-params/aspect update
-            Log.d(TAG, "setOrientation - Aspect not available, defaulting to landscape")
-            ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+          if (aspect == null || !aspect.isFinite() || aspect <= 0.0) {
+            // Aspect is not available yet; preserve the launch orientation until mpv reports it.
+            Log.d(TAG, "setOrientation - Aspect not available, retaining launch orientation")
+            return
           } else {
             // Aspect available - set correct orientation now
             val orientation =

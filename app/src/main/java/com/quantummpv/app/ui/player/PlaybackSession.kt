@@ -289,6 +289,10 @@ object PlaybackSession : MPVLib.EventObserver {
           // headers may temporarily override it, but must not leak into the next item.
           defaultUserAgent = MPVLib.getPropertyString("user-agent")
           postInitOptions()
+          MPVLib.getPropertyString("vo")
+            ?.takeIf { it.isNotBlank() && it != "null" }
+            ?.let { desiredVideoOutput = it }
+          MPVLib.setPropertyString("vo", "null")
           MPVLib.setOptionString("force-window", "no")
           MPVLib.setOptionString("idle", "yes")
           MPVLib.addObserver(this)
@@ -380,12 +384,8 @@ object PlaybackSession : MPVLib.EventObserver {
   fun unbindSurface(owner: Any): Boolean =
     withCore(default = false) {
       if (attachedSurfaceOwner !== owner || !_state.value.surfaceAttached) return@withCore false
-      if (_state.value.phase == PlaybackPhase.LOADING) {
-        deferredVideoSelectionGeneration = _state.value.generation
-        runCatching { MPVLib.setPropertyString("vid", "no") }
-      } else {
-        suspendVideoTrackForSurfaceLossLocked()
-      }
+      // A Surface transition is a renderer event, not a media event. Deselecting `vid` here
+      // makes mpv drop cached packets and can leave a loading video permanently at vid=no.
       detachRendererSurfaceLocked()
       true
     }
@@ -405,7 +405,7 @@ object PlaybackSession : MPVLib.EventObserver {
   fun setVideoOutput(videoOutput: String) {
     desiredVideoOutput = videoOutput
     withCore(Unit, allowInitializing = true) {
-      MPVLib.setOptionString("vo", videoOutput)
+      MPVLib.setOptionString("vo", if (_state.value.surfaceAttached) videoOutput else "null")
     }
   }
 
@@ -834,10 +834,9 @@ object PlaybackSession : MPVLib.EventObserver {
         if (!MpvConfigOverridePolicy.isOwnedByMpvConf("speed")) MPVLib.setPropertyDouble("speed", speedBeforeAudiobook!!.toDouble())
         speedBeforeAudiobook = null
       }
-      val videoSelection = resolvedItem.videoSelection(_state.value.surfaceAttached)
-      // A preceding surface detach may have left the outgoing file at vid=no. Select video in the
-      // load command only when Android has already attached a valid render Surface; otherwise
-      // bindSurface() enables it after the native window exists.
+      val videoSelection = resolvedItem.videoSelection()
+      // Select video during demuxer initialization even when the Surface is not attached yet.
+      // `vo=null` keeps rendering safe while allowing mpv to probe and buffer the stream.
       val selectVideoForNewFile = videoSelection == PlaybackVideoSelection.IMMEDIATE
 
       // An OUTPUT Ambient shader bakes the previous video's aspect ratio into its GLSL. Because the
@@ -865,7 +864,7 @@ object PlaybackSession : MPVLib.EventObserver {
       pendingPositionRestoreOverride = positionRestoreOverride?.let { generation to it }
       initialPositionGeneration = generation.takeIf { initialPosition != null } ?: 0L
       val holdForPositionRestore = pendingPositionRestoreGeneration == generation
-      deferredVideoSelectionGeneration = generation.takeIf { videoSelection == PlaybackVideoSelection.DEFERRED }
+      deferredVideoSelectionGeneration = null
       updateState {
         it.copy(
           phase = PlaybackPhase.LOADING,
@@ -883,6 +882,11 @@ object PlaybackSession : MPVLib.EventObserver {
       MPVLib.setPropertyString("user-agent", userAgent ?: defaultUserAgent.orEmpty())
       MPVLib.setPropertyString("http-header-fields", headerFields)
       MPVLib.setPropertyString("force-media-title", "")
+
+      if (!_state.value.surfaceAttached) {
+        MPVLib.setPropertyString("vo", "null")
+        MPVLib.setOptionString("force-window", "no")
+      }
 
       // Disable the outgoing track only once this replacement request owns the native lock. Doing
       // it during asynchronous URI preparation can blank playback even when that work is cancelled.
@@ -1734,19 +1738,6 @@ object PlaybackSession : MPVLib.EventObserver {
     activeAmbientShaderPaths.clear()
     desiredAmbientScaleX = 1.0
     desiredAmbientScaleY = 1.0
-  }
-
-  private fun suspendVideoTrackForSurfaceLossLocked() {
-    val current = _state.value
-    if (current.phase !in setOf(PlaybackPhase.READY, PlaybackPhase.BACKGROUND)) return
-    val activeHardwareDecoder = MPVLib.getPropertyString("hwdec-current").orEmpty()
-    if (!activeHardwareDecoder.contains("mediacodec", ignoreCase = true)) return
-    val activeVid = MPVLib.getPropertyInt("vid") ?: -1
-    if (activeVid > 0) {
-      suspendedVideoTrack = SuspendedVideoTrack(activeVid, current.generation)
-      // Stop video decoding before the ANativeWindow disappears. Audio remains active.
-      runCatching { MPVLib.setPropertyString("vid", "no") }
-    }
   }
 
   private fun restoreSuspendedVideoTrackLocked() {
