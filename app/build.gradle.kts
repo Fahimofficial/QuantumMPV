@@ -53,7 +53,7 @@ android {
     // Stable occupies the top of its version band. Preview uses the next band's commit-count
     // offset, so Stable -> Preview -> newer Preview -> next Stable is always an Android upgrade.
     versionCode = stableVersionCode
-    versionName = "1.2.0-preview.3"
+    versionName = "1.2.0"
 
     vectorDrawables {
       useSupportLibrary = true

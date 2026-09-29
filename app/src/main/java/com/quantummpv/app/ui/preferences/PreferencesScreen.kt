@@ -310,7 +310,7 @@ object PreferencesScreen : Screen {
           ),
       ),
       SettingsSection(
-        title = stringResource(R.string.pref_section_media_servers),
+        title = stringResource(R.string.pref_section_network),
         tint = colorScheme.onSurfaceVariant,
         items =
           listOf(
@@ -319,6 +319,15 @@ object PreferencesScreen : Screen {
               summary = stringResource(R.string.pref_media_servers_summary),
               icon = Icons.RoundedFilled.BringYourOwnIp,
               screen = MediaServersPreferencesScreen,
+            ),
+            SettingsDestination(
+              title = stringResource(R.string.ui_network),
+              summary = listOf(
+                stringResource(R.string.pref_section_p2p_streaming),
+                stringResource(R.string.ui_yt_dlp_manager),
+              ).joinToString(", "),
+              icon = Icons.RoundedFilled.SignalWifiStatusbarConnectedNoInternet4,
+              screen = NetworkConfigurationPreferencesScreen,
             ),
           ),
       ),

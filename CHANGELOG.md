@@ -1,4 +1,11 @@
 # Changelog
+## 1.2.0-preview.4
+This preview reorganizes network settings and completes Audiobookshelf server management.
+### What's New
+- **Network settings**: Added a dedicated Network section with separate Media Servers and Network destinations.
+- **Audiobookshelf settings**: Added connect, edit, switch, delete, and add-another-server controls alongside Jellyfin, Seerr, and Navidrome.
+- **Simpler navigation**: Moved P2P streaming, HLS proxy, and the yt-dlp manager out of Advanced into Network.
+
 ## 1.2.0-preview.3
 This preview includes the secure-folder authentication hardening and Android CI reliability fixes.
 ### What's New

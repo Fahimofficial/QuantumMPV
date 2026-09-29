@@ -2146,9 +2146,10 @@
   <string name="downloads_open_downloads">Open downloads</string>
 
   <!-- Media Servers Settings -->
+  <string name="pref_section_network">Network</string>
   <string name="pref_section_media_servers">Media Servers</string>
   <string name="pref_media_servers_title">Media Servers</string>
-  <string name="pref_media_servers_summary">Jellyfin, Seerr and streaming libraries</string>
+  <string name="pref_media_servers_summary">Jellyfin, Seerr, Navidrome, Audiobookshelf and streaming libraries</string>
   <string name="pref_jellyfin_title">Jellyfin</string>
   <string name="pref_jellyfin_server_management">Server Management</string>
   <string name="pref_jellyfin_server_management_desc">Manage connected servers and active instance</string>
