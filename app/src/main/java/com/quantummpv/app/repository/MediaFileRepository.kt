@@ -165,17 +165,12 @@ object MediaFileRepository : KoinComponent {
   ): List<VideoFolder> =
     withContext(Dispatchers.IO) {
       try {
-        triggerMediaScan(context)
-        val folders = mediaIndexDao.getAllFolders().first()
-        folders.map { folderPath ->
-          val folderName = folderPath.substringAfterLast('/')
-          VideoFolder(
-            bucketId = folderPath,
-            name = folderName.ifEmpty { "Root" },
-            path = folderPath,
-            videoCount = 0
-          )
-        }.sortedBy { it.name.lowercase(Locale.getDefault()) }
+        FolderViewScanner
+          .getAllVideoFolders(
+            context = context,
+            options = currentScanOptions(includeAudioOverride),
+            forceFileSystemCheck = forceFileSystemCheck,
+          ).sortedBy { it.name.lowercase(Locale.getDefault()) }
       } catch (e: Exception) {
         Log.e(TAG, "Error scanning for video folders", e)
         emptyList()
@@ -397,8 +392,15 @@ object MediaFileRepository : KoinComponent {
   ): List<Video> =
     withContext(Dispatchers.IO) {
       try {
-        val entities = mediaIndexDao.getMediaInFolder(bucketId).first()
-        entities.map { it.toVideo() }
+        // The background MediaIndex can lag after files are copied, downloaded, renamed, or
+        // restored. Read the requested folder directly and reconcile MediaStore with the actual
+        // filesystem so newly added videos are visible immediately.
+        VideoScanUtils.getVideosInFolder(
+          context = context,
+          folderPath = bucketId,
+          options = currentScanOptions(includeAudioOverride),
+          forceFileSystemCheck = forceFileSystemCheck,
+        )
       } catch (e: Exception) {
         Log.e(TAG, "Error getting videos for bucket $bucketId", e)
         emptyList()

@@ -88,12 +88,12 @@ object VideoScanUtils : KoinComponent {
         }
       }
 
-      // Manual refreshes force a filesystem verification pass so new/deleted files are reflected
-      // even before MediaStore catches up.
+      // Always verify direct filesystem contents. MediaStore can contain some files while
+      // missing newly copied/downloaded files, so a non-empty result is not proof the folder is
+      // complete.
       if (
         folder.exists() &&
-        folder.canRead() &&
-        shouldRunFilesystemVideoCheck(forceFileSystemCheck, videosMap.size)
+        folder.canRead()
       ) {
         scanVideosFromFileSystem(context, folder, videosMap, options, noMediaPathFilter)
       }
