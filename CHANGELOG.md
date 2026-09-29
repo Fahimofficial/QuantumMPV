@@ -1,4 +1,10 @@
 # Changelog
+## 1.2.0-preview.8
+This hotfix fixes the remaining case where folders were visible but their videos did not appear.
+### Hotfix
+- **Folder contents**: Read the selected folder directly instead of relying only on the asynchronous media index.
+- **Stale MediaStore/index data**: Reconcile actual filesystem files with MediaStore every time a folder opens.
+- **Folder discovery**: Keep filesystem discovery for Movies, external storage, and USB/OTG volumes.
 ## 1.2.0-preview.7
 This hotfix makes videos appear in QuantumMPV folders even when Android MediaStore has not indexed them yet.
 ### Hotfix
