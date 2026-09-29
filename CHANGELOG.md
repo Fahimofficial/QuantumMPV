@@ -1,4 +1,11 @@
 # Changelog
+## 1.2.0-preview.5
+This preview republishes the completed Network settings and Audiobookshelf integration to the public preview channel.
+### What's New
+- **Network section**: Media Servers and Network are grouped under a dedicated Network section.
+- **Audiobookshelf**: Media Server settings include Audiobookshelf connection and server management.
+- **Network tools**: P2P streaming, HLS proxy, and yt-dlp Manager are grouped under Network instead of Advanced.
+
 ## 1.2.0-preview.4
 This preview reorganizes network settings and completes Audiobookshelf server management.
 ### What's New
