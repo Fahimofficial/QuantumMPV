@@ -121,6 +121,11 @@ object FolderViewScanner {
         scanAudioMediaStoreImmediateChildren(context, allFolders, noMediaPathFilter, options)
       }
 
+      // MediaStore can lag behind files copied by file managers, downloads, USB/OTG devices,
+      // and folders whose MIME type was not recognized by Android. Supplement it with a direct
+      // filesystem scan so those folders appear in the browser immediately.
+      scanFileSystemRoots(context, allFolders, options, noMediaPathFilter, forceFileSystemCheck)
+
       // Convert to VideoFolder list
       val result =
         allFolders.values
@@ -880,6 +885,10 @@ object FolderViewScanner {
 
       if (shouldIncludePrimaryStorageInFilesystemFolderScan(options, forceFileSystemCheck)) {
         rootsToScan += primaryStorageRoot
+      } else {
+        // Keep the normal scan bounded, but still cover the conventional movie directory when
+        // MediaStore has not indexed it yet.
+        rootsToScan += File(primaryStorageRoot, Environment.DIRECTORY_MOVIES)
       }
 
       rootsToScan += getPrimaryStorageSupplementalScanRoots(primaryStorageRoot)
