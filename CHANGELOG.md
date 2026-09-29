@@ -1,4 +1,10 @@
 # Changelog
+## 1.2.0-preview.7
+This hotfix makes videos appear in QuantumMPV folders even when Android MediaStore has not indexed them yet.
+### Hotfix
+- **Folder discovery**: Supplement MediaStore with a direct filesystem scan.
+- **Movies and external storage**: Cover the standard Movies directory and external/OTG volumes.
+- **Existing customizations**: Keep the current QuantumMPV browser and playback behavior intact.
 ## 1.2.0-preview.6
 This hotfix restores video playback when the player Surface is created, recreated, or temporarily lost.
 ### Hotfix
