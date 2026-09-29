@@ -1,4 +1,12 @@
 # Changelog
+## 1.2.0-preview.6
+This hotfix restores video playback when the player Surface is created, recreated, or temporarily lost.
+### Hotfix
+- **Video loading**: Keep video tracks enabled while mpv initializes so videos do not open to a blank screen.
+- **Surface transitions**: Preserve mpv demuxer buffering across Activity, PiP, and background Surface changes.
+- **Renderer startup**: Defer only the renderer attachment until Android provides a valid Surface.
+- **Orientation**: Retain the launch orientation until valid video aspect metadata is available.
+
 ## 1.2.0-preview.5
 This preview republishes the completed Network settings and Audiobookshelf integration to the public preview channel.
 ### What's New
