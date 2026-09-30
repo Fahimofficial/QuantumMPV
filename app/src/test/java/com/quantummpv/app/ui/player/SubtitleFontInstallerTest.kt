@@ -25,14 +25,14 @@ class SubtitleFontInstallerTest {
     val fontsDirectory = File(context.filesDir, "fonts").apply { mkdirs() }
     val userFont = File(fontsDirectory, "MyCustomFont.ttf").apply { writeText("user font") }
 
-    val installedFont = checkNotNull(SubtitleFontInstaller.install(context))
+    val installedFont = SubtitleFontInstaller.installStrict(context)
     assertTrue(installedFont.isFile)
     assertEquals(SubtitleFontInstaller.FONT_SIZE_BYTES, installedFont.length())
     assertEquals(SubtitleFontInstaller.FONT_SHA256, sha256(installedFont))
     assertEquals("user font", userFont.readText())
 
     val lastModified = installedFont.lastModified()
-    val secondInstall = checkNotNull(SubtitleFontInstaller.install(context))
+    val secondInstall = SubtitleFontInstaller.installStrict(context)
     assertEquals(installedFont.canonicalPath, secondInstall.canonicalPath)
     assertEquals(lastModified, secondInstall.lastModified())
   }

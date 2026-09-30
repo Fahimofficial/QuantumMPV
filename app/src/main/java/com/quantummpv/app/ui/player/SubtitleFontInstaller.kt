@@ -31,6 +31,16 @@ internal object SubtitleFontInstaller {
    */
   @Synchronized
   fun install(context: Context): File? {
+    return try {
+      installStrict(context)
+    } catch (error: Exception) {
+      Log.w(TAG, "Could not install the bundled subtitle fallback font; using system fonts.", error)
+      null
+    }
+  }
+
+  @Synchronized
+  internal fun installStrict(context: Context): File {
     val appContext = context.applicationContext
     val fontsDirectory = File(appContext.filesDir, "fonts")
     val installedFont = File(fontsDirectory, FONT_FILE_NAME)
@@ -61,8 +71,7 @@ internal object SubtitleFontInstaller {
       installedFont
     } catch (error: Exception) {
       stagedFont.delete()
-      Log.w(TAG, "Could not install the bundled subtitle fallback font; using system fonts.", error)
-      null
+      throw error
     }
   }
 }
