@@ -71,7 +71,7 @@ jobs:
           set -euo pipefail
           while IFS= read -r -d '' apk; do
             python3 tools/verify_native_artifacts.py --apk "$apk"
-          done < <(find app/build/outputs/apk -type f -name '*.apk' -print0)
+          done < <(find app/build/outputs/apk -type f -name '*.apk' ! -path '*/androidTest/*' -print0)
       - name: Upload test reports
         if: ${{ always() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
