@@ -1,4 +1,18 @@
 # Changelog
+## 1.2.0
+The second stable QuantumMPV release, bringing the 1.2.0 preview cycle's media-server integrations, network settings redesign, secure-folder hardening, and playback reliability work together in one public build.
+### What's New
+- **Audiobookshelf support**: Media Server settings now include Audiobookshelf connection and full server management alongside Jellyfin, Seerr, and Navidrome.
+- **Dedicated Network section**: Media Servers and Network destinations are grouped under a new Network section, with P2P streaming, HLS proxy, and the yt-dlp Manager moved out of Advanced.
+- **Theme customizer and wallpapers**: Ported the custom theme customizer and wallpaper selection screens for deeper personalization.
+- **Advanced gestures**: Restored configurable swipe action zones and nested tab gesture support.
+- **Server music playback**: Navidrome and Subsonic server playback is fully integrated into the QuantumMPV media pipeline.
+### Fixes
+- **Folder discovery**: Videos now appear even when Android MediaStore has not indexed them, with a direct filesystem scan covering Movies, external storage, and USB/OTG volumes.
+- **Stale index handling**: Folder contents are read directly and reconciled with MediaStore every time a folder opens, so folders are never visibly empty.
+- **Video startup and surfaces**: Video tracks stay enabled while mpv initializes, and playback survives Activity, PiP, and background Surface transitions without opening to a blank screen.
+- **Secure Folder protection**: Biometric unlock is now cryptographically bound to an Android Keystore-backed cipher, with device-credential fallback preserved.
+- **Build reliability**: Pinned native artifacts, hardened dependency resolution, and corrected instrumentation-test APK handling across CI.
 ## 1.2.0-preview.8
 This hotfix fixes the remaining case where folders were visible but their videos did not appear.
 ### Hotfix
