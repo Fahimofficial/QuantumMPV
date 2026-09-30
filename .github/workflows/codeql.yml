@@ -31,8 +31,6 @@ jobs:
             build-mode: none
           - language: c-cpp
             build-mode: none
-          - language: javascript-typescript
-            build-mode: none
           - language: python
             build-mode: none
     steps:
@@ -47,8 +45,6 @@ jobs:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
 
-      - name: Fetch and verify pinned native artifacts
-        run: python3 tools/verify_native_artifacts.py --download
       - name: Set up JDK 17
         if: matrix.language == 'java-kotlin'
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
@@ -57,6 +53,9 @@ jobs:
           java-version: '17'
           cache: gradle
 
+      - name: Fetch and verify pinned native artifacts
+        if: matrix.language == 'java-kotlin'
+        run: python3 tools/verify_native_artifacts.py --download
       - name: Set up Android SDK
         if: matrix.language == 'java-kotlin'
         uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4

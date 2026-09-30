@@ -1,8 +1,19 @@
 name: Preview Build
 
 on:
-  schedule:
-    - cron: '*/30 * * * *'
+  push:
+    branches:
+      - master
+    paths:
+      - 'app/**'
+      - 'build.gradle.kts'
+      - 'settings.gradle.kts'
+      - 'gradle.properties'
+      - 'native-artifacts.properties'
+      - 'gradle/**'
+      - 'fastlane/metadata/android/preview-site/**'
+      - 'fastlane/metadata/android/en-US/images/icon.png'
+      - 'fastlane/metadata/android/en-US/images/phoneScreenshots/**'
   workflow_dispatch:
 
 env:
@@ -15,8 +26,6 @@ env:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: quantummpv-preview-pages
@@ -29,7 +38,7 @@ jobs:
     timeout-minutes: 60
     outputs:
       should_build: ${{ steps.activity.outputs.should_build }}
-      pages_configured: ${{ steps.pages.outcome == 'success' }}
+      commit_count: ${{ steps.metadata.outputs.commit_count }}
 
     steps:
       - name: Checkout preview source
@@ -52,9 +61,11 @@ jobs:
               build.gradle.kts \
               settings.gradle.kts \
               gradle.properties \
+              native-artifacts.properties \
               gradle \
               fastlane/metadata/android/preview-site \
               fastlane/metadata/android/en-US/images/icon.png \
+              fastlane/metadata/android/en-US/images/phoneScreenshots \
               | sha256sum | cut -d' ' -f1
           )"
 
@@ -344,42 +355,53 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: QuantumMPV-preview-r${{ steps.metadata.outputs.commit_count }}
-          path: |
-            site/downloads/*.apk
-            site/latest.json
+          path: site
           if-no-files-found: error
           retention-days: 14
           compression-level: 0
 
+  deploy-preview:
+    name: Publish preview download page
+    needs: build-preview
+    if: needs.build-preview.outputs.should_build == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Download preview site artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: QuantumMPV-preview-r${{ needs.build-preview.outputs.commit_count }}
+          path: site
+
       - name: Configure GitHub Pages
         id: pages
-        if: steps.activity.outputs.should_build == 'true'
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6
         continue-on-error: true
         with:
           enablement: true
 
       - name: Report Pages configuration status
-        if: steps.activity.outputs.should_build == 'true' && steps.pages.outcome != 'success'
-        run: echo "GitHub Pages could not be configured by the workflow token; preview APKs remain available as an Actions artifact."
+        if: steps.pages.outcome != 'success'
+        shell: bash
+        run: |
+          echo "::error::GitHub Pages could not be configured by the workflow token; preview APKs remain available as an Actions artifact."
+          exit 1
 
       - name: Upload GitHub Pages artifact
-        if: steps.activity.outputs.should_build == 'true' && steps.pages.outcome == 'success'
+        if: steps.pages.outcome == 'success'
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5
         with:
           path: site
 
-  deploy-preview:
-    name: Publish preview download page
-    needs: build-preview
-    if: needs.build-preview.outputs.should_build == 'true' && needs.build-preview.outputs.pages_configured == 'true'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-
-    steps:
       - name: Deploy to GitHub Pages
         id: deployment
+        if: steps.pages.outcome == 'success'
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5

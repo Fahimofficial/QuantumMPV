@@ -4,10 +4,11 @@ on:
   push:
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'
+      - '!v[0-9]+.[0-9]+.[0-9]+-preview.[0-9]+'
   workflow_dispatch:
     inputs:
       tag_name:
-        description: Tag to release (for example v2.1.0)
+        description: Stable tag to release (for example v1.2.0)
         required: true
         type: string
 
@@ -71,7 +72,7 @@ jobs:
             version_tag="${{ inputs.tag_name }}"
           fi
 
-          if [[ ! "$version_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-preview\.[0-9]+)?$ ]]; then
+          if [[ ! "$version_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "Invalid release tag: $version_tag"
             exit 1
           fi
@@ -81,12 +82,12 @@ jobs:
           fi
           build_version="$(sed -n 's/^[[:space:]]*versionName = "\([^"]*\)".*/\1/p' app/build.gradle.kts | head -n 1)"
           expected_version="${version_tag#v}"
-          expected_version="${expected_version%%-preview.*}"
           if [[ "$build_version" != "$expected_version" ]]; then
             echo "Release tag $version_tag does not match app versionName $build_version"
             exit 1
           fi
           echo "VERSION_TAG=$version_tag" >> "$GITHUB_ENV"
+          echo "EXPECTED_VERSION_NAME=$expected_version" >> "$GITHUB_ENV"
 
       - name: Make Gradle wrapper executable
         run: chmod +x ./gradlew
@@ -151,6 +152,11 @@ jobs:
             version_code=$(sed -n "s/.*versionCode='\([^']*\)'.*/\1/p" <<< "$package_line")
             [[ "$version_code" =~ ^[0-9]+$ ]] || {
               echo "Missing or invalid versionCode in $label: $package_line"
+              exit 1
+            }
+            version_name=$(sed -n "s/.*versionName='\([^']*\)'.*/\1/p" <<< "$package_line")
+            [[ "$version_name" == "$EXPECTED_VERSION_NAME" ]] || {
+              echo "Unexpected versionName in $label: expected $EXPECTED_VERSION_NAME, got $version_name"
               exit 1
             }
             rm -f "$unsigned"

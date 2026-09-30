@@ -52,6 +52,11 @@ jobs:
             echo "Tag ${TAG} already exists; refusing to overwrite it."
             exit 1
           fi
+          git fetch origin master --quiet
+          if [[ "$(git rev-parse HEAD)" != "$(git rev-parse origin/master)" ]]; then
+            echo 'master changed after checkout; refusing to create a release from a stale branch.'
+            exit 1
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add app/build.gradle.kts

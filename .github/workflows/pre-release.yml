@@ -59,7 +59,20 @@ jobs:
             echo "Invalid tagged preview version: $version_tag"
             exit 1
           fi
+          if [[ "$version_tag" != v1.* ]]; then
+            echo "QuantumMPV currently uses the v1.x release line: $version_tag"
+            exit 1
+          fi
+          build_version="$(sed -n 's/^[[:space:]]*versionName = \"\([^\"]*\)\".*/\1/p' app/build.gradle.kts | head -n 1)"
+          expected_base="${version_tag#v}"
+          expected_base="${expected_base%%-preview.*}"
+          if [[ "$build_version" != "$expected_base" ]]; then
+            echo "Preview tag $version_tag does not match app versionName $build_version"
+            exit 1
+          fi
+          commit_count="$(git rev-list --count HEAD)"
           echo "VERSION_TAG=$version_tag" >> "$GITHUB_ENV"
+          echo "EXPECTED_VERSION_NAME=$build_version-beta.r$commit_count" >> "$GITHUB_ENV"
 
       - name: Make Gradle wrapper executable
         run: chmod +x ./gradlew
@@ -84,6 +97,7 @@ jobs:
         run: |
           set -euo pipefail
           apksigner="$ANDROID_HOME/build-tools/37.0.0/apksigner"
+          aapt="$ANDROID_HOME/build-tools/37.0.0/aapt"
 
           if [[ -z "$SIGNING_KEYSTORE" || -z "$SIGNING_KEY_ALIAS" || -z "$KS_PASS" || -z "$KEY_PASS" ]]; then
             echo "Tagged preview releases require all signing secrets."
@@ -114,6 +128,21 @@ jobs:
               --out "$signed" \
               "$unsigned"
             "$apksigner" verify --verbose "$signed"
+            package_line=$("$aapt" dump badging "$signed" | sed -n '1p')
+            grep -q "package: name='com.quantummpv.app'" <<< "$package_line" || {
+              echo "Unexpected application ID in $label: $package_line"
+              exit 1
+            }
+            version_code=$(sed -n "s/.*versionCode='\([^']*\)'.*/\1/p" <<< "$package_line")
+            [[ "$version_code" =~ ^[0-9]+$ ]] || {
+              echo "Missing or invalid versionCode in $label: $package_line"
+              exit 1
+            }
+            version_name=$(sed -n "s/.*versionName='\([^']*\)'.*/\1/p" <<< "$package_line")
+            [[ "$version_name" == "$EXPECTED_VERSION_NAME" ]] || {
+              echo "Unexpected versionName in $label: expected $EXPECTED_VERSION_NAME, got $version_name"
+              exit 1
+            }
             rm -f "$unsigned"
           }
 

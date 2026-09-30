@@ -61,6 +61,18 @@ jobs:
         run: |
           set -euo pipefail
           branch="sync/upstream-${SAFE_TAG}"
+          if gh pr list --repo "$GITHUB_REPOSITORY" --head "$branch" --state open --json number --jq 'length' | grep -q '^1$'; then
+            echo "An open review PR already exists for $branch; leaving it untouched."
+            echo "existing=true" >> "$GITHUB_OUTPUT"
+            echo "branch=$branch" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if git ls-remote --exit-code origin "refs/heads/${branch}" >/dev/null 2>&1; then
+            echo "Review branch $branch already exists without an open PR; refusing to overwrite it."
+            echo "existing=true" >> "$GITHUB_OUTPUT"
+            echo "branch=$branch" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           git fetch upstream "refs/tags/${UPSTREAM_TAG}:refs/remotes/upstream/release-${SAFE_TAG}"
           if git show-ref --verify --quiet "refs/remotes/upstream/release-${SAFE_TAG}"; then
             git switch --create "$branch"
@@ -101,7 +113,7 @@ jobs:
         if: steps.merge.outputs.merged == 'true'
         env:
           BRANCH: ${{ steps.merge.outputs.branch }}
-        run: git push --force-with-lease origin "HEAD:refs/heads/${BRANCH}"
+        run: git push origin "HEAD:refs/heads/${BRANCH}"
 
       - name: Open synchronization pull request
         if: steps.merge.outputs.merged == 'true'
