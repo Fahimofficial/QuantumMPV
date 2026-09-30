@@ -7,16 +7,15 @@
  * (at your option) any later version.
  */
 package com.quantummpv.app.ui.player
-
 import android.content.Context
-import java.io.File
-import java.security.MessageDigest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import java.io.File
+import java.security.MessageDigest
 
 @RunWith(RobolectricTestRunner::class)
 class SubtitleFontInstallerTest {
