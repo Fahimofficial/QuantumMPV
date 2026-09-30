@@ -40,9 +40,9 @@ jobs:
       - name: Commit version bump and create tag
         env:
           VERSION: ${{ inputs.version }}
-         PRERELEASE: ${{ inputs.prerelease }}
-       run: |
-         set -euo pipefail
+          PRERELEASE: ${{ inputs.prerelease }}
+        run: |
+          set -euo pipefail
 
           # 1. Validate version format
           if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
@@ -77,17 +77,17 @@ jobs:
             exit 1
           fi
 
-         git fetch origin master --quiet
-         if [[ "$(git rev-parse HEAD)" != "$(git rev-parse origin/master)" ]]; then
-           echo 'master changed after checkout; refusing to create a release from a stale branch.'
-           exit 1
-         fi
+          git fetch origin master --quiet
+          if [[ "$(git rev-parse HEAD)" != "$(git rev-parse origin/master)" ]]; then
+            echo 'master changed after checkout; refusing to create a release from a stale branch.'
+            exit 1
+          fi
 
-         git config user.name "github-actions[bot]"
-         git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-         git add app/build.gradle.kts
-         git diff --cached --quiet && { echo "No version change to commit"; exit 1; }
-         git commit -m "release: prepare ${TAG}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/build.gradle.kts
+          git diff --cached --quiet && { echo "No version change to commit"; exit 1; }
+          git commit -m "release: prepare ${TAG}"
 
           # Double check tag doesn't exist just before pushing (race condition protection)
           if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
@@ -95,7 +95,7 @@ jobs:
             exit 1
           fi
 
-         git tag -a "${TAG}" -m "Release ${TAG}"
-         git push origin master
-         git push origin "${TAG}"
+          git tag -a "${TAG}" -m "Release ${TAG}"
+          git push origin master
+          git push origin "${TAG}"
           echo "Created ${TAG}; the release workflow will now build and publish it."
