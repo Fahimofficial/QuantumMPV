@@ -24,7 +24,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: production-release-${{ github.ref }}
+  group: production-release-${{ github.event.inputs.tag_name || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -37,10 +37,61 @@ jobs:
     timeout-minutes: 60
 
     steps:
+      - name: Resolve and validate release tag
+        id: resolve-tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            tag_name="${GITHUB_REF#refs/tags/}"
+          else
+            tag_name="${{ inputs.tag_name }}"
+          fi
+
+          # 1. Validate format strictly as vX.Y.Z
+          if [[ ! "$tag_name" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid release tag: $tag_name. Expected vX.Y.Z"
+            exit 1
+          fi
+
+          # 2. Reject preview tags
+          if [[ "$tag_name" == *-preview.* ]]; then
+            echo "Preview tags are not allowed in this stable release workflow: $tag_name"
+            exit 1
+          fi
+
+          # 3. Reject versions outside v1.x
+          if [[ "$tag_name" != v1.* ]]; then
+            echo "QuantumMPV currently uses the v1.x release line: $tag_name"
+            exit 1
+          fi
+
+          # 4. Verify tag exists remotely and resolve to SHA
+          git fetch origin --tags --quiet
+          tag_sha=$(git rev-parse "refs/tags/${tag_name}^{commit}" 2>/dev/null || echo "")
+          if [[ -z "$tag_sha" ]]; then
+            echo "Tag ${tag_name} does not exist on origin or is not a commit tag."
+            exit 1
+          fi
+
+          echo "VERSION_TAG=$tag_name" >> "$GITHUB_ENV"
+          echo "EXPECTED_VERSION_NAME=${tag_name#v}" >> "$GITHUB_ENV"
+          echo "TARGET_SHA=$tag_sha" >> "$GITHUB_OUTPUT"
+
       - name: Checkout repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
+          ref: ${{ steps.resolve-tag.outputs.TARGET_SHA }}
           fetch-depth: 0
+
+      - name: Verify checkout state
+        run: |
+          # 7. Verify that the tag points to the expected commit
+          current_sha=$(git rev-parse HEAD)
+          if [[ "$current_sha" != "${{ steps.resolve-tag.outputs.TARGET_SHA }}" ]]; then
+            echo "Checkout SHA $current_sha does not match target SHA ${{ steps.resolve-tag.outputs.TARGET_SHA }}"
+            exit 1
+          fi
 
       - name: Fetch and verify pinned native artifacts
         run: python3 tools/verify_native_artifacts.py --download
@@ -62,32 +113,17 @@ jobs:
           test -d "$ANDROID_HOME/platforms/android-37.0"
           test -d "$ANDROID_HOME/ndk/27.3.13750724"
 
-      - name: Resolve and validate release tag
+      - name: Verify checked-out source
         shell: bash
         run: |
           set -euo pipefail
-          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
-            version_tag="${GITHUB_REF#refs/tags/}"
-          else
-            version_tag="${{ inputs.tag_name }}"
-          fi
-
-          if [[ ! "$version_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Invalid release tag: $version_tag"
-            exit 1
-          fi
-          if [[ "$version_tag" != v1.* ]]; then
-            echo "QuantumMPV currently uses the v1.x release line: $version_tag"
-            exit 1
-          fi
+          # 8. Read "versionName" from checked-out tag and verify it matches
           build_version="$(sed -n 's/^[[:space:]]*versionName = "\([^"]*\)".*/\1/p' app/build.gradle.kts | head -n 1)"
-          expected_version="${version_tag#v}"
-          if [[ "$build_version" != "$expected_version" ]]; then
-            echo "Release tag $version_tag does not match app versionName $build_version"
+          if [[ "$build_version" != "$EXPECTED_VERSION_NAME" ]]; then
+            echo "Checked-out versionName $build_version does not match expected $EXPECTED_VERSION_NAME"
             exit 1
           fi
-          echo "VERSION_TAG=$version_tag" >> "$GITHUB_ENV"
-          echo "EXPECTED_VERSION_NAME=$expected_version" >> "$GITHUB_ENV"
+          echo "Verified checked-out source matches $VERSION_TAG"
 
       - name: Make Gradle wrapper executable
         run: chmod +x ./gradlew

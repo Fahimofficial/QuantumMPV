@@ -40,29 +40,62 @@ jobs:
       - name: Commit version bump and create tag
         env:
           VERSION: ${{ inputs.version }}
-          PRERELEASE: ${{ inputs.prerelease }}
-        run: |
-          set -euo pipefail
+         PRERELEASE: ${{ inputs.prerelease }}
+       run: |
+         set -euo pipefail
+
+          # 1. Validate version format
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid version format: $VERSION. Expected X.Y.Z"
+            exit 1
+          fi
+
+          # 2. Determine tag name
+          git fetch origin --tags --quiet
           if [[ "$PRERELEASE" == "true" ]]; then
-            TAG="v${VERSION}-preview.1"
+            # Find the highest preview number for THIS version
+            # Correctly escape VERSION for the grep
+            LATEST_PREVIEW=$(git ls-remote --tags origin "refs/tags/v${VERSION}-preview.*" | \
+              sed 's|.*/||' | \
+              grep -E "^v${VERSION}-preview\.[0-9]+$" | \
+              sed "s/^v${VERSION}-preview\.//" | \
+              sort -n | tail -n 1)
+
+            if [[ -z "$LATEST_PREVIEW" ]]; then
+              NEXT_NUM=1
+            else
+              NEXT_NUM=$((LATEST_PREVIEW + 1))
+            fi
+            TAG="v${VERSION}-preview.${NEXT_NUM}"
           else
             TAG="v${VERSION}"
           fi
+
+          # 3. Safety checks
           if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
-            echo "Tag ${TAG} already exists; refusing to overwrite it."
+            echo "Tag ${TAG} already exists on remote; refusing to overwrite it."
             exit 1
           fi
-          git fetch origin master --quiet
-          if [[ "$(git rev-parse HEAD)" != "$(git rev-parse origin/master)" ]]; then
-            echo 'master changed after checkout; refusing to create a release from a stale branch.'
+
+         git fetch origin master --quiet
+         if [[ "$(git rev-parse HEAD)" != "$(git rev-parse origin/master)" ]]; then
+           echo 'master changed after checkout; refusing to create a release from a stale branch.'
+           exit 1
+         fi
+
+         git config user.name "github-actions[bot]"
+         git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+         git add app/build.gradle.kts
+         git diff --cached --quiet && { echo "No version change to commit"; exit 1; }
+         git commit -m "release: prepare ${TAG}"
+
+          # Double check tag doesn't exist just before pushing (race condition protection)
+          if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "Tag ${TAG} was created by someone else; failing safely."
             exit 1
           fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add app/build.gradle.kts
-          git diff --cached --quiet && { echo "No version change to commit"; exit 1; }
-          git commit -m "release: prepare ${TAG}"
-          git tag -a "${TAG}" -m "Release ${TAG}"
-          git push origin master
-          git push origin "${TAG}"
+
+         git tag -a "${TAG}" -m "Release ${TAG}"
+         git push origin master
+         git push origin "${TAG}"
           echo "Created ${TAG}; the release workflow will now build and publish it."
