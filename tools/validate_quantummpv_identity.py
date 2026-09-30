@@ -28,7 +28,7 @@ checks = {
     "QuantumMPV updater assets": 'asset.name.startsWith("QuantumMPV-"' in updater,
     "QuantumMPV stable endpoint": 'repos/Fahimofficial/QuantumMPV/releases/latest' in updater,
     "no upstream asset prefix in updater": 'startsWith("mpvRx-"' not in updater,
-    "v1 release guard": 'version_tag" != v1.*' in release and 'QUANTUMMPV_MAJOR_VERSION = 1' in prepare,
+    "v1 release guard": 'tag_name" != v1.*' in release and 'QUANTUMMPV_MAJOR_VERSION = 1' in prepare,
     "Jellyfin HTTP preference": 'allowJellyfinHttp' in jellyfin_settings and 'media_server_allow_jellyfin_http' in read("app/src/main/java/com/quantummpv/app/preferences/MediaServerPreferences.kt"),
     "Jellyfin HTTP warning": 'pref_jellyfin_http_warning_message' in jellyfin_settings and 'Plaintext Jellyfin connections are disabled' in jellyfin_client,
     "libmpv remains the only playback implementation": not any(
