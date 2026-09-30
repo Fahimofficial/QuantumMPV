@@ -7,45 +7,51 @@
  * (at your option) any later version.
  */
 package com.quantummpv.app.ui.player
+
 import android.content.Context
+import java.io.ByteArrayInputStream
+import java.io.File
+import java.security.MessageDigest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
-import java.io.File
-import java.security.MessageDigest
 
 @RunWith(RobolectricTestRunner::class)
 class SubtitleFontInstallerTest {
   @Test
-  fun installsBundledFontIdempotentlyWithoutChangingUserFonts() {
+  fun installsFontFromSourceIdempotentlyWithoutChangingUserFonts() {
     val context: Context = RuntimeEnvironment.getApplication()
     val fontsDirectory = File(context.filesDir, "fonts").apply { mkdirs() }
     val userFont = File(fontsDirectory, "MyCustomFont.ttf").apply { writeText("user font") }
+    val fontBytes = "small valid font fixture".toByteArray()
+    val expectedHash = sha256(fontBytes)
 
-    val installedFont = SubtitleFontInstaller.installStrict(context)
+    val installedFont = installFixture(context, fontBytes, expectedHash)
     assertTrue(installedFont.isFile)
-    assertEquals(SubtitleFontInstaller.FONT_SIZE_BYTES, installedFont.length())
-    assertEquals(SubtitleFontInstaller.FONT_SHA256, sha256(installedFont))
+    assertEquals(fontBytes.size.toLong(), installedFont.length())
+    assertEquals(expectedHash, sha256(installedFont.readBytes()))
     assertEquals("user font", userFont.readText())
 
     val lastModified = installedFont.lastModified()
-    val secondInstall = SubtitleFontInstaller.installStrict(context)
+    val secondInstall = installFixture(context, fontBytes, expectedHash)
     assertEquals(installedFont.canonicalPath, secondInstall.canonicalPath)
     assertEquals(lastModified, secondInstall.lastModified())
   }
 
-  private fun sha256(file: File): String =
-    file.inputStream().use { input ->
-      val digest = MessageDigest.getInstance("SHA-256")
-      val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-      while (true) {
-        val count = input.read(buffer)
-        if (count < 0) break
-        digest.update(buffer, 0, count)
-      }
-      digest.digest().joinToString("") { "%02x".format(it.toInt() and 0xff) }
+  private fun installFixture(context: Context, bytes: ByteArray, hash: String): File =
+    SubtitleFontInstaller.installFromSource(
+      context = context,
+      fileName = "QuantumMPV-test-font.ttf",
+      expectedSizeBytes = bytes.size.toLong(),
+      expectedSha256 = hash,
+      openSource = { ByteArrayInputStream(bytes) },
+    )
+
+  private fun sha256(bytes: ByteArray): String =
+    MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") {
+      "%02x".format(it.toInt() and 0xff)
     }
 }

@@ -37,6 +37,7 @@ assert font.is_file(), 'bundled Unicode subtitle fallback font is missing'
 assert font.stat().st_size == 14_700_060, 'unexpected bundled subtitle font size'
 assert sha256(font.read_bytes()).hexdigest() == '882afbab965608c2d2bc627fd8016b962aa5a6be2d358f9de24a7b5967c5632e', 'bundled subtitle font checksum mismatch'
 assert font_license.is_file() and 'SIL OPEN FONT LICENSE Version 1.1' in font_license.read_text()
+assert 'ASSET_PATH = "subtitle-fonts/GoNotoCurrent-Regular.ttf"' in installer_text
 assert 'SubtitleFontInstaller.install(context.applicationContext)' in player_text
 assert 'SHA-256' in installer_text and 'sub-fonts-dir' in player_text
 print('native artifact and subtitle font regression checks passed')

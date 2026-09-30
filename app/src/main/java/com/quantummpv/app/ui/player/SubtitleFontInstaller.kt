@@ -12,6 +12,7 @@ import android.content.Context
 import android.util.Log
 import java.io.File
 import java.io.FileOutputStream
+import java.io.InputStream
 import java.security.DigestInputStream
 import java.security.MessageDigest
 
@@ -31,39 +32,51 @@ internal object SubtitleFontInstaller {
    */
   @Synchronized
   fun install(context: Context): File? {
+    val appContext = context.applicationContext
     return try {
-      installStrict(context)
+      installFromSource(
+        context = appContext,
+        fileName = FONT_FILE_NAME,
+        expectedSizeBytes = FONT_SIZE_BYTES,
+        expectedSha256 = FONT_SHA256,
+      ) { appContext.assets.open(ASSET_PATH) }
     } catch (error: Exception) {
       Log.w(TAG, "Could not install the bundled subtitle fallback font; using system fonts.", error)
       null
     }
   }
 
+  /** Core copy logic accepts a source factory so it can be exercised without Robolectric APK assets. */
   @Synchronized
-  internal fun installStrict(context: Context): File {
-    val appContext = context.applicationContext
-    val fontsDirectory = File(appContext.filesDir, "fonts")
-    val installedFont = File(fontsDirectory, FONT_FILE_NAME)
-    if (installedFont.isFile && installedFont.length() == FONT_SIZE_BYTES) {
+  internal fun installFromSource(
+    context: Context,
+    fileName: String,
+    expectedSizeBytes: Long,
+    expectedSha256: String,
+    openSource: () -> InputStream,
+  ): File {
+    val fontsDirectory = File(context.applicationContext.filesDir, "fonts")
+    check(fontsDirectory.isDirectory || fontsDirectory.mkdirs()) {
+      "Unable to create subtitle fonts directory: $fontsDirectory"
+    }
+
+    val installedFont = File(fontsDirectory, fileName)
+    if (installedFont.isFile && installedFont.length() == expectedSizeBytes) {
       return installedFont
     }
 
-    val stagedFont = File(fontsDirectory, ".$FONT_FILE_NAME.tmp")
+    val stagedFont = File(fontsDirectory, ".$fileName.tmp")
     return try {
-      check(fontsDirectory.isDirectory || fontsDirectory.mkdirs()) {
-        "Unable to create subtitle fonts directory: $fontsDirectory"
-      }
-
       val digest = MessageDigest.getInstance("SHA-256")
-      appContext.assets.open(ASSET_PATH).use { asset ->
+      openSource().use { asset ->
         DigestInputStream(asset, digest).use { input ->
           FileOutputStream(stagedFont).use { output -> input.copyTo(output) }
         }
       }
 
-      check(stagedFont.length() == FONT_SIZE_BYTES) { "Bundled subtitle font has an unexpected size." }
+      check(stagedFont.length() == expectedSizeBytes) { "Bundled subtitle font has an unexpected size." }
       val actualSha256 = digest.digest().joinToString("") { "%02x".format(it.toInt() and 0xff) }
-      check(actualSha256 == FONT_SHA256) { "Bundled subtitle font checksum mismatch." }
+      check(actualSha256 == expectedSha256) { "Bundled subtitle font checksum mismatch." }
       if (installedFont.exists()) {
         check(installedFont.delete()) { "Unable to replace stale subtitle font: $installedFont" }
       }
