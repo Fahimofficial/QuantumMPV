@@ -76,6 +76,8 @@ class MPVView(
     // The libmpv core is process-wide, so returning to the player can reuse a core created with
     // older renderer preferences. Keep fallbacks stable for the lifetime of that preference
     // selection, but recreate the core when gpu-next/Vulkan selection actually changes.
+    // Install our Unicode fallback before mpv/fontconfig performs its first font scan.
+    SubtitleFontInstaller.install(context.applicationContext)
     MpvConfigOverridePolicy.configure(advancedPreferences.mpvConfOverrides.get())
     val requestedBackend = selectRenderBackend(ignoreForcedOpenGlFallback = true)
     val coreConfigurationKey =

@@ -36,6 +36,10 @@ jobs:
 
       - name: Fetch and verify pinned native artifacts
         run: python3 tools/verify_native_artifacts.py --download
+
+      - name: Check native artifact and subtitle font regressions
+        run: python3 tools/test_native_artifacts.py
+
       - name: Set up JDK 17
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
