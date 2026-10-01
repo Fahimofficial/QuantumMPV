@@ -579,9 +579,14 @@ private fun SeekbarContent(
                 onUserPositionChange(dpadSeekPosition)
                 onValueChange(dpadSeekPosition)
               } else {
-                onValueChangeFinished(dpadSeekPosition)
-                onUserInteractionChange(false)
-                isDpadScrubbing = false
+                val finalPosition = dpadSeekPosition
+                scope.launch {
+                  animatedPosition.snapTo(finalPosition)
+                  onUserPositionChange(finalPosition)
+                  onValueChangeFinished(finalPosition)
+                  onUserInteractionChange(false)
+                  isDpadScrubbing = false
+                }
               }
               true
             }

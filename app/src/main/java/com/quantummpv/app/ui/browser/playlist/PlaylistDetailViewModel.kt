@@ -19,6 +19,7 @@ import com.quantummpv.app.database.entities.PlaylistEntity
 import com.quantummpv.app.database.entities.PlaylistItemEntity
 import com.quantummpv.app.database.repository.PlaylistRepository
 import com.quantummpv.app.domain.media.model.Video
+import com.quantummpv.app.domain.network.NetworkPlaybackUri
 import com.quantummpv.app.repository.MediaFileRepository
 import com.quantummpv.app.ui.browser.base.BaseBrowserViewModel
 import com.quantummpv.app.ui.player.extractLocalPath
@@ -226,7 +227,7 @@ class PlaylistDetailViewModel(
           val bucketIds =
             items
               .map { item ->
-                File(item.filePath).parent ?: ""
+                if (NetworkPlaybackUri.parse(item.filePath) != null) "" else File(item.filePath).parent ?: ""
               }.toSet()
           val allVideos =
             MediaFileRepository.getVideosForBuckets(
@@ -236,9 +237,32 @@ class PlaylistDetailViewModel(
             )
           val videoItems =
             items.mapNotNull { item ->
+              val networkReference = NetworkPlaybackUri.parse(item.filePath)
               val matchedVideo = allVideos.find { video -> video.path == item.filePath }
               val video =
-                matchedVideo ?: run {
+                matchedVideo ?: networkReference?.let {
+                  Video(
+                    id = item.id.toLong(),
+                    title = item.fileName,
+                    displayName = item.fileName,
+                    path = item.filePath,
+                    uri = Uri.parse(item.filePath),
+                    duration = 0L,
+                    durationFormatted = "--",
+                    size = 0L,
+                    sizeFormatted = "--",
+                    dateModified = item.addedAt,
+                    dateAdded = item.addedAt,
+                    mimeType = "video/*",
+                    bucketId = "network:${it.connectionId}",
+                    bucketDisplayName = "",
+                    width = 0,
+                    height = 0,
+                    fps = 0f,
+                    resolution = "--",
+                    isAudio = false,
+                  )
+                } ?: run {
                   val file = File(item.filePath)
                   val isAudioFile = FileTypeUtils.isAudioFile(file)
                   Video(

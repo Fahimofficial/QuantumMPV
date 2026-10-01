@@ -530,11 +530,9 @@ class MPVView(
     PlaybackSession.setOptionString("sub-delay", subDelay)
     PlaybackSession.setOptionString("sub-speed", subSpeed)
     PlaybackSession.setOptionString("secondary-sub-delay", subDelay)
-    PlaybackSession.setOptionString("secondary-sub-speed", subSpeed)
 
     val preferredFont = subtitlesPreferences.font.get().ifBlank { DEFAULT_SUBTITLE_FONT_FAMILY }
     PlaybackSession.setOptionString("sub-font", preferredFont)
-    PlaybackSession.setOptionString("secondary-sub-font", preferredFont)
 
     if (subtitlesPreferences.overrideAssSubs.get()) {
       PlaybackSession.setOptionString("sub-ass-override", "force")
@@ -585,10 +583,7 @@ class MPVView(
       }
     PlaybackSession.setOptionString("blend-subtitles", blendMode)
 
-    for ((prefix, pos, scale) in listOf(
-      Triple("sub-", subPos.toString(), subScale),
-      Triple("secondary-sub-", secondarySubPos.toString(), secondarySubScale),
-    )) {
+    for ((prefix, pos, scale) in listOf(Triple("sub-", subPos.toString(), subScale))) {
       PlaybackSession.setOptionString("${prefix}font-size", fontSize)
       PlaybackSession.setOptionString("${prefix}bold", bold)
       PlaybackSession.setOptionString("${prefix}italic", italic)
@@ -605,6 +600,8 @@ class MPVView(
       PlaybackSession.setOptionString("${prefix}scale-by-window", scaleByWindow)
       PlaybackSession.setOptionString("${prefix}use-margins", scaleByWindow)
     }
+    PlaybackSession.setOptionString("secondary-sub-scale", secondarySubScale)
+    PlaybackSession.setOptionString("secondary-sub-pos", secondarySubPos.toString())
   }
 
   fun applyAnime4KShaders() {

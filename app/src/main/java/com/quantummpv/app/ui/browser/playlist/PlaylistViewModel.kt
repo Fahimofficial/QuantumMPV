@@ -16,6 +16,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.quantummpv.app.database.entities.PlaylistEntity
 import com.quantummpv.app.database.repository.PlaylistRepository
+import com.quantummpv.app.domain.network.NetworkPlaybackUri
 import com.quantummpv.app.repository.MediaFileRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -118,7 +119,7 @@ class PlaylistViewModel(
     val allVideos = MediaFileRepository.getVideosForBuckets(getApplication(), bucketIds, includeAudioOverride = true)
 
     return items.count { item ->
-      allVideos.any { video -> video.path == item.filePath }
+      NetworkPlaybackUri.parse(item.filePath) != null || allVideos.any { video -> video.path == item.filePath }
     }
   }
 

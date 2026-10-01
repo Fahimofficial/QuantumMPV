@@ -35,7 +35,8 @@ assert "player_sheets_sub_force_rtl_title" in subtitle_panel
 seekbar = (root / "app/src/main/java/com/quantummpv/app/ui/player/controls/components/Seekbar.kt").read_text()
 assert "DeviceFormFactor.isTelevision(LocalContext.current)" in seekbar
 assert "Key.DirectionLeft, Key.DirectionRight" in seekbar
-assert "onValueChangeFinished(dpadSeekPosition)" in seekbar
+assert "animatedPosition.snapTo(finalPosition)" in seekbar
+assert "onValueChangeFinished(finalPosition)" in seekbar
 assert ".focusProperties { canFocus = false }" in seekbar
 
 print("selected upstream 2.7.x release-port regression checks passed")
