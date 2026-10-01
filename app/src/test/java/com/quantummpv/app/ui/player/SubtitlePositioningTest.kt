@@ -9,8 +9,8 @@
 
 package com.quantummpv.app.ui.player
 
-import kotlin.test.assertEquals
 import org.junit.Test
+import kotlin.test.assertEquals
 
 class SubtitlePositioningTest {
   @Test
