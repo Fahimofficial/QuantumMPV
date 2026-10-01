@@ -67,6 +67,12 @@ jobs:
       - name: Validate QuantumMPV identity and protected behavior
         run: python3 tools/validate_quantummpv_identity.py
 
+      - name: Check QuantumMPV-only feature preservation
+        run: python3 tools/test_quantummpv_custom_features.py
+
+      - name: Check selected upstream 2.7.x release ports
+        run: python3 tools/test_upstream_release_ports.py
+
       - name: Run debug lint, unit tests, and debug build
         id: debug-validation
         shell: bash

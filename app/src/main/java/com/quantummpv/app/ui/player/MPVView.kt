@@ -21,6 +21,7 @@ import com.quantummpv.app.domain.anime4k.Anime4KManager
 import com.quantummpv.app.domain.hdr.HdrToysManager
 import com.quantummpv.app.network.AndroidCookieJar
 import com.quantummpv.app.preferences.AdvancedPreferences
+import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.AudioPreferences
 import com.quantummpv.app.preferences.DEFAULT_SUBTITLE_FONT_FAMILY
 import com.quantummpv.app.preferences.DecoderPreferences
@@ -50,6 +51,7 @@ class MPVView(
   attributes: AttributeSet,
 ) : BaseMPVView(context, attributes),
   KoinComponent {
+  private val appearancePreferences: AppearancePreferences by inject()
   private val audioPreferences: AudioPreferences by inject()
   private val playerPreferences: PlayerPreferences by inject()
   private val decoderPreferences: DecoderPreferences by inject()
@@ -80,10 +82,12 @@ class MPVView(
     // Install our Unicode fallback before mpv/fontconfig performs its first font scan.
     activeMpvConfigDirectoryPath = configDir
     SubtitleFontInstaller.install(context.applicationContext)
+    MpvOsdFont.ensureInstalled(context.applicationContext)
     MpvConfigOverridePolicy.configure(advancedPreferences.mpvConfOverrides.get())
     val requestedBackend = selectRenderBackend(ignoreForcedOpenGlFallback = true)
     val coreConfigurationKey =
-      "${requestedBackend.configurationKey}|conf=${MpvConfigOverridePolicy.configurationKey()}"
+      "${requestedBackend.configurationKey}|conf=${MpvConfigOverridePolicy.configurationKey()}" +
+        "|osdSystem=${appearancePreferences.useSystemOsdFont.get()}"
     val result =
       PlaybackSession.initialize(
         context = context.applicationContext,
@@ -244,6 +248,11 @@ class MPVView(
 
     PlaybackSession.setOptionString("keep-open", "yes")
     PlaybackSession.setOptionString("input-default-bindings", "yes")
+    if (!MpvConfigOverridePolicy.isOwnedByMpvConf("osd-font")) {
+      val osdFont =
+        if (appearancePreferences.useSystemOsdFont.get()) MpvOsdFont.SYSTEM_FAMILY else MpvOsdFont.FAMILY
+      PlaybackSession.setOptionString("osd-font", osdFont)
+    }
 
     PlaybackSession.setOptionString("tls-verify", "yes")
     PlaybackSession.setOptionString("tls-ca-file", "${context.filesDir.path}/cacert.pem")
@@ -327,6 +336,15 @@ class MPVView(
       context = context.applicationContext,
       configDirectoryPath = activeMpvConfigDirectoryPath,
       configuredDirectory = configuredFontsDirectory,
+    )
+    SubtitleFontInstaller.installInConfiguredDirectory(
+      context = context.applicationContext,
+      configDirectoryPath = activeMpvConfigDirectoryPath,
+      configuredDirectory = configuredFontsDirectory,
+      fileName = MpvOsdFont.FONT_FILE_NAME,
+      expectedSizeBytes = MpvOsdFont.FONT_SIZE_BYTES,
+      expectedSha256 = MpvOsdFont.FONT_SHA256,
+      openSource = { MpvOsdFont.openFontResource(context.applicationContext) },
     )
 
     applyOsdSafeAreaMargins()
@@ -499,6 +517,12 @@ class MPVView(
     PlaybackSession.setOptionString("embeddedfonts", "yes")
     // Auto-detect font provider (system fonts, embedded fonts, etc.)
     PlaybackSession.setOptionString("sub-font-provider", "auto")
+    if (!MpvConfigOverridePolicy.isOwnedByMpvConf("sub-vsfilter-bidi-compat")) {
+      PlaybackSession.setOptionString(
+        "sub-vsfilter-bidi-compat",
+        if (subtitlesPreferences.forceRightToLeftSubtitles.get()) "yes" else "no",
+      )
+    }
 
     // Delay and speed for both primary and secondary
     val subDelay = (subtitlesPreferences.defaultSubDelay.get() / 1000.0).toString()
@@ -540,8 +564,15 @@ class MPVView(
     val h =
       height.takeIf { it > 0 }?.toFloat() ?: context.resources.displayMetrics.heightPixels
         .toFloat()
-    val secondarySubPos = calculateSecondarySubtitlePosition(subPos, w, h)
+    val secondarySubPos =
+      resolveSecondarySubtitlePosition(
+        primaryPosition = subPos,
+        preferredSecondaryPosition = subtitlesPreferences.secondarySubPos.get(),
+        screenWidth = w,
+        screenHeight = h,
+      )
     val subScale = subtitlesPreferences.subScale.get().toString()
+    val secondarySubScale = subtitlesPreferences.secondarySubScale.get().toString()
 
     val scaleByWindow = if (subtitlesPreferences.scaleByWindow.get()) "yes" else "no"
     val blendMode =
@@ -554,7 +585,10 @@ class MPVView(
       }
     PlaybackSession.setOptionString("blend-subtitles", blendMode)
 
-    for ((prefix, pos) in listOf("sub-" to subPos.toString(), "secondary-sub-" to secondarySubPos.toString())) {
+    for ((prefix, pos, scale) in listOf(
+      Triple("sub-", subPos.toString(), subScale),
+      Triple("secondary-sub-", secondarySubPos.toString(), secondarySubScale),
+    )) {
       PlaybackSession.setOptionString("${prefix}font-size", fontSize)
       PlaybackSession.setOptionString("${prefix}bold", bold)
       PlaybackSession.setOptionString("${prefix}italic", italic)
@@ -566,7 +600,7 @@ class MPVView(
       PlaybackSession.setOptionString("${prefix}border-size", borderSize)
       PlaybackSession.setOptionString("${prefix}border-style", borderStyle)
       PlaybackSession.setOptionString("${prefix}shadow-offset", shadowOffset)
-      PlaybackSession.setOptionString("${prefix}scale", subScale)
+      PlaybackSession.setOptionString("${prefix}scale", scale)
       PlaybackSession.setOptionString("${prefix}pos", pos)
       PlaybackSession.setOptionString("${prefix}scale-by-window", scaleByWindow)
       PlaybackSession.setOptionString("${prefix}use-margins", scaleByWindow)

@@ -19,4 +19,31 @@ class MpvConfigOverrideTest {
 
     assertTrue("sub-fonts-dir must remain owned by mpv.conf", "sub-fonts-dir" in overriddenOptions)
   }
+
+  @Test
+  fun subtitleStyleOverrideOwnsBidiCompatibilityOption() {
+    val overriddenOptions =
+      MpvConfigOverride.resolveOptionNames(setOf(MpvConfigOverride.SUBTITLE_STYLE.preferenceKey))
+
+    assertTrue(
+      "subtitle bidi compatibility must remain owned by mpv.conf",
+      "sub-vsfilter-bidi-compat" in overriddenOptions,
+    )
+  }
+
+  @Test
+  fun subtitleStyleOverrideOwnsIndependentSecondarySubtitleControls() {
+    val overriddenOptions =
+      MpvConfigOverride.resolveOptionNames(setOf(MpvConfigOverride.SUBTITLE_STYLE.preferenceKey))
+
+    assertTrue("secondary subtitle scale must remain owned by mpv.conf", "secondary-sub-scale" in overriddenOptions)
+    assertTrue("secondary subtitle position must remain owned by mpv.conf", "secondary-sub-pos" in overriddenOptions)
+  }
+
+  @Test
+  fun osdOverrideOwnsFontSelection() {
+    val overriddenOptions = MpvConfigOverride.resolveOptionNames(setOf(MpvConfigOverride.OSD.preferenceKey))
+
+    assertTrue("OSD font must remain owned by mpv.conf", "osd-font" in overriddenOptions)
+  }
 }

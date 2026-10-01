@@ -32,6 +32,7 @@ class SubtitlesPreferences(
   val font = preferenceStore.getString("sub_font", "")
   val fontSize = preferenceStore.getInt("sub_font_size", 55)
   val subScale = preferenceStore.getFloat("sub_scale", 1f)
+  val secondarySubScale = preferenceStore.getFloat("secondary_sub_scale", 1f)
   val borderSize = preferenceStore.getInt("sub_border_size", 3)
   val bold = preferenceStore.getBoolean("sub_bold", false)
   val italic = preferenceStore.getBoolean("sub_italic", false)
@@ -47,9 +48,13 @@ class SubtitlesPreferences(
   val justification = preferenceStore.getEnum("sub_justify", SubtitleJustification.Auto)
   val subPos = preferenceStore.getInt("sub_pos", 100)
 
+  /** A negative position preserves QuantumMPV's automatic anti-overlap placement. */
+  val secondarySubPos = preferenceStore.getInt("secondary_sub_pos", -1)
+
   val overrideAssSubs = preferenceStore.getBoolean("sub_override_ass")
   val scaleByWindow = preferenceStore.getBoolean("sub_scale_by_window", true)
   val blendSubtitlesWithVideo = preferenceStore.getBoolean("sub_blend_with_video", false)
+  val forceRightToLeftSubtitles = preferenceStore.getBoolean("sub_force_rtl", false)
 
   val defaultSubDelay = preferenceStore.getInt("sub_default_delay")
   val defaultSubSpeed = preferenceStore.getFloat("sub_default_speed", 1f)

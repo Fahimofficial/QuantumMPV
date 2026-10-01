@@ -73,6 +73,7 @@ import com.quantummpv.app.ui.theme.DarkMode
 import com.quantummpv.app.ui.theme.LocalThemeTransitionState
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.LocalShowSettingsBackArrow
+import com.quantummpv.app.ui.utils.currentMpvConfigOverrideOptions
 import com.quantummpv.app.ui.utils.navigateTo
 import com.quantummpv.app.ui.utils.popSafely
 import kotlinx.collections.immutable.persistentListOf
@@ -290,6 +291,7 @@ object AppearancePreferencesScreen : Screen {
 
                   val amoledMode by preferences.amoledMode.collectAsState()
                   val glassBottomNavigation by preferences.glassBottomNavigation.collectAsState()
+                  val useSystemOsdFont by preferences.useSystemOsdFont.collectAsState()
                   ThemePicker(
                     currentTheme = appTheme,
                     customThemes = customThemes,
@@ -413,6 +415,35 @@ object AppearancePreferencesScreen : Screen {
                       )
                     },
                     enabled = darkMode != DarkMode.Light,
+                  )
+
+                  PreferenceDivider()
+                  SwitchPreference(
+                    modifier = Modifier.settingsSearchTarget(R.string.pref_appearance_glass_navigation_title),
+                    value = glassBottomNavigation,
+                    onValueChange = preferences.glassBottomNavigation::set,
+                    title = { Text(stringResource(R.string.pref_appearance_glass_navigation_title)) },
+                    summary = {
+                      Text(
+                        stringResource(R.string.pref_appearance_glass_navigation_summary),
+                        color = MaterialTheme.colorScheme.outline,
+                      )
+                    },
+                  )
+
+                  PreferenceDivider()
+                  SwitchPreference(
+                    modifier = Modifier.settingsSearchTarget(R.string.pref_appearance_osd_font_title),
+                    value = useSystemOsdFont,
+                    enabled = "osd-font" !in currentMpvConfigOverrideOptions(),
+                    onValueChange = preferences.useSystemOsdFont::set,
+                    title = { Text(stringResource(R.string.pref_appearance_osd_font_title)) },
+                    summary = {
+                      Text(
+                        stringResource(R.string.pref_appearance_osd_font_summary),
+                        color = MaterialTheme.colorScheme.outline,
+                      )
+                    },
                   )
 
                   PreferenceDivider()

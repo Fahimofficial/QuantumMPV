@@ -11,16 +11,16 @@ set(MPVRX_NATIVE_RELEASE_COMPILE_OPTIONS
     "$<$<CONFIG:Release>:-fvisibility=hidden>"
 )
 
-set(MPVRX_NATIVE_RELEASE_LINK_OPTIONS
+set(MPVRX_NATIVE_LINK_OPTIONS
+    "-Wl,-z,max-page-size=16384"
     "$<$<CONFIG:Release>:-Wl,-O1>"
     "$<$<CONFIG:Release>:-Wl,--gc-sections>"
     "$<$<CONFIG:Release>:-Wl,--icf=safe>"
-    "$<$<CONFIG:Release>:-Wl,-z,max-page-size=16384>"
 )
 
 function(mpvrx_optimize_native_target target)
     target_compile_options(${target} PRIVATE ${MPVRX_NATIVE_RELEASE_COMPILE_OPTIONS})
-    target_link_options(${target} PRIVATE ${MPVRX_NATIVE_RELEASE_LINK_OPTIONS})
+    target_link_options(${target} PRIVATE ${MPVRX_NATIVE_LINK_OPTIONS})
 endfunction()
 
 # YTDLP execution wrapper for SDK 29+ bypass
