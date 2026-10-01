@@ -45,5 +45,4 @@ internal object MpvOsdFont {
   @SuppressLint("ResourceType")
   internal fun openFontResource(context: Context): InputStream =
     context.resources.openRawResource(R.font.gflex_variable)
-
 }
