@@ -105,6 +105,8 @@ fun SubtitlesMiscellaneousCard(modifier: Modifier = Modifier) {
             val value = if (it) "yes" else "no"
             PlaybackSession.setPropertyString("sub-scale-by-window", value)
             PlaybackSession.setPropertyString("sub-use-margins", value)
+            PlaybackSession.setPropertyString("secondary-sub-scale-by-window", value)
+            PlaybackSession.setPropertyString("secondary-sub-use-margins", value)
           },
           title = { Text(stringResource(R.string.player_sheets_sub_scale_by_window)) },
           summary = { Text(stringResource(R.string.player_sheets_sub_scale_by_window_summary)) },
@@ -270,6 +272,8 @@ fun SubtitlesMiscellaneousCard(modifier: Modifier = Modifier) {
               val scaleValue = if (defaultScaleByWindow) "yes" else "no"
               PlaybackSession.setPropertyString("sub-scale-by-window", scaleValue)
               PlaybackSession.setPropertyString("sub-use-margins", scaleValue)
+              PlaybackSession.setPropertyString("secondary-sub-scale-by-window", scaleValue)
+              PlaybackSession.setPropertyString("secondary-sub-use-margins", scaleValue)
               val defaultBlendSubtitles = preferences.blendSubtitlesWithVideo.deleteAndGet()
               blendSubtitlesWithVideo = defaultBlendSubtitles
               val blendMode = if (defaultBlendSubtitles && playerPreferences.isAmbientEnabled.get()) "video" else "no"
