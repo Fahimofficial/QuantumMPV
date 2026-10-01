@@ -18,6 +18,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import java.io.ByteArrayInputStream
 import java.io.File
+import java.io.InputStream
 import java.security.MessageDigest
 
 @RunWith(RobolectricTestRunner::class)
@@ -25,14 +26,24 @@ class MpvOsdFontTest {
   @Test
   fun installsBundledGoogleSansFlexIdempotently() {
     val context: Context = RuntimeEnvironment.getApplication()
-    val installed = MpvOsdFont.ensureInstalled(context) ?: error("Expected bundled OSD font to install")
+    val directory = File(context.cacheDir, "installed-osd-font").apply { deleteRecursively() }
+    val install = {
+      MpvOsdFont.installFromSource(
+        directory = directory,
+        fileName = MpvOsdFont.FONT_FILE_NAME,
+        expectedSizeBytes = MpvOsdFont.FONT_SIZE_BYTES,
+        expectedSha256 = MpvOsdFont.FONT_SHA256,
+        openSource = ::openBundledFontFixture,
+      )
+    }
+    val installed = install()
 
     assertTrue(installed.isFile)
     assertEquals(MpvOsdFont.FONT_SIZE_BYTES, installed.length())
     assertEquals(MpvOsdFont.FONT_SHA256, sha256(installed.readBytes()))
 
     val lastModified = installed.lastModified()
-    val secondInstall = MpvOsdFont.ensureInstalled(context) ?: error("Expected cached OSD font to remain available")
+    val secondInstall = install()
     assertEquals(installed.canonicalPath, secondInstall.canonicalPath)
     assertEquals(lastModified, secondInstall.lastModified())
   }
@@ -76,7 +87,7 @@ class MpvOsdFontTest {
         fileName = MpvOsdFont.FONT_FILE_NAME,
         expectedSizeBytes = MpvOsdFont.FONT_SIZE_BYTES,
         expectedSha256 = MpvOsdFont.FONT_SHA256,
-        openSource = { MpvOsdFont.openFontResource(context) },
+        openSource = ::openBundledFontFixture,
       ) ?: error("Expected Google Sans Flex to be mirrored into mpv.conf's font directory")
 
     assertEquals(MpvOsdFont.FONT_SIZE_BYTES, mirroredFont.length())
@@ -88,4 +99,20 @@ class MpvOsdFontTest {
     MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") {
       "%02x".format(it.toInt() and 0xff)
     }
+
+  private fun openBundledFontFixture(): InputStream = bundledFontFile().inputStream()
+
+  private fun bundledFontFile(): File {
+    var directory: File? = File(System.getProperty("user.dir")).absoluteFile
+    while (directory != null) {
+      val candidates =
+        listOf(
+          File(directory, "src/main/res/font/gflex_variable.ttf"),
+          File(directory, "app/src/main/res/font/gflex_variable.ttf"),
+        )
+      candidates.firstOrNull(File::isFile)?.let { return it }
+      directory = directory.parentFile
+    }
+    error("Could not locate the checked-in Google Sans Flex font fixture")
+  }
 }
