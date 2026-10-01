@@ -522,7 +522,6 @@ object YtdlpManager {
 
     // Apply options to MPV core
     PlaybackSession.setIntegrationOptionString("ytdl", "yes")
-    PlaybackSession.setIntegrationOptionString("ytdl-path", ytdlBinaryPath)
 
     // These values are part of mpvRx's bundled bridge contract. They intentionally bypass
     // preference ownership so a broad script-opts override cannot remove half of the integration.

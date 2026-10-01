@@ -55,8 +55,10 @@ fun SubtitlesMiscellaneousCard(modifier: Modifier = Modifier) {
   val configOwnedOptions = currentMpvConfigOverrideOptions()
   val layoutOptions = setOf("sub-ass-override", "secondary-sub-ass-override", "sub-pos", "secondary-sub-pos")
   val scaleOptions = setOf("sub-scale", "secondary-sub-scale")
+  // mpv has no secondary-sub-scale-by-window / secondary-sub-use-margins — secondary
+  // inherits the primary windowing behavior.
   val scaleByWindowOptions =
-    setOf("sub-scale-by-window", "sub-use-margins", "secondary-sub-scale-by-window", "secondary-sub-use-margins")
+    setOf("sub-scale-by-window", "sub-use-margins")
   val blendOptions = setOf("blend-subtitles")
   val bidiOptions = setOf("sub-vsfilter-bidi-compat")
   val miscellaneousOptions = layoutOptions + scaleOptions + scaleByWindowOptions + blendOptions + bidiOptions

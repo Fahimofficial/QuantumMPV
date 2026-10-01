@@ -411,13 +411,11 @@ object SubtitlesPreferencesScreen : Screen {
               SwitchPreference(
                 modifier = Modifier.settingsSearchTarget(R.string.player_sheets_sub_scale_by_window),
                 value = scaleByWindow,
-                enabled =
-                  setOf(
-                    "sub-scale-by-window",
-                    "sub-use-margins",
-                    "secondary-sub-scale-by-window",
-                    "secondary-sub-use-margins",
-                  ).none(configOwnedOptions::contains),
+                  enabled =
+                    setOf(
+                      "sub-scale-by-window",
+                      "sub-use-margins",
+                    ).none(configOwnedOptions::contains),
                 onValueChange = { preferences.scaleByWindow.set(it) },
                 title = { Text(stringResource(R.string.player_sheets_sub_scale_by_window)) },
                 summary = {
@@ -485,7 +483,7 @@ object SubtitlesPreferencesScreen : Screen {
               ListPreference(
                 modifier = Modifier.settingsSearchTarget(R.string.pref_subtitles_font_title),
                 value = fontValue,
-                enabled = setOf("sub-font", "secondary-sub-font").none(configOwnedOptions::contains),
+                enabled = setOf("sub-font").none(configOwnedOptions::contains),
                 onValueChange = preferences.font::set,
                 values = fontValues,
                 valueToText = {
