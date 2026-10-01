@@ -1,4 +1,18 @@
 # Changelog
+## 1.3.0
+Preview release containing the compatible mpvRx 2.7.0, 2.7.1, and 2.7.2 improvements selected for QuantumMPV without replacing its custom playback, subtitle, configuration, or release architecture.
+### What's New
+- **Playback and playlist reliability**: Improved network playlist persistence and refresh behavior, media counting, subtitle layout handling, and Android TV D-pad seeking.
+- **Subtitle improvements**: Added verified Unicode fallback-font support, independent secondary-subtitle scale and position controls, RTL compatibility, and safer subtitle option handling.
+- **Player and appearance improvements**: Added settings-search coverage, OSD font preference handling across reused player cores, mini-player refinements, and compatible visual polish.
+- **Build and compatibility updates**: Preserved 16-KB native page alignment, pinned native artifacts, and updated compatible build and dependency infrastructure.
+### Fixes
+- **D-pad seeking**: Avoid seeking to zero for unknown-duration media and ignore key-up events that did not start a scrub.
+- **Network playlists**: Preserve persisted network references during playlist refreshes and include them in playlist totals.
+- **Subtitle positioning**: Correct automatic secondary-subtitle compensation during zoom and pan.
+- **Configuration ownership**: Continue honoring user-owned `mpv.conf` options while avoiding unsupported secondary subtitle writes.
+- **Security and integrity**: Verify the bundled subtitle font using its expected size and SHA-256 checksum before installation.
+
 ## 1.2.0
 The second stable QuantumMPV release, bringing the 1.2.0 preview cycle's media-server integrations, network settings redesign, secure-folder hardening, and playback reliability work together in one public build.
 ### What's New
