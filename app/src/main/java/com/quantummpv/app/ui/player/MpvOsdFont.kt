@@ -13,10 +13,7 @@ import android.content.Context
 import android.util.Log
 import com.quantummpv.app.R
 import java.io.File
-import java.io.FileOutputStream
 import java.io.InputStream
-import java.security.DigestInputStream
-import java.security.MessageDigest
 
 /** Installs the bundled app typeface where libmpv/fontconfig can use it for OSD text. */
 internal object MpvOsdFont {
@@ -33,7 +30,7 @@ internal object MpvOsdFont {
   fun ensureInstalled(context: Context): File? {
     val appContext = context.applicationContext
     return try {
-      installFromSource(
+      SubtitleFontInstaller.installFromSource(
         directory = File(appContext.filesDir, "fonts"),
         fileName = FONT_FILE_NAME,
         expectedSizeBytes = FONT_SIZE_BYTES,
@@ -49,61 +46,4 @@ internal object MpvOsdFont {
   internal fun openFontResource(context: Context): InputStream =
     context.resources.openRawResource(R.font.gflex_variable)
 
-  /** Source-injected copy routine allows cache-integrity regression tests without large fixtures. */
-  @Synchronized
-  internal fun installFromSource(
-    directory: File,
-    fileName: String,
-    expectedSizeBytes: Long,
-    expectedSha256: String,
-    openSource: () -> InputStream,
-  ): File {
-    check(directory.isDirectory || directory.mkdirs()) {
-      "Unable to create mpv fonts directory: $directory"
-    }
-
-    val installedFont = File(directory, fileName)
-    if (
-      installedFont.isFile &&
-      installedFont.length() == expectedSizeBytes &&
-      sha256(installedFont) == expectedSha256
-    ) {
-      return installedFont
-    }
-
-    val stagedFont = File(directory, ".$fileName.tmp")
-    return try {
-      val digest = MessageDigest.getInstance("SHA-256")
-      openSource().use { source ->
-        DigestInputStream(source, digest).use { input ->
-          FileOutputStream(stagedFont).use { output -> input.copyTo(output) }
-        }
-      }
-      check(stagedFont.length() == expectedSizeBytes) { "Bundled OSD font has an unexpected size." }
-      check(digest.digest().toHex() == expectedSha256) { "Bundled OSD font checksum mismatch." }
-      if (installedFont.exists()) {
-        check(installedFont.delete()) { "Unable to replace stale OSD font: $installedFont" }
-      }
-      check(stagedFont.renameTo(installedFont)) { "Unable to install OSD font: $installedFont" }
-      installedFont
-    } catch (error: Exception) {
-      stagedFont.delete()
-      throw error
-    }
-  }
-
-  private fun sha256(file: File): String {
-    val digest = MessageDigest.getInstance("SHA-256")
-    file.inputStream().buffered().use { input ->
-      val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-      while (true) {
-        val bytesRead = input.read(buffer)
-        if (bytesRead < 0) break
-        digest.update(buffer, 0, bytesRead)
-      }
-    }
-    return digest.digest().toHex()
-  }
-
-  private fun ByteArray.toHex(): String = joinToString("") { "%02x".format(it.toInt() and 0xff) }
 }

@@ -86,7 +86,8 @@ class MPVView(
     MpvConfigOverridePolicy.configure(advancedPreferences.mpvConfOverrides.get())
     val requestedBackend = selectRenderBackend(ignoreForcedOpenGlFallback = true)
     val coreConfigurationKey =
-      "${requestedBackend.configurationKey}|conf=${MpvConfigOverridePolicy.configurationKey()}"
+      "${requestedBackend.configurationKey}|conf=${MpvConfigOverridePolicy.configurationKey()}" +
+        "|osdSystem=${appearancePreferences.useSystemOsdFont.get()}"
     val result =
       PlaybackSession.initialize(
         context = context.applicationContext,

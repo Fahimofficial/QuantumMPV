@@ -28,7 +28,7 @@ class MpvOsdFontTest {
     val context: Context = RuntimeEnvironment.getApplication()
     val directory = File(context.cacheDir, "installed-osd-font").apply { deleteRecursively() }
     val install = {
-      MpvOsdFont.installFromSource(
+      SubtitleFontInstaller.installFromSource(
         directory = directory,
         fileName = MpvOsdFont.FONT_FILE_NAME,
         expectedSizeBytes = MpvOsdFont.FONT_SIZE_BYTES,
@@ -61,7 +61,7 @@ class MpvOsdFontTest {
     assertTrue(sha256(cached.readBytes()) != expectedHash)
 
     val repaired =
-      MpvOsdFont.installFromSource(
+      SubtitleFontInstaller.installFromSource(
         directory = directory,
         fileName = fileName,
         expectedSizeBytes = expectedBytes.size.toLong(),

@@ -100,6 +100,26 @@ object SearchablePreferences {
       )
       add(
         SearchablePreference(
+          titleRes = R.string.pref_appearance_glass_navigation_title,
+          summaryRes = R.string.pref_appearance_glass_navigation_summary,
+          keywords = listOf("glass", "liquid", "translucent", "navigation", "bottom bar", "appearance"),
+          category = "Appearance",
+          screen = AppearancePreferencesScreen,
+          anchorItemIndex = 1,
+        ),
+      )
+      add(
+        SearchablePreference(
+          titleRes = R.string.pref_appearance_osd_font_title,
+          summaryRes = R.string.pref_appearance_osd_font_summary,
+          keywords = listOf("font", "osd", "player", "mpv", "system", "google sans", "appearance"),
+          category = "Appearance",
+          screen = AppearancePreferencesScreen,
+          anchorItemIndex = 1,
+        ),
+      )
+      add(
+        SearchablePreference(
           titleRes = R.string.pref_appearance_unlimited_name_lines_title,
           summaryRes = R.string.pref_appearance_unlimited_name_lines_summary,
           keywords = listOf("name", "full", "truncate", "lines", "display"),
@@ -782,6 +802,16 @@ object SearchablePreferences {
           keywords = listOf("autoload", "automatic", "subtitles", "external", "load"),
           category = "Subtitles",
           screen = SubtitlesPreferencesScreen,
+        ),
+      )
+      add(
+        SearchablePreference(
+          titleRes = R.string.player_sheets_sub_force_rtl_title,
+          summaryRes = R.string.player_sheets_sub_force_rtl_summary,
+          keywords = listOf("subtitle", "rtl", "right to left", "bidi", "arabic", "hebrew"),
+          category = "Subtitles",
+          screen = SubtitlesPreferencesScreen,
+          anchorItemIndex = 1,
         ),
       )
       add(
