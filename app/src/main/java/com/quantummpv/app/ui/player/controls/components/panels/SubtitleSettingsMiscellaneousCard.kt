@@ -121,11 +121,17 @@ fun SubtitlesMiscellaneousCard(modifier: Modifier = Modifier) {
           title = { Text(stringResource(R.string.player_sheets_sub_blend_with_video)) },
           summary = { Text(stringResource(R.string.player_sheets_sub_blend_with_video_summary)) },
         )
-        val forceLeftToRight by preferences.forceLeftToRightSubtitles.collectAsState()
+        var forceLeftToRight by remember {
+          mutableStateOf(preferences.forceLeftToRightSubtitles.get())
+        }
+        LaunchedEffect(preferences.forceLeftToRightSubtitles.get()) {
+          forceLeftToRight = preferences.forceLeftToRightSubtitles.get()
+        }
         SwitchPreference(
           forceLeftToRight,
           enabled = bidiOptions.none(configOwnedOptions::contains),
           onValueChange = {
+            forceLeftToRight = it
             preferences.forceLeftToRightSubtitles.set(it)
             PlaybackSession.setPropertyString("sub-vsfilter-bidi-compat", if (it) "yes" else "no")
           },
@@ -195,6 +201,7 @@ fun SubtitlesMiscellaneousCard(modifier: Modifier = Modifier) {
               val blendMode = if (defaultBlendSubtitles && playerPreferences.isAmbientEnabled.get()) "video" else "no"
               PlaybackSession.setPropertyString("blend-subtitles", blendMode)
               val defaultForceLeftToRight = preferences.forceLeftToRightSubtitles.deleteAndGet()
+              forceLeftToRight = defaultForceLeftToRight
               PlaybackSession.setPropertyString(
                 "sub-vsfilter-bidi-compat",
                 if (defaultForceLeftToRight) "yes" else "no",
