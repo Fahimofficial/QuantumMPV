@@ -75,10 +75,9 @@ internal fun selectRuntimeStableAnime4K(
     }
   }
 
-  val droppedFrames = PlaybackSession.getPropertyInt("drop-frame-count") ?: 0
+  val droppedFrames = PlaybackSession.getPropertyInt("frame-drop-count") ?: 0
   val delayedFrames = PlaybackSession.getPropertyInt("vo-delayed-frame-count") ?: 0
   val mistimedFrames = PlaybackSession.getPropertyInt("mistimed-frame-count") ?: 0
-  val voRenderMs = PlaybackSession.getPropertyDouble("vo-delayed-frame-average-ms") ?: 0.0
 
   // Runtime pressure guard:
   // If renderer starts falling behind for sustained periods, aggressively lower Anime4K load.
@@ -86,8 +85,7 @@ internal fun selectRuntimeStableAnime4K(
   val highRuntimeLoad =
     droppedFrames >= 15 ||
       delayedFrames >= 25 ||
-      mistimedFrames >= 40 ||
-      voRenderMs >= 12.0
+      mistimedFrames >= 40
 
   if (!highRuntimeLoad) {
     return staticSelection
@@ -96,7 +94,7 @@ internal fun selectRuntimeStableAnime4K(
   return Anime4KSelection(
     mode = Anime4KManager.Mode.C,
     quality = Anime4KManager.Quality.FAST,
-    reason = "Runtime pressure detected (drop=$droppedFrames delayed=$delayedFrames mistimed=$mistimedFrames avgDelayMs=$voRenderMs); downgraded to C/Fast",
+    reason = "Runtime pressure detected (drop=$droppedFrames delayed=$delayedFrames mistimed=$mistimedFrames); downgraded to C/Fast",
   )
 }
 

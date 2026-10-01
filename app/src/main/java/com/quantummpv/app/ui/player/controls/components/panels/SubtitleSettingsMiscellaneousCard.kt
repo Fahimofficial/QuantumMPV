@@ -55,8 +55,10 @@ fun SubtitlesMiscellaneousCard(modifier: Modifier = Modifier) {
   val configOwnedOptions = currentMpvConfigOverrideOptions()
   val layoutOptions = setOf("sub-ass-override", "secondary-sub-ass-override", "sub-pos", "secondary-sub-pos")
   val scaleOptions = setOf("sub-scale", "secondary-sub-scale")
+  // mpv has no secondary-sub-scale-by-window / secondary-sub-use-margins — secondary
+  // inherits the primary windowing behavior.
   val scaleByWindowOptions =
-    setOf("sub-scale-by-window", "sub-use-margins", "secondary-sub-scale-by-window", "secondary-sub-use-margins")
+    setOf("sub-scale-by-window", "sub-use-margins")
   val blendOptions = setOf("blend-subtitles")
   val bidiOptions = setOf("sub-vsfilter-bidi-compat")
   val miscellaneousOptions = layoutOptions + scaleOptions + scaleByWindowOptions + blendOptions + bidiOptions
@@ -103,8 +105,6 @@ fun SubtitlesMiscellaneousCard(modifier: Modifier = Modifier) {
             val value = if (it) "yes" else "no"
             PlaybackSession.setPropertyString("sub-scale-by-window", value)
             PlaybackSession.setPropertyString("sub-use-margins", value)
-            PlaybackSession.setPropertyString("secondary-sub-scale-by-window", value)
-            PlaybackSession.setPropertyString("secondary-sub-use-margins", value)
           },
           title = { Text(stringResource(R.string.player_sheets_sub_scale_by_window)) },
           summary = { Text(stringResource(R.string.player_sheets_sub_scale_by_window_summary)) },
@@ -270,8 +270,6 @@ fun SubtitlesMiscellaneousCard(modifier: Modifier = Modifier) {
               val scaleValue = if (defaultScaleByWindow) "yes" else "no"
               PlaybackSession.setPropertyString("sub-scale-by-window", scaleValue)
               PlaybackSession.setPropertyString("sub-use-margins", scaleValue)
-              PlaybackSession.setPropertyString("secondary-sub-scale-by-window", scaleValue)
-              PlaybackSession.setPropertyString("secondary-sub-use-margins", scaleValue)
               val defaultBlendSubtitles = preferences.blendSubtitlesWithVideo.deleteAndGet()
               blendSubtitlesWithVideo = defaultBlendSubtitles
               val blendMode = if (defaultBlendSubtitles && playerPreferences.isAmbientEnabled.get()) "video" else "no"
