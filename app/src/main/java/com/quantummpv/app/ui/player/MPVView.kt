@@ -17,7 +17,6 @@ import android.view.KeyCharacterMap
 import android.view.KeyEvent
 import androidx.core.view.WindowInsetsCompat
 import com.quantummpv.app.BuildConfig
-import com.quantummpv.app.R
 import com.quantummpv.app.domain.anime4k.Anime4KManager
 import com.quantummpv.app.domain.hdr.HdrToysManager
 import com.quantummpv.app.network.AndroidCookieJar
@@ -344,7 +343,7 @@ class MPVView(
       fileName = MpvOsdFont.FONT_FILE_NAME,
       expectedSizeBytes = MpvOsdFont.FONT_SIZE_BYTES,
       expectedSha256 = MpvOsdFont.FONT_SHA256,
-      openSource = { context.applicationContext.resources.openRawResource(R.font.gflex_variable) },
+      openSource = { MpvOsdFont.openFontResource(context.applicationContext) },
     )
 
     applyOsdSafeAreaMargins()

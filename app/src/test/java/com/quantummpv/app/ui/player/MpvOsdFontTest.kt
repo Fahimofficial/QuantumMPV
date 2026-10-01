@@ -9,7 +9,6 @@
 package com.quantummpv.app.ui.player
 
 import android.content.Context
-import com.quantummpv.app.R
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -77,7 +76,7 @@ class MpvOsdFontTest {
         fileName = MpvOsdFont.FONT_FILE_NAME,
         expectedSizeBytes = MpvOsdFont.FONT_SIZE_BYTES,
         expectedSha256 = MpvOsdFont.FONT_SHA256,
-        openSource = { context.resources.openRawResource(R.font.gflex_variable) },
+        openSource = { MpvOsdFont.openFontResource(context) },
       ) ?: error("Expected Google Sans Flex to be mirrored into mpv.conf's font directory")
 
     assertEquals(MpvOsdFont.FONT_SIZE_BYTES, mirroredFont.length())

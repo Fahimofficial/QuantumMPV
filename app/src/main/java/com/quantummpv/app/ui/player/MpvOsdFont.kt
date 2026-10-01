@@ -8,6 +8,7 @@
  */
 package com.quantummpv.app.ui.player
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.util.Log
 import com.quantummpv.app.R
@@ -37,12 +38,16 @@ internal object MpvOsdFont {
         fileName = FONT_FILE_NAME,
         expectedSizeBytes = FONT_SIZE_BYTES,
         expectedSha256 = FONT_SHA256,
-      ) { appContext.resources.openRawResource(R.font.gflex_variable) }
+      ) { openFontResource(appContext) }
     } catch (error: Exception) {
       Log.w(TAG, "Could not install the bundled OSD font; using the selected/system fallback.", error)
       null
     }
   }
+
+  @SuppressLint("ResourceType")
+  internal fun openFontResource(context: Context): InputStream =
+    context.resources.openRawResource(R.font.gflex_variable)
 
   /** Source-injected copy routine allows cache-integrity regression tests without large fixtures. */
   @Synchronized
