@@ -58,6 +58,7 @@ class MPVView(
   private val ytdlPreferences: YtdlPreferences by inject()
   private val anime4kManager: Anime4KManager by inject()
   private val hdrToysManager: HdrToysManager by inject()
+  private var activeMpvConfigDirectoryPath = context.filesDir.path
 
   var isExiting = false
   var forceOpenGlFallback = false
@@ -76,6 +77,9 @@ class MPVView(
     // The libmpv core is process-wide, so returning to the player can reuse a core created with
     // older renderer preferences. Keep fallbacks stable for the lifetime of that preference
     // selection, but recreate the core when gpu-next/Vulkan selection actually changes.
+    // Install our Unicode fallback before mpv/fontconfig performs its first font scan.
+    activeMpvConfigDirectoryPath = configDir
+    SubtitleFontInstaller.install(context.applicationContext)
     MpvConfigOverridePolicy.configure(advancedPreferences.mpvConfOverrides.get())
     val requestedBackend = selectRenderBackend(ignoreForcedOpenGlFallback = true)
     val coreConfigurationKey =
@@ -315,6 +319,16 @@ class MPVView(
   }
 
   override fun postInitOptions() {
+    val configuredFontsDirectory =
+      runCatching { PlaybackSession.getPropertyString("options/sub-fonts-dir") }
+        .onFailure { error -> Log.w(TAG, "Could not read mpv's effective subtitle font directory.", error) }
+        .getOrNull()
+    SubtitleFontInstaller.installInConfiguredDirectory(
+      context = context.applicationContext,
+      configDirectoryPath = activeMpvConfigDirectoryPath,
+      configuredDirectory = configuredFontsDirectory,
+    )
+
     applyOsdSafeAreaMargins()
 
     when (decoderPreferences.debanding.get()) {
@@ -475,6 +489,8 @@ class MPVView(
     PlaybackSession.setOptionString("sub-file-paths", "")
     PlaybackSession.setOptionString("subs-fallback", "no")
 
+    // This default is suppressed when mpv.conf owns sub-fonts-dir. postInitOptions mirrors the
+    // fallback font into mpv's resolved directory without changing the user's configured path.
     val fontsDirPath = "${context.filesDir.path}/fonts/"
     PlaybackSession.setOptionString("sub-fonts-dir", fontsDirPath)
     // Auto-detect subtitle encoding
