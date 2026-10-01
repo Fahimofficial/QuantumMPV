@@ -17,10 +17,12 @@ import android.view.KeyCharacterMap
 import android.view.KeyEvent
 import androidx.core.view.WindowInsetsCompat
 import com.quantummpv.app.BuildConfig
+import com.quantummpv.app.R
 import com.quantummpv.app.domain.anime4k.Anime4KManager
 import com.quantummpv.app.domain.hdr.HdrToysManager
 import com.quantummpv.app.network.AndroidCookieJar
 import com.quantummpv.app.preferences.AdvancedPreferences
+import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.AudioPreferences
 import com.quantummpv.app.preferences.DEFAULT_SUBTITLE_FONT_FAMILY
 import com.quantummpv.app.preferences.DecoderPreferences
@@ -50,6 +52,7 @@ class MPVView(
   attributes: AttributeSet,
 ) : BaseMPVView(context, attributes),
   KoinComponent {
+  private val appearancePreferences: AppearancePreferences by inject()
   private val audioPreferences: AudioPreferences by inject()
   private val playerPreferences: PlayerPreferences by inject()
   private val decoderPreferences: DecoderPreferences by inject()
@@ -80,6 +83,7 @@ class MPVView(
     // Install our Unicode fallback before mpv/fontconfig performs its first font scan.
     activeMpvConfigDirectoryPath = configDir
     SubtitleFontInstaller.install(context.applicationContext)
+    MpvOsdFont.ensureInstalled(context.applicationContext)
     MpvConfigOverridePolicy.configure(advancedPreferences.mpvConfOverrides.get())
     val requestedBackend = selectRenderBackend(ignoreForcedOpenGlFallback = true)
     val coreConfigurationKey =
@@ -244,6 +248,11 @@ class MPVView(
 
     PlaybackSession.setOptionString("keep-open", "yes")
     PlaybackSession.setOptionString("input-default-bindings", "yes")
+    if (!MpvConfigOverridePolicy.isOwnedByMpvConf("osd-font")) {
+      val osdFont =
+        if (appearancePreferences.useSystemOsdFont.get()) MpvOsdFont.SYSTEM_FAMILY else MpvOsdFont.FAMILY
+      PlaybackSession.setOptionString("osd-font", osdFont)
+    }
 
     PlaybackSession.setOptionString("tls-verify", "yes")
     PlaybackSession.setOptionString("tls-ca-file", "${context.filesDir.path}/cacert.pem")
@@ -327,6 +336,15 @@ class MPVView(
       context = context.applicationContext,
       configDirectoryPath = activeMpvConfigDirectoryPath,
       configuredDirectory = configuredFontsDirectory,
+    )
+    SubtitleFontInstaller.installInConfiguredDirectory(
+      context = context.applicationContext,
+      configDirectoryPath = activeMpvConfigDirectoryPath,
+      configuredDirectory = configuredFontsDirectory,
+      fileName = MpvOsdFont.FONT_FILE_NAME,
+      expectedSizeBytes = MpvOsdFont.FONT_SIZE_BYTES,
+      expectedSha256 = MpvOsdFont.FONT_SHA256,
+      openSource = { context.applicationContext.resources.openRawResource(R.font.gflex_variable) },
     )
 
     applyOsdSafeAreaMargins()
@@ -499,6 +517,12 @@ class MPVView(
     PlaybackSession.setOptionString("embeddedfonts", "yes")
     // Auto-detect font provider (system fonts, embedded fonts, etc.)
     PlaybackSession.setOptionString("sub-font-provider", "auto")
+    if (!MpvConfigOverridePolicy.isOwnedByMpvConf("sub-vsfilter-bidi-compat")) {
+      PlaybackSession.setOptionString(
+        "sub-vsfilter-bidi-compat",
+        if (subtitlesPreferences.forceLeftToRightSubtitles.get()) "yes" else "no",
+      )
+    }
 
     // Delay and speed for both primary and secondary
     val subDelay = (subtitlesPreferences.defaultSubDelay.get() / 1000.0).toString()

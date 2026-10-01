@@ -57,7 +57,8 @@ fun SubtitlesMiscellaneousCard(modifier: Modifier = Modifier) {
   val scaleByWindowOptions =
     setOf("sub-scale-by-window", "sub-use-margins", "secondary-sub-scale-by-window", "secondary-sub-use-margins")
   val blendOptions = setOf("blend-subtitles")
-  val miscellaneousOptions = layoutOptions + scaleOptions + scaleByWindowOptions + blendOptions
+  val bidiOptions = setOf("sub-vsfilter-bidi-compat")
+  val miscellaneousOptions = layoutOptions + scaleOptions + scaleByWindowOptions + blendOptions + bidiOptions
   var isExpanded by remember { mutableStateOf(true) }
   ExpandableCard(
     isExpanded,
@@ -119,6 +120,17 @@ fun SubtitlesMiscellaneousCard(modifier: Modifier = Modifier) {
           },
           title = { Text(stringResource(R.string.player_sheets_sub_blend_with_video)) },
           summary = { Text(stringResource(R.string.player_sheets_sub_blend_with_video_summary)) },
+        )
+        val forceLeftToRight by preferences.forceLeftToRightSubtitles.collectAsState()
+        SwitchPreference(
+          forceLeftToRight,
+          enabled = bidiOptions.none(configOwnedOptions::contains),
+          onValueChange = {
+            preferences.forceLeftToRightSubtitles.set(it)
+            PlaybackSession.setPropertyString("sub-vsfilter-bidi-compat", if (it) "yes" else "no")
+          },
+          title = { Text(stringResource(R.string.player_sheets_sub_force_ltr_title)) },
+          summary = { Text(stringResource(R.string.player_sheets_sub_force_ltr_summary)) },
         )
         val subScale by PlaybackSession.propFloat["sub-scale"].collectAsState()
         val subPos by PlaybackSession.propInt["sub-pos"].collectAsState()
@@ -182,6 +194,11 @@ fun SubtitlesMiscellaneousCard(modifier: Modifier = Modifier) {
               blendSubtitlesWithVideo = defaultBlendSubtitles
               val blendMode = if (defaultBlendSubtitles && playerPreferences.isAmbientEnabled.get()) "video" else "no"
               PlaybackSession.setPropertyString("blend-subtitles", blendMode)
+              val defaultForceLeftToRight = preferences.forceLeftToRightSubtitles.deleteAndGet()
+              PlaybackSession.setPropertyString(
+                "sub-vsfilter-bidi-compat",
+                if (defaultForceLeftToRight) "yes" else "no",
+              )
             },
           ) {
             Row {
