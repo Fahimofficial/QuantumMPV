@@ -48,6 +48,7 @@ class SubtitlesPreferences(
   val justification = preferenceStore.getEnum("sub_justify", SubtitleJustification.Auto)
   val subPos = preferenceStore.getInt("sub_pos", 100)
   /** A negative position preserves QuantumMPV's automatic anti-overlap placement. */
+
   val secondarySubPos = preferenceStore.getInt("secondary_sub_pos", -1)
 
   val overrideAssSubs = preferenceStore.getBoolean("sub_override_ass")

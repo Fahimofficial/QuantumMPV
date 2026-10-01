@@ -38,10 +38,10 @@ import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.PlaybackSession
 import com.quantummpv.app.ui.player.applySubtitleLayout
-import com.quantummpv.app.ui.player.resolveSecondarySubtitlePosition
 import com.quantummpv.app.ui.player.controls.CARDS_MAX_WIDTH
 import com.quantummpv.app.ui.player.controls.components.sheets.toFixed
 import com.quantummpv.app.ui.player.controls.panelCardsColors
+import com.quantummpv.app.ui.player.resolveSecondarySubtitlePosition
 import com.quantummpv.app.ui.preferences.components.SwitchPreference
 import com.quantummpv.app.ui.theme.spacing
 import com.quantummpv.app.ui.utils.currentMpvConfigOverrideOptions
