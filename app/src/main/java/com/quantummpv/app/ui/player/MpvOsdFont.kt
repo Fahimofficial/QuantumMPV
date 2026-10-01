@@ -8,9 +8,10 @@
  */
 package com.quantummpv.app.ui.player
 
-import android.annotation.SuppressLint
 import android.content.Context
+import android.content.res.AssetManager
 import android.util.Log
+import android.util.TypedValue
 import com.quantummpv.app.R
 import java.io.File
 import java.io.FileOutputStream
@@ -45,9 +46,12 @@ internal object MpvOsdFont {
     }
   }
 
-  @SuppressLint("ResourceType")
-  internal fun openFontResource(context: Context): InputStream =
-    context.resources.openRawResource(R.font.gflex_variable)
+  internal fun openFontResource(context: Context): InputStream {
+    val value = TypedValue()
+    context.resources.getValue(R.font.gflex_variable, value, true)
+    val path = requireNotNull(value.string) { "Google Sans Flex font resource has no APK path." }
+    return context.assets.openNonAsset(value.assetCookie, path.toString(), AssetManager.ACCESS_STREAMING)
+  }
 
   /** Source-injected copy routine allows cache-integrity regression tests without large fixtures. */
   @Synchronized
