@@ -569,6 +569,7 @@ private fun SeekbarContent(
           }
           when (event.key) {
             Key.DirectionLeft, Key.DirectionRight -> {
+              if (safeDuration <= 0f) return@onKeyEvent false
               if (event.type == KeyEventType.KeyDown) {
                 val repeats = event.nativeKeyEvent?.repeatCount ?: 0
                 val step = if (repeats > 0) dpadBigStep else dpadStep
@@ -579,6 +580,7 @@ private fun SeekbarContent(
                 onUserPositionChange(dpadSeekPosition)
                 onValueChange(dpadSeekPosition)
               } else {
+                if (!isDpadScrubbing) return@onKeyEvent false
                 val finalPosition = dpadSeekPosition
                 scope.launch {
                   animatedPosition.snapTo(finalPosition)
