@@ -25,7 +25,7 @@ val activeAbis =
     listOf("arm64-v8a", "armeabi-v7a") + x86Abis
   }
 val universalOnlyDistributions = setOf("noVulkan", "fongmi")
-val releaseVersionCode = 10200
+val releaseVersionCode = 10300
 val versionCodeBandSize = 10_000
 val stableVersionCode = releaseVersionCode * versionCodeBandSize + (versionCodeBandSize - 1)
 val previewVersionCode =
@@ -53,7 +53,7 @@ android {
     // Stable occupies the top of its version band. Preview uses the next band's commit-count
     // offset, so Stable -> Preview -> newer Preview -> next Stable is always an Android upgrade.
     versionCode = stableVersionCode
-    versionName = "1.2.0"
+    versionName = "1.3.0"
 
     vectorDrawables {
       useSupportLibrary = true
