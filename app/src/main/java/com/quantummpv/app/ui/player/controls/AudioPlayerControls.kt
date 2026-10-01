@@ -600,7 +600,7 @@ fun AudioPlayerControls(
       ?: currentItem?.playableUri?.takeIf { it.isNotBlank() }
       ?: mediaPath
 
-  val audioCodec by PlaybackSession.propString["audio-codec-name"].collectAsState()
+  val audioCodec by PlaybackSession.propString["current-tracks/audio/codec"].collectAsState()
   val sampleRate by PlaybackSession.propInt["audio-params/samplerate"].collectAsState()
   val audioFormat by PlaybackSession.propString["audio-params/format"].collectAsState()
   val bitsPerSample by PlaybackSession.propString["metadata/by-key/BITS_PER_SAMPLE"].collectAsState()

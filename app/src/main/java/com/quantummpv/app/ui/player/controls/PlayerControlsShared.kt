@@ -1419,7 +1419,7 @@ private fun formatClock(
 
 private fun readNetworkBytesPerSecond(): Double {
   val directBytesPerSecond =
-    listOf("demuxer-cache-speed", "cache-speed", "demuxer-speed")
+    listOf("cache-speed")
       .asSequence()
       .mapNotNull { name -> runCatching { PlaybackSession.getPropertyDouble(name) }.getOrNull() }
       .firstOrNull { it > 0.0 }
@@ -1427,7 +1427,7 @@ private fun readNetworkBytesPerSecond(): Double {
   if (directBytesPerSecond != null) return directBytesPerSecond
 
   val bitratesBitsPerSecond =
-    listOf("packet-video-bitrate", "video-bitrate", "audio-bitrate")
+    listOf("video-bitrate", "audio-bitrate")
       .asSequence()
       .mapNotNull { name -> runCatching { PlaybackSession.getPropertyDouble(name) }.getOrNull() }
       .filter { it > 0.0 }
