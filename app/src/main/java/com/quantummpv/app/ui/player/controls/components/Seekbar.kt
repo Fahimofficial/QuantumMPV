@@ -22,6 +22,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -52,6 +53,7 @@ import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -63,6 +65,12 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
@@ -76,6 +84,7 @@ import com.quantummpv.app.ui.player.visualizer.VisualizerPalette
 import com.quantummpv.app.ui.player.visualizer.WaveVisualizerOverlay
 import com.quantummpv.app.ui.theme.AppMotion
 import com.quantummpv.app.ui.theme.spacing
+import com.quantummpv.app.utils.device.DeviceFormFactor
 import dev.vivvvek.seeker.Seeker
 import dev.vivvvek.seeker.SeekerDefaults
 import dev.vivvvek.seeker.Segment
@@ -536,12 +545,55 @@ private fun SeekbarContent(
                 alpha = 1f,
               ),
           )
-        }
       }
+    }
+  }
+
+  val isTelevision = DeviceFormFactor.isTelevision(LocalContext.current)
+  // The visual track uses a touch-oriented seeker; make it keyboard-accessible on Android TV.
+  var dpadSeekPosition by remember { mutableFloatStateOf(safeThumbPosition) }
+  val dpadStep = (safeDuration * 0.02f).coerceIn(1f, 30f)
+  val dpadBigStep = (safeDuration * 0.10f).coerceIn(5f, 120f)
+  var isDpadScrubbing by remember { mutableStateOf(false) }
+  LaunchedEffect(currentPos, isDpadScrubbing) {
+    if (!isDpadScrubbing) dpadSeekPosition = safeThumbPosition
+  }
+  val seekKeyModifier =
+    if (isTelevision) {
+      Modifier
+        .focusable()
+        .tvFocusHighlight(shape = RoundedCornerShape(percent = 50))
+        .onKeyEvent { event ->
+          if (event.type != KeyEventType.KeyDown && event.type != KeyEventType.KeyUp) {
+            return@onKeyEvent false
+          }
+          when (event.key) {
+            Key.DirectionLeft, Key.DirectionRight -> {
+              if (event.type == KeyEventType.KeyDown) {
+                val repeats = event.nativeKeyEvent?.repeatCount ?: 0
+                val step = if (repeats > 0) dpadBigStep else dpadStep
+                val direction = if (event.key == Key.DirectionLeft) -1f else 1f
+                isDpadScrubbing = true
+                dpadSeekPosition = (dpadSeekPosition + direction * step).coerceIn(0f, safeDuration)
+                onUserInteractionChange(true)
+                onUserPositionChange(dpadSeekPosition)
+                onValueChange(dpadSeekPosition)
+              } else {
+                onValueChangeFinished(dpadSeekPosition)
+                onUserInteractionChange(false)
+                isDpadScrubbing = false
+              }
+              true
+            }
+            else -> false
+          }
+        }
+    } else {
+      Modifier
     }
 
   Box(
-    modifier = modifier,
+    modifier = modifier.then(seekKeyModifier),
     contentAlignment = Alignment.Center,
   ) {
     val waveSeekbarActive = showWavyVisualizer && waveFeatures != null && wavePalette != null
@@ -1697,7 +1749,8 @@ fun VideoTimer(
           interactionSource = interactionSource,
           indication = ripple(),
           onClick = onClick,
-        ).padding(horizontal = 4.dp)
+        ).focusProperties { canFocus = false }
+        .padding(horizontal = 4.dp)
         .wrapContentHeight(Alignment.CenterVertically),
     text = timeText,
     color = textColor,

@@ -47,12 +47,12 @@ def main() -> int:
     require(r'GoNotoCurrent-Regular\.ttf', native_checks, "subtitle-font artifact regression test")
     print("PASS: multilingual subtitle fallback remains pinned, installed, and checked by CI.")
 
-    require(r'forceLeftToRightSubtitles\s*=\s*preferenceStore\.getBoolean\("sub_force_ltr",\s*false\)',
+    require(r'forceRightToLeftSubtitles\s*=\s*preferenceStore\.getBoolean\("sub_force_rtl",\s*false\)',
             read("app/src/main/java/com/quantummpv/app/preferences/SubtitlesPreferences.kt"),
-            "persisted force-LTR subtitle setting")
+            "persisted RTL bidi-compatibility subtitle setting")
     require(r'sub-vsfilter-bidi-compat', mpv_view, "mpv bidi compatibility option remains wired")
-    require(r'player_sheets_sub_force_ltr_title', strings, "force-LTR subtitle label remains available")
-    print("PASS: force-LTR subtitle compatibility remains available for RTL/script edge cases.")
+    require(r'player_sheets_sub_force_rtl_title', strings, "RTL subtitle compatibility label remains available")
+    print("PASS: RTL bidi compatibility remains available for right-to-left/script edge cases.")
 
     osd_font = read("app/src/main/java/com/quantummpv/app/ui/player/MpvOsdFont.kt")
     require(r'MpvOsdFont\.ensureInstalled\(context\.applicationContext\)', mpv_view,

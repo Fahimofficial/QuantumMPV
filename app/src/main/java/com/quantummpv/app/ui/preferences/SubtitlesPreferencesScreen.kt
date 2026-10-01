@@ -371,16 +371,16 @@ object SubtitlesPreferencesScreen : Screen {
 
               PreferenceDivider()
 
-              val forceLeftToRight by preferences.forceLeftToRightSubtitles.collectAsState()
+              val forceRightToLeft by preferences.forceRightToLeftSubtitles.collectAsState()
               SwitchPreference(
-                modifier = Modifier.settingsSearchTarget(R.string.player_sheets_sub_force_ltr_title),
-                value = forceLeftToRight,
+                modifier = Modifier.settingsSearchTarget(R.string.player_sheets_sub_force_rtl_title),
+                value = forceRightToLeft,
                 enabled = "sub-vsfilter-bidi-compat" !in configOwnedOptions,
-                onValueChange = preferences.forceLeftToRightSubtitles::set,
-                title = { Text(stringResource(R.string.player_sheets_sub_force_ltr_title)) },
+                onValueChange = preferences.forceRightToLeftSubtitles::set,
+                title = { Text(stringResource(R.string.player_sheets_sub_force_rtl_title)) },
                 summary = {
                   Text(
-                    stringResource(R.string.player_sheets_sub_force_ltr_summary),
+                    stringResource(R.string.player_sheets_sub_force_rtl_summary),
                     color = MaterialTheme.colorScheme.outline,
                   )
                 },

@@ -121,6 +121,18 @@ fun calculateSecondarySubtitlePosition(
   }
 }
 
+fun resolveSecondarySubtitlePosition(
+  primaryPosition: Int,
+  preferredSecondaryPosition: Int = subtitlesPreferences.secondarySubPos.get(),
+  screenWidth: Float? = null,
+  screenHeight: Float? = null,
+): Int =
+  if (preferredSecondaryPosition >= MIN_SUBTITLE_POSITION) {
+    clampSubtitlePosition(preferredSecondaryPosition)
+  } else {
+    calculateSecondarySubtitlePosition(primaryPosition, screenWidth, screenHeight)
+  }
+
 fun isSecondarySubtitleActive(): Boolean = getTrackSelectionId("secondary-sid") > 0
 
 fun subtitleAssOverrideValue(
@@ -138,6 +150,7 @@ fun applySubtitlePositions(
   primaryPosition: Int,
   screenWidth: Float? = null,
   screenHeight: Float? = null,
+  secondaryPosition: Int? = null,
 ) {
   val primary = clampSubtitlePosition(primaryPosition)
   PlaybackSession.setPropertyInt("sub-pos", primary)
@@ -158,7 +171,11 @@ fun applySubtitlePositions(
         .resources.displayMetrics.heightPixels
         .toFloat()
 
-  PlaybackSession.setPropertyInt("secondary-sub-pos", calculateSecondarySubtitlePosition(primary, width, height))
+  PlaybackSession.setPropertyInt(
+    "secondary-sub-pos",
+    secondaryPosition?.let(::clampSubtitlePosition)
+      ?: resolveSecondarySubtitlePosition(primary, screenWidth = width, screenHeight = height),
+  )
 }
 
 fun applySubtitleLayout(

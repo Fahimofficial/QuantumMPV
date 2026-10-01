@@ -51,6 +51,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.quantummpv.app.R
+import com.quantummpv.app.domain.media.model.Video
 import com.quantummpv.app.domain.network.NetworkConnection
 import com.quantummpv.app.domain.network.NetworkFile
 import com.quantummpv.app.domain.network.NetworkPath
@@ -68,6 +69,7 @@ import com.quantummpv.app.ui.browser.cards.NetworkVideoCard
 import com.quantummpv.app.ui.browser.components.BrowserTopBar
 import com.quantummpv.app.ui.browser.components.ExpressiveScrollBar
 import com.quantummpv.app.ui.browser.components.fastScrollGlyph
+import com.quantummpv.app.ui.browser.dialogs.AddToPlaylistDialog
 import com.quantummpv.app.ui.browser.dialogs.NetworkSortDialog
 import com.quantummpv.app.ui.browser.playlist.PlaylistDetailScreen
 import com.quantummpv.app.ui.browser.states.EmptyState
@@ -132,6 +134,7 @@ data class NetworkBrowserScreen(
     val sortDialogOpen = rememberSaveable { mutableStateOf(false) }
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var isSearching by rememberSaveable { mutableStateOf(false) }
+    var playlistVideo by remember { mutableStateOf<Video?>(null) }
     val focusRequester = remember { FocusRequester() }
 
     // Load files when connectionId or currentPath changes
@@ -277,12 +280,24 @@ data class NetworkBrowserScreen(
         onVideoClick = { video ->
           viewModel.openMedia(video)
         },
+        onAddToPlaylist = { file ->
+          connection?.let { activeConnection ->
+            playlistVideo = file.toPlaylistVideo(activeConnection.id)
+          }
+        },
         modifier = Modifier.padding(padding),
       )
 
       NetworkSortDialog(
         isOpen = sortDialogOpen.value,
         onDismiss = { sortDialogOpen.value = false },
+      )
+
+      AddToPlaylistDialog(
+        isOpen = playlistVideo != null,
+        videos = listOfNotNull(playlistVideo),
+        onDismiss = { playlistVideo = null },
+        onSuccess = { playlistVideo = null },
       )
     }
   }
@@ -306,6 +321,7 @@ private fun NetworkBrowserContent(
   onRefresh: suspend () -> Unit,
   onFolderClick: (NetworkFile) -> Unit,
   onVideoClick: (NetworkFile) -> Unit,
+  onAddToPlaylist: (NetworkFile) -> Unit,
   modifier: Modifier = Modifier,
 ) {
   val sortedFiles =
@@ -490,6 +506,9 @@ private fun NetworkBrowserContent(
                       file = video,
                       connection = conn,
                       onClick = { onVideoClick(video) },
+                      onLongClick = {
+                        if (video.isPlayableNetworkMedia(includeAudio)) onAddToPlaylist(video)
+                      },
                       isGridMode = true,
                       modifier = Modifier,
                     )
@@ -549,6 +568,9 @@ private fun NetworkBrowserContent(
                       file = video,
                       connection = conn,
                       onClick = { onVideoClick(video) },
+                      onLongClick = {
+                        if (video.isPlayableNetworkMedia(includeAudio)) onAddToPlaylist(video)
+                      },
                       isGridMode = false,
                       modifier = Modifier,
                     )

@@ -1205,6 +1205,7 @@ class PlayerActivity :
           if (canIssueMpvCommands()) {
             val scaleByWindow = subtitlesPreferences.scaleByWindow.get()
             val baseSubScale = subtitlesPreferences.subScale.get()
+            val baseSecondarySubScale = subtitlesPreferences.secondarySubScale.get()
             val baseSubPos = subtitlesPreferences.subPos.get()
             val w = player.width.takeIf { it > 0 }?.toFloat()
               ?: resources.displayMetrics.widthPixels.toFloat()
@@ -1213,11 +1214,23 @@ class PlayerActivity :
 
             if (scaleByWindow && (scale != 1f || panX != 0f || panY != 0f)) {
               val compensatedSubScale = (baseSubScale / scale).coerceIn(0.05f, 10f)
+              val compensatedSecondarySubScale = (baseSecondarySubScale / scale).coerceIn(0.05f, 10f)
               PlaybackSession.setPropertyFloat("sub-scale", compensatedSubScale)
-              PlaybackSession.setPropertyFloat("secondary-sub-scale", compensatedSubScale)
+              PlaybackSession.setPropertyFloat("secondary-sub-scale", compensatedSecondarySubScale)
 
               val compensatedSubPos =
                 (50f + ((baseSubPos - 50f) - (panY / h) * 100f) / scale).roundToInt().coerceIn(0, 150)
+              val baseSecondarySubPos =
+                resolveSecondarySubtitlePosition(
+                  primaryPosition = baseSubPos,
+                  preferredSecondaryPosition = subtitlesPreferences.secondarySubPos.get(),
+                  screenWidth = w,
+                  screenHeight = h,
+                )
+              val compensatedSecondarySubPos =
+                (50f + ((baseSecondarySubPos - 50f) - (panY / h) * 100f) / scale)
+                  .roundToInt()
+                  .coerceIn(0, 150)
 
               val baseMarginX = 25f
               val extraMarginX = if (scale > 1f) (w * (1f - 1f / scale) / 2f + abs(panX) / scale) else 0f
@@ -1227,10 +1240,10 @@ class PlayerActivity :
                 PlaybackSession.setPropertyInt("secondary-sub-margin-x", compensatedMarginX)
               }
 
-              applySubtitlePositions(compensatedSubPos, w, h)
+              applySubtitlePositions(compensatedSubPos, w, h, compensatedSecondarySubPos)
             } else {
               PlaybackSession.setPropertyFloat("sub-scale", baseSubScale)
-              PlaybackSession.setPropertyFloat("secondary-sub-scale", baseSubScale)
+              PlaybackSession.setPropertyFloat("secondary-sub-scale", baseSecondarySubScale)
               PlaybackSession.setPropertyInt("sub-margin-x", 25)
               if (supportsSecondarySubMarginX()) {
                 PlaybackSession.setPropertyInt("secondary-sub-margin-x", 25)

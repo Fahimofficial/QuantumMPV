@@ -8,8 +8,13 @@ import subprocess
 root = Path(__file__).resolve().parents[1]
 manifest = json.loads((root / 'native-artifacts.json').read_text())
 app_gradle = (root / 'app/build.gradle.kts').read_text()
+cmake = (root / 'app/src/main/cpp/CMakeLists.txt').read_text()
 assert 'mpvlib-no-vulkan.aar' in app_gradle
 assert 'mpvlib-no-vulkun.aar' not in app_gradle
+assert 'set(MPVRX_NATIVE_LINK_OPTIONS' in cmake
+assert '"-Wl,-z,max-page-size=16384"' in cmake
+assert '$<$<CONFIG:Release>:-Wl,-z,max-page-size=16384>' not in cmake
+assert 'target_link_options(${target} PRIVATE ${MPVRX_NATIVE_LINK_OPTIONS})' in cmake
 assert 'agp = "9.4.1"' in (root / 'gradle/libs.versions.toml').read_text()
 assert 'gradle-9.6.0-bin.zip' in (root / 'gradle/wrapper/gradle-wrapper.properties').read_text()
 assert 'org.bouncycastle:bcprov-jdk18on:1.85' in app_gradle

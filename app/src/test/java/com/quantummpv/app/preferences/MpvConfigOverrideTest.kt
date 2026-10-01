@@ -32,6 +32,15 @@ class MpvConfigOverrideTest {
   }
 
   @Test
+  fun subtitleStyleOverrideOwnsIndependentSecondarySubtitleControls() {
+    val overriddenOptions =
+      MpvConfigOverride.resolveOptionNames(setOf(MpvConfigOverride.SUBTITLE_STYLE.preferenceKey))
+
+    assertTrue("secondary subtitle scale must remain owned by mpv.conf", "secondary-sub-scale" in overriddenOptions)
+    assertTrue("secondary subtitle position must remain owned by mpv.conf", "secondary-sub-pos" in overriddenOptions)
+  }
+
+  @Test
   fun osdOverrideOwnsFontSelection() {
     val overriddenOptions = MpvConfigOverride.resolveOptionNames(setOf(MpvConfigOverride.OSD.preferenceKey))
 

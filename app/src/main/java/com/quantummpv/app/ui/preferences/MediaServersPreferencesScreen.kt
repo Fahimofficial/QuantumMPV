@@ -56,6 +56,7 @@ import com.quantummpv.app.domain.audiobookshelf.AudiobookshelfServer
 import com.quantummpv.app.domain.jellyfin.JellyfinServer
 import com.quantummpv.app.domain.navidrome.NavidromeServer
 import com.quantummpv.app.domain.seerr.JellyseerrUser
+import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.MediaServerPreferences
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.presentation.Screen
@@ -86,6 +87,7 @@ object MediaServersPreferencesScreen : Screen {
   override fun Content() {
     val context = LocalContext.current
     val backStack = LocalBackStack.current
+    val appearancePreferences = koinInject<AppearancePreferences>()
     val mediaServerPreferences = koinInject<MediaServerPreferences>()
     val allowJellyfinHttp by mediaServerPreferences.allowJellyfinHttp.collectAsState()
 
@@ -764,6 +766,9 @@ object MediaServersPreferencesScreen : Screen {
           token = token,
           existingServerId = existingId,
           onSuccess = {
+            if (existingId == null) {
+              appearancePreferences.showJellyfinTab.set(true)
+            }
             isAddServerOpen = false
             serverToReauth = null
           },
