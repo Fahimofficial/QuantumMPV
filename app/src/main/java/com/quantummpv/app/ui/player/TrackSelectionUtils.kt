@@ -19,6 +19,7 @@ internal fun getTrackSelectionId(property: String): Int =
 internal fun setTrackSelectionId(
   property: String,
   id: Int?,
+  restoreSubtitleVisibility: Boolean = false,
 ) {
   val selectedId = id?.takeIf { it > 0 }
   if (selectedId == null) {
@@ -27,5 +28,8 @@ internal fun setTrackSelectionId(
     // sid/secondary-sid/aid are integer MPV properties. Use the typed setter so selection is
     // applied reliably across libmpv versions instead of relying on string coercion.
     PlaybackSession.setPropertyInt(property, selectedId)
+    if (restoreSubtitleVisibility && (property == "sid" || property == "secondary-sid")) {
+      PlaybackSession.setPropertyBoolean("sub-visibility", true)
+    }
   }
 }
