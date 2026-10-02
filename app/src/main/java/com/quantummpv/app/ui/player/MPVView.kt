@@ -562,8 +562,15 @@ class MPVView(
     val h =
       height.takeIf { it > 0 }?.toFloat() ?: context.resources.displayMetrics.heightPixels
         .toFloat()
-    val secondarySubPos = calculateSecondarySubtitlePosition(subPos, w, h)
+    val secondarySubPos =
+      resolveSecondarySubtitlePosition(
+        primaryPosition = subPos,
+        preferredSecondaryPosition = subtitlesPreferences.secondarySubPos.get(),
+        screenWidth = w,
+        screenHeight = h,
+      )
     val subScale = subtitlesPreferences.subScale.get().toString()
+    val secondarySubScale = subtitlesPreferences.secondarySubScale.get().toString()
 
     val scaleByWindow = if (subtitlesPreferences.scaleByWindow.get()) "yes" else "no"
     val blendMode =
@@ -576,7 +583,10 @@ class MPVView(
       }
     PlaybackSession.setOptionString("blend-subtitles", blendMode)
 
-    for ((prefix, pos) in listOf("sub-" to subPos.toString(), "secondary-sub-" to secondarySubPos.toString())) {
+    for ((prefix, pos, scale) in listOf(
+      Triple("sub-", subPos.toString(), subScale),
+      Triple("secondary-sub-", secondarySubPos.toString(), secondarySubScale),
+    )) {
       PlaybackSession.setOptionString("${prefix}font-size", fontSize)
       PlaybackSession.setOptionString("${prefix}bold", bold)
       PlaybackSession.setOptionString("${prefix}italic", italic)
@@ -588,7 +598,7 @@ class MPVView(
       PlaybackSession.setOptionString("${prefix}border-size", borderSize)
       PlaybackSession.setOptionString("${prefix}border-style", borderStyle)
       PlaybackSession.setOptionString("${prefix}shadow-offset", shadowOffset)
-      PlaybackSession.setOptionString("${prefix}scale", subScale)
+      PlaybackSession.setOptionString("${prefix}scale", scale)
       PlaybackSession.setOptionString("${prefix}pos", pos)
       PlaybackSession.setOptionString("${prefix}scale-by-window", scaleByWindow)
       PlaybackSession.setOptionString("${prefix}use-margins", scaleByWindow)
