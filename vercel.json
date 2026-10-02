@@ -9,5 +9,11 @@
         }
       ]
     }
+  ],
+  "rewrites": [
+    {
+      "source": "/images/:path*",
+      "destination": "/website/public/images/:path*"
+    }
   ]
 }
