@@ -27,5 +27,10 @@ internal fun setTrackSelectionId(
     // sid/secondary-sid/aid are integer MPV properties. Use the typed setter so selection is
     // applied reliably across libmpv versions instead of relying on string coercion.
     PlaybackSession.setPropertyInt(property, selectedId)
+    if (property == "sid" || property == "secondary-sid") {
+      // A mini-player surface can temporarily hide subtitles through this global MPV property.
+      // Selecting a subtitle in the full player must always make the selected track visible.
+      PlaybackSession.setPropertyBoolean("sub-visibility", true)
+    }
   }
 }
