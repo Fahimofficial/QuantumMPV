@@ -4611,6 +4611,7 @@ class PlayerActivity :
     val scaleByWindow = subtitlesPreferences.scaleByWindow.get()
     val scaleValue = if (scaleByWindow) "yes" else "no"
     val subScale = subtitlesPreferences.subScale.get()
+    val secondarySubScale = subtitlesPreferences.secondarySubScale.get()
     val blendMode =
       if (subtitlesPreferences.blendSubtitlesWithVideo.get() &&
         playerPreferences.isAmbientEnabled.get()
@@ -4622,7 +4623,10 @@ class PlayerActivity :
 
     PlaybackSession.setPropertyString("blend-subtitles", blendMode)
 
-    for (prefix in listOf("sub-", "secondary-sub-")) {
+    for ((prefix, scale) in listOf(
+      "sub-" to subScale,
+      "secondary-sub-" to secondarySubScale,
+    )) {
       PlaybackSession.setPropertyString("${prefix}font", font)
       PlaybackSession.setPropertyInt("${prefix}font-size", fontSize)
       PlaybackSession.setPropertyBoolean("${prefix}bold", bold)
@@ -4638,7 +4642,7 @@ class PlayerActivity :
       PlaybackSession.setPropertyString("${prefix}shadow-color", shadowColor)
       PlaybackSession.setPropertyString("${prefix}scale-by-window", scaleValue)
       PlaybackSession.setPropertyString("${prefix}use-margins", scaleValue)
-      PlaybackSession.setPropertyFloat("${prefix}scale", subScale)
+      PlaybackSession.setPropertyFloat("${prefix}scale", scale)
     }
 
     applySubtitleLayout(
