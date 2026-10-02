@@ -507,8 +507,6 @@ class MPVView(
     PlaybackSession.setOptionString("sub-file-paths", "")
     PlaybackSession.setOptionString("subs-fallback", "no")
 
-    // This default is suppressed when mpv.conf owns sub-fonts-dir. postInitOptions mirrors the
-    // fallback font into mpv's resolved directory without changing the user's configured path.
     val fontsDirPath = "${context.filesDir.path}/fonts/"
     PlaybackSession.setOptionString("sub-fonts-dir", fontsDirPath)
     // Auto-detect subtitle encoding
@@ -530,9 +528,11 @@ class MPVView(
     PlaybackSession.setOptionString("sub-delay", subDelay)
     PlaybackSession.setOptionString("sub-speed", subSpeed)
     PlaybackSession.setOptionString("secondary-sub-delay", subDelay)
+    PlaybackSession.setOptionString("secondary-sub-speed", subSpeed)
 
     val preferredFont = subtitlesPreferences.font.get().ifBlank { DEFAULT_SUBTITLE_FONT_FAMILY }
     PlaybackSession.setOptionString("sub-font", preferredFont)
+    PlaybackSession.setOptionString("secondary-sub-font", preferredFont)
 
     if (subtitlesPreferences.overrideAssSubs.get()) {
       PlaybackSession.setOptionString("sub-ass-override", "force")
@@ -562,15 +562,8 @@ class MPVView(
     val h =
       height.takeIf { it > 0 }?.toFloat() ?: context.resources.displayMetrics.heightPixels
         .toFloat()
-    val secondarySubPos =
-      resolveSecondarySubtitlePosition(
-        primaryPosition = subPos,
-        preferredSecondaryPosition = subtitlesPreferences.secondarySubPos.get(),
-        screenWidth = w,
-        screenHeight = h,
-      )
+    val secondarySubPos = calculateSecondarySubtitlePosition(subPos, w, h)
     val subScale = subtitlesPreferences.subScale.get().toString()
-    val secondarySubScale = subtitlesPreferences.secondarySubScale.get().toString()
 
     val scaleByWindow = if (subtitlesPreferences.scaleByWindow.get()) "yes" else "no"
     val blendMode =
@@ -583,7 +576,7 @@ class MPVView(
       }
     PlaybackSession.setOptionString("blend-subtitles", blendMode)
 
-    for ((prefix, pos, scale) in listOf(Triple("sub-", subPos.toString(), subScale))) {
+    for ((prefix, pos) in listOf("sub-" to subPos.toString(), "secondary-sub-" to secondarySubPos.toString())) {
       PlaybackSession.setOptionString("${prefix}font-size", fontSize)
       PlaybackSession.setOptionString("${prefix}bold", bold)
       PlaybackSession.setOptionString("${prefix}italic", italic)
@@ -595,13 +588,11 @@ class MPVView(
       PlaybackSession.setOptionString("${prefix}border-size", borderSize)
       PlaybackSession.setOptionString("${prefix}border-style", borderStyle)
       PlaybackSession.setOptionString("${prefix}shadow-offset", shadowOffset)
-      PlaybackSession.setOptionString("${prefix}scale", scale)
+      PlaybackSession.setOptionString("${prefix}scale", subScale)
       PlaybackSession.setOptionString("${prefix}pos", pos)
       PlaybackSession.setOptionString("${prefix}scale-by-window", scaleByWindow)
       PlaybackSession.setOptionString("${prefix}use-margins", scaleByWindow)
     }
-    PlaybackSession.setOptionString("secondary-sub-scale", secondarySubScale)
-    PlaybackSession.setOptionString("secondary-sub-pos", secondarySubPos.toString())
   }
 
   fun applyAnime4KShaders() {
