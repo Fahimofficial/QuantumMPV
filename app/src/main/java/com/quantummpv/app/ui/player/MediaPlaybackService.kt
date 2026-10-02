@@ -1137,7 +1137,7 @@ class MediaPlaybackService :
    * for every ownership, audio focus, and gesture-policy decision it must respect.
    */
   private fun setupMediaSession() {
-    mediaSession = MpvMedia3SessionManager(this, media3Host)
+    mediaSession = MpvMedia3SessionManager(this, media3Host, "service")
     mediaSession.setSessionActivity(buildContentIntent())
     sessionToken = mediaSession.mediaStyleToken
   }

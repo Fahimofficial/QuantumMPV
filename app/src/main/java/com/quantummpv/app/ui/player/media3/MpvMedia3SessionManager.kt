@@ -51,12 +51,15 @@ import com.google.common.util.concurrent.ListenableFuture
 class MpvMedia3SessionManager(
   context: Context,
   private val host: MpvMedia3SessionHost,
+  sessionId: String,
 ) {
   private val mainHandler = Handler(Looper.getMainLooper())
   private val player = MpvMedia3Player(context, host)
   private val session =
     MediaSession
       .Builder(context, player)
+      // Activity and playback service can coexist, so each needs its own stable session ID.
+      .setId(sessionId)
       .setCallback(SessionCallback())
       .build()
 

@@ -6468,7 +6468,7 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
    */
   private fun setupMediaSession() {
     runCatching {
-      val session = MpvMedia3SessionManager(this, mediaSessionHost)
+      val session = MpvMedia3SessionManager(this, mediaSessionHost, "activity")
       media3Session = session
       session.setSessionActivity(buildActivityMediaSessionContentIntent())
       session.setPublishing(shouldPublishActivityMediaSession() && !MediaPlaybackService.isNotificationOwnerReady())

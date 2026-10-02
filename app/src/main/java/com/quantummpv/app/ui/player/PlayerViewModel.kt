@@ -4178,11 +4178,11 @@ val isBrightnessSliderShown = MutableStateFlow(false)
     val wasOff = primarySid <= 0 && secondarySid <= 0
 
     when {
-      id == primarySid -> setTrackSelectionId("sid", null)
-      id == secondarySid -> setTrackSelectionId("secondary-sid", null)
-      primarySid <= 0 -> setTrackSelectionId("sid", id)
-      secondarySid <= 0 -> setTrackSelectionId("secondary-sid", id)
-      else -> setTrackSelectionId("sid", id)
+      id == primarySid -> setTrackSelectionId("sid", null, restoreSubtitleVisibility = true)
+      id == secondarySid -> setTrackSelectionId("secondary-sid", null, restoreSubtitleVisibility = true)
+      primarySid <= 0 -> setTrackSelectionId("sid", id, restoreSubtitleVisibility = true)
+      secondarySid <= 0 -> setTrackSelectionId("secondary-sid", id, restoreSubtitleVisibility = true)
+      else -> setTrackSelectionId("sid", id, restoreSubtitleVisibility = true)
     }
 
     if (wasOff && !subtitlesPreferences.autoEnableSubtitles.get()) {
@@ -4193,8 +4193,8 @@ val isBrightnessSliderShown = MutableStateFlow(false)
   }
 
   fun selectPrimarySubtitle(id: Int) {
-    setTrackSelectionId("sid", id)
-    setTrackSelectionId("secondary-sid", null)
+    setTrackSelectionId("sid", id, restoreSubtitleVisibility = true)
+    setTrackSelectionId("secondary-sid", null, restoreSubtitleVisibility = true)
     if (!subtitlesPreferences.autoEnableSubtitles.get()) {
       subtitlesPreferences.autoEnableSubtitles.set(true)
     }
