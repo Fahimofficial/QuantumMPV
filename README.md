@@ -58,6 +58,12 @@
   <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/chapters.png" width="48%">
 </div>
 
+<br>
+
+<div align="center">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/about-screen.jpg" width="31%" alt="QuantumMPV About screen">
+</div>
+
 ---
 
 ## Features
