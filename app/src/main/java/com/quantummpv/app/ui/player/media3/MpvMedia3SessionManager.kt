@@ -57,6 +57,8 @@ class MpvMedia3SessionManager(
   private val session =
     MediaSession
       .Builder(context, player)
+      // Media3 rejects the default empty ID. Keep one stable ID for this app's single session.
+      .setId(context.packageName)
       .setCallback(SessionCallback())
       .build()
 
