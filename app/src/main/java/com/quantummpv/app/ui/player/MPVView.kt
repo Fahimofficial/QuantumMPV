@@ -455,6 +455,10 @@ class MPVView(
       "video-params/h" to MPVLib.MpvFormat.MPV_FORMAT_INT64,
       "container-fps" to MPVLib.MpvFormat.MPV_FORMAT_DOUBLE,
       "eof-reached" to MPVLib.MpvFormat.MPV_FORMAT_FLAG,
+      // Track rows are exposed through PlaybackSession.propNode["track-list"]. Without an
+      // explicit node observation, subtitle/audio lists stay at their previous file's snapshot
+      // and newly added subtitle tracks cannot become selectable in the player UI.
+      "track-list" to MPVLib.MpvFormat.MPV_FORMAT_NODE,
       "user-data/mpvrx/show_text" to MPVLib.MpvFormat.MPV_FORMAT_STRING,
       "user-data/mpvrx/toggle_ui" to MPVLib.MpvFormat.MPV_FORMAT_STRING,
       "user-data/mpvrx/show_panel" to MPVLib.MpvFormat.MPV_FORMAT_STRING,

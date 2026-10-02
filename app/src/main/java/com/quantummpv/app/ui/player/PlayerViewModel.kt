@@ -2787,7 +2787,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
           android.util.Log.d("PlayerViewModel", "Subtitle already loaded by MPV, skipping sub-add: $mpvPath")
           if (select) {
             withContext(Dispatchers.Main) {
-              runCatching { PlaybackSession.setPropertyInt("sid", existingTrack.id) }
+              runCatching { setTrackSelectionId("sid", existingTrack.id, restoreSubtitleVisibility = true) }
             }
           }
           // Still track it in _externalSubtitles if it's not there
@@ -3130,7 +3130,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
           } else {
             withContext(Dispatchers.Main) {
               PlaybackSession.command("sub-reload", trackId.toString())
-              PlaybackSession.setPropertyInt("sid", trackId)
+              setTrackSelectionId("sid", trackId, restoreSubtitleVisibility = true)
             }
           }
         }
