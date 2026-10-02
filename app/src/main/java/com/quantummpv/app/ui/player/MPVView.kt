@@ -167,23 +167,13 @@ class MPVView(
     operator fun getValue(
       thisRef: Any?,
       property: KProperty<*>,
-    ): Int {
-      val v = PlaybackSession.getPropertyString(name)
-      // we can get null here for "no" or other invalid value
-      return v?.toIntOrNull() ?: -1
-    }
+    ): Int = getTrackSelectionId(name)
 
     operator fun setValue(
       thisRef: Any?,
       property: KProperty<*>,
       value: Int,
-    ) {
-      if (value == -1) {
-        PlaybackSession.setPropertyString(name, "no")
-      } else {
-        PlaybackSession.setPropertyString(name, value.toString())
-      }
-    }
+    ) = setTrackSelectionId(name, value.takeIf { it > 0 })
   }
 
   var sid: Int by TrackDelegate("sid")

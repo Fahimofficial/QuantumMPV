@@ -25,9 +25,11 @@ internal fun setTrackSelectionId(
   if (selectedId == null) {
     PlaybackSession.setPropertyString(property, "no")
   } else {
-    // sid/secondary-sid/aid are integer MPV properties. Use the typed setter so selection is
-    // applied reliably across libmpv versions instead of relying on string coercion.
-    PlaybackSession.setPropertyInt(property, selectedId)
+    // Track properties accept both numeric IDs and the symbolic value "no". Use the same
+    // string-property path as MPVView.TrackDelegate and older libmpv builds; mixing typed and
+    // string writes caused the sheet to report a selection while the active core retained the
+    // previous track on some devices.
+    PlaybackSession.setPropertyString(property, selectedId.toString())
     if (restoreSubtitleVisibility && (property == "sid" || property == "secondary-sid")) {
       PlaybackSession.setPropertyBoolean("sub-visibility", true)
     }
