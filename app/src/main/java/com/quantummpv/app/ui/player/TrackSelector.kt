@@ -541,6 +541,7 @@ class TrackSelector(
     setTrackSelectionId(
       "sid",
       id,
+      restoreSubtitleVisibility = true,
       source = SubtitleSelectionSource.AUTO,
       generation = generation,
     )
