@@ -44,7 +44,7 @@ fun getSubtitleHitboxBounds(
   val lineHeightPx = (fontSize / 720f) * screenHeight * scaleMultiplier * 1.3f
 
   // Estimate how many lines the subtitle actually occupies
-  val subText = PlaybackSession.getPropertyString("sub-text") ?: ""
+  val subText = if (getTrackSelectionId("sid") > 0) PlaybackSession.getPropertyString("sub-text").orEmpty() else ""
   val estimatedLines =
     if (subText.isNotEmpty()) {
       // Count explicit newlines first

@@ -23,7 +23,6 @@ import com.quantummpv.app.network.AndroidCookieJar
 import com.quantummpv.app.preferences.AdvancedPreferences
 import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.AudioPreferences
-import com.quantummpv.app.preferences.DEFAULT_SUBTITLE_FONT_FAMILY
 import com.quantummpv.app.preferences.DecoderPreferences
 import com.quantummpv.app.preferences.MpvConfigControlledFeatures
 import com.quantummpv.app.preferences.MpvConfigOverridePolicy
@@ -524,7 +523,7 @@ class MPVView(
     PlaybackSession.setOptionString("sub-speed", subSpeed)
     PlaybackSession.setOptionString("secondary-sub-delay", subDelay)
 
-    val preferredFont = subtitlesPreferences.font.get().ifBlank { DEFAULT_SUBTITLE_FONT_FAMILY }
+    val preferredFont = resolveSubtitleFontFamily(subtitlesPreferences)
     PlaybackSession.setOptionString("sub-font", preferredFont)
 
     if (subtitlesPreferences.overrideAssSubs.get()) {

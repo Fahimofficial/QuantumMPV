@@ -4592,7 +4592,7 @@ class PlayerActivity :
    * This ensures subtitle customizations (font, colors, position, etc.) persist across videos.
    */
   private fun applySubtitlePreferences() {
-    val font = subtitlesPreferences.font.get()
+    val font = resolveSubtitleFontFamily(subtitlesPreferences)
     val fontSize = subtitlesPreferences.fontSize.get()
     val bold = subtitlesPreferences.bold.get()
     val italic = subtitlesPreferences.italic.get()
