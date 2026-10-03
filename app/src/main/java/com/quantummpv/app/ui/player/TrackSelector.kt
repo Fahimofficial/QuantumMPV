@@ -98,6 +98,7 @@ class TrackSelector(
 
       val trackCount = PlaybackSession.getPropertyInt("track-list/count") ?: 0
       if (trackCount == 0) return@withContext
+      if (!PlaybackSession.isCurrentGeneration(generation)) return@withContext
 
       // Read all tracks once
       val tracks = readTracks(trackCount)
@@ -106,10 +107,12 @@ class TrackSelector(
         Log.d(TAG, "Smart Tracks: Audio/Image file detected. Script disabled.")
         return@withContext
       }
+      if (!PlaybackSession.isCurrentGeneration(generation)) return@withContext
 
       if (!MpvConfigOverridePolicy.ownsAny(MpvConfigControlledFeatures.AUDIO_TRACK_SELECTION)) {
         ensureAudioTrackSelected(tracks, hasState)
       }
+      if (!PlaybackSession.isCurrentGeneration(generation)) return@withContext
       if (!MpvConfigOverridePolicy.ownsAny(MpvConfigControlledFeatures.SUBTITLE_TRACK_SELECTION)) {
         ensureSubtitleTrackSelected(tracks, hasState, generation)
       }

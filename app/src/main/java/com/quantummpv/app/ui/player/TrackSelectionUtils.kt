@@ -9,6 +9,8 @@
 
 package com.quantummpv.app.ui.player
 
+import android.util.Log
+
 /** Identifies whether a track write is user intent, automatic policy, or internal plumbing. */
 enum class SubtitleSelectionSource {
   USER,
@@ -44,6 +46,9 @@ internal fun setTrackSelectionId(
   source: SubtitleSelectionSource = SubtitleSelectionSource.INTERNAL,
   generation: Long = PlaybackSession.state.value.generation,
 ): Boolean {
+  if (source == SubtitleSelectionSource.AUTO && !PlaybackSession.isCurrentGeneration(generation)) {
+    return false
+  }
   if (property == "sid" || property == "secondary-sid") {
     if (source == SubtitleSelectionSource.AUTO &&
       SubtitleSelectionGuard.isManualSelection(generation)
@@ -62,14 +67,18 @@ internal fun setTrackSelectionId(
     }
     if (getTrackSelectionId(property) != selectedId) return false
 
-    if (restoreSubtitleVisibility && (property == "sid" || property == "secondary-sid")) {
-      PlaybackSession.setPropertyBoolean("sub-visibility", true)
-      if (PlaybackSession.getPropertyBoolean("sub-visibility") != true) return false
-    }
     if (source == SubtitleSelectionSource.USER &&
       (property == "sid" || property == "secondary-sid")
     ) {
+      // The ID write is the authoritative selection result. Visibility may be owned by mpv.conf,
+      // so record the user choice before performing the best-effort visibility restore.
       SubtitleSelectionGuard.markManual(generation)
+    }
+    if (restoreSubtitleVisibility && (property == "sid" || property == "secondary-sid")) {
+      PlaybackSession.setPropertyBoolean("sub-visibility", true)
+      if (PlaybackSession.getPropertyBoolean("sub-visibility") != true) {
+        Log.w("TrackSelectionUtils", "MPV did not confirm sub-visibility=true after selecting $selectedId")
+      }
     }
     return true
   }

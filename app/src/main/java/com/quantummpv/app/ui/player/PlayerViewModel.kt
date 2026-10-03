@@ -2747,6 +2747,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
     silent: Boolean = false,
   ) {
     subtitleAddMutex.withLock {
+      val selectionGeneration = PlaybackSession.state.value.generation
       val uriString = uri.toString()
       if (_externalSubtitles.contains(uriString)) {
         android.util.Log.d("PlayerViewModel", "Subtitle already tracked, skipping: $uriString")
@@ -2793,6 +2794,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
                   existingTrack.id,
                   restoreSubtitleVisibility = true,
                   source = SubtitleSelectionSource.USER,
+                  generation = selectionGeneration,
                 )
               }
             }
@@ -2809,6 +2811,9 @@ val isBrightnessSliderShown = MutableStateFlow(false)
 
         withContext(Dispatchers.Main) {
           PlaybackSession.command("sub-add", mpvPath, mode)
+        }
+        if (select) {
+          confirmAddedSubtitleSelection(mpvPath, selectionGeneration)
         }
 
         // Track external subtitle URI for persistence
@@ -2830,6 +2835,27 @@ val isBrightnessSliderShown = MutableStateFlow(false)
         }
       }
     }
+  }
+
+  private suspend fun confirmAddedSubtitleSelection(
+    mpvPath: String,
+    generation: Long,
+  ): Boolean {
+    repeat(20) {
+      if (!PlaybackSession.isCurrentGeneration(generation)) return false
+      val addedTrack = subtitleTracks.value.firstOrNull { it.externalFilename == mpvPath }
+      if (addedTrack != null && getTrackSelectionId("sid") == addedTrack.id) {
+        return setTrackSelectionId(
+          "sid",
+          addedTrack.id,
+          restoreSubtitleVisibility = true,
+          source = SubtitleSelectionSource.USER,
+          generation = generation,
+        )
+      }
+      delay(50)
+    }
+    return false
   }
 
   private var translationJob: Job? = null
@@ -3326,10 +3352,16 @@ val isBrightnessSliderShown = MutableStateFlow(false)
         kotlinx.coroutines.delay(300)
         withContext(Dispatchers.Main) {
           val activeSid = getTrackSelectionId("sid")
-          if (activeSid == 0) {
+          if (activeSid == 0 && subtitlesPreferences.autoEnableSubtitles.get()) {
             val firstExternal = subtitleTracks.value.firstOrNull { it.external == true }
             if (firstExternal != null) {
-              runCatching { setTrackSelectionId("sid", firstExternal.id, source = SubtitleSelectionSource.USER) }
+              runCatching {
+                setTrackSelectionId(
+                  "sid",
+                  firstExternal.id,
+                  source = SubtitleSelectionSource.AUTO,
+                )
+              }
             }
           }
         }
