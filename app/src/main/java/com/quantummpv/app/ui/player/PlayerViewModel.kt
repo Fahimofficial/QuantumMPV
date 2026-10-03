@@ -2747,6 +2747,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
     silent: Boolean = false,
   ) {
     subtitleAddMutex.withLock {
+      val selectionGeneration = PlaybackSession.state.value.generation
       val uriString = uri.toString()
       if (_externalSubtitles.contains(uriString)) {
         android.util.Log.d("PlayerViewModel", "Subtitle already tracked, skipping: $uriString")
@@ -2787,7 +2788,15 @@ val isBrightnessSliderShown = MutableStateFlow(false)
           android.util.Log.d("PlayerViewModel", "Subtitle already loaded by MPV, skipping sub-add: $mpvPath")
           if (select) {
             withContext(Dispatchers.Main) {
-              runCatching { setTrackSelectionId("sid", existingTrack.id, restoreSubtitleVisibility = true) }
+              runCatching {
+                setTrackSelectionId(
+                  "sid",
+                  existingTrack.id,
+                  restoreSubtitleVisibility = true,
+                  source = SubtitleSelectionSource.USER,
+                  generation = selectionGeneration,
+                )
+              }
             }
           }
           // Still track it in _externalSubtitles if it's not there
@@ -2802,6 +2811,9 @@ val isBrightnessSliderShown = MutableStateFlow(false)
 
         withContext(Dispatchers.Main) {
           PlaybackSession.command("sub-add", mpvPath, mode)
+        }
+        if (select) {
+          confirmAddedSubtitleSelection(mpvPath, selectionGeneration)
         }
 
         // Track external subtitle URI for persistence
@@ -2823,6 +2835,27 @@ val isBrightnessSliderShown = MutableStateFlow(false)
         }
       }
     }
+  }
+
+  private suspend fun confirmAddedSubtitleSelection(
+    mpvPath: String,
+    generation: Long,
+  ): Boolean {
+    repeat(20) {
+      if (!PlaybackSession.isCurrentGeneration(generation)) return false
+      val addedTrack = subtitleTracks.value.firstOrNull { it.externalFilename == mpvPath }
+      if (addedTrack != null && getTrackSelectionId("sid") == addedTrack.id) {
+        return setTrackSelectionId(
+          "sid",
+          addedTrack.id,
+          restoreSubtitleVisibility = true,
+          source = SubtitleSelectionSource.USER,
+          generation = generation,
+        )
+      }
+      delay(50)
+    }
+    return false
   }
 
   private var translationJob: Job? = null
@@ -3130,7 +3163,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
           } else {
             withContext(Dispatchers.Main) {
               PlaybackSession.command("sub-reload", trackId.toString())
-              setTrackSelectionId("sid", trackId, restoreSubtitleVisibility = true)
+              setTrackSelectionId("sid", trackId, restoreSubtitleVisibility = true, source = SubtitleSelectionSource.USER)
             }
           }
         }
@@ -3319,10 +3352,16 @@ val isBrightnessSliderShown = MutableStateFlow(false)
         kotlinx.coroutines.delay(300)
         withContext(Dispatchers.Main) {
           val activeSid = getTrackSelectionId("sid")
-          if (activeSid == 0) {
+          if (activeSid == 0 && subtitlesPreferences.autoEnableSubtitles.get()) {
             val firstExternal = subtitleTracks.value.firstOrNull { it.external == true }
             if (firstExternal != null) {
-              runCatching { setTrackSelectionId("sid", firstExternal.id) }
+              runCatching {
+                setTrackSelectionId(
+                  "sid",
+                  firstExternal.id,
+                  source = SubtitleSelectionSource.AUTO,
+                )
+              }
             }
           }
         }
@@ -4177,15 +4216,21 @@ val isBrightnessSliderShown = MutableStateFlow(false)
 
     val wasOff = primarySid <= 0 && secondarySid <= 0
 
-    when {
-      id == primarySid -> setTrackSelectionId("sid", null, restoreSubtitleVisibility = true)
-      id == secondarySid -> setTrackSelectionId("secondary-sid", null, restoreSubtitleVisibility = true)
-      primarySid <= 0 -> setTrackSelectionId("sid", id, restoreSubtitleVisibility = true)
-      secondarySid <= 0 -> setTrackSelectionId("secondary-sid", id, restoreSubtitleVisibility = true)
-      else -> setTrackSelectionId("sid", id, restoreSubtitleVisibility = true)
+    val applied = when {
+      id == primarySid -> setTrackSelectionId("sid", null, restoreSubtitleVisibility = true, source = SubtitleSelectionSource.USER)
+      id == secondarySid ->
+        setTrackSelectionId(
+          "secondary-sid",
+          null,
+          restoreSubtitleVisibility = true,
+          source = SubtitleSelectionSource.USER,
+        )
+      primarySid <= 0 -> setTrackSelectionId("sid", id, restoreSubtitleVisibility = true, source = SubtitleSelectionSource.USER)
+      secondarySid <= 0 -> setTrackSelectionId("secondary-sid", id, restoreSubtitleVisibility = true, source = SubtitleSelectionSource.USER)
+      else -> setTrackSelectionId("sid", id, restoreSubtitleVisibility = true, source = SubtitleSelectionSource.USER)
     }
 
-    if (wasOff && !subtitlesPreferences.autoEnableSubtitles.get()) {
+    if (applied && wasOff && !subtitlesPreferences.autoEnableSubtitles.get()) {
       subtitlesPreferences.autoEnableSubtitles.set(true)
     }
 
@@ -4193,8 +4238,9 @@ val isBrightnessSliderShown = MutableStateFlow(false)
   }
 
   fun selectPrimarySubtitle(id: Int) {
-    setTrackSelectionId("sid", id, restoreSubtitleVisibility = true)
-    setTrackSelectionId("secondary-sid", null, restoreSubtitleVisibility = true)
+    val applied = setTrackSelectionId("sid", id, restoreSubtitleVisibility = true, source = SubtitleSelectionSource.USER)
+    if (!applied) return
+    setTrackSelectionId("secondary-sid", null, restoreSubtitleVisibility = true, source = SubtitleSelectionSource.USER)
     if (!subtitlesPreferences.autoEnableSubtitles.get()) {
       subtitlesPreferences.autoEnableSubtitles.set(true)
     }

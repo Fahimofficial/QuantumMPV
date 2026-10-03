@@ -27,6 +27,7 @@ import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.ui.player.Decoder
 import com.quantummpv.app.ui.player.Panels
 import com.quantummpv.app.ui.player.Sheets
+import com.quantummpv.app.ui.player.SubtitleSelectionSource
 import com.quantummpv.app.ui.player.TrackNode
 import com.quantummpv.app.ui.player.controls.components.MpvConfigOwnedSheet
 import com.quantummpv.app.ui.player.controls.components.sheets.AmbientSheet
@@ -233,8 +234,8 @@ fun PlayerSheets(
         realtimeSubsEnabled = realtimeSubsEnabled,
         subtitlesOff = subtitlesOff,
         onDisableSubtitles = {
-          setTrackSelectionId("sid", null)
-          setTrackSelectionId("secondary-sid", null)
+          setTrackSelectionId("sid", null, source = SubtitleSelectionSource.USER)
+          setTrackSelectionId("secondary-sid", null, source = SubtitleSelectionSource.USER)
           subtitlesPreferences.autoEnableSubtitles.set(false)
           if (isTelevision) onDismissRequest()
         },

@@ -4308,7 +4308,7 @@ class PlayerActivity :
         if (!PlaybackSession.isCurrentGeneration(loadGeneration)) return@launch
 
         // Apply track selection logic (defaults only apply when no saved state)
-        trackSelector.onFileLoaded(hasState)
+        trackSelector.onFileLoaded(hasState, loadGeneration)
 
         // Apply default zoom only if there's no saved state
         if (!hasState) {
