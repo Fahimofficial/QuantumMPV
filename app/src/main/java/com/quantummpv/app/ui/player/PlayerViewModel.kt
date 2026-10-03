@@ -3313,6 +3313,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
 
   private fun scanLocalSubtitles(mediaTitle: String) {
     viewModelScope.launch(Dispatchers.IO) {
+      val scanGeneration = PlaybackSession.state.value.generation
       val saveFolderUri = subtitlesPreferences.subtitleSaveFolder.get()
       if (saveFolderUri.isBlank()) return@launch
 
@@ -3359,7 +3360,9 @@ val isBrightnessSliderShown = MutableStateFlow(false)
                 setTrackSelectionId(
                   "sid",
                   firstExternal.id,
+                  restoreSubtitleVisibility = true,
                   source = SubtitleSelectionSource.AUTO,
+                  generation = scanGeneration,
                 )
               }
             }
