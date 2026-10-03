@@ -4377,11 +4377,13 @@ class PlayerActivity :
     viewModel.restoreSavedVideoAspect(showUpdate = false)
     binding.root.post(::updateVideoAmbientPlayerBounds)
 
+    val preferredTitle = getPreferredCurrentTitle()
     if (shouldForceCurrentMediaTitle()) {
-      val preferredTitle = getPreferredCurrentTitle()
       PlaybackSession.setPropertyString("force-media-title", preferredTitle)
-      viewModel.setMediaTitle(preferredTitle, scanGeneration = loadGeneration)
     }
+    // Always bind the post-load title update and local subtitle scan to this committed generation.
+    // Parsed M3U items may not force the title, but they still need subtitle discovery.
+    viewModel.setMediaTitle(preferredTitle, scanGeneration = loadGeneration)
 
     lifecycleScope.launch {
       withContext(playbackRenderDispatcher) {

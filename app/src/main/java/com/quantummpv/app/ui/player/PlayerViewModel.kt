@@ -2735,9 +2735,10 @@ val isBrightnessSliderShown = MutableStateFlow(false)
     uri: Uri,
     select: Boolean = true,
     silent: Boolean = false,
+    expectedGeneration: Long? = null,
   ) {
     viewModelScope.launch(Dispatchers.IO) {
-      addSubtitleSuspend(uri, select, silent)
+      addSubtitleSuspend(uri, select, silent, expectedGeneration)
     }
   }
 
@@ -2745,9 +2746,13 @@ val isBrightnessSliderShown = MutableStateFlow(false)
     uri: Uri,
     select: Boolean = true,
     silent: Boolean = false,
+    expectedGeneration: Long? = null,
   ) {
     subtitleAddMutex.withLock {
-      val selectionGeneration = PlaybackSession.state.value.generation
+      val selectionGeneration = expectedGeneration ?: PlaybackSession.state.value.generation
+      if (expectedGeneration != null && !PlaybackSession.isCurrentGeneration(expectedGeneration)) {
+        return@withLock
+      }
       val uriString = uri.toString()
       if (_externalSubtitles.contains(uriString)) {
         android.util.Log.d("PlayerViewModel", "Subtitle already tracked, skipping: $uriString")
@@ -2786,6 +2791,9 @@ val isBrightnessSliderShown = MutableStateFlow(false)
         val existingTrack = subtitleTracks.value.find { it.externalFilename == mpvPath }
         if (existingTrack != null) {
           android.util.Log.d("PlayerViewModel", "Subtitle already loaded by MPV, skipping sub-add: $mpvPath")
+          if (expectedGeneration != null && !PlaybackSession.isCurrentGeneration(expectedGeneration)) {
+            return@withLock
+          }
           if (select) {
             withContext(Dispatchers.Main) {
               runCatching {
@@ -2799,6 +2807,9 @@ val isBrightnessSliderShown = MutableStateFlow(false)
               }
             }
           }
+          if (expectedGeneration != null && !PlaybackSession.isCurrentGeneration(expectedGeneration)) {
+            return@withLock
+          }
           // Still track it in _externalSubtitles if it's not there
           if (!_externalSubtitles.contains(uriString)) {
             _externalSubtitles.add(uriString)
@@ -2806,17 +2817,27 @@ val isBrightnessSliderShown = MutableStateFlow(false)
           return@withLock
         }
 
-        // Store mapping for reliable physical deletion later
-        mpvPathToUriMap[mpvPath] = uri.toString()
-
+        if (expectedGeneration != null && !PlaybackSession.isCurrentGeneration(expectedGeneration)) {
+          return@withLock
+        }
         withContext(Dispatchers.Main) {
-          PlaybackSession.command("sub-add", mpvPath, mode)
+          if (expectedGeneration == null || PlaybackSession.isCurrentGeneration(expectedGeneration)) {
+            PlaybackSession.command("sub-add", mpvPath, mode)
+          }
+        }
+        if (expectedGeneration != null && !PlaybackSession.isCurrentGeneration(expectedGeneration)) {
+          return@withLock
         }
         if (select) {
           confirmAddedSubtitleSelection(mpvPath, selectionGeneration)
         }
 
         // Track external subtitle URI for persistence
+        if (expectedGeneration != null && !PlaybackSession.isCurrentGeneration(expectedGeneration)) {
+          return@withLock
+        }
+        // Store mapping for reliable physical deletion later only for the active generation.
+        mpvPathToUriMap[mpvPath] = uri.toString()
         if (!_externalSubtitles.contains(uriString)) {
           _externalSubtitles.add(uriString)
         }
@@ -3340,7 +3361,12 @@ val isBrightnessSliderShown = MutableStateFlow(false)
                 val uriStr = file.uri.toString()
                 if (file.isFile && isValidSubtitleFile(file.name ?: "") && seenUris.add(uriStr)) {
                   // Don't auto-select during scan, just make available.
-                  addSubtitle(file.uri, select = false, silent = true)
+                  addSubtitle(
+                    file.uri,
+                    select = false,
+                    silent = true,
+                    expectedGeneration = generation,
+                  )
                   addedCount++
                 }
               }
