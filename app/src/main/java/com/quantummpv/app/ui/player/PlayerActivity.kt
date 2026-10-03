@@ -4380,7 +4380,7 @@ class PlayerActivity :
     if (shouldForceCurrentMediaTitle()) {
       val preferredTitle = getPreferredCurrentTitle()
       PlaybackSession.setPropertyString("force-media-title", preferredTitle)
-      viewModel.setMediaTitle(preferredTitle)
+      viewModel.setMediaTitle(preferredTitle, scanGeneration = loadGeneration)
     }
 
     lifecycleScope.launch {
@@ -4491,7 +4491,7 @@ class PlayerActivity :
           withContext(Dispatchers.Main) {
             if (!PlaybackSession.isCurrentGeneration(loadGeneration)) return@withContext
             PlaybackSession.setPropertyString("force-media-title", betterFilename)
-            viewModel.setMediaTitle(betterFilename)
+            viewModel.setMediaTitle(betterFilename, scanGeneration = loadGeneration)
 
             refreshMediaSession(updateContentIntent = true)
 
@@ -7180,6 +7180,9 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
         !(uri.toString().lowercase().contains(".m3u8") || uri.toString().lowercase().contains(".m3u"))
     if (shouldForceTitle) {
       PlaybackSession.setPropertyString("force-media-title", fileName)
+      // This title update happens before issuePlaybackLoad commits the next PlaybackSession
+      // generation. Do not start a subtitle scan here; handleFileLoaded starts it with the
+      // target generation once the new media is committed.
       viewModel.setMediaTitle(fileName)
     }
 
