@@ -3311,9 +3311,12 @@ val isBrightnessSliderShown = MutableStateFlow(false)
     return backupFile.toUri()
   }
 
-  private fun scanLocalSubtitles(mediaTitle: String) {
+  private fun scanLocalSubtitles(
+    mediaTitle: String,
+    generation: Long,
+  ) {
     viewModelScope.launch(Dispatchers.IO) {
-      val scanGeneration = PlaybackSession.state.value.generation
+      if (!PlaybackSession.isCurrentGeneration(generation)) return@launch
       val saveFolderUri = subtitlesPreferences.subtitleSaveFolder.get()
       if (saveFolderUri.isBlank()) return@launch
 
@@ -3333,6 +3336,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
             val movieDir = parentDir.findFile(folderName) ?: return@forEach
             if (movieDir.isDirectory) {
               movieDir.listFiles().forEach { file ->
+                if (!PlaybackSession.isCurrentGeneration(generation)) return@launch
                 val uriStr = file.uri.toString()
                 if (file.isFile && isValidSubtitleFile(file.name ?: "") && seenUris.add(uriStr)) {
                   // Don't auto-select during scan, just make available.
@@ -3351,7 +3355,9 @@ val isBrightnessSliderShown = MutableStateFlow(false)
       if (addedCount > 0) {
         // Give MPV time to register the sub-add commands
         kotlinx.coroutines.delay(300)
+        if (!PlaybackSession.isCurrentGeneration(generation)) return@launch
         withContext(Dispatchers.Main) {
+          if (!PlaybackSession.isCurrentGeneration(generation)) return@withContext
           val activeSid = getTrackSelectionId("sid")
           if (activeSid == 0 && subtitlesPreferences.autoEnableSubtitles.get()) {
             val firstExternal = subtitleTracks.value.firstOrNull { it.external == true }
@@ -3362,7 +3368,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
                   firstExternal.id,
                   restoreSubtitleVisibility = true,
                   source = SubtitleSelectionSource.AUTO,
-                  generation = scanGeneration,
+                  generation = generation,
                 )
               }
             }
@@ -3372,7 +3378,11 @@ val isBrightnessSliderShown = MutableStateFlow(false)
     }
   }
 
-  fun setMediaTitle(mediaTitle: String) {
+  fun setMediaTitle(
+    mediaTitle: String,
+    scanGeneration: Long? = null,
+  ) {
+    scanGeneration?.let { generation -> scanLocalSubtitles(mediaTitle, generation) }
     if (currentMediaTitle != mediaTitle) {
       currentMediaTitle = mediaTitle
       lastAutoSelectedMediaTitle = null
@@ -3383,7 +3393,6 @@ val isBrightnessSliderShown = MutableStateFlow(false)
       _externalSubtitles.clear()
       // Reset subtitle hash when media changes.
       _videoHash.value = null
-      scanLocalSubtitles(mediaTitle)
       syncplayManager.updateFileInfo(currentSyncplayFileInfo())
 
       restoreSavedVideoAspect(showUpdate = false)

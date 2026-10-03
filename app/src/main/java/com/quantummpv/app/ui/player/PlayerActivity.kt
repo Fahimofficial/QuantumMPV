@@ -4377,11 +4377,13 @@ class PlayerActivity :
     viewModel.restoreSavedVideoAspect(showUpdate = false)
     binding.root.post(::updateVideoAmbientPlayerBounds)
 
+    val preferredTitle = getPreferredCurrentTitle()
     if (shouldForceCurrentMediaTitle()) {
-      val preferredTitle = getPreferredCurrentTitle()
       PlaybackSession.setPropertyString("force-media-title", preferredTitle)
-      viewModel.setMediaTitle(preferredTitle)
     }
+    // Bind subtitle discovery to the committed FILE_LOADED generation, including parsed M3U
+    // items whose title is not force-applied.
+    viewModel.setMediaTitle(preferredTitle, scanGeneration = loadGeneration)
 
     lifecycleScope.launch {
       withContext(playbackRenderDispatcher) {
@@ -4491,7 +4493,7 @@ class PlayerActivity :
           withContext(Dispatchers.Main) {
             if (!PlaybackSession.isCurrentGeneration(loadGeneration)) return@withContext
             PlaybackSession.setPropertyString("force-media-title", betterFilename)
-            viewModel.setMediaTitle(betterFilename)
+            viewModel.setMediaTitle(betterFilename, scanGeneration = loadGeneration)
 
             refreshMediaSession(updateContentIntent = true)
 
@@ -7180,6 +7182,7 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
         !(uri.toString().lowercase().contains(".m3u8") || uri.toString().lowercase().contains(".m3u"))
     if (shouldForceTitle) {
       PlaybackSession.setPropertyString("force-media-title", fileName)
+      // Do not start subtitle discovery before the next playback generation is committed.
       viewModel.setMediaTitle(fileName)
     }
 
