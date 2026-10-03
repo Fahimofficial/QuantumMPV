@@ -80,8 +80,12 @@ class TrackSelector(
     val image: Boolean,
   )
 
-  suspend fun onFileLoaded(hasState: Boolean = false) =
-    withContext(Dispatchers.Main) {
+  suspend fun onFileLoaded(
+    hasState: Boolean = false,
+    generation: Long = PlaybackSession.state.value.generation,
+  ) =
+    withContext(Dispatchers.Default) {
+      if (!PlaybackSession.isCurrentGeneration(generation)) return@withContext
       var attempts = 0
       val maxAttempts = 20
 
@@ -107,7 +111,7 @@ class TrackSelector(
         ensureAudioTrackSelected(tracks, hasState)
       }
       if (!MpvConfigOverridePolicy.ownsAny(MpvConfigControlledFeatures.SUBTITLE_TRACK_SELECTION)) {
-        ensureSubtitleTrackSelected(tracks, hasState)
+        ensureSubtitleTrackSelected(tracks, hasState, generation)
       }
     }
 
@@ -254,6 +258,7 @@ class TrackSelector(
   private suspend fun ensureSubtitleTrackSelected(
     tracks: List<Track>,
     hasState: Boolean,
+    generation: Long = PlaybackSession.state.value.generation,
   ) {
     try {
       val currentSid = getTrackSelectionId("sid")
@@ -262,7 +267,12 @@ class TrackSelector(
       if (!subtitlesPreferences.autoEnableSubtitles.get()) {
         Log.d(TAG, "Smart Sub: Auto-enable subtitles is off. Skipping auto-selection.")
         if (currentSid > 0) {
-          setTrackSelectionId("sid", 0)
+          setTrackSelectionId(
+            "sid",
+            0,
+            source = SubtitleSelectionSource.AUTO,
+            generation = generation,
+          )
         }
         return
       }
@@ -308,7 +318,7 @@ class TrackSelector(
           )
         if (titleMatchIndex != null) {
           val track = externalTracks[titleMatchIndex]
-          if (currentSid != track.id) setTrackSelectionId("sid", track.id)
+          if (currentSid != track.id) autoSelectSubtitle(track.id, generation)
           Log.d(TAG, "Smart Sub: Preferred external title matched (id=${track.id})")
           return
         }
@@ -327,7 +337,7 @@ class TrackSelector(
                   TAG,
                   "Smart Sub: Preferred External Subtitle Detected (id=${track.id}, lang=${track.lang}) [Applied]",
                 )
-                setTrackSelectionId("sid", track.id)
+                autoSelectSubtitle(track.id, generation)
               }
               return
             }
@@ -345,7 +355,7 @@ class TrackSelector(
               )
             } else {
               Log.d(TAG, "Smart Sub: Manual/Undetermined External Subtitle Detected (id=${track.id}) [Applied]")
-              setTrackSelectionId("sid", track.id)
+              autoSelectSubtitle(track.id, generation)
             }
             return
           }
@@ -360,7 +370,7 @@ class TrackSelector(
           )
         } else {
           Log.d(TAG, "Smart Sub: Fallback External Subtitle Detected (id=${fallbackTrack.id}) [Applied]")
-          setTrackSelectionId("sid", fallbackTrack.id)
+          autoSelectSubtitle(fallbackTrack.id, generation)
         }
         return
       }
@@ -375,7 +385,7 @@ class TrackSelector(
         )
       if (titleMatchIndex != null) {
         val track = subTracks[titleMatchIndex]
-        if (currentSid != track.id) setTrackSelectionId("sid", track.id)
+        if (currentSid != track.id) autoSelectSubtitle(track.id, generation)
         Log.d(TAG, "Smart Sub: Preferred title matched (id=${track.id})")
         return
       }
@@ -395,7 +405,7 @@ class TrackSelector(
                   )
                 } else {
                   Log.d(TAG, "Smart Sub: Native File Default Japanese Sub (id=${track.id}) [Applied]")
-                  setTrackSelectionId("sid", track.id)
+                  autoSelectSubtitle(track.id, generation)
                 }
                 return
               }
@@ -416,7 +426,7 @@ class TrackSelector(
                   Log.d(TAG, "Smart Sub: Anime Dialogue matched (id=${track.id}) [Already Active. Skipping Change.]")
                 } else {
                   Log.d(TAG, "Smart Sub: Anime Dialogue matched (id=${track.id}) [Applied]")
-                  setTrackSelectionId("sid", track.id)
+                  autoSelectSubtitle(track.id, generation)
                 }
                 return
               }
@@ -434,7 +444,7 @@ class TrackSelector(
                 Log.d(TAG, "Smart Sub: Clean Match (id=${track.id}) [Already Active. Skipping Change.]")
               } else {
                 Log.d(TAG, "Smart Sub: Clean Match (id=${track.id}) [Applied]")
-                setTrackSelectionId("sid", track.id)
+                autoSelectSubtitle(track.id, generation)
               }
               return
             }
@@ -450,7 +460,7 @@ class TrackSelector(
               Log.d(TAG, "Smart Sub: Fallback Match (id=${track.id}) [Already Active. Skipping Change.]")
             } else {
               Log.d(TAG, "Smart Sub: Fallback Match (id=${track.id}) [Applied]")
-              setTrackSelectionId("sid", track.id)
+              autoSelectSubtitle(track.id, generation)
             }
             return
           }
@@ -488,7 +498,7 @@ class TrackSelector(
                 )
               } else {
                 Log.d(TAG, "Smart Sub: Title-Name Fallback '${track.title}' (id=${track.id}) [Applied]")
-                setTrackSelectionId("sid", track.id)
+                autoSelectSubtitle(track.id, generation)
               }
               return
             }
@@ -512,7 +522,7 @@ class TrackSelector(
             TAG,
             "Smart Sub: Single Track Fallback lang='${track.lang}' title='${track.title}' (id=${track.id}) [Applied]",
           )
-          setTrackSelectionId("sid", track.id)
+          autoSelectSubtitle(track.id, generation)
         }
         return
       }
@@ -520,4 +530,15 @@ class TrackSelector(
       Log.e(TAG, "Subtitle selection failed", e)
     }
   }
+
+  private fun autoSelectSubtitle(
+    id: Int,
+    generation: Long,
+  ): Boolean =
+    setTrackSelectionId(
+      "sid",
+      id,
+      source = SubtitleSelectionSource.AUTO,
+      generation = generation,
+    )
 }

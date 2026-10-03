@@ -233,8 +233,8 @@ fun PlayerSheets(
         realtimeSubsEnabled = realtimeSubsEnabled,
         subtitlesOff = subtitlesOff,
         onDisableSubtitles = {
-          setTrackSelectionId("sid", null)
-          setTrackSelectionId("secondary-sid", null)
+          setTrackSelectionId("sid", null, source = SubtitleSelectionSource.USER)
+          setTrackSelectionId("secondary-sid", null, source = SubtitleSelectionSource.USER)
           subtitlesPreferences.autoEnableSubtitles.set(false)
           if (isTelevision) onDismissRequest()
         },
