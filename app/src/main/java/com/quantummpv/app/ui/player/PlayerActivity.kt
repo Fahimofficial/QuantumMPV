@@ -4381,6 +4381,11 @@ class PlayerActivity :
       val preferredTitle = getPreferredCurrentTitle()
       PlaybackSession.setPropertyString("force-media-title", preferredTitle)
       viewModel.setMediaTitle(preferredTitle)
+      viewModel.scanLocalSubtitlesForGeneration(preferredTitle, loadGeneration)
+    } else {
+      // Parsed playlist items may intentionally keep MPV's title, but their subtitle scan must
+      // still begin after FILE_LOADED has committed the target playback generation.
+      viewModel.scanLocalSubtitlesForGeneration(getPreferredCurrentTitle(), loadGeneration)
     }
 
     lifecycleScope.launch {
@@ -4492,6 +4497,7 @@ class PlayerActivity :
             if (!PlaybackSession.isCurrentGeneration(loadGeneration)) return@withContext
             PlaybackSession.setPropertyString("force-media-title", betterFilename)
             viewModel.setMediaTitle(betterFilename)
+            viewModel.scanLocalSubtitlesForGeneration(betterFilename, loadGeneration)
 
             refreshMediaSession(updateContentIntent = true)
 
