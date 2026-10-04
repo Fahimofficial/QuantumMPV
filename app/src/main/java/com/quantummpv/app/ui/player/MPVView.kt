@@ -23,7 +23,6 @@ import com.quantummpv.app.network.AndroidCookieJar
 import com.quantummpv.app.preferences.AdvancedPreferences
 import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.AudioPreferences
-import com.quantummpv.app.preferences.DEFAULT_SUBTITLE_FONT_FAMILY
 import com.quantummpv.app.preferences.DecoderPreferences
 import com.quantummpv.app.preferences.MpvConfigControlledFeatures
 import com.quantummpv.app.preferences.MpvConfigOverridePolicy
@@ -516,17 +515,16 @@ class MPVView(
       )
     }
 
-    // Delay and speed for both primary and secondary
+    // Delay for both primary and secondary. Official mpv has no secondary-sub-speed property;
+    // secondary text uses the primary sub-speed setting.
     val subDelay = (subtitlesPreferences.defaultSubDelay.get() / 1000.0).toString()
     val subSpeed = subtitlesPreferences.defaultSubSpeed.get().toString()
     PlaybackSession.setOptionString("sub-delay", subDelay)
     PlaybackSession.setOptionString("sub-speed", subSpeed)
     PlaybackSession.setOptionString("secondary-sub-delay", subDelay)
-    PlaybackSession.setOptionString("secondary-sub-speed", subSpeed)
 
-    val preferredFont = subtitlesPreferences.font.get().ifBlank { DEFAULT_SUBTITLE_FONT_FAMILY }
+    val preferredFont = resolveSubtitleFontFamily(subtitlesPreferences)
     PlaybackSession.setOptionString("sub-font", preferredFont)
-    PlaybackSession.setOptionString("secondary-sub-font", preferredFont)
 
     if (subtitlesPreferences.overrideAssSubs.get()) {
       PlaybackSession.setOptionString("sub-ass-override", "force")
@@ -537,7 +535,8 @@ class MPVView(
       PlaybackSession.setOptionString("secondary-sub-ass-override", "no")
     }
 
-    // Typography and styling for both primary and secondary
+    // Typography and styling for the primary subtitle. Official mpv secondary subtitles inherit
+    // primary font, weight, colors, borders, and windowing settings.
     val fontSize = subtitlesPreferences.fontSize.get().toString()
     val bold = if (subtitlesPreferences.bold.get()) "yes" else "no"
     val italic = if (subtitlesPreferences.italic.get()) "yes" else "no"
@@ -577,26 +576,23 @@ class MPVView(
       }
     PlaybackSession.setOptionString("blend-subtitles", blendMode)
 
-    for ((prefix, pos, scale) in listOf(
-      Triple("sub-", subPos.toString(), subScale),
-      Triple("secondary-sub-", secondarySubPos.toString(), secondarySubScale),
-    )) {
-      PlaybackSession.setOptionString("${prefix}font-size", fontSize)
-      PlaybackSession.setOptionString("${prefix}bold", bold)
-      PlaybackSession.setOptionString("${prefix}italic", italic)
-      PlaybackSession.setOptionString("${prefix}justify", justify)
-      PlaybackSession.setOptionString("${prefix}color", textColor)
-      PlaybackSession.setOptionString("${prefix}back-color", backgroundColor)
-      PlaybackSession.setOptionString("${prefix}border-color", borderColor)
-      PlaybackSession.setOptionString("${prefix}shadow-color", shadowColor)
-      PlaybackSession.setOptionString("${prefix}border-size", borderSize)
-      PlaybackSession.setOptionString("${prefix}border-style", borderStyle)
-      PlaybackSession.setOptionString("${prefix}shadow-offset", shadowOffset)
-      PlaybackSession.setOptionString("${prefix}scale", scale)
-      PlaybackSession.setOptionString("${prefix}pos", pos)
-      PlaybackSession.setOptionString("${prefix}scale-by-window", scaleByWindow)
-      PlaybackSession.setOptionString("${prefix}use-margins", scaleByWindow)
-    }
+    PlaybackSession.setOptionString("sub-font-size", fontSize)
+    PlaybackSession.setOptionString("sub-bold", bold)
+    PlaybackSession.setOptionString("sub-italic", italic)
+    PlaybackSession.setOptionString("sub-justify", justify)
+    PlaybackSession.setOptionString("sub-color", textColor)
+    PlaybackSession.setOptionString("sub-back-color", backgroundColor)
+    PlaybackSession.setOptionString("sub-border-color", borderColor)
+    PlaybackSession.setOptionString("sub-shadow-color", shadowColor)
+    PlaybackSession.setOptionString("sub-border-size", borderSize)
+    PlaybackSession.setOptionString("sub-border-style", borderStyle)
+    PlaybackSession.setOptionString("sub-shadow-offset", shadowOffset)
+    PlaybackSession.setOptionString("sub-scale", subScale)
+    PlaybackSession.setOptionString("sub-pos", subPos.toString())
+    PlaybackSession.setOptionString("sub-scale-by-window", scaleByWindow)
+    PlaybackSession.setOptionString("sub-use-margins", scaleByWindow)
+    PlaybackSession.setOptionString("secondary-sub-scale", secondarySubScale)
+    PlaybackSession.setOptionString("secondary-sub-pos", secondarySubPos.toString())
   }
 
   fun applyAnime4KShaders() {

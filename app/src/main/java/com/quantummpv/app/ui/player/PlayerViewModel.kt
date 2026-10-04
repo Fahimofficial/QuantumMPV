@@ -2784,12 +2784,10 @@ val isBrightnessSliderShown = MutableStateFlow(false)
 
         val mpvPath = uri.resolveUri(appContext) ?: uri.toString()
         val mode = if (select) "select" else "auto"
-        if (!PlaybackSession.isCurrentGeneration(selectionGeneration)) return@withLock
 
         // Check if MPV already auto-loaded this subtitle (prevents duplication)
         val existingTrack = subtitleTracks.value.find { it.externalFilename == mpvPath }
         if (existingTrack != null) {
-          if (!PlaybackSession.isCurrentGeneration(selectionGeneration)) return@withLock
           android.util.Log.d("PlayerViewModel", "Subtitle already loaded by MPV, skipping sub-add: $mpvPath")
           if (select) {
             withContext(Dispatchers.Main.immediate) {
@@ -2805,17 +2803,13 @@ val isBrightnessSliderShown = MutableStateFlow(false)
               }
             }
           }
-          // Still track it in _externalSubtitles if it's not there
           if (!PlaybackSession.isCurrentGeneration(selectionGeneration)) return@withLock
+          // Still track it in _externalSubtitles if it's not there
           if (!_externalSubtitles.contains(uriString)) {
             _externalSubtitles.add(uriString)
           }
           return@withLock
         }
-
-        // Store mapping for reliable physical deletion later
-        if (!PlaybackSession.isCurrentGeneration(selectionGeneration)) return@withLock
-        mpvPathToUriMap[mpvPath] = uri.toString()
 
         val commandIssued =
           withContext(Dispatchers.Main.immediate) {
@@ -2825,7 +2819,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
               PlaybackSession.command("sub-add", mpvPath, mode)
               true
             }
-        }
+          }
         if (!commandIssued || !PlaybackSession.isCurrentGeneration(selectionGeneration)) return@withLock
         if (select) {
           confirmAddedSubtitleSelection(mpvPath, selectionGeneration)
@@ -2833,6 +2827,8 @@ val isBrightnessSliderShown = MutableStateFlow(false)
 
         // Track external subtitle URI for persistence
         if (!PlaybackSession.isCurrentGeneration(selectionGeneration)) return@withLock
+        // Store mapping for reliable physical deletion later only for the active generation.
+        mpvPathToUriMap[mpvPath] = uri.toString()
         if (!_externalSubtitles.contains(uriString)) {
           _externalSubtitles.add(uriString)
         }
@@ -3327,7 +3323,10 @@ val isBrightnessSliderShown = MutableStateFlow(false)
     return backupFile.toUri()
   }
 
-  fun scanLocalSubtitlesForGeneration(mediaTitle: String, generation: Long) {
+  private fun scanLocalSubtitles(
+    mediaTitle: String,
+    generation: Long,
+  ) {
     viewModelScope.launch(Dispatchers.IO) {
       if (!PlaybackSession.isCurrentGeneration(generation)) return@launch
       val saveFolderUri = subtitlesPreferences.subtitleSaveFolder.get()
@@ -3345,7 +3344,6 @@ val isBrightnessSliderShown = MutableStateFlow(false)
         // Use seenUris so the same file found via multiple folder name variants isn't double-added
         val seenUris = mutableSetOf<String>()
         parentDirs.forEach { parentDir ->
-          if (!PlaybackSession.isCurrentGeneration(generation)) return@launch
           listOf(checksumTitle, fullTitle, sanitizedTitle).distinct().forEach { folderName ->
             val movieDir = parentDir.findFile(folderName) ?: return@forEach
             if (movieDir.isDirectory) {
@@ -3375,7 +3373,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
         // Give MPV time to register the sub-add commands
         kotlinx.coroutines.delay(300)
         if (!PlaybackSession.isCurrentGeneration(generation)) return@launch
-        withContext(Dispatchers.Main.immediate) {
+        withContext(Dispatchers.Main) {
           if (!PlaybackSession.isCurrentGeneration(generation)) return@withContext
           val activeSid = getTrackSelectionId("sid")
           if (activeSid == 0 && subtitlesPreferences.autoEnableSubtitles.get()) {
@@ -3397,7 +3395,11 @@ val isBrightnessSliderShown = MutableStateFlow(false)
     }
   }
 
-  fun setMediaTitle(mediaTitle: String) {
+  fun setMediaTitle(
+    mediaTitle: String,
+    scanGeneration: Long? = null,
+  ) {
+    scanGeneration?.let { generation -> scanLocalSubtitles(mediaTitle, generation) }
     if (currentMediaTitle != mediaTitle) {
       currentMediaTitle = mediaTitle
       lastAutoSelectedMediaTitle = null

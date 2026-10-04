@@ -4377,16 +4377,13 @@ class PlayerActivity :
     viewModel.restoreSavedVideoAspect(showUpdate = false)
     binding.root.post(::updateVideoAmbientPlayerBounds)
 
+    val preferredTitle = getPreferredCurrentTitle()
     if (shouldForceCurrentMediaTitle()) {
-      val preferredTitle = getPreferredCurrentTitle()
       PlaybackSession.setPropertyString("force-media-title", preferredTitle)
-      viewModel.setMediaTitle(preferredTitle)
-      viewModel.scanLocalSubtitlesForGeneration(preferredTitle, loadGeneration)
-    } else {
-      // Parsed playlist items may intentionally keep MPV's title, but their subtitle scan must
-      // still begin after FILE_LOADED has committed the target playback generation.
-      viewModel.scanLocalSubtitlesForGeneration(getPreferredCurrentTitle(), loadGeneration)
     }
+    // Bind the post-load title update and local subtitle scan to this committed generation.
+    // Parsed M3U items may not force the title, but they still need subtitle discovery.
+    viewModel.setMediaTitle(preferredTitle, scanGeneration = loadGeneration)
 
     lifecycleScope.launch {
       withContext(playbackRenderDispatcher) {
@@ -4496,8 +4493,7 @@ class PlayerActivity :
           withContext(Dispatchers.Main) {
             if (!PlaybackSession.isCurrentGeneration(loadGeneration)) return@withContext
             PlaybackSession.setPropertyString("force-media-title", betterFilename)
-            viewModel.setMediaTitle(betterFilename)
-            viewModel.scanLocalSubtitlesForGeneration(betterFilename, loadGeneration)
+            viewModel.setMediaTitle(betterFilename, scanGeneration = loadGeneration)
 
             refreshMediaSession(updateContentIntent = true)
 
@@ -4598,7 +4594,7 @@ class PlayerActivity :
    * This ensures subtitle customizations (font, colors, position, etc.) persist across videos.
    */
   private fun applySubtitlePreferences() {
-    val font = subtitlesPreferences.font.get()
+    val font = resolveSubtitleFontFamily(subtitlesPreferences)
     val fontSize = subtitlesPreferences.fontSize.get()
     val bold = subtitlesPreferences.bold.get()
     val italic = subtitlesPreferences.italic.get()
@@ -4629,27 +4625,25 @@ class PlayerActivity :
 
     PlaybackSession.setPropertyString("blend-subtitles", blendMode)
 
-    for ((prefix, scale) in listOf(
-      "sub-" to subScale,
-      "secondary-sub-" to secondarySubScale,
-    )) {
-      PlaybackSession.setPropertyString("${prefix}font", font)
-      PlaybackSession.setPropertyInt("${prefix}font-size", fontSize)
-      PlaybackSession.setPropertyBoolean("${prefix}bold", bold)
-      PlaybackSession.setPropertyBoolean("${prefix}italic", italic)
-      PlaybackSession.setPropertyString("${prefix}justify", justify)
-      PlaybackSession.setPropertyString("${prefix}border-style", borderStyle)
-      PlaybackSession.setPropertyInt("${prefix}border-size", borderSize)
-      PlaybackSession.setPropertyInt("${prefix}outline-size", borderSize)
-      PlaybackSession.setPropertyInt("${prefix}shadow-offset", shadowOffset)
-      PlaybackSession.setPropertyString("${prefix}color", textColor)
-      PlaybackSession.setPropertyString("${prefix}border-color", borderColor)
-      PlaybackSession.setPropertyString("${prefix}back-color", backgroundColor)
-      PlaybackSession.setPropertyString("${prefix}shadow-color", shadowColor)
-      PlaybackSession.setPropertyString("${prefix}scale-by-window", scaleValue)
-      PlaybackSession.setPropertyString("${prefix}use-margins", scaleValue)
-      PlaybackSession.setPropertyFloat("${prefix}scale", scale)
-    }
+    // Official mpv only exposes primary subtitle style properties. Secondary subtitles inherit
+    // the primary font, weight, colors, borders, and windowing settings.
+    PlaybackSession.setPropertyString("sub-font", font)
+    PlaybackSession.setPropertyInt("sub-font-size", fontSize)
+    PlaybackSession.setPropertyBoolean("sub-bold", bold)
+    PlaybackSession.setPropertyBoolean("sub-italic", italic)
+    PlaybackSession.setPropertyString("sub-justify", justify)
+    PlaybackSession.setPropertyString("sub-border-style", borderStyle)
+    PlaybackSession.setPropertyInt("sub-border-size", borderSize)
+    PlaybackSession.setPropertyInt("sub-outline-size", borderSize)
+    PlaybackSession.setPropertyInt("sub-shadow-offset", shadowOffset)
+    PlaybackSession.setPropertyString("sub-color", textColor)
+    PlaybackSession.setPropertyString("sub-border-color", borderColor)
+    PlaybackSession.setPropertyString("sub-back-color", backgroundColor)
+    PlaybackSession.setPropertyString("sub-shadow-color", shadowColor)
+    PlaybackSession.setPropertyString("sub-scale-by-window", scaleValue)
+    PlaybackSession.setPropertyString("sub-use-margins", scaleValue)
+    PlaybackSession.setPropertyFloat("sub-scale", subScale)
+    PlaybackSession.setPropertyFloat("secondary-sub-scale", secondarySubScale)
 
     applySubtitleLayout(
       primaryPosition = subtitlesPreferences.subPos.get(),
@@ -4855,11 +4849,7 @@ class PlayerActivity :
           }
         }
       }
-      applyPlaybackState(
-        state,
-        restoreAudioTrack = positionRestoreOverride == null,
-        loadGeneration = loadGeneration,
-      )
+      applyPlaybackState(state, restoreAudioTrack = positionRestoreOverride == null)
 
       if (!PlaybackSession.isCurrentGeneration(loadGeneration)) return@runCatching false
 
@@ -4884,7 +4874,6 @@ class PlayerActivity :
   private suspend fun applyPlaybackState(
     state: PlaybackStateEntity?,
     restoreAudioTrack: Boolean,
-    loadGeneration: Long,
   ) {
     if (state == null) return
 
@@ -4904,25 +4893,13 @@ class PlayerActivity :
     // Always restore subtitle and audio tracks from saved state
     // User's manual selection has highest priority
     if (state.sid > 0) {
-      val restored =
-        setTrackSelectionId(
-          property = "sid",
-          id = state.sid,
-          source = SubtitleSelectionSource.INTERNAL,
-          generation = loadGeneration,
-        )
-      Log.d(TAG, "Restored primary subtitle track: ${state.sid} (internal restore, applied=$restored)")
+      player.sid = state.sid
+      Log.d(TAG, "Restored primary subtitle track: ${state.sid} (user selection)")
     }
 
     if (state.secondarySid > 0) {
-      val restored =
-        setTrackSelectionId(
-          property = "secondary-sid",
-          id = state.secondarySid,
-          source = SubtitleSelectionSource.INTERNAL,
-          generation = loadGeneration,
-        )
-      Log.d(TAG, "Restored secondary subtitle track: ${state.secondarySid} (internal restore, applied=$restored)")
+      player.secondarySid = state.secondarySid
+      Log.d(TAG, "Restored secondary subtitle track: ${state.secondarySid} (user selection)")
     }
 
     applySubtitleLayout(
@@ -7205,6 +7182,9 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
         !(uri.toString().lowercase().contains(".m3u8") || uri.toString().lowercase().contains(".m3u"))
     if (shouldForceTitle) {
       PlaybackSession.setPropertyString("force-media-title", fileName)
+      // This title update happens before issuePlaybackLoad commits the next PlaybackSession
+      // generation. Do not start subtitle discovery here; handleFileLoaded starts it with the
+      // target generation once the new media is committed.
       viewModel.setMediaTitle(fileName)
     }
 
