@@ -4902,11 +4902,10 @@ class PlayerActivity :
         setTrackSelectionId(
           property = "sid",
           id = state.sid,
-          restoreSubtitleVisibility = true,
-          source = SubtitleSelectionSource.USER,
+          source = SubtitleSelectionSource.INTERNAL,
           generation = loadGeneration,
         )
-      Log.d(TAG, "Restored primary subtitle track: ${state.sid} (user selection, applied=$restored)")
+      Log.d(TAG, "Restored primary subtitle track: ${state.sid} (internal restore, applied=$restored)")
     }
 
     if (state.secondarySid > 0) {
@@ -4914,11 +4913,10 @@ class PlayerActivity :
         setTrackSelectionId(
           property = "secondary-sid",
           id = state.secondarySid,
-          restoreSubtitleVisibility = true,
-          source = SubtitleSelectionSource.USER,
+          source = SubtitleSelectionSource.INTERNAL,
           generation = loadGeneration,
         )
-      Log.d(TAG, "Restored secondary subtitle track: ${state.secondarySid} (user selection, applied=$restored)")
+      Log.d(TAG, "Restored secondary subtitle track: ${state.secondarySid} (internal restore, applied=$restored)")
     }
 
     applySubtitleLayout(
