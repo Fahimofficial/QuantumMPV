@@ -4381,16 +4381,9 @@ class PlayerActivity :
     if (shouldForceCurrentMediaTitle()) {
       PlaybackSession.setPropertyString("force-media-title", preferredTitle)
     }
-<<<<<<< ours
-    // Always bind the post-load title update and local subtitle scan to this committed generation.
+    // Bind the post-load title update and local subtitle scan to this committed generation.
     // Parsed M3U items may not force the title, but they still need subtitle discovery.
     viewModel.setMediaTitle(preferredTitle, scanGeneration = loadGeneration)
-||||||| base
-=======
-    // Bind subtitle discovery to the committed FILE_LOADED generation, including parsed M3U
-    // items whose title is not force-applied.
-    viewModel.setMediaTitle(preferredTitle, scanGeneration = loadGeneration)
->>>>>>> theirs
 
     lifecycleScope.launch {
       withContext(playbackRenderDispatcher) {
