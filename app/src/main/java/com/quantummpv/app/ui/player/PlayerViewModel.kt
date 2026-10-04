@@ -2750,9 +2750,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
   ) {
     subtitleAddMutex.withLock {
       val selectionGeneration = expectedGeneration ?: PlaybackSession.state.value.generation
-      if (expectedGeneration != null && !PlaybackSession.isCurrentGeneration(expectedGeneration)) {
-        return@withLock
-      }
+      if (!PlaybackSession.isCurrentGeneration(selectionGeneration)) return@withLock
       val uriString = uri.toString()
       if (_externalSubtitles.contains(uriString)) {
         android.util.Log.d("PlayerViewModel", "Subtitle already tracked, skipping: $uriString")
@@ -2791,11 +2789,9 @@ val isBrightnessSliderShown = MutableStateFlow(false)
         val existingTrack = subtitleTracks.value.find { it.externalFilename == mpvPath }
         if (existingTrack != null) {
           android.util.Log.d("PlayerViewModel", "Subtitle already loaded by MPV, skipping sub-add: $mpvPath")
-          if (expectedGeneration != null && !PlaybackSession.isCurrentGeneration(expectedGeneration)) {
-            return@withLock
-          }
           if (select) {
-            withContext(Dispatchers.Main) {
+            withContext(Dispatchers.Main.immediate) {
+              if (!PlaybackSession.isCurrentGeneration(selectionGeneration)) return@withContext
               runCatching {
                 setTrackSelectionId(
                   "sid",
@@ -2807,9 +2803,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
               }
             }
           }
-          if (expectedGeneration != null && !PlaybackSession.isCurrentGeneration(expectedGeneration)) {
-            return@withLock
-          }
+          if (!PlaybackSession.isCurrentGeneration(selectionGeneration)) return@withLock
           // Still track it in _externalSubtitles if it's not there
           if (!_externalSubtitles.contains(uriString)) {
             _externalSubtitles.add(uriString)
@@ -2817,25 +2811,22 @@ val isBrightnessSliderShown = MutableStateFlow(false)
           return@withLock
         }
 
-        if (expectedGeneration != null && !PlaybackSession.isCurrentGeneration(expectedGeneration)) {
-          return@withLock
-        }
-        withContext(Dispatchers.Main) {
-          if (expectedGeneration == null || PlaybackSession.isCurrentGeneration(expectedGeneration)) {
-            PlaybackSession.command("sub-add", mpvPath, mode)
+        val commandIssued =
+          withContext(Dispatchers.Main.immediate) {
+            if (!PlaybackSession.isCurrentGeneration(selectionGeneration)) {
+              false
+            } else {
+              PlaybackSession.command("sub-add", mpvPath, mode)
+              true
+            }
           }
-        }
-        if (expectedGeneration != null && !PlaybackSession.isCurrentGeneration(expectedGeneration)) {
-          return@withLock
-        }
+        if (!commandIssued || !PlaybackSession.isCurrentGeneration(selectionGeneration)) return@withLock
         if (select) {
           confirmAddedSubtitleSelection(mpvPath, selectionGeneration)
         }
 
         // Track external subtitle URI for persistence
-        if (expectedGeneration != null && !PlaybackSession.isCurrentGeneration(expectedGeneration)) {
-          return@withLock
-        }
+        if (!PlaybackSession.isCurrentGeneration(selectionGeneration)) return@withLock
         // Store mapping for reliable physical deletion later only for the active generation.
         mpvPathToUriMap[mpvPath] = uri.toString()
         if (!_externalSubtitles.contains(uriString)) {
@@ -2865,7 +2856,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
     repeat(20) {
       if (!PlaybackSession.isCurrentGeneration(generation)) return false
       val addedTrack = subtitleTracks.value.firstOrNull { it.externalFilename == mpvPath }
-      if (addedTrack != null && getTrackSelectionId("sid") == addedTrack.id) {
+      if (addedTrack != null) {
         return setTrackSelectionId(
           "sid",
           addedTrack.id,

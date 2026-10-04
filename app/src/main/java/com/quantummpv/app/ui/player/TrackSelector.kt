@@ -110,7 +110,11 @@ class TrackSelector(
       if (!PlaybackSession.isCurrentGeneration(generation)) return@withContext
 
       if (!MpvConfigOverridePolicy.ownsAny(MpvConfigControlledFeatures.AUDIO_TRACK_SELECTION)) {
-        ensureAudioTrackSelected(tracks, hasState)
+        withContext(Dispatchers.Main.immediate) {
+          if (PlaybackSession.isCurrentGeneration(generation)) {
+            ensureAudioTrackSelected(tracks, hasState, generation)
+          }
+        }
       }
       if (!PlaybackSession.isCurrentGeneration(generation)) return@withContext
       if (!MpvConfigOverridePolicy.ownsAny(MpvConfigControlledFeatures.SUBTITLE_TRACK_SELECTION)) {
@@ -200,6 +204,7 @@ class TrackSelector(
   private suspend fun ensureAudioTrackSelected(
     tracks: List<Track>,
     hasState: Boolean,
+    generation: Long,
   ) {
     try {
       val currentAid = getTrackSelectionId("aid")
@@ -225,7 +230,11 @@ class TrackSelector(
                   Log.d(TAG, "Smart Audio: Selected ${track.lang} (id=${track.id}) [Already Active. Skipping Change.]")
                 } else {
                   Log.d(TAG, "Smart Audio: Selected ${track.lang} (id=${track.id}) [Applied]")
-                  setTrackSelectionId("aid", track.id)
+                  if (PlaybackSession.isCurrentGeneration(generation) &&
+                    getTrackSelectionId("aid") <= 0
+                  ) {
+                    setTrackSelectionId("aid", track.id)
+                  }
                 }
                 return
               }
@@ -244,7 +253,11 @@ class TrackSelector(
             Log.d(TAG, "Smart Audio: Fallback (id=${track.id}) [Already Active. Skipping Change.]")
           } else {
             Log.d(TAG, "Smart Audio: Fallback (id=${track.id}) [Applied]")
-            setTrackSelectionId("aid", track.id)
+            if (PlaybackSession.isCurrentGeneration(generation) &&
+              getTrackSelectionId("aid") <= 0
+            ) {
+              setTrackSelectionId("aid", track.id)
+            }
           }
           return
         }
