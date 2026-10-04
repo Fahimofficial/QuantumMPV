@@ -4381,8 +4381,8 @@ class PlayerActivity :
     if (shouldForceCurrentMediaTitle()) {
       PlaybackSession.setPropertyString("force-media-title", preferredTitle)
     }
-    // Bind subtitle discovery to the committed FILE_LOADED generation, including parsed M3U
-    // items whose title is not force-applied.
+    // Bind the post-load title update and local subtitle scan to this committed generation.
+    // Parsed M3U items may not force the title, but they still need subtitle discovery.
     viewModel.setMediaTitle(preferredTitle, scanGeneration = loadGeneration)
 
     lifecycleScope.launch {
@@ -7182,7 +7182,9 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
         !(uri.toString().lowercase().contains(".m3u8") || uri.toString().lowercase().contains(".m3u"))
     if (shouldForceTitle) {
       PlaybackSession.setPropertyString("force-media-title", fileName)
-      // Do not start subtitle discovery before the next playback generation is committed.
+      // This title update happens before issuePlaybackLoad commits the next PlaybackSession
+      // generation. Do not start subtitle discovery here; handleFileLoaded starts it with the
+      // target generation once the new media is committed.
       viewModel.setMediaTitle(fileName)
     }
 
