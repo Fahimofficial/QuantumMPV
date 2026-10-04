@@ -4849,7 +4849,11 @@ class PlayerActivity :
           }
         }
       }
-      applyPlaybackState(state, restoreAudioTrack = positionRestoreOverride == null)
+      applyPlaybackState(
+        state,
+        restoreAudioTrack = positionRestoreOverride == null,
+        loadGeneration = loadGeneration,
+      )
 
       if (!PlaybackSession.isCurrentGeneration(loadGeneration)) return@runCatching false
 
@@ -4874,6 +4878,7 @@ class PlayerActivity :
   private suspend fun applyPlaybackState(
     state: PlaybackStateEntity?,
     restoreAudioTrack: Boolean,
+    loadGeneration: Long,
   ) {
     if (state == null) return
 
@@ -4893,13 +4898,27 @@ class PlayerActivity :
     // Always restore subtitle and audio tracks from saved state
     // User's manual selection has highest priority
     if (state.sid > 0) {
-      player.sid = state.sid
-      Log.d(TAG, "Restored primary subtitle track: ${state.sid} (user selection)")
+      val restored =
+        setTrackSelectionId(
+          property = "sid",
+          id = state.sid,
+          restoreSubtitleVisibility = true,
+          source = SubtitleSelectionSource.USER,
+          generation = loadGeneration,
+        )
+      Log.d(TAG, "Restored primary subtitle track: ${state.sid} (user selection, applied=$restored)")
     }
 
     if (state.secondarySid > 0) {
-      player.secondarySid = state.secondarySid
-      Log.d(TAG, "Restored secondary subtitle track: ${state.secondarySid} (user selection)")
+      val restored =
+        setTrackSelectionId(
+          property = "secondary-sid",
+          id = state.secondarySid,
+          restoreSubtitleVisibility = true,
+          source = SubtitleSelectionSource.USER,
+          generation = loadGeneration,
+        )
+      Log.d(TAG, "Restored secondary subtitle track: ${state.secondarySid} (user selection, applied=$restored)")
     }
 
     applySubtitleLayout(
