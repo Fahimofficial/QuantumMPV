@@ -3392,6 +3392,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
                 setTrackSelectionId(
                   "sid",
                   firstExternal.id,
+                  restoreSubtitleVisibility = true,
                   source = SubtitleSelectionSource.AUTO,
                   generation = generation,
                 )

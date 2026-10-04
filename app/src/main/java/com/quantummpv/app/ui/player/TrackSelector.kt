@@ -280,13 +280,13 @@ class TrackSelector(
         return
       }
 
-      // Respect manual "Subtitles Off" state
-      if (hasState && currentSid == 0) {
-        Log.d(TAG, "Smart Sub: User disabled subtitles manually. Respecting choice.")
+      // A saved playback record does not prove that the user explicitly disabled subtitles:
+      // sid == 0 is also the normal initial value for a record created before any subtitle was
+      // selected. The explicit global preference above is the source of truth for subtitles-off.
+      if (hasState && currentSid > 0) {
+        Log.d(TAG, "Smart Sub: Restored subtitle track is already active. Skipping auto-selection.")
         return
       }
-
-      if (hasState && currentSid > 0) return
 
       val isAnimeContext = detectAnimeContext(tracks)
       Log.d(TAG, "Smart Tracks: Context defined by Internal Auto-Detection -> $isAnimeContext")
