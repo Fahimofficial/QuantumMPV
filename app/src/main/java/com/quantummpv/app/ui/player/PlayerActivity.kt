@@ -111,6 +111,8 @@ import com.quantummpv.app.ui.player.media3.MpvMedia3SeekDirection
 import com.quantummpv.app.ui.player.media3.MpvMedia3SessionHost
 import com.quantummpv.app.ui.player.media3.MpvMedia3SessionManager
 import com.quantummpv.app.ui.player.ytdlp.YtdlpManager
+import com.quantummpv.app.ui.player.SubtitleSelectionSource
+import com.quantummpv.app.ui.player.TrackSelectionUtils.setTrackSelectionId
 import com.quantummpv.app.ui.theme.MpvrxTheme
 import com.quantummpv.app.ui.torrent.TorrentSelectionActivity
 import com.quantummpv.app.utils.device.DeviceFormFactor
@@ -4892,13 +4894,26 @@ class PlayerActivity :
 
     // Always restore subtitle and audio tracks from saved state
     // User's manual selection has highest priority
+    val generation = PlaybackSession.state.value.generation
     if (state.sid > 0) {
-      player.sid = state.sid
+      setTrackSelectionId(
+        "sid",
+        state.sid,
+        restoreSubtitleVisibility = true,
+        source = SubtitleSelectionSource.USER,
+        generation = generation,
+      )
       Log.d(TAG, "Restored primary subtitle track: ${state.sid} (user selection)")
     }
 
     if (state.secondarySid > 0) {
-      player.secondarySid = state.secondarySid
+      setTrackSelectionId(
+        "secondary-sid",
+        state.secondarySid,
+        restoreSubtitleVisibility = true,
+        source = SubtitleSelectionSource.USER,
+        generation = generation,
+      )
       Log.d(TAG, "Restored secondary subtitle track: ${state.secondarySid} (user selection)")
     }
 

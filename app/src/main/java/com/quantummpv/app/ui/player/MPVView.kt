@@ -500,6 +500,11 @@ class MPVView(
     PlaybackSession.setOptionString("sub-file-paths", "")
     PlaybackSession.setOptionString("subs-fallback", "no")
 
+    // Ensure subtitle visibility is explicitly enabled. While mpv defaults to "yes", the
+    // MiniPlayer can toggle it off, and an explicit initialization guarantees subtitles
+    // render when a track is selected.
+    PlaybackSession.setOptionString("sub-visibility", "yes")
+
     val fontsDirPath = "${context.filesDir.path}/fonts/"
     PlaybackSession.setOptionString("sub-fonts-dir", fontsDirPath)
     // Auto-detect subtitle encoding
