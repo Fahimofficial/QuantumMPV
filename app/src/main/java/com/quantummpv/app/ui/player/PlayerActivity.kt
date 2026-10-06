@@ -4896,24 +4896,24 @@ class PlayerActivity :
     val generation = PlaybackSession.state.value.generation
     val autoEnableSubs = subtitlesPreferences.autoEnableSubtitles.get()
     if (state.sid > 0) {
+      val source = if (autoEnableSubs) SubtitleSelectionSource.USER else SubtitleSelectionSource.INTERNAL
       setTrackSelectionId(
         "sid",
         state.sid,
         restoreSubtitleVisibility = true,
-        // Only mark as manual selection if auto-enable is on; otherwise allow
-        // the selector to clear the track if the user prefers subtitles off.
-        source = if (autoEnableSubs) SubtitleSelectionSource.USER else SubtitleSelectionSource.INTERNAL,
+        source = source,
         generation = generation,
       )
       Log.d(TAG, "Restored primary subtitle track: ${state.sid} (autoEnableSubs=$autoEnableSubs)")
     }
 
     if (state.secondarySid > 0) {
+      val source = if (autoEnableSubs) SubtitleSelectionSource.USER else SubtitleSelectionSource.INTERNAL
       setTrackSelectionId(
         "secondary-sid",
         state.secondarySid,
         restoreSubtitleVisibility = true,
-        source = if (autoEnableSubs) SubtitleSelectionSource.USER else SubtitleSelectionSource.INTERNAL,
+        source = source,
         generation = generation,
       )
       Log.d(TAG, "Restored secondary subtitle track: ${state.secondarySid} (autoEnableSubs=$autoEnableSubs)")
