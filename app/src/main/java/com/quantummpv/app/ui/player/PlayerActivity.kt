@@ -4892,17 +4892,20 @@ class PlayerActivity :
     }
 
     // Always restore subtitle and audio tracks from saved state
-    // User's manual selection has highest priority
+    // User's manual selection has highest priority, but respect auto-enable preference
     val generation = PlaybackSession.state.value.generation
+    val autoEnableSubs = subtitlesPreferences.autoEnableSubtitles.get()
     if (state.sid > 0) {
       setTrackSelectionId(
         "sid",
         state.sid,
         restoreSubtitleVisibility = true,
-        source = SubtitleSelectionSource.USER,
+        // Only mark as manual selection if auto-enable is on; otherwise allow
+        // the selector to clear the track if the user prefers subtitles off.
+        source = if (autoEnableSubs) SubtitleSelectionSource.USER else SubtitleSelectionSource.INTERNAL,
         generation = generation,
       )
-      Log.d(TAG, "Restored primary subtitle track: ${state.sid} (user selection)")
+      Log.d(TAG, "Restored primary subtitle track: ${state.sid} (autoEnableSubs=$autoEnableSubs)")
     }
 
     if (state.secondarySid > 0) {
@@ -4910,10 +4913,10 @@ class PlayerActivity :
         "secondary-sid",
         state.secondarySid,
         restoreSubtitleVisibility = true,
-        source = SubtitleSelectionSource.USER,
+        source = if (autoEnableSubs) SubtitleSelectionSource.USER else SubtitleSelectionSource.INTERNAL,
         generation = generation,
       )
-      Log.d(TAG, "Restored secondary subtitle track: ${state.secondarySid} (user selection)")
+      Log.d(TAG, "Restored secondary subtitle track: ${state.secondarySid} (autoEnableSubs=$autoEnableSubs)")
     }
 
     applySubtitleLayout(
