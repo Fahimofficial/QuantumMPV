@@ -110,8 +110,8 @@ import com.quantummpv.app.ui.player.controls.PlayerControls
 import com.quantummpv.app.ui.player.media3.MpvMedia3SeekDirection
 import com.quantummpv.app.ui.player.media3.MpvMedia3SessionHost
 import com.quantummpv.app.ui.player.media3.MpvMedia3SessionManager
-import com.quantummpv.app.ui.player.ytdlp.YtdlpManager
 import com.quantummpv.app.ui.player.SubtitleSelectionSource
+import com.quantummpv.app.ui.player.ytdlp.YtdlpManager
 import com.quantummpv.app.ui.theme.MpvrxTheme
 import com.quantummpv.app.ui.torrent.TorrentSelectionActivity
 import com.quantummpv.app.utils.device.DeviceFormFactor
