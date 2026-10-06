@@ -37,6 +37,11 @@ jobs:
     timeout-minutes: 60
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+
       - name: Resolve and validate release tag
         id: resolve-tag
         shell: bash
@@ -78,15 +83,9 @@ jobs:
           echo "EXPECTED_VERSION_NAME=${tag_name#v}" >> "$GITHUB_ENV"
           echo "TARGET_SHA=$tag_sha" >> "$GITHUB_OUTPUT"
 
-      - name: Checkout repository
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-        with:
-          ref: ${{ steps.resolve-tag.outputs.TARGET_SHA }}
-          fetch-depth: 0
-
       - name: Verify checkout state
         run: |
-          # 7. Verify that the tag points to the expected commit
+          # Verify that the tag points to the expected commit
           current_sha=$(git rev-parse HEAD)
           if [[ "$current_sha" != "${{ steps.resolve-tag.outputs.TARGET_SHA }}" ]]; then
             echo "Checkout SHA $current_sha does not match target SHA ${{ steps.resolve-tag.outputs.TARGET_SHA }}"
