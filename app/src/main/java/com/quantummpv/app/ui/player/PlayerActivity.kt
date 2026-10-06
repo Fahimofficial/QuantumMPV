@@ -104,6 +104,7 @@ import com.quantummpv.app.ui.browser.playlist.buildAllVideosPlaylistEntity
 import com.quantummpv.app.ui.browser.playlist.isAllVideosPlaylist
 import com.quantummpv.app.ui.cast.CastMediaSnapshot
 import com.quantummpv.app.ui.cast.CastPlaybackController
+import com.quantummpv.app.ui.player.SubtitleSelectionSource
 import com.quantummpv.app.ui.player.components.VideoAmbientBackground
 import com.quantummpv.app.ui.player.components.rememberVideoAmbientFrame
 import com.quantummpv.app.ui.player.controls.PlayerControls
@@ -4891,15 +4892,30 @@ class PlayerActivity :
     }
 
     // Always restore subtitle and audio tracks from saved state
-    // User's manual selection has highest priority
+    // Manual selection has highest priority, but respect auto-enable preference
+    val generation = PlaybackSession.state.value.generation
+    val autoEnableSubs = subtitlesPreferences.autoEnableSubtitles.get()
+    val src = if (autoEnableSubs) SubtitleSelectionSource.USER else SubtitleSelectionSource.INTERNAL
     if (state.sid > 0) {
-      player.sid = state.sid
-      Log.d(TAG, "Restored primary subtitle track: ${state.sid} (user selection)")
+      setTrackSelectionId(
+        "sid",
+        state.sid,
+        restoreSubtitleVisibility = true,
+        source = src,
+        generation = generation,
+      )
+      Log.d(TAG, "Restored primary subtitle track: ${state.sid} (autoEnableSubs=$autoEnableSubs)")
     }
 
     if (state.secondarySid > 0) {
-      player.secondarySid = state.secondarySid
-      Log.d(TAG, "Restored secondary subtitle track: ${state.secondarySid} (user selection)")
+      setTrackSelectionId(
+        "secondary-sid",
+        state.secondarySid,
+        restoreSubtitleVisibility = true,
+        source = src,
+        generation = generation,
+      )
+      Log.d(TAG, "Restored secondary subtitle track: ${state.secondarySid} (autoEnableSubs=$autoEnableSubs)")
     }
 
     applySubtitleLayout(
