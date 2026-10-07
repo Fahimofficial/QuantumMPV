@@ -80,6 +80,7 @@ object GlassComponents {
                     renderEffect = RenderEffect.createBlurEffect(
                         radiusX = glassConfig.blurLevel.renderEffectRadius.toFloat(),
                         radiusY = glassConfig.blurLevel.renderEffectRadius.toFloat(),
+                        edgeTreatment = android.graphics.Shader.TileMode.CLAMP,
                     ).asComposeRenderEffect()
                 }
         } else {

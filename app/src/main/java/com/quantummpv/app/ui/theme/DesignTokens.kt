@@ -419,6 +419,7 @@ object DesignTokens {
                         renderEffect = RenderEffect.createBlurEffect(
                             effectiveBlurLevel.renderEffectRadius.toFloat(),
                             effectiveBlurLevel.renderEffectRadius.toFloat(),
+                            android.graphics.Shader.TileMode.CLAMP,
                         ).asComposeRenderEffect()
                     }
                 } else {
