@@ -53,11 +53,11 @@ data class MotionPolicy(
    * Returns the animation intensity multiplier based on motion style.
    */
   val intensityMultiplier: Float
-    get() = when (motionStyle) {
-      MotionStyle.OFF -> 0f
-      MotionStyle.REDUCED -> 0.5f
-      MotionStyle.STANDARD -> 0.75f
-      MotionStyle.FULL -> 1f
+    get() = when {
+      motionStyle == MotionStyle.OFF -> 0f
+      motionStyle == MotionStyle.REDUCED -> 0.5f
+      motionStyle == MotionStyle.STANDARD -> 0.75f
+      else -> 1f
     }
   
   /**
