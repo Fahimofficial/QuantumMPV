@@ -2446,4 +2446,89 @@
   <string name="audio_swipe_delete_folder_message">Permanently delete %1$d audio files in %2$s and its subfolders? Other files and folders will be kept. This cannot be undone.</string>
   <string name="audio_swipe_loading">Collecting audio files</string>
   <string name="audio_swipe_folder_empty">No audio files found in this folder</string>
+
+  <!-- Glass/Surface Style System -->
+  <string name="surface_style_classic">Quantum Classic</string>
+  <string name="surface_style_classic_summary">Original QuantumMPV appearance with solid surfaces</string>
+  
+  <string name="surface_style_soft_glass">Quantum Soft Glass</string>
+  <string name="surface_style_soft_glass_summary">Subtle translucent surfaces with light blur</string>
+  
+  <string name="surface_style_frosted_glass">Quantum Frosted Glass</string>
+  <string name="surface_style_frosted_glass_summary">Frosted translucent surfaces with moderate blur</string>
+  
+  <string name="surface_style_clear_glass">Quantum Clear Glass</string>
+  <string name="surface_style_clear_glass_summary">Lower opacity glass with minimal visual treatment</string>
+  
+  <string name="surface_style_liquid_glass">Quantum Liquid Glass</string>
+  <string name="surface_style_liquid_glass_summary">Advanced glass with blur, depth, edge highlights, and dynamic tint</string>
+  
+  <string name="surface_style_amoled_glass">Quantum AMOLED Glass</string>
+  <string name="surface_style_amoled_glass_summary">Optimized for OLED with deep blacks and low-opacity surfaces</string>
+  
+  <string name="surface_style_cinema">Quantum Cinema</string>
+  <string name="surface_style_cinema_summary">Minimal player-focused appearance with immersive behavior</string>
+  
+  <string name="surface_style_minimal">Quantum Minimal</string>
+  <string name="surface_style_minimal_summary">Reduced decoration for simplicity and performance</string>
+
+  <string name="blur_level_off">Off</string>
+  <string name="blur_level_low">Low</string>
+  <string name="blur_level_medium">Medium</string>
+  <string name="blur_level_high">High</string>
+
+  <string name="motion_full">Full</string>
+  <string name="motion_full_summary">All animations at full intensity</string>
+  <string name="motion_standard">Standard</string>
+  <string name="motion_standard_summary">Balanced animation intensity</string>
+  <string name="motion_reduced">Reduced</string>
+  <string name="motion_reduced_summary">Subtle animations only</string>
+  <string name="motion_off">Off</string>
+  <string name="motion_off_summary">No animations</string>
+
+  <string name="performance_battery_saver">Battery Saver</string>
+  <string name="performance_battery_saver_summary">Minimal blur, no dynamic effects, simplified animations</string>
+  <string name="performance_balanced">Balanced</string>
+  <string name="performance_balanced_summary">Moderate blur and normal animations</string>
+  <string name="performance_quality">Quality</string>
+  <string name="performance_quality_summary">Rich blur and enhanced glass effects</string>
+  <string name="performance_automatic">Automatic</string>
+  <string name="performance_automatic_summary">Adapt quality based on device capability and battery</string>
+
+  <string name="dynamic_tint_off">Off</string>
+  <string name="dynamic_tint_off_summary">No dynamic tinting</string>
+  <string name="dynamic_tint_theme">Theme</string>
+  <string name="dynamic_tint_theme_summary">Tint surfaces with theme accent color</string>
+  <string name="dynamic_tint_media">Media</string>
+  <string name="dynamic_tint_media_summary">Adapt surface tint from current media artwork/frame</string>
+  <string name="dynamic_tint_adaptive">Adaptive</string>
+  <string name="dynamic_tint_adaptive_summary">Automatically choose best tint source</string>
+
+  <string name="edge_highlight_off">Off</string>
+  <string name="edge_highlight_off_summary">No edge highlights</string>
+  <string name="edge_highlight_subtle">Subtle</string>
+  <string name="edge_highlight_subtle_summary">Fine edge highlight for depth</string>
+  <string name="edge_highlight_strong">Strong</string>
+  <string name="edge_highlight_strong_summary">Pronounced edge highlight</string>
+
+  <string name="refraction_off">Off</string>
+  <string name="refraction_off_summary">No refraction effects</string>
+  <string name="refraction_subtle">Subtle</string>
+  <string name="refraction_subtle_summary">Gentle background distortion</string>
+  <string name="refraction_experimental">Experimental</string>
+  <string name="refraction_experimental_summary">Advanced refraction (may impact performance)</string>
+
+  <string name="pref_section_glass_surface">Glass and Surface</string>
+  <string name="pref_glass_surface_style_title">Surface Style</string>
+  <string name="pref_glass_intensity_title">Glass Intensity</string>
+  <string name="pref_glass_blur_level_title">Blur Quality</string>
+  <string name="pref_dynamic_tint_mode_title">Dynamic Tint</string>
+  <string name="pref_edge_highlight_mode_title">Edge Highlight</string>
+  <string name="pref_refraction_mode_title">Refraction</string>
+
+  <string name="pref_section_performance_motion">Performance and Motion</string>
+  <string name="pref_motion_style_title">Animation Style</string>
+  <string name="pref_performance_mode_title">Rendering Quality</string>
+  <string name="pref_cinema_mode_title">Cinema Mode</string>
+  <string name="pref_cinema_mode_summary">Minimal UI, auto-fade controls, immersive playback</string>
 </resources>

@@ -41,6 +41,13 @@ import com.quantummpv.app.ui.theme.AppTheme
 import com.quantummpv.app.ui.theme.CustomThemeDefinition
 import com.quantummpv.app.ui.theme.DarkMode
 import com.quantummpv.app.ui.theme.WallpaperScaleMode
+import com.quantummpv.app.ui.theme.DesignTokens.SurfaceStyle
+import com.quantummpv.app.ui.theme.DesignTokens.BlurLevel
+import com.quantummpv.app.ui.theme.DesignTokens.MotionStyle
+import com.quantummpv.app.ui.theme.DesignTokens.PerformanceMode
+import com.quantummpv.app.ui.theme.DesignTokens.DynamicTintMode
+import com.quantummpv.app.ui.theme.DesignTokens.EdgeHighlightMode
+import com.quantummpv.app.ui.theme.DesignTokens.RefractionMode
 import com.quantummpv.app.ui.theme.spacing
 import kotlinx.collections.immutable.ImmutableList
 
@@ -64,6 +71,33 @@ class AppearancePreferences(
   val customWallpaperAlpha = preferenceStore.getFloat("custom_wallpaper_alpha", 1f)
   val amoledMode = preferenceStore.getBoolean("amoled_mode", false)
   val glassBottomNavigation = preferenceStore.getBoolean("glass_bottom_navigation", false)
+  
+  // New Glass/Surface Style System
+  val surfaceStyle = preferenceStore.getEnum("surface_style", SurfaceStyle.CLASSIC)
+  val glassIntensity = preferenceStore.getFloat("glass_intensity", 0.85f)
+  val glassBlurLevel = preferenceStore.getEnum("glass_blur_level", BlurLevel.LOW)
+  val dynamicTintMode = preferenceStore.getEnum("dynamic_tint_mode", DynamicTintMode.OFF)
+  val edgeHighlightMode = preferenceStore.getEnum("edge_highlight_mode", EdgeHighlightMode.OFF)
+  val refractionMode = preferenceStore.getEnum("refraction_mode", RefractionMode.OFF)
+  val motionStyle = preferenceStore.getEnum("motion_style", MotionStyle.STANDARD)
+  val performanceMode = preferenceStore.getEnum("performance_mode", PerformanceMode.AUTOMATIC)
+  val cinemaMode = preferenceStore.getBoolean("cinema_mode", false)
+  
+  // Computed GlassConfig - combines all glass settings
+  // This is a computed property that always returns the current config based on preferences
+  val glassConfig: DesignTokens.GlassConfig
+    get() = DesignTokens.GlassConfig(
+      style = surfaceStyle.get(),
+      intensity = glassIntensity.get(),
+      blurLevel = glassBlurLevel.get(),
+      dynamicTint = dynamicTintMode.get(),
+      edgeHighlight = edgeHighlightMode.get(),
+      refraction = refractionMode.get(),
+      motionStyle = motionStyle.get(),
+      performanceMode = performanceMode.get(),
+      cinemaMode = cinemaMode.get(),
+    )
+
   val useSystemOsdFont = preferenceStore.getBoolean("use_system_osd_font", false)
   val useSystemFont = preferenceStore.getBoolean("use_system_font", false)
   val unlimitedNameLines = preferenceStore.getBoolean("unlimited_name_lines", false)

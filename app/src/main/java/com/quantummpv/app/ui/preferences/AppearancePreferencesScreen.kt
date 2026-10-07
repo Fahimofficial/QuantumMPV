@@ -70,6 +70,13 @@ import com.quantummpv.app.ui.preferences.components.SwitchPreference
 import com.quantummpv.app.ui.preferences.components.ThemePicker
 import com.quantummpv.app.ui.theme.CustomThemeDefinition
 import com.quantummpv.app.ui.theme.DarkMode
+import com.quantummpv.app.ui.theme.DesignTokens.SurfaceStyle
+import com.quantummpv.app.ui.theme.DesignTokens.BlurLevel
+import com.quantummpv.app.ui.theme.DesignTokens.MotionStyle
+import com.quantummpv.app.ui.theme.DesignTokens.PerformanceMode
+import com.quantummpv.app.ui.theme.DesignTokens.DynamicTintMode
+import com.quantummpv.app.ui.theme.DesignTokens.EdgeHighlightMode
+import com.quantummpv.app.ui.theme.DesignTokens.RefractionMode
 import com.quantummpv.app.ui.theme.LocalThemeTransitionState
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.LocalShowSettingsBackArrow
@@ -979,6 +986,181 @@ object AppearancePreferencesScreen : Screen {
                 summary = {
                   Text(
                     text = stringResource(id = R.string.pref_quick_play_fab_direct_summary),
+                    color = MaterialTheme.colorScheme.outline,
+                  )
+                },
+              )
+            }
+          }
+
+          // ── Glass & Surface Style ────────────────────────────────────────
+          item {
+            PreferenceSectionHeader(title = stringResource(R.string.pref_section_glass_surface))
+          }
+
+          item {
+            PreferenceCard {
+              val surfaceStyle by preferences.surfaceStyle.collectAsState()
+              ListPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_glass_surface_style_title),
+                value = surfaceStyle,
+                onValueChange = preferences.surfaceStyle::set,
+                values = SurfaceStyle.entries,
+                valueToText = { AnnotatedString(it.titleRes.stringResource()) },
+                title = { Text(stringResource(R.string.pref_glass_surface_style_title)) },
+                summary = {
+                  Text(
+                    surfaceStyle.titleRes.stringResource(),
+                    color = MaterialTheme.colorScheme.outline,
+                  )
+                },
+              )
+
+              PreferenceDivider()
+
+              val glassIntensity by preferences.glassIntensity.collectAsState()
+              SliderPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_glass_intensity_title),
+                value = glassIntensity,
+                onValueChange = { preferences.glassIntensity.set(it) },
+                title = { Text(stringResource(R.string.pref_glass_intensity_title)) },
+                valueRange = 0.1f..1f,
+                summary = {
+                  Text(
+                    "${(glassIntensity * 100).roundToInt()}%",
+                    color = MaterialTheme.colorScheme.outline,
+                  )
+                },
+                onSliderValueChange = { preferences.glassIntensity.set(it) },
+                sliderValue = glassIntensity,
+              )
+
+              PreferenceDivider()
+
+              val glassBlurLevel by preferences.glassBlurLevel.collectAsState()
+              ListPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_glass_blur_level_title),
+                value = glassBlurLevel,
+                onValueChange = preferences.glassBlurLevel::set,
+                values = BlurLevel.entries,
+                valueToText = { AnnotatedString(it.titleRes.stringResource()) },
+                title = { Text(stringResource(R.string.pref_glass_blur_level_title)) },
+                summary = {
+                  Text(
+                    glassBlurLevel.titleRes.stringResource(),
+                    color = MaterialTheme.colorScheme.outline,
+                  )
+                },
+              )
+
+              PreferenceDivider()
+
+              val dynamicTintMode by preferences.dynamicTintMode.collectAsState()
+              ListPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_dynamic_tint_mode_title),
+                value = dynamicTintMode,
+                onValueChange = preferences.dynamicTintMode::set,
+                values = DynamicTintMode.entries,
+                valueToText = { AnnotatedString(it.titleRes.stringResource()) },
+                title = { Text(stringResource(R.string.pref_dynamic_tint_mode_title)) },
+                summary = {
+                  Text(
+                    dynamicTintMode.titleRes.stringResource(),
+                    color = MaterialTheme.colorScheme.outline,
+                  )
+                },
+              )
+
+              PreferenceDivider()
+
+              val edgeHighlightMode by preferences.edgeHighlightMode.collectAsState()
+              ListPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_edge_highlight_mode_title),
+                value = edgeHighlightMode,
+                onValueChange = preferences.edgeHighlightMode::set,
+                values = EdgeHighlightMode.entries,
+                valueToText = { AnnotatedString(it.titleRes.stringResource()) },
+                title = { Text(stringResource(R.string.pref_edge_highlight_mode_title)) },
+                summary = {
+                  Text(
+                    edgeHighlightMode.titleRes.stringResource(),
+                    color = MaterialTheme.colorScheme.outline,
+                  )
+                },
+              )
+
+              PreferenceDivider()
+
+              val refractionMode by preferences.refractionMode.collectAsState()
+              ListPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_refraction_mode_title),
+                value = refractionMode,
+                onValueChange = preferences.refractionMode::set,
+                values = RefractionMode.entries,
+                valueToText = { AnnotatedString(it.titleRes.stringResource()) },
+                title = { Text(stringResource(R.string.pref_refraction_mode_title)) },
+                summary = {
+                  Text(
+                    refractionMode.titleRes.stringResource(),
+                    color = MaterialTheme.colorScheme.outline,
+                  )
+                },
+              )
+            }
+          }
+
+          // ── Performance & Motion ────────────────────────────────────────
+          item {
+            PreferenceSectionHeader(title = stringResource(R.string.pref_section_performance_motion))
+          }
+
+          item {
+            PreferenceCard {
+              val motionStyle by preferences.motionStyle.collectAsState()
+              ListPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_motion_style_title),
+                value = motionStyle,
+                onValueChange = preferences.motionStyle::set,
+                values = MotionStyle.entries,
+                valueToText = { AnnotatedString(it.titleRes.stringResource()) },
+                title = { Text(stringResource(R.string.pref_motion_style_title)) },
+                summary = {
+                  Text(
+                    motionStyle.titleRes.stringResource(),
+                    color = MaterialTheme.colorScheme.outline,
+                  )
+                },
+              )
+
+              PreferenceDivider()
+
+              val performanceMode by preferences.performanceMode.collectAsState()
+              ListPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_performance_mode_title),
+                value = performanceMode,
+                onValueChange = preferences.performanceMode::set,
+                values = PerformanceMode.entries,
+                valueToText = { AnnotatedString(it.titleRes.stringResource()) },
+                title = { Text(stringResource(R.string.pref_performance_mode_title)) },
+                summary = {
+                  Text(
+                    performanceMode.titleRes.stringResource(),
+                    color = MaterialTheme.colorScheme.outline,
+                  )
+                },
+              )
+
+              PreferenceDivider()
+
+              val cinemaMode by preferences.cinemaMode.collectAsState()
+              SwitchPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_cinema_mode_title),
+                value = cinemaMode,
+                onValueChange = preferences.cinemaMode::set,
+                title = { Text(stringResource(R.string.pref_cinema_mode_title)) },
+                summary = {
+                  Text(
+                    stringResource(R.string.pref_cinema_mode_summary),
                     color = MaterialTheme.colorScheme.outline,
                   )
                 },

@@ -23,22 +23,66 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import com.quantummpv.app.preferences.AppearancePreferences
+import com.quantummpv.app.preferences.preference.collectAsState
+import com.quantummpv.app.ui.theme.DesignTokens.MotionStyle
+import com.quantummpv.app.ui.theme.DesignTokens.PerformanceMode
+import org.koin.compose.koinInject
 
 /**
- * mpvRx motion policy — respects system reduce-motion accessibility setting.
+ * mpvRx motion policy — respects system reduce-motion accessibility setting and user preferences.
  * When reduce-motion is true, all animations use non-bouncing standard specs.
  */
 @Stable
 data class MotionPolicy(
   val reduceMotion: Boolean = false,
-)
+  val motionStyle: MotionStyle = MotionStyle.STANDARD,
+  val performanceMode: PerformanceMode = PerformanceMode.AUTOMATIC,
+) {
+  /**
+   * Returns true if animations should be reduced or disabled.
+   */
+  val shouldReduceAnimations: Boolean
+    get() = reduceMotion || motionStyle == MotionStyle.OFF || motionStyle == MotionStyle.REDUCED
+  
+  /**
+   * Returns true if all animations should be completely disabled.
+   */
+  val shouldDisableAnimations: Boolean
+    get() = motionStyle == MotionStyle.OFF
+  
+  /**
+   * Returns the animation intensity multiplier based on motion style.
+   */
+  val intensityMultiplier: Float
+    get() = when {
+      motionStyle == MotionStyle.OFF -> 0f
+      motionStyle == MotionStyle.REDUCED -> 0.5f
+      motionStyle == MotionStyle.STANDARD -> 0.75f
+      motionStyle == MotionStyle.FULL -> 1f
+    }
+  
+  /**
+   * Returns true if dynamic effects should be enabled based on performance mode.
+   */
+  val shouldEnableDynamicEffects: Boolean
+    get() = performanceMode.enableDynamicEffects && !reduceMotion && motionStyle != MotionStyle.OFF
+}
 
 val LocalMotionPolicy = staticCompositionLocalOf { MotionPolicy() }
 
 @Composable
 fun rememberMotionPolicy(): MotionPolicy {
-  LocalView.current
-  return MotionPolicy(reduceMotion = !ValueAnimator.areAnimatorsEnabled())
+  val preferences = koinInject<AppearancePreferences>()
+  val systemReduceMotion = !ValueAnimator.areAnimatorsEnabled()
+  val motionStyle by preferences.motionStyle.collectAsState()
+  val performanceMode by preferences.performanceMode.collectAsState()
+  
+  return MotionPolicy(
+    reduceMotion = systemReduceMotion,
+    motionStyle = motionStyle,
+    performanceMode = performanceMode,
+  )
 }
 
 /**
@@ -53,10 +97,19 @@ object AppMotion {
   fun <T> spatial(
     spec: FiniteAnimationSpec<T>,
     reduced: FiniteAnimationSpec<T>,
-  ): FiniteAnimationSpec<T> = if (policy().reduceMotion) reduced else spec
+  ): FiniteAnimationSpec<T> = if (policy().shouldReduceAnimations) reduced else spec
 
   @Composable
-  fun shouldReduceMotion(): Boolean = policy().reduceMotion
+  fun shouldReduceMotion(): Boolean = policy().shouldReduceAnimations
+  
+  @Composable
+  fun shouldDisableAnimations(): Boolean = policy().shouldDisableAnimations
+  
+  @Composable
+  fun intensityMultiplier(): Float = policy().intensityMultiplier
+  
+  @Composable
+  fun shouldEnableDynamicEffects(): Boolean = policy().shouldEnableDynamicEffects
 
   fun <T> noBounce(stiffness: Float): SpringSpec<T> =
     spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = stiffness)

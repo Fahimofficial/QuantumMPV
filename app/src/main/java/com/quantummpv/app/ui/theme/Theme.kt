@@ -61,6 +61,8 @@ import androidx.core.view.drawToBitmap
 import com.quantummpv.app.R
 import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.preference.collectAsState
+import com.quantummpv.app.ui.theme.DesignTokens.rememberGlassConfig
+import com.quantummpv.app.ui.theme.Motion.rememberMotionPolicy
 import org.koin.compose.koinInject
 import kotlin.math.hypot
 
@@ -316,6 +318,8 @@ fun MpvrxTheme(
     }
 
   // Provide theme transition state first, OUTSIDE MaterialExpressiveTheme
+  val glassConfig = rememberGlassConfig()
+  
   CompositionLocalProvider(
     LocalSpacing provides Spacing(),
     LocalThemeTransitionState provides transitionState,
@@ -323,6 +327,7 @@ fun MpvrxTheme(
     LocalEmphasizedTypography provides AppEmphasizedTypography,
     LocalDarkAppColorScheme provides darkColorScheme,
     LocalAppTheme provides appTheme,
+    DesignTokens.LocalGlassConfig provides glassConfig,
   ) {
     ThemeTransitionContent {
       MaterialExpressiveTheme(
