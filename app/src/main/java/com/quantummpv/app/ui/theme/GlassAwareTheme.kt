@@ -11,13 +11,9 @@ package com.quantummpv.app.ui.theme
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.ui.graphics.Color
-import com.quantummpv.app.preferences.AppearancePreferences
-import com.quantummpv.app.preferences.preference.collectAsState
-import com.quantummpv.app.ui.theme.DesignTokens.GlassConfig
 import com.quantummpv.app.ui.theme.DesignTokens.LocalGlassConfig
 import com.quantummpv.app.ui.theme.DesignTokens.SurfaceStyle
-import org.koin.compose.koinInject
+import com.quantummpv.app.ui.theme.DesignTokens.rememberGlassConfig
 
 /**
  * Glass-aware theme wrapper that provides the GlassConfig and adjusts Material3 theme
@@ -27,19 +23,16 @@ import org.koin.compose.koinInject
 fun GlassAwareTheme(
     content: @Composable () -> Unit,
 ) {
-    val preferences = koinInject<AppearancePreferences>()
-    val surfaceStyle by preferences.surfaceStyle.collectAsState()
-    val amoledMode by preferences.amoledMode.collectAsState()
-    
+    val glassConfig = rememberGlassConfig()
+
     // If classic or minimal style, just use standard theme
-    if (surfaceStyle == SurfaceStyle.CLASSIC || surfaceStyle == SurfaceStyle.MINIMAL) {
+    if (glassConfig.style == SurfaceStyle.CLASSIC || glassConfig.style == SurfaceStyle.MINIMAL) {
         content()
         return
     }
     
     // For glass styles, we might want to adjust the theme slightly
     // (e.g., reduce default surface opacities, adjust colors)
-    val glassConfig = preferences.glassConfig
     CompositionLocalProvider(
         LocalGlassConfig provides glassConfig,
     ) {
@@ -63,14 +56,7 @@ fun GlassAwareSurfaceColors(
         return
     }
     
-    // Glass styles might need adjusted surface colors
-    val colorScheme = androidx.compose.material3.MaterialTheme.colorScheme
-    val adjustedSurface = colorScheme.surface.copy(alpha = 
-        DesignTokens.calculateSurfaceOpacity(isOnVideo = isOnVideo, videoLuminance = videoLuminance)
-    )
-    
-    // This would require CompositionLocal for colorScheme, which is not easily replaceable
-    // For now, just provide the glass config
+    // Glass surfaces apply opacity locally; the global Material color scheme remains unchanged.
     CompositionLocalProvider(
         LocalGlassConfig provides glassConfig,
     ) {

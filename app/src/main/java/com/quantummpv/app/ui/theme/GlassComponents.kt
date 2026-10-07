@@ -9,49 +9,28 @@
 
 package com.quantummpv.app.ui.theme
 
+import android.graphics.RenderEffect
 import android.os.Build
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Surface
-import androidx.compose.material3.SurfaceDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.RenderEffect
-import androidx.compose.ui.graphics.RenderEffect.Companion.blur
-import androidx.compose.ui.graphics.ShaderBrush
-import androidx.compose.ui.graphics.blendMode
-import androidx.compose.ui.graphics.drawScope.drawRect
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.colorResource
+import androidx.compose.ui.graphics.asComposeRenderEffect
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.px
-import com.quantummpv.app.R
-import com.quantummpv.app.preferences.AppearancePreferences
-import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.ui.theme.DesignTokens.BlurLevel
 import com.quantummpv.app.ui.theme.DesignTokens.DynamicTintMode
 import com.quantummpv.app.ui.theme.DesignTokens.EdgeHighlightMode
-import com.quantummpv.app.ui.theme.DesignTokens.GlassConfig
 import com.quantummpv.app.ui.theme.DesignTokens.LocalGlassConfig
-import com.quantummpv.app.ui.theme.DesignTokens.PerformanceMode
-import com.quantummpv.app.ui.theme.DesignTokens.RefractionMode
 import com.quantummpv.app.ui.theme.DesignTokens.SurfaceStyle
 import com.quantummpv.app.ui.theme.DesignTokens.calculateSurfaceOpacity
-import org.koin.compose.koinInject
 
 /**
  * Reusable glass surface components for QuantumMPV.
@@ -79,7 +58,7 @@ object GlassComponents {
                 modifier = modifier,
                 shape = shape,
                 color = androidx.compose.material3.MaterialTheme.colorScheme.surface,
-                content = content,
+                content = { content() },
             )
             return
         }
@@ -101,7 +80,7 @@ object GlassComponents {
                     renderEffect = RenderEffect.createBlurEffect(
                         radiusX = glassConfig.blurLevel.renderEffectRadius.toFloat(),
                         radiusY = glassConfig.blurLevel.renderEffectRadius.toFloat(),
-                    )
+                    ).asComposeRenderEffect()
                 }
         } else {
             Modifier
@@ -140,7 +119,7 @@ object GlassComponents {
                 .then(dynamicTintModifier)
                 .background(surfaceColor, shape),
             contentAlignment = Alignment.Center,
-            content = content,
+            content = { content() },
         )
     }
     
@@ -158,7 +137,7 @@ object GlassComponents {
             Surface(
                 modifier = modifier
                     .background(androidx.compose.material3.MaterialTheme.colorScheme.surface),
-                content = content,
+                content = { content() },
             )
             return
         }
@@ -183,7 +162,7 @@ object GlassComponents {
                     }
                 ),
             contentAlignment = Alignment.Center,
-            content = content,
+            content = { content() },
         )
     }
     
@@ -201,7 +180,7 @@ object GlassComponents {
             Surface(
                 modifier = modifier
                     .background(androidx.compose.material3.MaterialTheme.colorScheme.surface),
-                content = content,
+                content = { content() },
             )
             return
         }
@@ -226,7 +205,7 @@ object GlassComponents {
                     }
                 ),
             contentAlignment = Alignment.Center,
-            content = content,
+            content = { content() },
         )
     }
     
@@ -244,7 +223,7 @@ object GlassComponents {
             Surface(
                 modifier = modifier
                     .background(androidx.compose.material3.MaterialTheme.colorScheme.surface),
-                content = content,
+                content = { content() },
             )
             return
         }
@@ -270,7 +249,7 @@ object GlassComponents {
                     }
                 ),
             contentAlignment = Alignment.Center,
-            content = content,
+            content = { content() },
         )
     }
     
@@ -290,7 +269,7 @@ object GlassComponents {
             Surface(
                 modifier = modifier
                     .background(androidx.compose.material3.MaterialTheme.colorScheme.surface),
-                content = content,
+                content = { content() },
             )
             return
         }
@@ -319,7 +298,7 @@ object GlassComponents {
                     }
                 ),
             contentAlignment = Alignment.Center,
-            content = content,
+            content = { content() },
         )
     }
     
@@ -338,7 +317,7 @@ object GlassComponents {
             Surface(
                 modifier = modifier
                     .background(androidx.compose.material3.MaterialTheme.colorScheme.surface),
-                content = content,
+                content = { content() },
             )
             return
         }
@@ -382,7 +361,7 @@ object GlassComponents {
                     }
                 ),
             contentAlignment = Alignment.Center,
-            content = content,
+            content = { content() },
         )
     }
     
@@ -400,7 +379,7 @@ object GlassComponents {
             Surface(
                 modifier = modifier
                     .background(androidx.compose.material3.MaterialTheme.colorScheme.surface),
-                content = content,
+                content = { content() },
             )
             return
         }
@@ -426,7 +405,7 @@ object GlassComponents {
                     }
                 ),
             contentAlignment = Alignment.Center,
-            content = content,
+            content = { content() },
         )
     }
     
@@ -448,7 +427,7 @@ object GlassComponents {
                         if (isSelected) androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer
                         else Color.Transparent
                     ),
-                content = content,
+                content = { content() },
             )
             return
         }
@@ -477,7 +456,7 @@ object GlassComponents {
                     }
                 ),
             contentAlignment = Alignment.Center,
-            content = content,
+            content = { content() },
         )
     }
 }

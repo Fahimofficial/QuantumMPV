@@ -1033,11 +1033,11 @@ object AppearancePreferencesScreen : Screen {
                 value = surfaceStyle,
                 onValueChange = preferences.surfaceStyle::set,
                 values = SurfaceStyle.entries,
-                valueToText = { AnnotatedString(it.titleRes.stringResource()) },
+                valueToText = { AnnotatedString(stringResource(id = it.titleRes)) },
                 title = { Text(stringResource(R.string.pref_glass_surface_style_title)) },
                 summary = {
                   Text(
-                    surfaceStyle.titleRes.stringResource(),
+                    stringResource(id = surfaceStyle.titleRes),
                     color = MaterialTheme.colorScheme.outline,
                   )
                 },
@@ -1070,11 +1070,11 @@ object AppearancePreferencesScreen : Screen {
                 value = glassBlurLevel,
                 onValueChange = preferences.glassBlurLevel::set,
                 values = BlurLevel.entries,
-                valueToText = { AnnotatedString(it.titleRes.stringResource()) },
+                valueToText = { AnnotatedString(stringResource(id = it.titleRes)) },
                 title = { Text(stringResource(R.string.pref_glass_blur_level_title)) },
                 summary = {
                   Text(
-                    glassBlurLevel.titleRes.stringResource(),
+                    stringResource(id = glassBlurLevel.titleRes),
                     color = MaterialTheme.colorScheme.outline,
                   )
                 },
@@ -1088,11 +1088,11 @@ object AppearancePreferencesScreen : Screen {
                 value = dynamicTintMode,
                 onValueChange = preferences.dynamicTintMode::set,
                 values = DynamicTintMode.entries,
-                valueToText = { AnnotatedString(it.titleRes.stringResource()) },
+                valueToText = { AnnotatedString(stringResource(id = it.titleRes)) },
                 title = { Text(stringResource(R.string.pref_dynamic_tint_mode_title)) },
                 summary = {
                   Text(
-                    dynamicTintMode.titleRes.stringResource(),
+                    stringResource(id = dynamicTintMode.titleRes),
                     color = MaterialTheme.colorScheme.outline,
                   )
                 },
@@ -1106,11 +1106,11 @@ object AppearancePreferencesScreen : Screen {
                 value = edgeHighlightMode,
                 onValueChange = preferences.edgeHighlightMode::set,
                 values = EdgeHighlightMode.entries,
-                valueToText = { AnnotatedString(it.titleRes.stringResource()) },
+                valueToText = { AnnotatedString(stringResource(id = it.titleRes)) },
                 title = { Text(stringResource(R.string.pref_edge_highlight_mode_title)) },
                 summary = {
                   Text(
-                    edgeHighlightMode.titleRes.stringResource(),
+                    stringResource(id = edgeHighlightMode.titleRes),
                     color = MaterialTheme.colorScheme.outline,
                   )
                 },
@@ -1124,11 +1124,11 @@ object AppearancePreferencesScreen : Screen {
                 value = refractionMode,
                 onValueChange = preferences.refractionMode::set,
                 values = RefractionMode.entries,
-                valueToText = { AnnotatedString(it.titleRes.stringResource()) },
+                valueToText = { AnnotatedString(stringResource(id = it.titleRes)) },
                 title = { Text(stringResource(R.string.pref_refraction_mode_title)) },
                 summary = {
                   Text(
-                    refractionMode.titleRes.stringResource(),
+                    stringResource(id = refractionMode.titleRes),
                     color = MaterialTheme.colorScheme.outline,
                   )
                 },
@@ -1149,11 +1149,11 @@ object AppearancePreferencesScreen : Screen {
                 value = motionStyle,
                 onValueChange = preferences.motionStyle::set,
                 values = MotionStyle.entries,
-                valueToText = { AnnotatedString(it.titleRes.stringResource()) },
+                valueToText = { AnnotatedString(stringResource(id = it.titleRes)) },
                 title = { Text(stringResource(R.string.pref_motion_style_title)) },
                 summary = {
                   Text(
-                    motionStyle.titleRes.stringResource(),
+                    stringResource(id = motionStyle.titleRes),
                     color = MaterialTheme.colorScheme.outline,
                   )
                 },
@@ -1167,11 +1167,11 @@ object AppearancePreferencesScreen : Screen {
                 value = performanceMode,
                 onValueChange = preferences.performanceMode::set,
                 values = PerformanceMode.entries,
-                valueToText = { AnnotatedString(it.titleRes.stringResource()) },
+                valueToText = { AnnotatedString(stringResource(id = it.titleRes)) },
                 title = { Text(stringResource(R.string.pref_performance_mode_title)) },
                 summary = {
                   Text(
-                    performanceMode.titleRes.stringResource(),
+                    stringResource(id = performanceMode.titleRes),
                     color = MaterialTheme.colorScheme.outline,
                   )
                 },

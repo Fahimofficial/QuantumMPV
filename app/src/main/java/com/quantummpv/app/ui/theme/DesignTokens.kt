@@ -9,6 +9,11 @@
 
 package com.quantummpv.app.ui.theme
 
+import android.graphics.RenderEffect
+import android.os.Build
+import androidx.annotation.StringRes
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -18,7 +23,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -309,8 +316,26 @@ object DesignTokens {
     @Composable
     fun rememberGlassConfig(): GlassConfig {
         val preferences = koinInject<AppearancePreferences>()
-        val config by preferences.glassConfig.collectAsState()
-        return config
+        val style by preferences.surfaceStyle.collectAsState()
+        val intensity by preferences.glassIntensity.collectAsState()
+        val blurLevel by preferences.glassBlurLevel.collectAsState()
+        val dynamicTint by preferences.dynamicTintMode.collectAsState()
+        val edgeHighlight by preferences.edgeHighlightMode.collectAsState()
+        val refraction by preferences.refractionMode.collectAsState()
+        val motionStyle by preferences.motionStyle.collectAsState()
+        val performanceMode by preferences.performanceMode.collectAsState()
+        val cinemaMode by preferences.cinemaMode.collectAsState()
+        return GlassConfig(
+            style = style,
+            intensity = intensity,
+            blurLevel = blurLevel,
+            dynamicTint = dynamicTint,
+            edgeHighlight = edgeHighlight,
+            refraction = refraction,
+            motionStyle = motionStyle,
+            performanceMode = performanceMode,
+            cinemaMode = cinemaMode,
+        )
     }
     
     // ============================================================================
@@ -389,27 +414,29 @@ object DesignTokens {
             val blurModifier = if (effectiveBlurLevel != BlurLevel.OFF && 
                    glassConfig.performanceMode.maxBlurLevel.ordinal >= effectiveBlurLevel.ordinal) {
                 // Use RenderEffect for blur (API 31+)
-                if (android.os.Build.VERSION.SDK_INT >= 31) {
-                    @Suppress("UNUSED_PARAMETER")
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                     Modifier.graphicsLayer {
-                        // Note: Actual RenderEffect blur would be applied here
-                        // For now using alpha layering as fallback
+                        renderEffect = RenderEffect.createBlurEffect(
+                            effectiveBlurLevel.renderEffectRadius.toFloat(),
+                            effectiveBlurLevel.renderEffectRadius.toFloat(),
+                        ).asComposeRenderEffect()
                     }
                 } else {
-                    this
+                    Modifier
                 }
             } else {
-                this
+                Modifier
             }
-            
+
             // Apply background color with opacity
             val backgroundModifier = this
+                .then(blurModifier)
                 .graphicsLayer { alpha = 1f } // Ensure content opacity
                 .then(
                     if (effectiveOpacity < 1f) {
                         Modifier.background(surfaceColor)
                     } else {
-                        this
+                        Modifier
                     }
                 )
             

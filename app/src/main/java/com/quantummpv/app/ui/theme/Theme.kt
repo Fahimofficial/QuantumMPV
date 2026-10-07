@@ -62,7 +62,6 @@ import com.quantummpv.app.R
 import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.ui.theme.DesignTokens.rememberGlassConfig
-import com.quantummpv.app.ui.theme.Motion.rememberMotionPolicy
 import org.koin.compose.koinInject
 import kotlin.math.hypot
 

@@ -17,8 +17,6 @@ import androidx.compose.animation.core.spring
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.staticCompositionLocalOf
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
@@ -55,11 +53,11 @@ data class MotionPolicy(
    * Returns the animation intensity multiplier based on motion style.
    */
   val intensityMultiplier: Float
-    get() = when {
-      motionStyle == MotionStyle.OFF -> 0f
-      motionStyle == MotionStyle.REDUCED -> 0.5f
-      motionStyle == MotionStyle.STANDARD -> 0.75f
-      motionStyle == MotionStyle.FULL -> 1f
+    get() = when (motionStyle) {
+      MotionStyle.OFF -> 0f
+      MotionStyle.REDUCED -> 0.5f
+      MotionStyle.STANDARD -> 0.75f
+      MotionStyle.FULL -> 1f
     }
   
   /**
