@@ -37,7 +37,6 @@ import com.quantummpv.app.ui.theme.DesignTokens.calculateSurfaceOpacity
  * These components respect the global GlassConfig and provide consistent glass effects.
  */
 object GlassComponents {
-
     /**
      * A glass surface that adapts to the current GlassConfig.
      * Use this instead of Material3 Surface for glass-enabled surfaces.

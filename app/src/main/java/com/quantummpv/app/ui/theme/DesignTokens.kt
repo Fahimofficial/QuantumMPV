@@ -17,11 +17,8 @@ import androidx.compose.foundation.border
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.graphics.Color
@@ -39,7 +36,6 @@ import org.koin.compose.koinInject
  * Provides reusable tokens for spacing, radius, typography, shadows, and glass effects.
  */
 object DesignTokens {
-
     // ============================================================================
     // Spacing Tokens
     // ============================================================================
@@ -189,7 +185,7 @@ object DesignTokens {
             supportsDynamicTint = false,
             supportsEdgeHighlight = false,
             supportsRefraction = false,
-        );
+        )
     }
 
     enum class BlurLevel(
@@ -256,7 +252,7 @@ object DesignTokens {
 
     data class GlassConfig(
         val style: SurfaceStyle = SurfaceStyle.CLASSIC,
-        val intensity: Float = 1f,           // 0 = transparent, 1 = opaque
+        val intensity: Float = 1f, // 0 = transparent, 1 = opaque
         val blurLevel: BlurLevel = BlurLevel.OFF,
         val dynamicTint: DynamicTintMode = DynamicTintMode.OFF,
         val edgeHighlight: EdgeHighlightMode = EdgeHighlightMode.OFF,
