@@ -43,7 +43,7 @@ object DesignTokens {
     // ============================================================================
     // Spacing Tokens
     // ============================================================================
-    
+
     object Spacing {
         val xs = 4.dp
         val sm = 8.dp
@@ -57,7 +57,7 @@ object DesignTokens {
     // ============================================================================
     // Radius Tokens
     // ============================================================================
-    
+
     object Radius {
         val compact = 4.dp
         val standard = 8.dp
@@ -71,7 +71,7 @@ object DesignTokens {
     // ============================================================================
     // Typography Scale
     // ============================================================================
-    
+
     object TypeScale {
         val displayLarge = 57.sp
         val displayMedium = 45.sp
@@ -93,7 +93,7 @@ object DesignTokens {
     // ============================================================================
     // Shadow Elevation Tokens
     // ============================================================================
-    
+
     object Elevation {
         val level0 = 0.dp
         val level1 = 1.dp
@@ -108,7 +108,7 @@ object DesignTokens {
     // ============================================================================
     // Surface Style Enum
     // ============================================================================
-    
+
     enum class SurfaceStyle(
         @StringRes val titleRes: Int,
         @StringRes val summaryRes: Int,
@@ -253,7 +253,7 @@ object DesignTokens {
     // ============================================================================
     // Glass Surface Configuration
     // ============================================================================
-    
+
     data class GlassConfig(
         val style: SurfaceStyle = SurfaceStyle.CLASSIC,
         val intensity: Float = 1f,           // 0 = transparent, 1 = opaque
@@ -303,9 +303,9 @@ object DesignTokens {
     // ============================================================================
     // CompositionLocal for GlassConfig
     // ============================================================================
-    
+
     val LocalGlassConfig = staticCompositionLocalOf { GlassConfig() }
-    
+
     @Composable
     fun GlassConfigProvider(config: GlassConfig, content: @Composable () -> Unit) {
         CompositionLocalProvider(LocalGlassConfig provides config) {
@@ -337,11 +337,11 @@ object DesignTokens {
             cinemaMode = cinemaMode,
         )
     }
-    
+
     // ============================================================================
     // Surface Opacity Calculator
     // ============================================================================
-    
+
     /**
      * Computes effective surface opacity based on glass config, theme, and content.
      * Ensures accessibility contrast requirements are met.
@@ -353,12 +353,12 @@ object DesignTokens {
         videoLuminance: Float = 0.5f, // 0 = dark, 1 = bright
     ): Float {
         val glassConfig = LocalGlassConfig.current
-        
+
         if (glassConfig.style == SurfaceStyle.CLASSIC) return baseOpacity
         if (glassConfig.style == SurfaceStyle.MINIMAL) return baseOpacity * 0.95f
-        
+
         var opacity = glassConfig.intensity * baseOpacity
-        
+
         // Adjust for video content behind glass
         if (isOnVideo) {
             // Dark video -> lighter surface for contrast
@@ -372,24 +372,24 @@ object DesignTokens {
             }
             opacity = (opacity + contrastAdjustment).coerceIn(0.3f, 1f)
         }
-        
+
         // Cinema mode: slightly more opaque for immersion
         if (glassConfig.cinemaMode) {
             opacity = (opacity + 0.1f).coerceAtMost(1f)
         }
-        
+
         // Performance mode: reduce opacity if needed for battery
         if (glassConfig.performanceMode == PerformanceMode.BATTERY_SAVER) {
             opacity = (opacity + 0.15f).coerceAtMost(1f)
         }
-        
+
         return opacity
     }
-    
+
     // ============================================================================
     // Glass Surface Modifier
     // ============================================================================
-    
+
     @Composable
     fun Modifier.glassSurface(
         isOnVideo: Boolean = false,
@@ -398,20 +398,20 @@ object DesignTokens {
         customBlurLevel: BlurLevel? = null,
     ): Modifier {
         val glassConfig = LocalGlassConfig.current
-        
+
         if (glassConfig.style == SurfaceStyle.CLASSIC || glassConfig.style == SurfaceStyle.MINIMAL) {
             return this
         }
-        
+
         val effectiveBlurLevel = customBlurLevel ?: glassConfig.blurLevel
         val effectiveOpacity =
             customOpacity ?: calculateSurfaceOpacity(isOnVideo = isOnVideo, videoLuminance = videoLuminance)
-        
+
         return composed {
             val colorScheme = androidx.compose.material3.MaterialTheme.colorScheme
             val surfaceColor = colorScheme.surface.copy(alpha = effectiveOpacity)
-            
-            val blurModifier = if (effectiveBlurLevel != BlurLevel.OFF && 
+
+            val blurModifier = if (effectiveBlurLevel != BlurLevel.OFF &&
                    glassConfig.performanceMode.maxBlurLevel.ordinal >= effectiveBlurLevel.ordinal) {
                 // Use RenderEffect for blur (API 31+)
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -439,7 +439,7 @@ object DesignTokens {
                         Modifier
                     }
                 )
-            
+
             // Edge highlight
             val withEdgeHighlight = if (glassConfig.edgeHighlight != EdgeHighlightMode.OFF &&
                    glassConfig.style.supportsEdgeHighlight) {
@@ -457,7 +457,7 @@ object DesignTokens {
             } else {
                 backgroundModifier
             }
-            
+
             // Dynamic tint
             val withDynamicTint = if (glassConfig.dynamicTint != DynamicTintMode.OFF &&
                    glassConfig.style.supportsDynamicTint) {
@@ -466,7 +466,7 @@ object DesignTokens {
             } else {
                 withEdgeHighlight
             }
-            
+
             withDynamicTint
         }
     }

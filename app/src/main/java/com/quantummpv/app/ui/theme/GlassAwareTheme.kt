@@ -30,7 +30,7 @@ fun GlassAwareTheme(
         content()
         return
     }
-    
+
     // For glass styles, we might want to adjust the theme slightly
     // (e.g., reduce default surface opacities, adjust colors)
     CompositionLocalProvider(
@@ -50,12 +50,12 @@ fun GlassAwareSurfaceColors(
     content: @Composable () -> Unit,
 ) {
     val glassConfig = LocalGlassConfig.current
-    
+
     if (glassConfig.style == SurfaceStyle.CLASSIC || glassConfig.style == SurfaceStyle.MINIMAL) {
         content()
         return
     }
-    
+
     // Glass surfaces apply opacity locally; the global Material color scheme remains unchanged.
     CompositionLocalProvider(
         LocalGlassConfig provides glassConfig,

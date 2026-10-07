@@ -51,7 +51,7 @@ object GlassComponents {
         content: @Composable () -> Unit,
     ) {
         val glassConfig = LocalGlassConfig.current
-        
+
         // Quick path for classic/minimal styles
         if (glassConfig.style == SurfaceStyle.CLASSIC || glassConfig.style == SurfaceStyle.MINIMAL) {
             Surface(
@@ -62,15 +62,15 @@ object GlassComponents {
             )
             return
         }
-        
+
         val effectiveOpacity = calculateSurfaceOpacity(
             isOnVideo = isOnVideo,
             videoLuminance = videoLuminance,
         )
-        
+
         val colorScheme = androidx.compose.material3.MaterialTheme.colorScheme
         val surfaceColor = colorScheme.surface.copy(alpha = effectiveOpacity)
-        
+
         // Blur effect (API 31+)
         val blurModifier = if (glassConfig.blurLevel != BlurLevel.OFF &&
                glassConfig.performanceMode.maxBlurLevel.ordinal >= glassConfig.blurLevel.ordinal &&
@@ -85,7 +85,7 @@ object GlassComponents {
         } else {
             Modifier
         }
-        
+
         // Edge highlight
         val edgeHighlightModifier = if (glassConfig.edgeHighlight != EdgeHighlightMode.OFF &&
                glassConfig.style.supportsEdgeHighlight) {
@@ -102,7 +102,7 @@ object GlassComponents {
         } else {
             Modifier
         }
-        
+
         // Dynamic tint overlay
         val dynamicTintModifier = if (glassConfig.dynamicTint != DynamicTintMode.OFF &&
                glassConfig.style.supportsDynamicTint) {
@@ -111,7 +111,7 @@ object GlassComponents {
         } else {
             Modifier
         }
-        
+
         Box(
             modifier = modifier
                 .then(blurModifier)
@@ -122,7 +122,7 @@ object GlassComponents {
             content = { content() },
         )
     }
-    
+
     /**
      * Glass bottom navigation bar background
      */
@@ -132,7 +132,7 @@ object GlassComponents {
         content: @Composable () -> Unit,
     ) {
         val glassConfig = LocalGlassConfig.current
-        
+
         if (glassConfig.style == SurfaceStyle.CLASSIC || glassConfig.style == SurfaceStyle.MINIMAL) {
             Surface(
                 modifier = modifier
@@ -141,10 +141,10 @@ object GlassComponents {
             )
             return
         }
-        
+
         val effectiveOpacity = calculateSurfaceOpacity()
         val surfaceColor = androidx.compose.material3.MaterialTheme.colorScheme.surface.copy(alpha = effectiveOpacity)
-        
+
         Box(
             modifier = modifier
                 .background(surfaceColor)
@@ -165,7 +165,7 @@ object GlassComponents {
             content = { content() },
         )
     }
-    
+
     /**
      * Glass bottom sheet background
      */
@@ -175,7 +175,7 @@ object GlassComponents {
         content: @Composable () -> Unit,
     ) {
         val glassConfig = LocalGlassConfig.current
-        
+
         if (glassConfig.style == SurfaceStyle.CLASSIC || glassConfig.style == SurfaceStyle.MINIMAL) {
             Surface(
                 modifier = modifier
@@ -184,10 +184,10 @@ object GlassComponents {
             )
             return
         }
-        
+
         val effectiveOpacity = (calculateSurfaceOpacity() + 0.1f).coerceAtMost(1f)
         val surfaceColor = androidx.compose.material3.MaterialTheme.colorScheme.surface.copy(alpha = effectiveOpacity)
-        
+
         Box(
             modifier = modifier
                 .background(surfaceColor)
@@ -208,7 +208,7 @@ object GlassComponents {
             content = { content() },
         )
     }
-    
+
     /**
      * Glass dialog/overlay background
      */
@@ -218,7 +218,7 @@ object GlassComponents {
         content: @Composable () -> Unit,
     ) {
         val glassConfig = LocalGlassConfig.current
-        
+
         if (glassConfig.style == SurfaceStyle.CLASSIC || glassConfig.style == SurfaceStyle.MINIMAL) {
             Surface(
                 modifier = modifier
@@ -227,10 +227,10 @@ object GlassComponents {
             )
             return
         }
-        
+
         val effectiveOpacity = (calculateSurfaceOpacity() + 0.05f).coerceAtMost(1f)
         val surfaceColor = androidx.compose.material3.MaterialTheme.colorScheme.surface.copy(alpha = effectiveOpacity)
-        
+
         Box(
             modifier = modifier
                 .background(surfaceColor)
@@ -252,7 +252,7 @@ object GlassComponents {
             content = { content() },
         )
     }
-    
+
     /**
      * Glass player control surface (for top/bottom bars, seekbar area, menus)
      */
@@ -264,7 +264,7 @@ object GlassComponents {
         content: @Composable () -> Unit,
     ) {
         val glassConfig = LocalGlassConfig.current
-        
+
         if (glassConfig.style == SurfaceStyle.CLASSIC || glassConfig.style == SurfaceStyle.MINIMAL) {
             Surface(
                 modifier = modifier
@@ -273,14 +273,14 @@ object GlassComponents {
             )
             return
         }
-        
+
         val effectiveOpacity = calculateSurfaceOpacity(
             isOnVideo = isOnVideo,
             videoLuminance = videoLuminance,
         )
-        
+
         val surfaceColor = androidx.compose.material3.MaterialTheme.colorScheme.surface.copy(alpha = effectiveOpacity)
-        
+
         Box(
             modifier = modifier
                 .background(surfaceColor)
@@ -301,7 +301,7 @@ object GlassComponents {
             content = { content() },
         )
     }
-    
+
     /**
      * Glass mini-player surface
      */
@@ -312,7 +312,7 @@ object GlassComponents {
         content: @Composable () -> Unit,
     ) {
         val glassConfig = LocalGlassConfig.current
-        
+
         if (glassConfig.style == SurfaceStyle.CLASSIC || glassConfig.style == SurfaceStyle.MINIMAL) {
             Surface(
                 modifier = modifier
@@ -321,18 +321,18 @@ object GlassComponents {
             )
             return
         }
-        
+
         val effectiveOpacity = (calculateSurfaceOpacity() + 0.1f).coerceAtMost(1f)
         val surfaceColor = androidx.compose.material3.MaterialTheme.colorScheme.surface.copy(alpha = effectiveOpacity)
-        
+
         // Animate surface appearance
         val animatedOpacity by animateFloatAsState(
             targetValue = effectiveOpacity,
             animationSpec = tween(300),
         )
-        
+
         val animatedColor = surfaceColor.copy(alpha = animatedOpacity)
-        
+
         Box(
             modifier = modifier
                 .background(animatedColor)
@@ -364,7 +364,7 @@ object GlassComponents {
             content = { content() },
         )
     }
-    
+
     /**
      * Glass media card surface
      */
@@ -374,7 +374,7 @@ object GlassComponents {
         content: @Composable () -> Unit,
     ) {
         val glassConfig = LocalGlassConfig.current
-        
+
         if (glassConfig.style == SurfaceStyle.CLASSIC || glassConfig.style == SurfaceStyle.MINIMAL) {
             Surface(
                 modifier = modifier
@@ -383,11 +383,11 @@ object GlassComponents {
             )
             return
         }
-        
+
         // Media cards use lighter glass treatment
         val effectiveOpacity = (calculateSurfaceOpacity() * 0.9f).coerceAtMost(1f)
         val surfaceColor = androidx.compose.material3.MaterialTheme.colorScheme.surface.copy(alpha = effectiveOpacity)
-        
+
         Box(
             modifier = modifier
                 .background(surfaceColor)
@@ -408,7 +408,7 @@ object GlassComponents {
             content = { content() },
         )
     }
-    
+
     /**
      * Glass navigation pill background
      */
@@ -419,7 +419,7 @@ object GlassComponents {
         content: @Composable () -> Unit,
     ) {
         val glassConfig = LocalGlassConfig.current
-        
+
         if (glassConfig.style == SurfaceStyle.CLASSIC || glassConfig.style == SurfaceStyle.MINIMAL) {
             Surface(
                 modifier = modifier
@@ -431,14 +431,14 @@ object GlassComponents {
             )
             return
         }
-        
+
         val surfaceColor = if (isSelected) {
             androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f)
         } else {
-            androidx.compose.material3.MaterialTheme.colorScheme.surface.copy(alpha = 
+            androidx.compose.material3.MaterialTheme.colorScheme.surface.copy(alpha =
                 calculateSurfaceOpacity() * 0.7f)
         }
-        
+
         Box(
             modifier = modifier
                 .background(surfaceColor)

@@ -71,7 +71,7 @@ class AppearancePreferences(
   val customWallpaperAlpha = preferenceStore.getFloat("custom_wallpaper_alpha", 1f)
   val amoledMode = preferenceStore.getBoolean("amoled_mode", false)
   val glassBottomNavigation = preferenceStore.getBoolean("glass_bottom_navigation", false)
-  
+
   // New Glass/Surface Style System
   val surfaceStyle = preferenceStore.getEnum("surface_style", SurfaceStyle.CLASSIC)
   val glassIntensity = preferenceStore.getFloat("glass_intensity", 0.85f)
@@ -82,7 +82,7 @@ class AppearancePreferences(
   val motionStyle = preferenceStore.getEnum("motion_style", MotionStyle.STANDARD)
   val performanceMode = preferenceStore.getEnum("performance_mode", PerformanceMode.AUTOMATIC)
   val cinemaMode = preferenceStore.getBoolean("cinema_mode", false)
-  
+
   // Computed GlassConfig - combines all glass settings
   // This is a computed property that always returns the current config based on preferences
   val glassConfig: DesignTokens.GlassConfig

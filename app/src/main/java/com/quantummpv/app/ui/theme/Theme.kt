@@ -318,7 +318,7 @@ fun MpvrxTheme(
 
   // Provide theme transition state first, OUTSIDE MaterialExpressiveTheme
   val glassConfig = rememberGlassConfig()
-  
+
   CompositionLocalProvider(
     LocalSpacing provides Spacing(),
     LocalThemeTransitionState provides transitionState,

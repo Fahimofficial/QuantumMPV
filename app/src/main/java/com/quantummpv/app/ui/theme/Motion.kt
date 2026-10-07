@@ -42,13 +42,13 @@ data class MotionPolicy(
    */
   val shouldReduceAnimations: Boolean
     get() = reduceMotion || motionStyle == MotionStyle.OFF || motionStyle == MotionStyle.REDUCED
-  
+
   /**
    * Returns true if all animations should be completely disabled.
    */
   val shouldDisableAnimations: Boolean
     get() = motionStyle == MotionStyle.OFF
-  
+
   /**
    * Returns the animation intensity multiplier based on motion style.
    */
@@ -59,7 +59,7 @@ data class MotionPolicy(
       motionStyle == MotionStyle.STANDARD -> 0.75f
       else -> 1f
     }
-  
+
   /**
    * Returns true if dynamic effects should be enabled based on performance mode.
    */
@@ -75,7 +75,7 @@ fun rememberMotionPolicy(): MotionPolicy {
   val systemReduceMotion = !ValueAnimator.areAnimatorsEnabled()
   val motionStyle by preferences.motionStyle.collectAsState()
   val performanceMode by preferences.performanceMode.collectAsState()
-  
+
   return MotionPolicy(
     reduceMotion = systemReduceMotion,
     motionStyle = motionStyle,
@@ -99,13 +99,13 @@ object AppMotion {
 
   @Composable
   fun shouldReduceMotion(): Boolean = policy().shouldReduceAnimations
-  
+
   @Composable
   fun shouldDisableAnimations(): Boolean = policy().shouldDisableAnimations
-  
+
   @Composable
   fun intensityMultiplier(): Float = policy().intensityMultiplier
-  
+
   @Composable
   fun shouldEnableDynamicEffects(): Boolean = policy().shouldEnableDynamicEffects
 

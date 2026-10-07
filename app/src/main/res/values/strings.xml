@@ -2450,25 +2450,25 @@
   <!-- Glass/Surface Style System -->
   <string name="surface_style_classic">Quantum Classic</string>
   <string name="surface_style_classic_summary">Original QuantumMPV appearance with solid surfaces</string>
-  
+
   <string name="surface_style_soft_glass">Quantum Soft Glass</string>
   <string name="surface_style_soft_glass_summary">Subtle translucent surfaces with light blur</string>
-  
+
   <string name="surface_style_frosted_glass">Quantum Frosted Glass</string>
   <string name="surface_style_frosted_glass_summary">Frosted translucent surfaces with moderate blur</string>
-  
+
   <string name="surface_style_clear_glass">Quantum Clear Glass</string>
   <string name="surface_style_clear_glass_summary">Lower opacity glass with minimal visual treatment</string>
-  
+
   <string name="surface_style_liquid_glass">Quantum Liquid Glass</string>
   <string name="surface_style_liquid_glass_summary">Advanced glass with blur, depth, edge highlights, and dynamic tint</string>
-  
+
   <string name="surface_style_amoled_glass">Quantum AMOLED Glass</string>
   <string name="surface_style_amoled_glass_summary">Optimized for OLED with deep blacks and low-opacity surfaces</string>
-  
+
   <string name="surface_style_cinema">Quantum Cinema</string>
   <string name="surface_style_cinema_summary">Minimal player-focused appearance with immersive behavior</string>
-  
+
   <string name="surface_style_minimal">Quantum Minimal</string>
   <string name="surface_style_minimal_summary">Reduced decoration for simplicity and performance</string>
 
