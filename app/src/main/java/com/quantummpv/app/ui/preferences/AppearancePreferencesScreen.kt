@@ -256,8 +256,8 @@ object AppearancePreferencesScreen : Screen {
                   )
                   Text(
                     text =
-                        "${stringResource(darkMode.titleRes)} \u00B7 "
-                            + "${selectedCustomTheme?.name ?: stringResource(appTheme.titleRes)}",
+                        "${stringResource(darkMode.titleRes)} \u00B7 " +
+                            (selectedCustomTheme?.name ?: stringResource(appTheme.titleRes)),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.outline,
                   )
