@@ -379,7 +379,8 @@ object DesignTokens {
         }
         
         val effectiveBlurLevel = customBlurLevel ?: glassConfig.blurLevel
-        val effectiveOpacity = customOpacity ?: calculateSurfaceOpacity(isOnVideo = isOnVideo, videoLuminance = videoLuminance)
+        val effectiveOpacity =
+            customOpacity ?: calculateSurfaceOpacity(isOnVideo = isOnVideo, videoLuminance = videoLuminance)
         
         return composed {
             val colorScheme = androidx.compose.material3.MaterialTheme.colorScheme
@@ -421,7 +422,11 @@ object DesignTokens {
                     else -> Color.Transparent
                 }
                 backgroundModifier
-                    .border(width = 1.dp, color = highlightColor, shape = androidx.compose.material3.MaterialTheme.shapes.medium)
+                    .border(
+                      width = 1.dp,
+                      color = highlightColor,
+                      shape = androidx.compose.material3.MaterialTheme.shapes.medium,
+                    )
             } else {
                 backgroundModifier
             }

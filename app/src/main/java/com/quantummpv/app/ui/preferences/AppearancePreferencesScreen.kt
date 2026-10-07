@@ -255,13 +255,16 @@ object AppearancePreferencesScreen : Screen {
                     fontWeight = FontWeight.SemiBold,
                   )
                   Text(
-                    text = "${stringResource(darkMode.titleRes)} · ${selectedCustomTheme?.name ?: stringResource(appTheme.titleRes)}",
+                    text =
+                        "${stringResource(darkMode.titleRes)} \u00B7 "
+                            + "${selectedCustomTheme?.name ?: stringResource(appTheme.titleRes)}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.outline,
                   )
                 }
                 Icon(
-                  imageVector = if (isThemeSectionExpanded) Icons.RoundedFilled.ExpandLess else Icons.RoundedFilled.ExpandMore,
+                  imageVector =
+                      if (isThemeSectionExpanded) Icons.RoundedFilled.ExpandLess else Icons.RoundedFilled.ExpandMore,
                   contentDescription = null,
                   modifier = Modifier.size(20.dp),
                   tint = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -305,7 +308,10 @@ object AppearancePreferencesScreen : Screen {
                     selectedCustomThemeName = selectedCustomThemeName,
                     isDarkMode = isDarkMode,
                     onThemeSelected = { theme, position ->
-                      if ((theme != appTheme || selectedCustomThemeName.isNotBlank()) && themeTransition?.isAnimating != true) {
+                      if (
+                        (theme != appTheme || selectedCustomThemeName.isNotBlank()) &&
+                        themeTransition?.isAnimating != true
+                      ) {
                         themeTransition?.startTransition(position)
                         scope.launch {
                           delay(50)
@@ -337,10 +343,24 @@ object AppearancePreferencesScreen : Screen {
 
                   PreferenceCard {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                      Text(stringResource(R.string.pref_appearance_custom_wallpaper_title), style = MaterialTheme.typography.titleMedium)
-                      Text(stringResource(R.string.pref_appearance_custom_wallpaper_summary), color = MaterialTheme.colorScheme.outline, style = MaterialTheme.typography.bodySmall)
-                      if (customWallpaperUri.isNotBlank() && !customWallpaperUri.startsWith("data:", ignoreCase = true)) {
-                        Text(customWallpaperUri.substringAfterLast('/'), style = MaterialTheme.typography.bodySmall, maxLines = 1)
+                      Text(
+                          stringResource(R.string.pref_appearance_custom_wallpaper_title),
+                          style = MaterialTheme.typography.titleMedium,
+                        )
+                        Text(
+                          stringResource(R.string.pref_appearance_custom_wallpaper_summary),
+                          color = MaterialTheme.colorScheme.outline,
+                          style = MaterialTheme.typography.bodySmall,
+                        )
+                      if (
+                          customWallpaperUri.isNotBlank() &&
+                          !customWallpaperUri.startsWith("data:", ignoreCase = true)
+                        ) {
+                        Text(
+                          customWallpaperUri.substringAfterLast('/'),
+                          style = MaterialTheme.typography.bodySmall,
+                          maxLines = 1,
+                        )
                       }
                       Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -352,7 +372,12 @@ object AppearancePreferencesScreen : Screen {
                           contentPadding = PaddingValues(horizontal = 8.dp),
                         ) {
                           Text(
-                            stringResource(if (customWallpaperUri.isBlank()) R.string.pref_appearance_custom_wallpaper_choose else R.string.pref_appearance_custom_wallpaper_replace_action),
+                            stringResource(
+                              if (customWallpaperUri.isBlank())
+                                R.string.pref_appearance_custom_wallpaper_choose
+                              else
+                                R.string.pref_appearance_custom_wallpaper_replace_action,
+                            ),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                           )
@@ -375,7 +400,9 @@ object AppearancePreferencesScreen : Screen {
                               preferences.customWallpaperZoom.set(1f)
                               preferences.customWallpaperOffsetX.set(0f)
                               preferences.customWallpaperOffsetY.set(0f)
-                              preferences.customWallpaperScaleMode.set(com.quantummpv.app.ui.theme.WallpaperScaleMode.Fit)
+                              preferences.customWallpaperScaleMode.set(
+                              com.quantummpv.app.ui.theme.WallpaperScaleMode.Fit,
+                            )
                             },
                             modifier = Modifier.weight(1f),
                             contentPadding = PaddingValues(horizontal = 8.dp),

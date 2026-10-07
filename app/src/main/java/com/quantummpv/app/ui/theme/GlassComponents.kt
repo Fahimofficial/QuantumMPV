@@ -261,7 +261,8 @@ object GlassComponents {
                         Modifier
                             .border(
                                 width = 1.dp,
-                                color = androidx.compose.material3.MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
+                                color = androidx.compose.material3.MaterialTheme.colorScheme.outline
+                                    .copy(alpha = 0.15f),
                                 shape = androidx.compose.material3.MaterialTheme.shapes.large,
                             )
                     } else {

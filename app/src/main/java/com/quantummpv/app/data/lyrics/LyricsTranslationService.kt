@@ -128,7 +128,8 @@ class LyricsTranslationService(
     targetLanguage: String,
     cacheKey: String? = null,
   ): LyricsTranslationOutcome = withContext(Dispatchers.IO) {
-    val requestedLineCount = lyrics.synced?.count { it.line.isNotBlank() } ?: lyrics.plain?.count { it.isNotBlank() } ?: 0
+    val requestedLineCount =
+        lyrics.synced?.count { it.line.isNotBlank() } ?: lyrics.plain?.count { it.isNotBlank() } ?: 0
     if (!lyrics.isValid()) return@withContext LyricsTranslationOutcome(lyrics, 0, requestedLineCount)
 
     val key = cacheKey?.let { "${it}_${lyrics.hashCode()}_$targetLanguage" }
@@ -201,11 +202,12 @@ class LyricsTranslationService(
     val translatedLines = lines.mapIndexed { index, original ->
       val res = translations.getOrNull(index)
       if (res != null) {
-        val text = if (targetLanguage == "romaji" || targetLanguage == "hinglish" || targetLanguage == "hinglish_casual") {
-          res.romanization ?: res.translation
-        } else {
-          res.translation
-        }
+        val text =
+            if (targetLanguage == "romaji" || targetLanguage == "hinglish" || targetLanguage == "hinglish_casual") {
+              res.romanization ?: res.translation
+            } else {
+              res.translation
+            }
         if (text.isNotBlank() && !text.equals(original.trim(), ignoreCase = true)) {
           "$original\n$text"
         } else {
@@ -291,7 +293,9 @@ class LyricsTranslationService(
    * Devanagari/Gurmukhi lines — route each line correctly instead of one script's lines
    * accidentally being treated as the other's.
    */
-  private suspend fun handleHinglishCasualTransliteration(texts: List<String>): List<TranslationResult> = coroutineScope {
+  private suspend fun handleHinglishCasualTransliteration(
+    texts: List<String>,
+  ): List<TranslationResult> = coroutineScope {
     // Determine per-line script so a mixed English + Devanagari/Gurmukhi song doesn't get
     // misclassified as a whole. Latin lines are left completely untouched (no diacritic
     // stripping) so English contractions like "I'm" / "can't" are never mangled.
@@ -564,7 +568,10 @@ class LyricsTranslationService(
         }
       }
     }
-    if (latinCount == 0 && nonLatinLetterCount == 0) return true // no letters at all (punctuation/blank) — leave untouched
+    if (latinCount == 0 && nonLatinLetterCount == 0) {
+        // no letters at all (punctuation/blank) — leave untouched
+        return true
+      }
     return latinCount >= nonLatinLetterCount
   }
 

@@ -503,7 +503,9 @@ class MainActivity : AppCompatActivity() {
     // These flows are only fallback state for builds where the updater is compiled out. Remember
     // them once so navigator recompositions do not allocate three new StateFlow instances and
     // create fresh collectAsState subscriptions.
-    val fallbackUpdateState = remember { MutableStateFlow<UpdateViewModel.UpdateState>(UpdateViewModel.UpdateState.Idle) }
+    val fallbackUpdateState = remember {
+      MutableStateFlow<UpdateViewModel.UpdateState>(UpdateViewModel.UpdateState.Idle)
+    }
     val fallbackIsDownloading = remember { MutableStateFlow(false) }
     val fallbackDownloadProgress = remember { MutableStateFlow(0f) }
     val updateState by (updateViewModel?.updateState ?: fallbackUpdateState).collectAsState()
@@ -576,8 +578,10 @@ class MainActivity : AppCompatActivity() {
               // which slides left when the mini player appears.
               else -> {
                 val isNavBarOnScreen = NavigationBarState.isNavBarVisible
-                val navBarLeft = if (NavigationBarState.navbarLeftOffset > 0.dp) NavigationBarState.navbarLeftOffset else 16.dp
-                val navBarWidth = if (NavigationBarState.navbarWidth > 0.dp) NavigationBarState.navbarWidth else 320.dp
+                val navBarLeft =
+                    if (NavigationBarState.navbarLeftOffset > 0.dp) NavigationBarState.navbarLeftOffset else 16.dp
+                val navBarWidth =
+                    if (NavigationBarState.navbarWidth > 0.dp) NavigationBarState.navbarWidth else 320.dp
                 val startPadding = if (isNavBarOnScreen) (navBarLeft + navBarWidth + 12.dp) else 12.dp
                 val bottomPadding = if (NavigationBarState.isInSelectionMode) {
                   NavigationBarState.selectionBarClearance
