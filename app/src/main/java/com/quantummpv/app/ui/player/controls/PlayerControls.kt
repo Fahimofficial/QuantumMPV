@@ -165,8 +165,8 @@ import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.ui.player.controls.components.tvInitialFocus
 import com.quantummpv.app.ui.player.declaredMediaKind
 import com.quantummpv.app.ui.theme.controlColor
-import com.quantummpv.app.ui.theme.rememberMotionPolicy
 import com.quantummpv.app.ui.theme.playerRippleConfiguration
+import com.quantummpv.app.ui.theme.rememberMotionPolicy
 import com.quantummpv.app.ui.theme.spacing
 import com.quantummpv.app.utils.device.DeviceFormFactor
 import kotlinx.collections.immutable.persistentListOf
@@ -187,6 +187,22 @@ fun <T> playerControlsExitAnimationSpec(durationMillis: Int = 300): FiniteAnimat
 
 fun <T> playerControlsEnterAnimationSpec(durationMillis: Int = 100): FiniteAnimationSpec<T> =
   tween(durationMillis = durationMillis, easing = LinearOutSlowInEasing)
+
+private fun transparentOverlayAnimation(
+  controlsShown: Boolean,
+  controlsLocked: Boolean,
+  animationsDisabled: Boolean,
+  animationSpeed: Float,
+): Pair<Float, FiniteAnimationSpec<Float>> {
+  val showing = controlsShown && !controlsLocked
+  val targetAlpha = if (showing) 0.8f else 0f
+  val animationSpec = when {
+    animationsDisabled -> snap()
+    showing -> playerControlsEnterAnimationSpec((100 * animationSpeed).toInt().coerceAtLeast(30))
+    else -> playerControlsExitAnimationSpec((300 * animationSpeed).toInt().coerceAtLeast(50))
+  }
+  return targetAlpha to animationSpec
+}
 
 @OptIn(
   ExperimentalMaterial3Api::class,
@@ -541,15 +557,16 @@ fun PlayerControls(
 
   val videoOpenAnim by playerPreferences.videoOpenAnimation.collectAsState()
   val animSpeed by playerPreferences.animationSpeed.collectAsState()
+  val (transparentOverlayTarget, transparentOverlaySpec) = transparentOverlayAnimation(
+    controlsShown = controlsShown,
+    controlsLocked = areControlsLocked,
+    animationsDisabled = motionPolicy.shouldDisableAnimations,
+    animationSpeed = animSpeed,
+  )
 
   val transparentOverlay by animateFloatAsState(
-    if (controlsShown && !areControlsLocked) .8f else 0f,
-    animationSpec =
-      if (controlsShown && !areControlsLocked) {
-        playerControlsEnterAnimationSpec((100 * animSpeed).toInt().coerceAtLeast(30))
-      } else {
-        playerControlsExitAnimationSpec((300 * animSpeed).toInt().coerceAtLeast(50))
-      },
+    transparentOverlayTarget,
+    animationSpec = transparentOverlaySpec,
     label = "controls_transparent_overlay",
   )
 
