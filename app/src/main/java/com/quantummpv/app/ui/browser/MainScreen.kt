@@ -25,7 +25,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -50,7 +49,6 @@ import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
@@ -105,8 +103,7 @@ import com.quantummpv.app.ui.player.NavigationAnimStyle
 import com.quantummpv.app.ui.player.controls.components.rememberTvInitialFocusRequester
 import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.ui.player.controls.components.tvInitialFocus
-import com.quantummpv.app.ui.theme.glassBorderColor
-import com.quantummpv.app.ui.theme.glassContainerColor
+import com.quantummpv.app.ui.theme.GlassComponents.GlassNavigationPill
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.NavigationPager
 import com.quantummpv.app.ui.utils.navigateTo
@@ -671,27 +668,8 @@ private fun ExpressivePillNavigationBar(
   val indicatorLeft = androidx.compose.ui.unit.lerp(tabOffsets[pageFloor], tabOffsets[pageCeil], pageFraction)
   val indicatorWidth = androidx.compose.ui.unit.lerp(tabWidths[pageFloor], tabWidths[pageCeil], pageFraction)
 
-  Surface(
-    modifier = modifier,
-    shape = CircleShape,
-    color =
-      if (glass) {
-        glassContainerColor(MaterialTheme.colorScheme.surfaceContainerHigh)
-      } else {
-        MaterialTheme.colorScheme.surfaceContainerHigh
-      },
-    tonalElevation = if (glass) 2.dp else 6.dp,
-    shadowElevation = if (glass) 5.dp else 8.dp,
-    border =
-      if (glass) {
-        BorderStroke(
-          width = 1.dp,
-          color = glassBorderColor(),
-        )
-      } else {
-        null
-      },
-  ) {
+  // Use the new GlassNavigationPill component for consistent glass effects
+  GlassNavigationPill(modifier = modifier, isSelected = false) {
     Box(
       modifier =
         Modifier
