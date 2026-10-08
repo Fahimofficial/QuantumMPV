@@ -14,6 +14,7 @@ import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.SpringSpec
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.snap
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
@@ -94,12 +95,19 @@ object AppMotion {
   @Composable
   fun policy(): MotionPolicy = LocalMotionPolicy.current
 
-  /** Selects [reduced] when the current policy requests reduced animations, or [spec] otherwise. */
+  /** Selects an immediate snap for Off, [reduced] for reduced motion, or [spec] otherwise. */
   @Composable
   fun <T> spatial(
     spec: FiniteAnimationSpec<T>,
     reduced: FiniteAnimationSpec<T>,
-  ): FiniteAnimationSpec<T> = if (policy().shouldReduceAnimations) reduced else spec
+  ): FiniteAnimationSpec<T> {
+    val motionPolicy = policy()
+    return when {
+      motionPolicy.shouldDisableAnimations -> snap()
+      motionPolicy.shouldReduceAnimations -> reduced
+      else -> spec
+    }
+  }
 
   /** Returns whether system or user settings request reduced or disabled motion. */
   @Composable

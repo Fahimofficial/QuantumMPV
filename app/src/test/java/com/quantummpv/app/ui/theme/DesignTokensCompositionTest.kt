@@ -16,6 +16,7 @@ import com.quantummpv.app.ui.theme.DesignTokens.SurfaceStyle
 import com.quantummpv.app.ui.theme.DesignTokens.calculateSurfaceOpacity
 import com.quantummpv.app.ui.theme.DesignTokens.glassSurface
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertSame
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -162,7 +163,13 @@ class DesignTokensCompositionTest {
           compose {
             CompositionLocalProvider(LocalMotionPolicy provides policy) {
               assertSame(policy, AppMotion.policy())
-              assertSame(if (policy.shouldReduceAnimations) reduced else normal, AppMotion.spatial(normal, reduced))
+              val selected = AppMotion.spatial(normal, reduced)
+              if (policy.shouldDisableAnimations) {
+                assertNotSame(normal, selected)
+                assertNotSame(reduced, selected)
+              } else {
+                assertSame(if (policy.shouldReduceAnimations) reduced else normal, selected)
+              }
               assertEquals(policy.shouldReduceAnimations, AppMotion.shouldReduceMotion())
               assertEquals(policy.shouldDisableAnimations, AppMotion.shouldDisableAnimations())
               assertEquals(policy.intensityMultiplier, AppMotion.intensityMultiplier(), 0f)
