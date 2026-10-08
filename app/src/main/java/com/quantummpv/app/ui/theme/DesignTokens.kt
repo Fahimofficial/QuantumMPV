@@ -9,8 +9,6 @@
 
 package com.quantummpv.app.ui.theme
 
-import android.graphics.RenderEffect
-import android.os.Build
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -22,8 +20,6 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asComposeRenderEffect
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.quantummpv.app.R
@@ -391,7 +387,6 @@ object DesignTokens {
         isOnVideo: Boolean = false,
         videoLuminance: Float = 0.5f,
         customOpacity: Float? = null,
-        customBlurLevel: BlurLevel? = null,
     ): Modifier {
         val glassConfig = LocalGlassConfig.current
 
@@ -399,7 +394,6 @@ object DesignTokens {
             return this
         }
 
-        val effectiveBlurLevel = customBlurLevel ?: glassConfig.blurLevel
         val effectiveOpacity =
             customOpacity ?: calculateSurfaceOpacity(isOnVideo = isOnVideo, videoLuminance = videoLuminance)
 
@@ -407,28 +401,8 @@ object DesignTokens {
             val colorScheme = androidx.compose.material3.MaterialTheme.colorScheme
             val surfaceColor = colorScheme.surface.copy(alpha = effectiveOpacity)
 
-            val blurModifier = if (effectiveBlurLevel != BlurLevel.OFF &&
-                   glassConfig.performanceMode.maxBlurLevel.ordinal >= effectiveBlurLevel.ordinal) {
-                // Use RenderEffect for blur (API 31+)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    Modifier.graphicsLayer {
-                        renderEffect = RenderEffect.createBlurEffect(
-                            effectiveBlurLevel.renderEffectRadius.toFloat(),
-                            effectiveBlurLevel.renderEffectRadius.toFloat(),
-                            android.graphics.Shader.TileMode.CLAMP,
-                        ).asComposeRenderEffect()
-                    }
-                } else {
-                    Modifier
-                }
-            } else {
-                Modifier
-            }
-
             // Apply background color with opacity
             val backgroundModifier = this
-                .then(blurModifier)
-                .graphicsLayer { alpha = 1f } // Ensure content opacity
                 .then(
                     Modifier.background(
                         color = surfaceColor,

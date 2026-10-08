@@ -25,6 +25,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -49,6 +50,7 @@ import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
@@ -103,7 +105,7 @@ import com.quantummpv.app.ui.player.NavigationAnimStyle
 import com.quantummpv.app.ui.player.controls.components.rememberTvInitialFocusRequester
 import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.ui.player.controls.components.tvInitialFocus
-import com.quantummpv.app.ui.theme.GlassComponents.GlassNavigationPill
+import com.quantummpv.app.ui.theme.GlassComponents
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.NavigationPager
 import com.quantummpv.app.ui.utils.navigateTo
@@ -668,8 +670,32 @@ private fun ExpressivePillNavigationBar(
   val indicatorLeft = androidx.compose.ui.unit.lerp(tabOffsets[pageFloor], tabOffsets[pageCeil], pageFraction)
   val indicatorWidth = androidx.compose.ui.unit.lerp(tabWidths[pageFloor], tabWidths[pageCeil], pageFraction)
 
-  // Use the new GlassNavigationPill component for consistent glass effects
-  GlassNavigationPill(modifier = modifier, isSelected = false) {
+  val navigationContainer: @Composable (@Composable () -> Unit) -> Unit = if (glass) {
+    { content ->
+      GlassComponents.GlassNavigationPill(
+        modifier = modifier,
+        shape = CircleShape,
+        content = content,
+      )
+    }
+  } else {
+    { content ->
+      Surface(
+        modifier = modifier,
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        tonalElevation = 6.dp,
+        shadowElevation = 8.dp,
+        border = BorderStroke(
+          width = 1.dp,
+          color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.48f),
+        ),
+        content = content,
+      )
+    }
+  }
+
+  navigationContainer {
     Box(
       modifier =
         Modifier

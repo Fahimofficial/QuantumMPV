@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.AlertDialogDefaults
 import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -30,7 +31,7 @@ import com.quantummpv.app.ui.player.controls.components.rememberTvInitialFocusRe
 import com.quantummpv.app.ui.player.controls.components.tvFocusGroup
 import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.ui.player.controls.components.tvInitialFocus
-import com.quantummpv.app.ui.theme.GlassComponents.GlassDialogBackground
+import com.quantummpv.app.ui.theme.GlassComponents
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -47,59 +48,59 @@ fun ConfirmDialog(
     onCancel,
     modifier = modifier,
   ) {
-    GlassDialogBackground(
-      modifier = Modifier
-        .fillMaxWidth()
-        .padding(28.dp),
-      content = {
-        Column(
-          verticalArrangement = Arrangement.spacedBy(20.dp),
+    GlassComponents.GlassDialogBackground(
+      shape = MaterialTheme.shapes.extraLarge,
+      classicColor = AlertDialogDefaults.containerColor,
+      classicTonalElevation = AlertDialogDefaults.TonalElevation,
+    ) {
+      Column(
+        modifier = Modifier.fillMaxWidth().padding(28.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
+      ) {
+        Text(
+          title,
+          style = MaterialTheme.typography.headlineMedium,
+          fontWeight = FontWeight.Bold,
+          color = AlertDialogDefaults.titleContentColor,
+        )
+        Text(
+          subtitle,
+          style = MaterialTheme.typography.bodyLarge,
+          fontWeight = FontWeight.Medium,
+          color = AlertDialogDefaults.textContentColor,
+        )
+        if (customContent != null) {
+          customContent()
+        }
+        Row(
+          Modifier.fillMaxWidth().tvFocusGroup(),
+          horizontalArrangement = Arrangement.End,
         ) {
-          Text(
-            title,
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface,
-          )
-          Text(
-            subtitle,
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.Medium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-          )
-          if (customContent != null) {
-            customContent()
-          }
-          Row(
-            Modifier.fillMaxWidth().tvFocusGroup(),
-            horizontalArrangement = Arrangement.End,
+          TextButton(
+            onCancel,
+            shape = MaterialTheme.shapes.extraLarge,
+            modifier =
+              Modifier
+                .tvInitialFocus(initialFocusRequester)
+                .tvFocusHighlight(MaterialTheme.shapes.extraLarge, focusedScale = 1.04f),
           ) {
-            TextButton(
-              onCancel,
-              shape = MaterialTheme.shapes.extraLarge,
-              modifier =
-                Modifier
-                  .tvInitialFocus(initialFocusRequester)
-                  .tvFocusHighlight(MaterialTheme.shapes.extraLarge, focusedScale = 1.04f),
-            ) {
-              Text(
-                stringResource(R.string.generic_cancel),
-                fontWeight = FontWeight.Medium,
-              )
-            }
-            TextButton(
-              onConfirm,
-              shape = MaterialTheme.shapes.extraLarge,
-              modifier = Modifier.tvFocusHighlight(MaterialTheme.shapes.extraLarge, focusedScale = 1.04f),
-            ) {
-              Text(
-                stringResource(R.string.generic_confirm),
-                fontWeight = FontWeight.Bold,
-              )
-            }
+            Text(
+              stringResource(R.string.generic_cancel),
+              fontWeight = FontWeight.Medium,
+            )
+          }
+          TextButton(
+            onConfirm,
+            shape = MaterialTheme.shapes.extraLarge,
+            modifier = Modifier.tvFocusHighlight(MaterialTheme.shapes.extraLarge, focusedScale = 1.04f),
+          ) {
+            Text(
+              stringResource(R.string.generic_confirm),
+              fontWeight = FontWeight.Bold,
+            )
           }
         }
-      },
-    )
+      }
+    }
   }
 }

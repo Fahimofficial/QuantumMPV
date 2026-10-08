@@ -11,17 +11,21 @@ package com.quantummpv.app.ui.theme
 
 import android.graphics.RenderEffect
 import android.os.Build
+import androidx.compose.animation.core.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.matchParentSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
@@ -44,7 +48,7 @@ object GlassComponents {
     @Composable
     fun GlassSurface(
         modifier: Modifier = Modifier,
-        shape: androidx.compose.ui.graphics.Shape = androidx.compose.material3.MaterialTheme.shapes.medium,
+        shape: Shape = androidx.compose.material3.MaterialTheme.shapes.medium,
         isOnVideo: Boolean = false,
         videoLuminance: Float = 0.5f,
         content: @Composable () -> Unit,
@@ -70,18 +74,24 @@ object GlassComponents {
         val colorScheme = androidx.compose.material3.MaterialTheme.colorScheme
         val surfaceColor = colorScheme.surface.copy(alpha = effectiveOpacity)
 
-        // Blur effect (API 31+)
-        val blurModifier = if (glassConfig.blurLevel != BlurLevel.OFF &&
-               glassConfig.performanceMode.maxBlurLevel.ordinal >= glassConfig.blurLevel.ordinal &&
-               android.os.Build.VERSION.SDK_INT >= 31) {
-            Modifier
-                .graphicsLayer {
-                    renderEffect = RenderEffect.createBlurEffect(
-                        glassConfig.blurLevel.renderEffectRadius.toFloat(),
-                        glassConfig.blurLevel.renderEffectRadius.toFloat(),
-                        android.graphics.Shader.TileMode.CLAMP,
-                    ).asComposeRenderEffect()
-                }
+        // Keep blur on a sibling background layer so foreground content stays sharp.
+        val effectiveBlurLevel = if (glassConfig.blurLevel.ordinal <=
+            glassConfig.performanceMode.maxBlurLevel.ordinal
+        ) {
+            glassConfig.blurLevel
+        } else {
+            glassConfig.performanceMode.maxBlurLevel
+        }
+        val blurModifier = if (effectiveBlurLevel != BlurLevel.OFF &&
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+        ) {
+            Modifier.graphicsLayer {
+                renderEffect = RenderEffect.createBlurEffect(
+                    effectiveBlurLevel.renderEffectRadius.toFloat(),
+                    effectiveBlurLevel.renderEffectRadius.toFloat(),
+                    android.graphics.Shader.TileMode.CLAMP,
+                ).asComposeRenderEffect()
+            }
         } else {
             Modifier
         }
@@ -116,13 +126,19 @@ object GlassComponents {
 
         Box(
             modifier = modifier
-                .then(blurModifier)
-                .then(edgeHighlightModifier)
-                .background(surfaceColor, shape)
-                .then(dynamicTintModifier),
+                .clip(shape)
+                .then(edgeHighlightModifier),
             contentAlignment = Alignment.Center,
-            content = { content() },
-        )
+        ) {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .then(blurModifier)
+                    .background(surfaceColor, shape)
+                    .then(dynamicTintModifier),
+            )
+            content()
+        }
     }
 
     /**
@@ -146,10 +162,12 @@ object GlassComponents {
 
         val effectiveOpacity = calculateSurfaceOpacity()
         val surfaceColor = androidx.compose.material3.MaterialTheme.colorScheme.surface.copy(alpha = effectiveOpacity)
+        val containerShape = androidx.compose.material3.MaterialTheme.shapes.medium
 
         Box(
             modifier = modifier
-                .background(surfaceColor)
+                .clip(containerShape)
+                .background(surfaceColor, containerShape)
                 .then(
                     if (glassConfig.edgeHighlight != EdgeHighlightMode.OFF &&
                        glassConfig.style.supportsEdgeHighlight) {
@@ -157,7 +175,7 @@ object GlassComponents {
                             .border(
                                 width = 1.dp,
                                 color = androidx.compose.material3.MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
-                                shape = androidx.compose.material3.MaterialTheme.shapes.medium,
+                                shape = containerShape,
                             )
                     } else {
                         Modifier
@@ -189,10 +207,12 @@ object GlassComponents {
 
         val effectiveOpacity = (calculateSurfaceOpacity() + 0.1f).coerceAtMost(1f)
         val surfaceColor = androidx.compose.material3.MaterialTheme.colorScheme.surface.copy(alpha = effectiveOpacity)
+        val containerShape = androidx.compose.material3.MaterialTheme.shapes.large
 
         Box(
             modifier = modifier
-                .background(surfaceColor)
+                .clip(containerShape)
+                .background(surfaceColor, containerShape)
                 .then(
                     if (glassConfig.edgeHighlight != EdgeHighlightMode.OFF &&
                        glassConfig.style.supportsEdgeHighlight) {
@@ -200,7 +220,7 @@ object GlassComponents {
                             .border(
                                 width = 1.dp,
                                 color = androidx.compose.material3.MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
-                                shape = androidx.compose.material3.MaterialTheme.shapes.large,
+                                shape = containerShape,
                             )
                     } else {
                         Modifier
@@ -217,14 +237,19 @@ object GlassComponents {
     @Composable
     fun GlassDialogBackground(
         modifier: Modifier = Modifier,
+        shape: Shape = androidx.compose.material3.MaterialTheme.shapes.extraLarge,
+        classicColor: Color = androidx.compose.material3.MaterialTheme.colorScheme.surface,
+        classicTonalElevation: androidx.compose.ui.unit.Dp = 0.dp,
         content: @Composable () -> Unit,
     ) {
         val glassConfig = LocalGlassConfig.current
 
         if (glassConfig.style == SurfaceStyle.CLASSIC || glassConfig.style == SurfaceStyle.MINIMAL) {
             Surface(
-                modifier = modifier
-                    .background(androidx.compose.material3.MaterialTheme.colorScheme.surface),
+                modifier = modifier,
+                shape = shape,
+                color = classicColor,
+                tonalElevation = classicTonalElevation,
                 content = { content() },
             )
             return
@@ -235,7 +260,8 @@ object GlassComponents {
 
         Box(
             modifier = modifier
-                .background(surfaceColor)
+                .clip(shape)
+                .background(surfaceColor, shape)
                 .then(
                     if (glassConfig.edgeHighlight != EdgeHighlightMode.OFF &&
                        glassConfig.style.supportsEdgeHighlight) {
@@ -244,7 +270,7 @@ object GlassComponents {
                                 width = 1.dp,
                                 color = androidx.compose.material3.MaterialTheme.colorScheme.outline
                                     .copy(alpha = 0.15f),
-                                shape = androidx.compose.material3.MaterialTheme.shapes.large,
+                                shape = shape,
                             )
                     } else {
                         Modifier
@@ -282,10 +308,12 @@ object GlassComponents {
         )
 
         val surfaceColor = androidx.compose.material3.MaterialTheme.colorScheme.surface.copy(alpha = effectiveOpacity)
+        val containerShape = androidx.compose.material3.MaterialTheme.shapes.medium
 
         Box(
             modifier = modifier
-                .background(surfaceColor)
+                .clip(containerShape)
+                .background(surfaceColor, containerShape)
                 .then(
                     if (glassConfig.edgeHighlight != EdgeHighlightMode.OFF &&
                        glassConfig.style.supportsEdgeHighlight) {
@@ -293,7 +321,7 @@ object GlassComponents {
                             .border(
                                 width = 1.dp,
                                 color = androidx.compose.material3.MaterialTheme.colorScheme.outline.copy(alpha = 0.1f),
-                                shape = androidx.compose.material3.MaterialTheme.shapes.medium,
+                                shape = containerShape,
                             )
                     } else {
                         Modifier
@@ -310,7 +338,6 @@ object GlassComponents {
     @Composable
     fun GlassMiniPlayerSurface(
         modifier: Modifier = Modifier,
-        isExpanded: Boolean = false,
         content: @Composable () -> Unit,
     ) {
         val glassConfig = LocalGlassConfig.current
@@ -326,18 +353,25 @@ object GlassComponents {
 
         val effectiveOpacity = (calculateSurfaceOpacity() + 0.1f).coerceAtMost(1f)
         val surfaceColor = androidx.compose.material3.MaterialTheme.colorScheme.surface.copy(alpha = effectiveOpacity)
+        val containerShape = androidx.compose.material3.MaterialTheme.shapes.large
 
         // Animate surface appearance
         val animatedOpacity by animateFloatAsState(
             targetValue = effectiveOpacity,
             animationSpec = tween(300),
+            label = "glassMiniPlayerOpacity",
         )
-
-        val animatedColor = surfaceColor.copy(alpha = animatedOpacity)
+        val animatedSurfaceColor by animateColorAsState(
+            targetValue = surfaceColor,
+            animationSpec = tween(300),
+            label = "glassMiniPlayerColor",
+        )
+        val animatedColor = animatedSurfaceColor.copy(alpha = animatedOpacity)
 
         Box(
             modifier = modifier
-                .background(animatedColor)
+                .clip(containerShape)
+                .background(animatedColor, containerShape)
                 .then(
                     if (glassConfig.edgeHighlight != EdgeHighlightMode.OFF &&
                        glassConfig.style.supportsEdgeHighlight) {
@@ -345,7 +379,7 @@ object GlassComponents {
                             .border(
                                 width = 1.dp,
                                 color = androidx.compose.material3.MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
-                                shape = androidx.compose.material3.MaterialTheme.shapes.large,
+                                shape = containerShape,
                             )
                     } else {
                         Modifier
@@ -356,7 +390,7 @@ object GlassComponents {
                        glassConfig.style.supportsDynamicTint) {
                         Modifier.background(
                             color = androidx.compose.material3.MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
-                            shape = androidx.compose.material3.MaterialTheme.shapes.large,
+                            shape = containerShape,
                         )
                     } else {
                         Modifier
@@ -389,10 +423,12 @@ object GlassComponents {
         // Media cards use lighter glass treatment
         val effectiveOpacity = (calculateSurfaceOpacity() * 0.9f).coerceAtMost(1f)
         val surfaceColor = androidx.compose.material3.MaterialTheme.colorScheme.surface.copy(alpha = effectiveOpacity)
+        val containerShape = androidx.compose.material3.MaterialTheme.shapes.medium
 
         Box(
             modifier = modifier
-                .background(surfaceColor)
+                .clip(containerShape)
+                .background(surfaceColor, containerShape)
                 .then(
                     if (glassConfig.edgeHighlight != EdgeHighlightMode.OFF &&
                        glassConfig.style.supportsEdgeHighlight) {
@@ -400,7 +436,7 @@ object GlassComponents {
                             .border(
                                 width = 1.dp,
                                 color = androidx.compose.material3.MaterialTheme.colorScheme.outline.copy(alpha = 0.1f),
-                                shape = androidx.compose.material3.MaterialTheme.shapes.medium,
+                                shape = containerShape,
                             )
                     } else {
                         Modifier
@@ -418,17 +454,20 @@ object GlassComponents {
     fun GlassNavigationPill(
         modifier: Modifier = Modifier,
         isSelected: Boolean = false,
+        shape: Shape = androidx.compose.material3.MaterialTheme.shapes.medium,
         content: @Composable () -> Unit,
     ) {
         val glassConfig = LocalGlassConfig.current
 
         if (glassConfig.style == SurfaceStyle.CLASSIC || glassConfig.style == SurfaceStyle.MINIMAL) {
             Surface(
-                modifier = modifier
-                    .background(
-                        if (isSelected) androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer
-                        else Color.Transparent
-                    ),
+                modifier = modifier,
+                color = if (isSelected) {
+                    androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer
+                } else {
+                    Color.Transparent
+                },
+                shape = shape,
                 content = { content() },
             )
             return
@@ -437,13 +476,15 @@ object GlassComponents {
         val surfaceColor = if (isSelected) {
             androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f)
         } else {
-            androidx.compose.material3.MaterialTheme.colorScheme.surface.copy(alpha =
-                calculateSurfaceOpacity() * 0.7f)
+            androidx.compose.material3.MaterialTheme.colorScheme.surface.copy(
+                alpha = (calculateSurfaceOpacity() * 0.7f).coerceAtLeast(0.3f),
+            )
         }
 
         Box(
             modifier = modifier
-                .background(surfaceColor)
+                .clip(shape)
+                .background(surfaceColor, shape)
                 .then(
                     if (glassConfig.edgeHighlight != EdgeHighlightMode.OFF &&
                        glassConfig.style.supportsEdgeHighlight && isSelected) {
@@ -451,7 +492,7 @@ object GlassComponents {
                             .border(
                                 width = 1.dp,
                                 color = androidx.compose.material3.MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
-                                shape = androidx.compose.material3.MaterialTheme.shapes.medium,
+                                shape = shape,
                             )
                     } else {
                         Modifier
