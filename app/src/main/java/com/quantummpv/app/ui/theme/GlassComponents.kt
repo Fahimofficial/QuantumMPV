@@ -148,7 +148,7 @@ object GlassComponents {
 
     /**
      * Displays bottom navigation content on a Material surface for Classic and Minimal styles.
-     * Other styles use the configured opacity and supported edge highlights.
+     * Other styles use opacity adjusted for cinema and battery saver modes, with supported edge highlights.
      */
     @Composable
     fun GlassBottomNavBackground(
@@ -194,7 +194,8 @@ object GlassComponents {
 
     /**
      * Displays bottom sheet content on a Material surface for Classic and Minimal styles.
-     * Other styles add 0.1 to the configured opacity, capped at 1, with supported edge highlights.
+     * Other styles add 0.1 to opacity already adjusted for cinema and battery saver modes,
+     * capped at 1, with supported edge highlights.
      */
     @Composable
     fun GlassBottomSheetBackground(

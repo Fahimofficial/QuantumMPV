@@ -128,8 +128,9 @@ class LyricsTranslationService(
    * with resolved and requested line counts. Synced results retain their timing; plain results
    * append distinct translations below the original text.
    *
-   * Translation requests may use network services and return partial results. Invalid lyrics
-   * or translation exceptions return the original lyrics with zero resolved lines.
+   * Translation requests may use network services and return partial results. Provider failures
+   * may recover through fallback providers or local transliteration. Invalid lyrics or exceptions
+   * escaping those fallbacks, except cancellation, return the original lyrics with zero resolved lines.
    *
    * @param targetLanguage Target language code, or `romaji`/`hinglish` for romanization or
    * `hinglish_casual` for casual Latin spelling.
