@@ -123,6 +123,20 @@ class LyricsTranslationService(
   private val requestSemaphore = Semaphore(MAX_CONCURRENT_TRANSLATION_REQUESTS)
   private val translationCache = LruCache<String, LyricsTranslationOutcome>(64)
 
+  /**
+   * Translates lyrics, preferring nonempty synced lines over plain lines, and returns the lyrics
+   * with resolved and requested line counts. Synced results retain their timing; plain results
+   * append distinct translations below the original text.
+   *
+   * Translation requests may use network services and return partial results. Invalid lyrics
+   * or translation exceptions return the original lyrics with zero resolved lines.
+   *
+   * @param targetLanguage Target language code, or `romaji`/`hinglish` for romanization or
+   * `hinglish_casual` for casual Latin spelling.
+   * @param cacheKey Optional track identifier enabling in-memory caching of complete outcomes,
+   * also keyed by the lyrics' hash and target language. Null disables caching.
+   * @throws CancellationException If the coroutine is canceled; cancellation is propagated.
+   */
   suspend fun translateLyrics(
     lyrics: Lyrics,
     targetLanguage: String,
@@ -194,6 +208,12 @@ class LyricsTranslationService(
     )
   }
 
+  /**
+   * Appends each nonblank translation below its original line unless it matches the trimmed
+   * original ignoring case. Romanization modes prefer romanized text when available.
+   * Returns lines in input order with resolved and nonblank requested line counts.
+   * Unresolved lines retain their original text; coroutine cancellation propagates.
+   */
   private suspend fun translatePlainLines(
     lines: List<String>,
     targetLanguage: String,
@@ -283,15 +303,14 @@ class LyricsTranslationService(
   /**
    * Handles casual "Hinglish" style transliteration — the way lyrics are typically typed on
    * WhatsApp/YouTube comments (e.g. "seene", "baandhi") rather than academic IAST-style
-   * romanization with diacritics (e.g. "sīnē", "bāṁdhī"). Works for any Indic source script
-   * (Devanagari, Gurmukhi/Punjabi, Bengali, Tamil, Telugu, Marathi, Urdu, etc.) because it
-   * post-processes the same authentic Google romanization output used for "Romaji", rather
-   * than needing a separate per-script mapping table.
+   * romanization with diacritics (e.g. "sīnē", "bāṁdhī"). Uses Google romanization with
+   * local transliteration as a fallback; unsupported text can remain in its source script.
    *
    * Classification is done PER LINE (not once for the whole batch) so that code-switched
    * lyrics — a very common pattern in Bollywood/Punjabi songs that mix English lines with
    * Devanagari/Gurmukhi lines — route each line correctly instead of one script's lines
-   * accidentally being treated as the other's.
+   * accidentally being treated as the other's. Returns one result per input line in order;
+   * lines classified as Latin are only trimmed. Coroutine cancellation propagates.
    */
   private suspend fun handleHinglishCasualTransliteration(
     texts: List<String>,
@@ -549,7 +568,10 @@ class LyricsTranslationService(
     return result.replace(Regex("\\s{2,}"), " ").trim()
   }
 
-  /** Per-line check: true if this individual line is already predominantly Latin script. */
+  /**
+   * Returns true when counted Latin letters are at least as numerous as other letters.
+   * Ties and lines without letters, including blank or punctuation-only lines, return true.
+   */
   private fun isLatinLine(text: String): Boolean {
     var latinCount = 0
     var nonLatinLetterCount = 0

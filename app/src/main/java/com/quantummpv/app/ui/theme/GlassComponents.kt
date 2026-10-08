@@ -42,8 +42,13 @@ import com.quantummpv.app.ui.theme.DesignTokens.calculateSurfaceOpacity
  */
 object GlassComponents {
     /**
-     * A glass surface that adapts to the current GlassConfig.
-     * Use this instead of Material3 Surface for glass-enabled surfaces.
+     * Displays [content] on a surface styled by the current glass configuration.
+     * Classic and Minimal use a Material surface. Other styles apply opacity, supported
+     * edge highlights, and theme tint. On Android 12+, optional blur affects only the
+     * background layer and is capped by the performance mode; foreground content stays sharp.
+     *
+     * @param isOnVideo Whether background video luminance should affect opacity.
+     * @param videoLuminance Background luminance from 0 (dark) to 1 (bright), ignored off video.
      */
     @Composable
     fun GlassSurface(
@@ -142,7 +147,8 @@ object GlassComponents {
     }
 
     /**
-     * Glass bottom navigation bar background
+     * Displays bottom navigation content on a Material surface for Classic and Minimal styles.
+     * Other styles use the configured opacity and supported edge highlights.
      */
     @Composable
     fun GlassBottomNavBackground(
@@ -187,7 +193,8 @@ object GlassComponents {
     }
 
     /**
-     * Glass bottom sheet background
+     * Displays bottom sheet content on a Material surface for Classic and Minimal styles.
+     * Other styles add 0.1 to the configured opacity, capped at 1, with supported edge highlights.
      */
     @Composable
     fun GlassBottomSheetBackground(
@@ -232,7 +239,9 @@ object GlassComponents {
     }
 
     /**
-     * Glass dialog/overlay background
+     * Displays dialog content using [classicColor] and [classicTonalElevation] for Classic
+     * and Minimal styles. Other styles use the theme surface color with calculated opacity
+     * increased by 0.05 and capped at 1, plus supported edge highlights.
      */
     @Composable
     fun GlassDialogBackground(
@@ -282,7 +291,11 @@ object GlassComponents {
     }
 
     /**
-     * Glass player control surface (for top/bottom bars, seekbar area, menus)
+     * Displays player controls on a Material surface for Classic and Minimal styles.
+     * Other styles apply video-adjusted opacity and supported edge highlights.
+     *
+     * @param isOnVideo Whether background video luminance should affect opacity.
+     * @param videoLuminance Background luminance from 0 (dark) to 1 (bright), ignored off video.
      */
     @Composable
     fun GlassPlayerSurface(
@@ -333,7 +346,9 @@ object GlassComponents {
     }
 
     /**
-     * Glass mini-player surface
+     * Displays mini-player content on a Material surface for Classic and Minimal styles.
+     * Other styles add 0.1 to calculated opacity, capped at 1, and animate color and opacity
+     * changes over 300 milliseconds, with supported edge highlights and theme tint.
      */
     @Composable
     fun GlassMiniPlayerSurface(
@@ -402,7 +417,8 @@ object GlassComponents {
     }
 
     /**
-     * Glass media card surface
+     * Displays media card content on a Material surface for Classic and Minimal styles.
+     * Other styles use 90% of calculated opacity, capped at 1, with supported edge highlights.
      */
     @Composable
     fun GlassMediaCardSurface(
@@ -448,7 +464,10 @@ object GlassComponents {
     }
 
     /**
-     * Glass navigation pill background
+     * Displays navigation content with a background determined by [isSelected].
+     * Classic and Minimal use the primary container color when selected and transparency otherwise.
+     * Other styles use primary container alpha 0.9 when selected, or 70% of calculated opacity
+     * with a minimum of 0.3 otherwise. Supported edge highlights appear only when selected.
      */
     @Composable
     fun GlassNavigationPill(

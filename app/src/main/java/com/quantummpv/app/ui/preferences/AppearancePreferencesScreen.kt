@@ -98,6 +98,11 @@ import kotlin.math.roundToInt
 
 @Serializable
 object AppearancePreferencesScreen : Screen {
+  /**
+   * Displays controls that persist theme, browser, glass, and animation preferences.
+   * Provides theme and wallpaper editor navigation and clears cached thumbnails when the
+   * generation mode is confirmed or thumbnail quality changes.
+   */
   @OptIn(ExperimentalMaterial3Api::class)
   @Composable
   override fun Content() {

@@ -615,6 +615,12 @@ object MainScreen : Screen {
   }
 }
 
+/**
+ * Displays selectable tabs, or nothing when [visibleTabs] is empty.
+ * [pagerState] drives indicator position and tab widths when supplied; otherwise [selectedTab] does.
+ * [glass] uses the current glass surface style for the container. Selecting a tab invokes
+ * [onTabSelected], with haptic feedback when it differs from [selectedTab].
+ */
 @Composable
 private fun ExpressivePillNavigationBar(
   visibleTabs: List<MainScreen.MainTab>,

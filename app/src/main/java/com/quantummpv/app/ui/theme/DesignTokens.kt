@@ -338,8 +338,15 @@ object DesignTokens {
     // ============================================================================
 
     /**
-     * Computes effective surface opacity based on glass config, theme, and content.
-     * Ensures accessibility contrast requirements are met.
+     * Returns opacity from the current glass configuration. Classic returns [baseOpacity];
+     * Minimal returns 95% of it. Other styles multiply it by the configured intensity,
+     * adjust for video luminance when requested, and increase it for cinema and battery saver modes.
+     * The video adjustment clamps opacity to 0.3..1; mode increases cap it at 1.
+     * Other paths do not clamp the result or guarantee a contrast ratio.
+     *
+     * @param baseOpacity Base alpha, conventionally from 0 (transparent) to 1 (opaque).
+     * @param isOnVideo Whether to adjust opacity for the background video's luminance.
+     * @param videoLuminance Background luminance from 0 (dark) to 1 (bright), ignored off video.
      */
     @Composable
     fun calculateSurfaceOpacity(
