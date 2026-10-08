@@ -39,8 +39,7 @@ object GlassComponents {
     /**
      * Displays [content] on a surface styled by the current glass configuration.
      * Classic and Minimal use a Material surface. Other styles apply opacity, supported
-     * edge highlights, and theme tint. On Android 12+, optional blur affects only the
-     * background layer and is capped by the performance mode; foreground content stays sharp.
+     * edge highlights, and theme tint. Foreground content stays sharp.
      *
      * @param isOnVideo Whether background video luminance should affect opacity.
      * @param videoLuminance Background luminance from 0 (dark) to 1 (bright), ignored off video.
