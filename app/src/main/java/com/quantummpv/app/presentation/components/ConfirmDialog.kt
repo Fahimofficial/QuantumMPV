@@ -33,6 +33,11 @@ import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.ui.player.controls.components.tvInitialFocus
 import com.quantummpv.app.ui.theme.GlassComponents
 
+/**
+ * Displays a confirmation dialog using the active surface style, with initial TV focus on Cancel.
+ * Calls [onCancel] on dismissal or cancellation and [onConfirm] when confirmation is selected.
+ * Optional [customContent] appears below [subtitle] and above the action buttons.
+ */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun ConfirmDialog(

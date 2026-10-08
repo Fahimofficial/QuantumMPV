@@ -257,6 +257,7 @@ object DesignTokens {
         val performanceMode: PerformanceMode = PerformanceMode.AUTOMATIC,
         val cinemaMode: Boolean = false,
     ) {
+        /** Returns a copy using [newStyle] and its default intensity and blur, preserving other settings. */
         fun copyWithStyle(newStyle: SurfaceStyle): GlassConfig = copy(
             style = newStyle,
             intensity = newStyle.defaultIntensity,
@@ -298,6 +299,7 @@ object DesignTokens {
 
     val LocalGlassConfig = staticCompositionLocalOf { GlassConfig() }
 
+    /** Provides [config] as the glass configuration for [content] and its descendants. */
     @Composable
     fun GlassConfigProvider(config: GlassConfig, content: @Composable () -> Unit) {
         CompositionLocalProvider(LocalGlassConfig provides config) {
@@ -305,6 +307,7 @@ object DesignTokens {
         }
     }
 
+    /** Collects appearance preferences as Compose state and returns their current glass configuration. */
     @Composable
     fun rememberGlassConfig(): GlassConfig {
         val preferences = koinInject<AppearancePreferences>()
@@ -382,6 +385,14 @@ object DesignTokens {
     // Glass Surface Modifier
     // ============================================================================
 
+    /**
+     * Adds a translucent surface background with supported edge highlights and theme tint.
+     * Classic and Minimal styles leave the modifier unchanged.
+     *
+     * @param isOnVideo Whether video luminance should influence the calculated opacity.
+     * @param videoLuminance Background video luminance from 0 (dark) to 1 (bright).
+     * @param customOpacity Optional alpha overriding the calculated surface opacity.
+     */
     @Composable
     fun Modifier.glassSurface(
         isOnVideo: Boolean = false,

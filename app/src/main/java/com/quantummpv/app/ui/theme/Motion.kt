@@ -71,6 +71,7 @@ data class MotionPolicy(
 
 val LocalMotionPolicy = staticCompositionLocalOf { MotionPolicy() }
 
+/** Combines the system animator setting with observed motion and performance preferences. */
 @Composable
 fun rememberMotionPolicy(): MotionPolicy {
   val preferences = koinInject<AppearancePreferences>()
@@ -93,21 +94,26 @@ object AppMotion {
   @Composable
   fun policy(): MotionPolicy = LocalMotionPolicy.current
 
+  /** Selects [reduced] when the current policy requests reduced animations, or [spec] otherwise. */
   @Composable
   fun <T> spatial(
     spec: FiniteAnimationSpec<T>,
     reduced: FiniteAnimationSpec<T>,
   ): FiniteAnimationSpec<T> = if (policy().shouldReduceAnimations) reduced else spec
 
+  /** Returns whether system or user settings request reduced or disabled motion. */
   @Composable
   fun shouldReduceMotion(): Boolean = policy().shouldReduceAnimations
 
+  /** Returns whether the user selected the Off motion style. */
   @Composable
   fun shouldDisableAnimations(): Boolean = policy().shouldDisableAnimations
 
+  /** Returns the selected motion style's animation intensity, from 0 (off) to 1 (full). */
   @Composable
   fun intensityMultiplier(): Float = policy().intensityMultiplier
 
+  /** Returns whether performance, system motion, and user motion settings allow dynamic effects. */
   @Composable
   fun shouldEnableDynamicEffects(): Boolean = policy().shouldEnableDynamicEffects
 

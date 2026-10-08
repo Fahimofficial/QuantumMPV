@@ -271,6 +271,10 @@ private fun ThemeTransitionContent(content: @Composable () -> Unit) {
 // Main Theme
 // ============================================================================
 
+/**
+ * Applies the selected palette, typography, and shapes to [content].
+ * Provides spacing, motion policy, glass configuration, and [transitionState] to descendants.
+ */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun MpvrxTheme(
