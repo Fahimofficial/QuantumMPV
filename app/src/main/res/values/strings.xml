@@ -2530,5 +2530,5 @@
   <string name="pref_motion_style_title">Animation Style</string>
   <string name="pref_performance_mode_title">Rendering Quality</string>
   <string name="pref_cinema_mode_title">Cinema Mode</string>
-  <string name="pref_cinema_mode_summary">Minimal UI, auto-fade controls, immersive playback</string>
+  <string name="pref_cinema_mode_summary">Increase glass surface opacity for a more immersive appearance</string>
 </resources>

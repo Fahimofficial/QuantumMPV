@@ -127,6 +127,7 @@ import com.quantummpv.app.preferences.preference.minusAssign
 import com.quantummpv.app.preferences.preference.plusAssign
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.ui.player.ControlsAnimationStyle
 import com.quantummpv.app.ui.player.DeclaredPlaybackMediaKind
 import com.quantummpv.app.ui.player.Decoder.Companion.getDecoderFromValue
 import com.quantummpv.app.ui.player.Panels
@@ -164,6 +165,7 @@ import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.ui.player.controls.components.tvInitialFocus
 import com.quantummpv.app.ui.player.declaredMediaKind
 import com.quantummpv.app.ui.theme.controlColor
+import com.quantummpv.app.ui.theme.rememberMotionPolicy
 import com.quantummpv.app.ui.theme.playerRippleConfiguration
 import com.quantummpv.app.ui.theme.spacing
 import com.quantummpv.app.utils.device.DeviceFormFactor
@@ -210,6 +212,7 @@ fun PlayerControls(
   val portraitPlaybackControlsPosition by
     appearancePreferences.portraitPlaybackControlsPosition.collectAsState()
   val playerPreferences = koinInject<PlayerPreferences>()
+  val motionPolicy = rememberMotionPolicy()
   val audioPreferences = koinInject<AudioPreferences>()
   val showSystemStatusBar by playerPreferences.showSystemStatusBar.collectAsState()
   val showSystemNavigationBar by playerPreferences.showSystemNavigationBar.collectAsState()
@@ -649,8 +652,15 @@ fun PlayerControls(
           // Overlay visibility — Group 1
           val showVolumeGestureOverlay by playerPreferences.showVolumeGestureOverlay.collectAsState()
           val showBrightnessGestureOverlay by playerPreferences.showBrightnessGestureOverlay.collectAsState()
-          val reduceMotion by playerPreferences.reduceMotion.collectAsState()
-          val controlsAnimStyle by playerPreferences.controlsAnimStyle.collectAsState()
+          val playerReduceMotion by playerPreferences.reduceMotion.collectAsState()
+          val reduceMotion = playerReduceMotion || motionPolicy.shouldReduceAnimations
+          val selectedControlsAnimStyle by playerPreferences.controlsAnimStyle.collectAsState()
+          val controlsAnimStyle =
+            if (motionPolicy.shouldDisableAnimations) {
+              ControlsAnimationStyle.None
+            } else {
+              selectedControlsAnimStyle
+            }
           val enterMs = (100 * animSpeed).toInt().coerceAtLeast(30)
           val exitMs = (300 * animSpeed).toInt().coerceAtLeast(50)
 
