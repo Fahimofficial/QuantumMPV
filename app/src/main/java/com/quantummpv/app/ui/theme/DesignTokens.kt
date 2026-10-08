@@ -430,7 +430,10 @@ object DesignTokens {
                 .then(blurModifier)
                 .graphicsLayer { alpha = 1f } // Ensure content opacity
                 .then(
-                    Modifier.background(surfaceColor)
+                    Modifier.background(
+                        color = surfaceColor,
+                        shape = androidx.compose.material3.MaterialTheme.shapes.medium,
+                    )
                 )
 
             // Edge highlight
