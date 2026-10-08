@@ -9,7 +9,6 @@
 
 package com.quantummpv.app.ui.preferences
 
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -48,6 +47,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import android.widget.Toast
 import com.quantummpv.app.R
 import com.quantummpv.app.domain.thumbnail.ThumbnailRepository
 import com.quantummpv.app.preferences.AppearancePreferences

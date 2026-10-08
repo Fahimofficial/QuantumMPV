@@ -77,9 +77,9 @@ object GlassComponents {
             Modifier
                 .graphicsLayer {
                     renderEffect = RenderEffect.createBlurEffect(
-                        radiusX = glassConfig.blurLevel.renderEffectRadius.toFloat(),
-                        radiusY = glassConfig.blurLevel.renderEffectRadius.toFloat(),
-                        edgeTreatment = android.graphics.Shader.TileMode.CLAMP,
+                        glassConfig.blurLevel.renderEffectRadius.toFloat(),
+                        glassConfig.blurLevel.renderEffectRadius.toFloat(),
+                        android.graphics.Shader.TileMode.CLAMP,
                     ).asComposeRenderEffect()
                 }
         } else {
