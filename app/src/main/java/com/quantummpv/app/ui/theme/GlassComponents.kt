@@ -39,7 +39,7 @@ object GlassComponents {
     /**
      * Displays [content] on a surface styled by the current glass configuration.
      * Classic and Minimal use a Material surface. Other styles apply opacity, supported
-     * edge highlights, and theme tint. Foreground content stays sharp.
+     * edge highlights, and theme tint while keeping foreground content sharp.
      *
      * @param isOnVideo Whether background video luminance should affect opacity.
      * @param videoLuminance Background luminance from 0 (dark) to 1 (bright), ignored off video.
