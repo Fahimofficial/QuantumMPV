@@ -430,11 +430,7 @@ object DesignTokens {
                 .then(blurModifier)
                 .graphicsLayer { alpha = 1f } // Ensure content opacity
                 .then(
-                    if (effectiveOpacity < 1f) {
-                        Modifier.background(surfaceColor)
-                    } else {
-                        Modifier
-                    }
+                    Modifier.background(surfaceColor)
                 )
 
             // Edge highlight
@@ -458,8 +454,10 @@ object DesignTokens {
             // Dynamic tint
             val withDynamicTint = if (glassConfig.dynamicTint != DynamicTintMode.OFF &&
                    glassConfig.style.supportsDynamicTint) {
-                // Dynamic tint applied via container color
-                withEdgeHighlight
+                withEdgeHighlight.background(
+                    color = colorScheme.primary.copy(alpha = 0.08f),
+                    shape = androidx.compose.material3.MaterialTheme.shapes.medium,
+                )
             } else {
                 withEdgeHighlight
             }

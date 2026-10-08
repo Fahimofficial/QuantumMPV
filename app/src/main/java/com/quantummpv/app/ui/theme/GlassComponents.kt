@@ -106,8 +106,10 @@ object GlassComponents {
         // Dynamic tint overlay
         val dynamicTintModifier = if (glassConfig.dynamicTint != DynamicTintMode.OFF &&
                glassConfig.style.supportsDynamicTint) {
-            // Applied via a subtle overlay
-            Modifier
+            Modifier.background(
+                color = colorScheme.primary.copy(alpha = 0.08f),
+                shape = shape,
+            )
         } else {
             Modifier
         }
@@ -116,8 +118,8 @@ object GlassComponents {
             modifier = modifier
                 .then(blurModifier)
                 .then(edgeHighlightModifier)
-                .then(dynamicTintModifier)
-                .background(surfaceColor, shape),
+                .background(surfaceColor, shape)
+                .then(dynamicTintModifier),
             contentAlignment = Alignment.Center,
             content = { content() },
         )
@@ -352,10 +354,10 @@ object GlassComponents {
                 .then(
                     if (glassConfig.dynamicTint != DynamicTintMode.OFF &&
                        glassConfig.style.supportsDynamicTint) {
-                        Modifier
-                            .graphicsLayer {
-                                // Subtle tint overlay
-                            }
+                        Modifier.background(
+                            color = androidx.compose.material3.MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
+                            shape = androidx.compose.material3.MaterialTheme.shapes.large,
+                        )
                     } else {
                         Modifier
                     }
