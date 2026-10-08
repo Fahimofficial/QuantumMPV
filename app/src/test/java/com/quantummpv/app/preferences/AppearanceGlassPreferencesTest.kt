@@ -26,6 +26,7 @@ class AppearanceGlassPreferencesTest {
   private lateinit var storage: SharedPreferences
   private lateinit var preferences: AppearancePreferences
 
+  /** Clears the shared preference fixture before constructing the settings used by each test. */
   @Before
   fun setUp() {
     context = RuntimeEnvironment.getApplication()
@@ -34,11 +35,13 @@ class AppearanceGlassPreferencesTest {
     preferences = newPreferences()
   }
 
+  /** Verifies that empty storage selects Classic while retaining the stored glass defaults. */
   @Test
   fun freshPreferencesKeepClassicStyleWithDormantGlassDefaults() {
     assertEquals(defaultConfig, preferences.glassConfig)
   }
 
+  /** Verifies that raw persisted values populate all fields of a newly read glass configuration. */
   @Test
   fun persistedKeysPopulateEveryFieldOfTheGlassConfiguration() {
     storage.edit()
@@ -56,6 +59,7 @@ class AppearanceGlassPreferencesTest {
     assertEquals(customConfig, newPreferences().glassConfig)
   }
 
+  /** Checks both reconstructed settings and raw storage keys after writing every glass preference. */
   @Test
   fun preferenceWritesSurviveReconstructionAndUseStableStorageKeys() {
     preferences.surfaceStyle.set(SurfaceStyle.LIQUID_GLASS)
@@ -80,6 +84,7 @@ class AppearanceGlassPreferencesTest {
     assertEquals(true, storage.getBoolean("cinema_mode", false))
   }
 
+  /** Checks that each preference update produces a fresh configuration without changing earlier snapshots. */
   @Test
   fun computedConfigReadsEachUpdateWithoutMutatingEarlierSnapshots() {
     val initial = preferences.glassConfig
@@ -116,6 +121,7 @@ class AppearanceGlassPreferencesTest {
     assertEquals(defaultConfig, initial)
   }
 
+  /** Verifies fallback defaults for unknown, empty, and incorrectly cased stored enum names. */
   @Test
   fun unknownAndEmptyEnumValuesFallBackToTheDeclaredDefaults() {
     val enumKeys = listOf(
@@ -131,6 +137,7 @@ class AppearanceGlassPreferencesTest {
     }
   }
 
+  /** Checks that every style persists while preserving separately stored intensity and blur values. */
   @Test
   fun allSurfaceStylesRoundTripWithoutOverwritingExplicitIntensityAndBlur() {
     preferences.glassIntensity.set(0.37f)
@@ -146,6 +153,7 @@ class AppearanceGlassPreferencesTest {
     }
   }
 
+  /** Verifies persistence of both intensity endpoints and the transition from enabled to disabled cinema mode. */
   @Test
   fun intensityEndpointsRemainDistinctAndCinemaCanBeTurnedOffAgain() {
     for (intensity in listOf(0f, 1f)) {
@@ -158,6 +166,7 @@ class AppearanceGlassPreferencesTest {
     assertEquals(false, newPreferences().glassConfig.cinemaMode)
   }
 
+  /** Creates a new preference wrapper over the shared storage to exercise persistence across instances. */
   private fun newPreferences() = AppearancePreferences(AndroidPreferenceStore(context, storage))
 
   private val defaultConfig = GlassConfig(intensity = 0.85f, blurLevel = BlurLevel.LOW)

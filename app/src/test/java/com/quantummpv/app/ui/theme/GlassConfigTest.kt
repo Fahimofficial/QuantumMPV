@@ -12,6 +12,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class GlassConfigTest {
+  /** Verifies that a default configuration selects Classic with optional glass effects disabled. */
   @Test
   fun defaultsKeepGlassEffectsOptIn() {
     val config = GlassConfig()
@@ -27,6 +28,7 @@ class GlassConfigTest {
     assertEquals(false, config.cinemaMode)
   }
 
+  /** Checks every style preset while ensuring unrelated settings and the source configuration are preserved. */
   @Test
   fun changingStyleResetsIntensityAndBlurButPreservesOtherChoices() {
     val original = GlassConfig(
@@ -62,6 +64,7 @@ class GlassConfigTest {
     assertEquals("Changing a style must not mutate the source config", before, original)
   }
 
+  /** Verifies that selecting the current style resets customized intensity and blur to its defaults. */
   @Test
   fun reselectingCurrentStyleRestoresItsPreset() {
     val customized = GlassConfig(style = SurfaceStyle.LIQUID_GLASS, intensity = 0f, blurLevel = BlurLevel.OFF)
@@ -72,6 +75,7 @@ class GlassConfigTest {
     )
   }
 
+  /** Checks the exact style sets advertising tint, edge highlight, and refraction support. */
   @Test
   fun onlyGlassStylesSupportTintAndHighlightsAndOnlyLiquidSupportsRefraction() {
     val glassStyles = setOf(
@@ -88,6 +92,7 @@ class GlassConfigTest {
     }
   }
 
+  /** Checks blur limits, dynamic effects, animation simplification, and blur radii for the declared presets. */
   @Test
   fun performancePresetsLimitBlurAndBatteryCost() {
     val limits = mapOf(

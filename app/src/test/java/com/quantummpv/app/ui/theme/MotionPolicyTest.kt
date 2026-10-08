@@ -8,6 +8,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class MotionPolicyTest {
+  /** Verifies standard animation intensity and enabled dynamic effects under the default motion policy. */
   @Test
   fun defaultPolicyKeepsStandardMotionAndDynamicEffects() {
     val policy = MotionPolicy()
@@ -18,6 +19,7 @@ class MotionPolicyTest {
     assertTrue(policy.shouldEnableDynamicEffects)
   }
 
+  /** Checks that system reduced motion suppresses dynamic effects and reduces animations for every preset. */
   @Test
   fun systemReductionOverridesEveryMotionStyleAndPerformanceMode() {
     for (style in MotionStyle.entries) {
@@ -31,6 +33,7 @@ class MotionPolicyTest {
     }
   }
 
+  /** Verifies each motion style's reduction, disabling, and intensity values across all performance modes. */
   @Test
   fun motionStylesSelectReductionDisablingAndIntensityIndependentlyOfPerformance() {
     val expectations = listOf(
@@ -51,6 +54,7 @@ class MotionPolicyTest {
     }
   }
 
+  /** Checks that Off motion and battery saver each prevent dynamic effects across all preset combinations. */
   @Test
   fun dynamicEffectsRequireEnabledMotionAndAPerformanceModeThatAllowsThem() {
     for (style in MotionStyle.entries) {
@@ -63,6 +67,7 @@ class MotionPolicyTest {
     }
   }
 
+  /** Verifies that user Reduced motion permits dynamic effects until system reduced motion is enabled. */
   @Test
   fun reducedUserMotionStillAllowsDynamicEffectsWithoutSystemReduction() {
     val policy = MotionPolicy(motionStyle = MotionStyle.REDUCED, performanceMode = PerformanceMode.QUALITY)

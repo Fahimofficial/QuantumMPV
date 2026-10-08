@@ -26,6 +26,7 @@ import kotlin.coroutines.EmptyCoroutineContext
 @RunWith(RobolectricTestRunner::class)
 @Config(manifest = Config.NONE, sdk = [28])
 class DesignTokensCompositionTest {
+  /** Verifies the default configuration and restoration of outer values after nested providers exit. */
   @Test
   fun compositionDefaultsToClassicAndProvidersAreScoped() {
     val outer = GlassConfig(style = SurfaceStyle.SOFT_GLASS, intensity = 0.8f)
@@ -45,6 +46,7 @@ class DesignTokensCompositionTest {
     assertEquals(listOf(GlassConfig(), outer, inner, outer, GlassConfig()), observed)
   }
 
+  /** Checks that Classic and Minimal use their base opacity rules regardless of glass or video settings. */
   @Test
   fun classicAndMinimalIgnoreGlassIntensityVideoAndModeAdjustments() {
     for ((style, expected) in listOf(SurfaceStyle.CLASSIC to 0.8f, SurfaceStyle.MINIMAL to 0.76f)) {
@@ -61,6 +63,7 @@ class DesignTokensCompositionTest {
     }
   }
 
+  /** Checks intensity scaling for every glass style, including transparent and opaque endpoints. */
   @Test
   fun everyGlassStyleMultipliesBaseOpacityByTheConfiguredIntensity() {
     val glassStyles = SurfaceStyle.entries.filter { it != SurfaceStyle.CLASSIC && it != SurfaceStyle.MINIMAL }
@@ -71,6 +74,7 @@ class DesignTokensCompositionTest {
     }
   }
 
+  /** Checks luminance adjustments across dark and bright video scenes and their absence off video. */
   @Test
   fun videoContrastHandlesDarkMidpointAndBrightScenes() {
     val config = GlassConfig(style = SurfaceStyle.SOFT_GLASS, intensity = 0.6f)
@@ -82,6 +86,7 @@ class DesignTokensCompositionTest {
     }
   }
 
+  /** Verifies that video surfaces clamp opacity to the readability floor and the opaque ceiling. */
   @Test
   fun videoOpacityHasAReadabilityFloorAndAnOpaqueCeiling() {
     val transparent = GlassConfig(style = SurfaceStyle.CLEAR_GLASS, intensity = 0f)
@@ -93,6 +98,7 @@ class DesignTokensCompositionTest {
     assertOpacity(0.3f, transparent.copy(intensity = 1f), baseOpacity = 0f, isOnVideo = true)
   }
 
+  /** Checks separate and combined opacity increases for cinema and battery saver, capped at one. */
   @Test
   fun cinemaAndBatterySaverAddIndependentlyAndSaturateAtOne() {
     val config = GlassConfig(style = SurfaceStyle.FROSTED_GLASS, intensity = 0.5f)
@@ -108,6 +114,7 @@ class DesignTokensCompositionTest {
     }
   }
 
+  /** Verifies that cinema and battery saver increase opacity after the video readability floor is applied. */
   @Test
   fun videoFloorIsAppliedBeforeCinemaAndBatteryIncreases() {
     val config = GlassConfig(
@@ -121,6 +128,7 @@ class DesignTokensCompositionTest {
     assertOpacity(0.25f, config, isOnVideo = false, videoLuminance = 0f)
   }
 
+  /** Checks that the Cinema style preset and the cinema mode opacity increase remain independent. */
   @Test
   fun cinemaStyleDoesNotImplicitlyEnableTheSeparateCinemaMode() {
     val config = GlassConfig().copyWithStyle(SurfaceStyle.CINEMA)
@@ -129,6 +137,7 @@ class DesignTokensCompositionTest {
     assertOpacity(1f, config.copy(cinemaMode = true))
   }
 
+  /** Verifies that Classic and Minimal return the original modifier even with video opacity overrides. */
   @Test
   fun classicAndMinimalGlassModifierPreserveTheIncomingModifier() {
     val original = Modifier.then(object : Modifier.Element {})
@@ -141,6 +150,7 @@ class DesignTokensCompositionTest {
     }
   }
 
+  /** Checks AppMotion accessors and animation selection for every system, motion, and performance combination. */
   @Test
   fun appMotionSelectsSpecsAndExposesTheProvidedPolicy() {
     val normal = tween<Float>(durationMillis = 300)
@@ -164,6 +174,7 @@ class DesignTokensCompositionTest {
     }
   }
 
+  /** Evaluates opacity under [config] in a composition and compares it with [expected] using float tolerance. */
   private fun assertOpacity(
     expected: Float,
     config: GlassConfig,
@@ -180,8 +191,10 @@ class DesignTokensCompositionTest {
     assertEquals("$config, base=$baseOpacity, onVideo=$isOnVideo, luminance=$videoLuminance", expected, actual, 0.00001f)
   }
 
-  // These composables only read composition locals; no UI tree, frame clock or device is needed.
-  // Initial composition runs synchronously, and every fixture is disposed even on assertion failure.
+  /**
+   * Runs [content] synchronously for composition-local assertions without a UI tree or frame clock.
+   * Rejects UI node operations and disposes the fixture even if an assertion fails.
+   */
   private fun compose(content: @Composable () -> Unit) {
     val applier = object : AbstractApplier<Unit>(Unit) {
       override fun insertTopDown(index: Int, instance: Unit) = error("Unexpected UI node")
