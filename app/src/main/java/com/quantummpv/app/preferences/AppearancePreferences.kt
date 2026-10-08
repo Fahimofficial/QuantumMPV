@@ -40,10 +40,10 @@ import com.quantummpv.app.ui.player.controls.components.tvInitialFocus
 import com.quantummpv.app.ui.theme.AppTheme
 import com.quantummpv.app.ui.theme.CustomThemeDefinition
 import com.quantummpv.app.ui.theme.DarkMode
-import com.quantummpv.app.ui.theme.DesignTokens
 import com.quantummpv.app.ui.theme.DesignTokens.BlurLevel
 import com.quantummpv.app.ui.theme.DesignTokens.DynamicTintMode
 import com.quantummpv.app.ui.theme.DesignTokens.EdgeHighlightMode
+import com.quantummpv.app.ui.theme.DesignTokens.GlassConfig
 import com.quantummpv.app.ui.theme.DesignTokens.MotionStyle
 import com.quantummpv.app.ui.theme.DesignTokens.PerformanceMode
 import com.quantummpv.app.ui.theme.DesignTokens.RefractionMode
@@ -86,8 +86,8 @@ class AppearancePreferences(
 
   // Computed GlassConfig - combines all glass settings
   // This is a computed property that always returns the current config based on preferences
-  val glassConfig: DesignTokens.GlassConfig
-    get() = DesignTokens.GlassConfig(
+  val glassConfig: GlassConfig
+    get() = GlassConfig(
       style = surfaceStyle.get(),
       intensity = glassIntensity.get(),
       blurLevel = glassBlurLevel.get(),
