@@ -9,9 +9,7 @@
 
 package com.quantummpv.app.ui.theme
 
-import android.graphics.RenderEffect
-import android.os.Build
-import androidx.compose.animation.core.animateColorAsState
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -26,10 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.asComposeRenderEffect
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
-import com.quantummpv.app.ui.theme.DesignTokens.BlurLevel
 import com.quantummpv.app.ui.theme.DesignTokens.DynamicTintMode
 import com.quantummpv.app.ui.theme.DesignTokens.EdgeHighlightMode
 import com.quantummpv.app.ui.theme.DesignTokens.LocalGlassConfig
@@ -44,8 +39,7 @@ object GlassComponents {
     /**
      * Displays [content] on a surface styled by the current glass configuration.
      * Classic and Minimal use a Material surface. Other styles apply opacity, supported
-     * edge highlights, and theme tint. On Android 12+, optional blur affects only the
-     * background layer and is capped by the performance mode; foreground content stays sharp.
+     * edge highlights, and theme tint while keeping foreground content sharp.
      *
      * @param isOnVideo Whether background video luminance should affect opacity.
      * @param videoLuminance Background luminance from 0 (dark) to 1 (bright), ignored off video.
@@ -79,27 +73,8 @@ object GlassComponents {
         val colorScheme = androidx.compose.material3.MaterialTheme.colorScheme
         val surfaceColor = colorScheme.surface.copy(alpha = effectiveOpacity)
 
-        // Keep blur on a sibling background layer so foreground content stays sharp.
-        val effectiveBlurLevel = if (glassConfig.blurLevel.ordinal <=
-            glassConfig.performanceMode.maxBlurLevel.ordinal
-        ) {
-            glassConfig.blurLevel
-        } else {
-            glassConfig.performanceMode.maxBlurLevel
-        }
-        val blurModifier = if (effectiveBlurLevel != BlurLevel.OFF &&
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-        ) {
-            Modifier.graphicsLayer {
-                renderEffect = RenderEffect.createBlurEffect(
-                    effectiveBlurLevel.renderEffectRadius.toFloat(),
-                    effectiveBlurLevel.renderEffectRadius.toFloat(),
-                    android.graphics.Shader.TileMode.CLAMP,
-                ).asComposeRenderEffect()
-            }
-        } else {
-            Modifier
-        }
+        // A backdrop source is not available at this composable boundary. Do not blur the
+        // solid surface fill: that has no visual effect and cannot blur content behind it.
 
         // Edge highlight
         val edgeHighlightModifier = if (glassConfig.edgeHighlight != EdgeHighlightMode.OFF &&
@@ -138,7 +113,6 @@ object GlassComponents {
             Box(
                 modifier = Modifier
                     .matchParentSize()
-                    .then(blurModifier)
                     .background(surfaceColor, shape)
                     .then(dynamicTintModifier),
             )
