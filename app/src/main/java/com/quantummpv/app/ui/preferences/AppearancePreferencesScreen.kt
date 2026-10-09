@@ -74,7 +74,6 @@ import com.quantummpv.app.ui.theme.DesignTokens.BlurLevel
 import com.quantummpv.app.ui.theme.DesignTokens.DynamicTintMode
 import com.quantummpv.app.ui.theme.DesignTokens.EdgeHighlightMode
 import com.quantummpv.app.ui.theme.DesignTokens.MotionStyle
-import com.quantummpv.app.ui.theme.DesignTokens.PerformanceMode
 import com.quantummpv.app.ui.theme.DesignTokens.SurfaceStyle
 import com.quantummpv.app.ui.theme.LocalThemeTransitionState
 import com.quantummpv.app.ui.utils.LocalBackStack
@@ -1154,24 +1153,7 @@ object AppearancePreferencesScreen : Screen {
               )
 
               PreferenceDivider()
-
-              val performanceMode by preferences.performanceMode.collectAsState()
-              ListPreference(
-                modifier = Modifier.settingsSearchTarget(R.string.pref_performance_mode_title),
-                value = performanceMode,
-                onValueChange = preferences.performanceMode::set,
-                values = PerformanceMode.entries,
-                valueToText = { AnnotatedString(stringResource(id = it.titleRes)) },
-                title = { Text(stringResource(R.string.pref_performance_mode_title)) },
-                summary = {
-                  Text(
-                    stringResource(id = performanceMode.titleRes),
-                    color = MaterialTheme.colorScheme.outline,
-                  )
-                },
-              )
-
-              PreferenceDivider()
+              // Keep rendering modes hidden until their limits affect actual rendering paths.
 
               val cinemaMode by preferences.cinemaMode.collectAsState()
               SwitchPreference(

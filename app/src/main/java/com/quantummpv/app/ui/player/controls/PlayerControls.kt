@@ -591,6 +591,7 @@ fun PlayerControls(
       style = videoOpenAnim,
       speedMultiplier = animSpeed,
       animationState = videoOpenAnimState,
+      animationsDisabled = motionPolicy.shouldDisableAnimations,
     )
     if (brightness < 0) {
       Box(
@@ -1088,7 +1089,7 @@ is PlayerUpdates.FrameInfo -> {
             }
           val skipChipBottomOffset by animateDpAsState(
             targetValue = skipChipBottomTarget,
-            animationSpec = spring(),
+            animationSpec = if (motionPolicy.shouldDisableAnimations) snap() else spring(),
             label = "skip_chip_bottom_offset",
           )
 
