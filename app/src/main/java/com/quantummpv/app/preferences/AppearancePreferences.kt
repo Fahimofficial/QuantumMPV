@@ -71,8 +71,6 @@ class AppearancePreferences(
   val customWallpaperBlur = preferenceStore.getFloat("custom_wallpaper_blur", 0f)
   val customWallpaperAlpha = preferenceStore.getFloat("custom_wallpaper_alpha", 1f)
   val amoledMode = preferenceStore.getBoolean("amoled_mode", false)
-  val glassBottomNavigation = preferenceStore.getBoolean("glass_bottom_navigation", false)
-
   // New Glass/Surface Style System
   val surfaceStyle = preferenceStore.getEnum("surface_style", SurfaceStyle.CLASSIC)
   val glassIntensity = preferenceStore.getFloat("glass_intensity", 0.85f)

@@ -415,9 +415,9 @@ object GlassComponents {
 
         if (glassConfig.style == SurfaceStyle.CLASSIC || glassConfig.style == SurfaceStyle.MINIMAL) {
             Surface(
-                modifier = modifier
-                    .background(androidx.compose.material3.MaterialTheme.colorScheme.surface),
+                modifier = modifier,
                 shape = shape,
+                color = androidx.compose.material3.MaterialTheme.colorScheme.surface,
                 content = { content() },
             )
             return

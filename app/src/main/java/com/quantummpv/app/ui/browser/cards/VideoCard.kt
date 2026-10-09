@@ -214,9 +214,8 @@ fun VideoCard(
 
   val cardShape = AppShapeScale.large
   val appTheme = LocalAppTheme.current
-  val glassConfig = LocalGlassConfig.current
-  val useGlassCardSurface =
-    !isSelected && glassConfig.style != SurfaceStyle.CLASSIC && glassConfig.style != SurfaceStyle.MINIMAL
+  val surfaceStyle = LocalGlassConfig.current.style
+  val useGlassCardSurface = surfaceStyle != SurfaceStyle.CLASSIC && surfaceStyle != SurfaceStyle.MINIMAL
   val cardContainerColor =
     if (isSelected) {
       MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.88f)
@@ -228,7 +227,7 @@ fun VideoCard(
       )
     }
   val cardBrush =
-    if (appTheme == AppTheme.Aurora && !isSelected && !useGlassCardSurface) {
+    if (appTheme == AppTheme.Aurora && !isSelected) {
       Brush.linearGradient(
         listOf(
           MaterialTheme.colorScheme.surfaceContainerLow,
@@ -260,7 +259,7 @@ fun VideoCard(
           .fillMaxWidth()
           .then(cardBrush?.let { Modifier.background(it, cardShape) } ?: Modifier),
     ) {
-      if (useGlassCardSurface) {
+      if (useGlassCardSurface && !isSelected) {
         GlassComponents.GlassMediaCardSurface(
           modifier = Modifier.matchParentSize(),
           shape = cardShape,

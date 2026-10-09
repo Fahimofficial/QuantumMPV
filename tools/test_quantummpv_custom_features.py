@@ -25,25 +25,39 @@ def main() -> int:
     appearance_model = read("app/src/main/java/com/quantummpv/app/preferences/AppearancePreferences.kt")
     appearance_screen = read("app/src/main/java/com/quantummpv/app/ui/preferences/AppearancePreferencesScreen.kt")
     main_screen = read("app/src/main/java/com/quantummpv/app/ui/browser/MainScreen.kt")
+    video_card = read("app/src/main/java/com/quantummpv/app/ui/browser/cards/VideoCard.kt")
+    glass_components = read("app/src/main/java/com/quantummpv/app/ui/theme/GlassComponents.kt")
     strings = read("app/src/main/res/values/strings.xml")
 
-    require(r'glassBottomNavigation\s*=\s*preferenceStore\.getBoolean\("glass_bottom_navigation",\s*false\)', appearance_model,
-            "persisted Liquid Glass bottom-navigation preference")
     require(
-        r'SwitchPreference\(\s*modifier\s*=\s*Modifier\.settingsSearchTarget\(R\.string\.pref_appearance_glass_navigation_title\),\s*value\s*=\s*glassBottomNavigation,\s*onValueChange\s*=\s*preferences\.glassBottomNavigation::set',
+        r'val surfaceStyle = preferenceStore\.getEnum\("surface_style",\s*SurfaceStyle\.CLASSIC\)',
+        appearance_model,
+        "persisted global surface style",
+    )
+    require(
+        r'val surfaceStyle by preferences\.surfaceStyle\.collectAsState\(\)',
         appearance_screen,
-        "searchable, persisted Liquid Glass toggle in Appearance settings",
+        "surface-style preference shown in Appearance settings",
     )
-    require(
-        r'val useGlassBottomNavigation\s*=\s*glassBottomNavigation\s*\|\|\s*\(surfaceStyle\s*!=\s*SurfaceStyle\.CLASSIC\s*&&\s*surfaceStyle\s*!=\s*SurfaceStyle\.MINIMAL\)',
-        main_screen,
-        "legacy Liquid Glass toggle and new glass surface styles activate navigation",
-    )
-    require(r'glass\s*=\s*useGlassBottomNavigation', main_screen,
-            "combined appearance preference reaches the navigation renderer")
-    require(r'<string name="pref_appearance_glass_navigation_title">Liquid Glass bottom navigation</string>', strings,
-            "visible Liquid Glass settings label")
-    print("PASS: Liquid Glass appearance setting remains persisted, rendered, and connected to navigation.")
+    if len(re.findall(r'glass\s*=\s*glassBottomNavigation', main_screen)) != 2:
+        raise AssertionError("global surface style must reach both navigation renderers")
+    require(r'<string name="pref_glass_surface_style_title">Surface style</string>', strings,
+            "visible surface-style settings label")
+    print("PASS: global surface appearance remains visible and connected to navigation.")
+
+    require(r'val useGlassCardSurface = surfaceStyle != SurfaceStyle\.CLASSIC && surfaceStyle != SurfaceStyle\.MINIMAL',
+            video_card, "glass card surfaces are enabled only for glass-capable styles")
+    require(r'if \(useGlassCardSurface && !isSelected\)\s*\{\s*GlassComponents\.GlassMediaCardSurface\([\s\S]*?shape = cardShape',
+            video_card, "unselected glass-style cards use the shared glass surface with the app card shape")
+    require(r'if \(isSelected\)\s*\{[\s\S]{0,150}tertiaryContainer', video_card,
+            "selected cards retain their existing selection color instead of using the glass surface")
+    require(r'if \(appTheme == AppTheme\.Aurora && !isSelected\)', video_card,
+            "every unselected Aurora card keeps its gradient independently of glass style")
+    require(r'fun GlassMediaCardSurface\([\s\S]*?shape: Shape = [^\n]+', glass_components,
+            "media-card glass surface accepts a caller-provided shape")
+    require(r'val containerShape = shape', glass_components,
+            "media-card glass border and clip use the caller-provided shape")
+    print("PASS: VideoCard glass rendering preserves selection, Classic/Minimal fallback, Aurora gradients, and card shape.")
 
     subtitle_installer = read("app/src/main/java/com/quantummpv/app/ui/player/SubtitleFontInstaller.kt")
     mpv_view = read("app/src/main/java/com/quantummpv/app/ui/player/MPVView.kt")

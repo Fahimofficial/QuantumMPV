@@ -105,6 +105,7 @@ import com.quantummpv.app.ui.player.NavigationAnimStyle
 import com.quantummpv.app.ui.player.controls.components.rememberTvInitialFocusRequester
 import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.ui.player.controls.components.tvInitialFocus
+import com.quantummpv.app.ui.theme.DesignTokens.LocalGlassConfig
 import com.quantummpv.app.ui.theme.DesignTokens.SurfaceStyle
 import com.quantummpv.app.ui.theme.GlassComponents
 import com.quantummpv.app.ui.utils.LocalBackStack
@@ -185,10 +186,9 @@ object MainScreen : Screen {
     val showPlaylistsTab by appearancePreferences.showPlaylistsTab.collectAsState()
     val showNetworkTab by appearancePreferences.showNetworkTab.collectAsState()
     val showJellyfinTab by appearancePreferences.showJellyfinTab.collectAsState()
-    val glassBottomNavigation by appearancePreferences.glassBottomNavigation.collectAsState()
-    val surfaceStyle by appearancePreferences.surfaceStyle.collectAsState()
-    val useGlassBottomNavigation =
-      glassBottomNavigation || (surfaceStyle != SurfaceStyle.CLASSIC && surfaceStyle != SurfaceStyle.MINIMAL)
+    val surfaceStyle = LocalGlassConfig.current.style
+    val glassBottomNavigation =
+      surfaceStyle != SurfaceStyle.CLASSIC && surfaceStyle != SurfaceStyle.MINIMAL
     val hideNavigationBar = NavigationBarState.shouldHideNavigationBar
     val isPermissionDenied = NavigationBarState.isPermissionDenied
     val isDualPaneFolderSelected = NavigationBarState.isDualPaneFolderSelected
@@ -311,7 +311,7 @@ object MainScreen : Screen {
         selectedTab = selectedTab,
         onTabSelected = onTabSelected,
         pagerState = pagerState,
-        glass = useGlassBottomNavigation,
+        glass = glassBottomNavigation,
         modifier = modifier,
       )
     }
@@ -595,7 +595,7 @@ object MainScreen : Screen {
               selectedTab = selectedTab,
               onTabSelected = onTabSelected,
               pagerState = pagerState,
-              glass = useGlassBottomNavigation,
+              glass = glassBottomNavigation,
               modifier = Modifier
                 .layout { measurable, constraints ->
                   val margin = 16.dp.roundToPx()

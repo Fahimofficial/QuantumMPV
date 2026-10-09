@@ -100,12 +100,40 @@ object SearchablePreferences {
       )
       add(
         SearchablePreference(
-          titleRes = R.string.pref_appearance_glass_navigation_title,
-          summaryRes = R.string.pref_appearance_glass_navigation_summary,
-          keywords = listOf("glass", "liquid", "translucent", "navigation", "bottom bar", "appearance"),
+          titleRes = R.string.pref_glass_surface_style_title,
+          summaryRes = R.string.pref_glass_surface_style_summary,
+          keywords = listOf("glass", "liquid glass", "surface", "style", "appearance", "translucent"),
           category = "Appearance",
           screen = AppearancePreferencesScreen,
-          anchorItemIndex = 1,
+          anchorItemIndex = 3,
+        ),
+      )
+      add(
+        SearchablePreference(
+          titleRes = R.string.pref_glass_intensity_title,
+          summaryRes = R.string.pref_glass_intensity_summary,
+          keywords = listOf("glass", "opacity", "transparency", "surface", "appearance"),
+          category = "Appearance",
+          screen = AppearancePreferencesScreen,
+          anchorItemIndex = 3,
+        ),
+      )
+      add(
+        SearchablePreference(
+          titleRes = R.string.pref_dynamic_tint_mode_title,
+          keywords = listOf("glass", "tint", "theme color", "surface", "appearance"),
+          category = "Appearance",
+          screen = AppearancePreferencesScreen,
+          anchorItemIndex = 3,
+        ),
+      )
+      add(
+        SearchablePreference(
+          titleRes = R.string.pref_edge_highlight_mode_title,
+          keywords = listOf("glass", "edge", "highlight", "border", "surface", "appearance"),
+          category = "Appearance",
+          screen = AppearancePreferencesScreen,
+          anchorItemIndex = 3,
         ),
       )
       add(
