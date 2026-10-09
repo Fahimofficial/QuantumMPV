@@ -198,7 +198,7 @@ private fun transparentOverlayAnimation(
   val showing = controlsShown && !controlsLocked
   val targetAlpha = if (showing) 0.8f else 0f
   val animationSpec = when {
-    animationsDisabled -> snap()
+    animationsDisabled -> snap<Float>()
     showing -> playerControlsEnterAnimationSpec((100 * animationSpeed).toInt().coerceAtLeast(30))
     else -> playerControlsExitAnimationSpec((300 * animationSpeed).toInt().coerceAtLeast(50))
   }
