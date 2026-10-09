@@ -74,8 +74,6 @@ import com.quantummpv.app.ui.theme.DesignTokens.BlurLevel
 import com.quantummpv.app.ui.theme.DesignTokens.DynamicTintMode
 import com.quantummpv.app.ui.theme.DesignTokens.EdgeHighlightMode
 import com.quantummpv.app.ui.theme.DesignTokens.MotionStyle
-import com.quantummpv.app.ui.theme.DesignTokens.PerformanceMode
-import com.quantummpv.app.ui.theme.DesignTokens.RefractionMode
 import com.quantummpv.app.ui.theme.DesignTokens.SurfaceStyle
 import com.quantummpv.app.ui.theme.LocalThemeTransitionState
 import com.quantummpv.app.ui.utils.LocalBackStack
@@ -1088,16 +1086,19 @@ object AppearancePreferencesScreen : Screen {
               PreferenceDivider()
 
               val dynamicTintMode by preferences.dynamicTintMode.collectAsState()
+              val supportedDynamicTintMode =
+                dynamicTintMode.takeIf { it == DynamicTintMode.OFF || it == DynamicTintMode.THEME }
+                  ?: DynamicTintMode.OFF
               ListPreference(
                 modifier = Modifier.settingsSearchTarget(R.string.pref_dynamic_tint_mode_title),
-                value = dynamicTintMode,
+                value = supportedDynamicTintMode,
                 onValueChange = preferences.dynamicTintMode::set,
-                values = DynamicTintMode.entries,
+                values = listOf(DynamicTintMode.OFF, DynamicTintMode.THEME),
                 valueToText = { AnnotatedString(stringResource(id = it.titleRes)) },
                 title = { Text(stringResource(R.string.pref_dynamic_tint_mode_title)) },
                 summary = {
                   Text(
-                    stringResource(id = dynamicTintMode.titleRes),
+                    stringResource(id = supportedDynamicTintMode.titleRes),
                     color = MaterialTheme.colorScheme.outline,
                   )
                 },
@@ -1123,21 +1124,8 @@ object AppearancePreferencesScreen : Screen {
 
               PreferenceDivider()
 
-              val refractionMode by preferences.refractionMode.collectAsState()
-              ListPreference(
-                modifier = Modifier.settingsSearchTarget(R.string.pref_refraction_mode_title),
-                value = refractionMode,
-                onValueChange = preferences.refractionMode::set,
-                values = RefractionMode.entries,
-                valueToText = { AnnotatedString(stringResource(id = it.titleRes)) },
-                title = { Text(stringResource(R.string.pref_refraction_mode_title)) },
-                summary = {
-                  Text(
-                    stringResource(id = refractionMode.titleRes),
-                    color = MaterialTheme.colorScheme.outline,
-                  )
-                },
-              )
+              // Refraction remains persisted for forward compatibility but is hidden until a
+              // surface implementation can apply it without misleading the user.
             }
           }
 
@@ -1165,24 +1153,7 @@ object AppearancePreferencesScreen : Screen {
               )
 
               PreferenceDivider()
-
-              val performanceMode by preferences.performanceMode.collectAsState()
-              ListPreference(
-                modifier = Modifier.settingsSearchTarget(R.string.pref_performance_mode_title),
-                value = performanceMode,
-                onValueChange = preferences.performanceMode::set,
-                values = PerformanceMode.entries,
-                valueToText = { AnnotatedString(stringResource(id = it.titleRes)) },
-                title = { Text(stringResource(R.string.pref_performance_mode_title)) },
-                summary = {
-                  Text(
-                    stringResource(id = performanceMode.titleRes),
-                    color = MaterialTheme.colorScheme.outline,
-                  )
-                },
-              )
-
-              PreferenceDivider()
+              // Keep rendering modes hidden until their limits affect actual rendering paths.
 
               val cinemaMode by preferences.cinemaMode.collectAsState()
               SwitchPreference(

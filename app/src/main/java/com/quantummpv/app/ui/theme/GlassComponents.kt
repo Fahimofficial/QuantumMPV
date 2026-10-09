@@ -93,7 +93,7 @@ object GlassComponents {
         }
 
         // Dynamic tint overlay
-        val dynamicTintModifier = if (glassConfig.dynamicTint != DynamicTintMode.OFF &&
+        val dynamicTintModifier = if (glassConfig.dynamicTint == DynamicTintMode.THEME &&
                glassConfig.style.supportsDynamicTint) {
             Modifier.background(
                 color = colorScheme.primary.copy(alpha = 0.08f),
@@ -246,6 +246,17 @@ object GlassComponents {
                 .clip(shape)
                 .background(surfaceColor, shape)
                 .then(
+                    if (glassConfig.dynamicTint == DynamicTintMode.THEME &&
+                       glassConfig.style.supportsDynamicTint) {
+                        Modifier.background(
+                            color = androidx.compose.material3.MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
+                            shape = shape,
+                        )
+                    } else {
+                        Modifier
+                    }
+                )
+                .then(
                     if (glassConfig.edgeHighlight != EdgeHighlightMode.OFF &&
                        glassConfig.style.supportsEdgeHighlight) {
                         Modifier
@@ -375,7 +386,7 @@ object GlassComponents {
                     }
                 )
                 .then(
-                    if (glassConfig.dynamicTint != DynamicTintMode.OFF &&
+                    if (glassConfig.dynamicTint == DynamicTintMode.THEME &&
                        glassConfig.style.supportsDynamicTint) {
                         Modifier.background(
                             color = androidx.compose.material3.MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
@@ -458,9 +469,11 @@ object GlassComponents {
                 color = if (isSelected) {
                     androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer
                 } else {
-                    Color.Transparent
+                    androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerHigh
                 },
                 shape = shape,
+                tonalElevation = 6.dp,
+                shadowElevation = 8.dp,
                 content = { content() },
             )
             return
@@ -478,6 +491,17 @@ object GlassComponents {
             modifier = modifier
                 .clip(shape)
                 .background(surfaceColor, shape)
+                .then(
+                    if (glassConfig.dynamicTint == DynamicTintMode.THEME &&
+                       glassConfig.style.supportsDynamicTint) {
+                        Modifier.background(
+                            color = androidx.compose.material3.MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
+                            shape = shape,
+                        )
+                    } else {
+                        Modifier
+                    }
+                )
                 .then(
                     if (glassConfig.edgeHighlight != EdgeHighlightMode.OFF &&
                        glassConfig.style.supportsEdgeHighlight && isSelected) {

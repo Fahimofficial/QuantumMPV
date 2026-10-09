@@ -18,6 +18,7 @@ import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -127,6 +128,7 @@ import com.quantummpv.app.preferences.preference.minusAssign
 import com.quantummpv.app.preferences.preference.plusAssign
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.ui.player.ControlsAnimationStyle
 import com.quantummpv.app.ui.player.DeclaredPlaybackMediaKind
 import com.quantummpv.app.ui.player.Decoder.Companion.getDecoderFromValue
 import com.quantummpv.app.ui.player.Panels
@@ -165,6 +167,7 @@ import com.quantummpv.app.ui.player.controls.components.tvInitialFocus
 import com.quantummpv.app.ui.player.declaredMediaKind
 import com.quantummpv.app.ui.theme.controlColor
 import com.quantummpv.app.ui.theme.playerRippleConfiguration
+import com.quantummpv.app.ui.theme.rememberMotionPolicy
 import com.quantummpv.app.ui.theme.spacing
 import com.quantummpv.app.utils.device.DeviceFormFactor
 import kotlinx.collections.immutable.persistentListOf
@@ -185,6 +188,22 @@ fun <T> playerControlsExitAnimationSpec(durationMillis: Int = 300): FiniteAnimat
 
 fun <T> playerControlsEnterAnimationSpec(durationMillis: Int = 100): FiniteAnimationSpec<T> =
   tween(durationMillis = durationMillis, easing = LinearOutSlowInEasing)
+
+private fun transparentOverlayAnimation(
+  controlsShown: Boolean,
+  controlsLocked: Boolean,
+  animationsDisabled: Boolean,
+  animationSpeed: Float,
+): Pair<Float, FiniteAnimationSpec<Float>> {
+  val showing = controlsShown && !controlsLocked
+  val targetAlpha = if (showing) 0.8f else 0f
+  val animationSpec = when {
+    animationsDisabled -> snap<Float>()
+    showing -> playerControlsEnterAnimationSpec((100 * animationSpeed).toInt().coerceAtLeast(30))
+    else -> playerControlsExitAnimationSpec((300 * animationSpeed).toInt().coerceAtLeast(50))
+  }
+  return targetAlpha to animationSpec
+}
 
 @OptIn(
   ExperimentalMaterial3Api::class,
@@ -210,6 +229,7 @@ fun PlayerControls(
   val portraitPlaybackControlsPosition by
     appearancePreferences.portraitPlaybackControlsPosition.collectAsState()
   val playerPreferences = koinInject<PlayerPreferences>()
+  val motionPolicy = rememberMotionPolicy()
   val audioPreferences = koinInject<AudioPreferences>()
   val showSystemStatusBar by playerPreferences.showSystemStatusBar.collectAsState()
   val showSystemNavigationBar by playerPreferences.showSystemNavigationBar.collectAsState()
@@ -538,15 +558,16 @@ fun PlayerControls(
 
   val videoOpenAnim by playerPreferences.videoOpenAnimation.collectAsState()
   val animSpeed by playerPreferences.animationSpeed.collectAsState()
+  val (transparentOverlayTarget, transparentOverlaySpec) = transparentOverlayAnimation(
+    controlsShown = controlsShown,
+    controlsLocked = areControlsLocked,
+    animationsDisabled = motionPolicy.shouldDisableAnimations,
+    animationSpeed = animSpeed,
+  )
 
   val transparentOverlay by animateFloatAsState(
-    if (controlsShown && !areControlsLocked) .8f else 0f,
-    animationSpec =
-      if (controlsShown && !areControlsLocked) {
-        playerControlsEnterAnimationSpec((100 * animSpeed).toInt().coerceAtLeast(30))
-      } else {
-        playerControlsExitAnimationSpec((300 * animSpeed).toInt().coerceAtLeast(50))
-      },
+    transparentOverlayTarget,
+    animationSpec = transparentOverlaySpec,
     label = "controls_transparent_overlay",
   )
 
@@ -570,6 +591,7 @@ fun PlayerControls(
       style = videoOpenAnim,
       speedMultiplier = animSpeed,
       animationState = videoOpenAnimState,
+      animationsDisabled = motionPolicy.shouldDisableAnimations,
     )
     if (brightness < 0) {
       Box(
@@ -649,8 +671,15 @@ fun PlayerControls(
           // Overlay visibility — Group 1
           val showVolumeGestureOverlay by playerPreferences.showVolumeGestureOverlay.collectAsState()
           val showBrightnessGestureOverlay by playerPreferences.showBrightnessGestureOverlay.collectAsState()
-          val reduceMotion by playerPreferences.reduceMotion.collectAsState()
-          val controlsAnimStyle by playerPreferences.controlsAnimStyle.collectAsState()
+          val playerReduceMotion by playerPreferences.reduceMotion.collectAsState()
+          val reduceMotion = playerReduceMotion || motionPolicy.shouldReduceAnimations
+          val selectedControlsAnimStyle by playerPreferences.controlsAnimStyle.collectAsState()
+          val controlsAnimStyle =
+            if (motionPolicy.shouldDisableAnimations) {
+              ControlsAnimationStyle.None
+            } else {
+              selectedControlsAnimStyle
+            }
           val enterMs = (100 * animSpeed).toInt().coerceAtLeast(30)
           val exitMs = (300 * animSpeed).toInt().coerceAtLeast(50)
 
@@ -1060,7 +1089,7 @@ is PlayerUpdates.FrameInfo -> {
             }
           val skipChipBottomOffset by animateDpAsState(
             targetValue = skipChipBottomTarget,
-            animationSpec = spring(),
+            animationSpec = if (motionPolicy.shouldDisableAnimations) snap() else spring(),
             label = "skip_chip_bottom_offset",
           )
 

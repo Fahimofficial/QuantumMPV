@@ -342,15 +342,16 @@ fun buildControlsExitV(
 /**
  * Draws a full-screen overlay that stays in place while media is loading, then plays the selected
  * [VideoOpenAnimation] once the video is ready. No-op when [style] is
- * [VideoOpenAnimation.Default] or [VideoOpenAnimation.None].
+ * [VideoOpenAnimation.Default], [VideoOpenAnimation.None], or when animations are disabled.
  */
 @Composable
 fun VideoOpenAnimationOverlay(
   style: VideoOpenAnimation,
   speedMultiplier: Float,
   animationState: VideoOpenAnimationState,
+  animationsDisabled: Boolean,
 ) {
-  if (style == VideoOpenAnimation.Default || style == VideoOpenAnimation.None) return
+  if (animationsDisabled || style == VideoOpenAnimation.Default || style == VideoOpenAnimation.None) return
 
   val durationMs = (400 * speedMultiplier).toInt().coerceAtLeast(100)
   val holdMs = (120 * speedMultiplier).toInt().coerceAtLeast(50)
