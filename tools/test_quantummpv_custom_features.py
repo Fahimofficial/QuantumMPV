@@ -33,7 +33,13 @@ def main() -> int:
         appearance_screen,
         "searchable, persisted Liquid Glass toggle in Appearance settings",
     )
-    require(r'glass\s*=\s*glassBottomNavigation', main_screen, "Liquid Glass preference reaches the navigation renderer")
+    require(
+        r'val useGlassBottomNavigation\s*=\s*glassBottomNavigation\s*\|\|\s*\(surfaceStyle\s*!=\s*SurfaceStyle\.CLASSIC\s*&&\s*surfaceStyle\s*!=\s*SurfaceStyle\.MINIMAL\)',
+        main_screen,
+        "legacy Liquid Glass toggle and new glass surface styles activate navigation",
+    )
+    require(r'glass\s*=\s*useGlassBottomNavigation', main_screen,
+            "combined appearance preference reaches the navigation renderer")
     require(r'<string name="pref_appearance_glass_navigation_title">Liquid Glass bottom navigation</string>', strings,
             "visible Liquid Glass settings label")
     print("PASS: Liquid Glass appearance setting remains persisted, rendered, and connected to navigation.")
