@@ -241,8 +241,10 @@ private fun GlassContainer(
                 RefractionMode.EXPERIMENTAL -> 0.68f
             }
         }
+    val effectiveEdgeHighlightMode =
+        if (effectiveStyle.supportsEdgeHighlight) config.edgeHighlight else EdgeHighlightMode.OFF
     val edgeHighlight =
-        when (config.edgeHighlight) {
+        when (effectiveEdgeHighlightMode) {
             EdgeHighlightMode.OFF -> 0f
             EdgeHighlightMode.SUBTLE -> 0.32f
             EdgeHighlightMode.STRONG -> 0.68f
@@ -280,7 +282,7 @@ private fun GlassContainer(
             }
         }
     val borderColor =
-        when (config.edgeHighlight) {
+        when (effectiveEdgeHighlightMode) {
             EdgeHighlightMode.OFF -> Color.Transparent
             EdgeHighlightMode.SUBTLE -> colors.onSurface.copy(alpha = 0.14f)
             EdgeHighlightMode.STRONG -> colors.onSurface.copy(alpha = 0.28f)

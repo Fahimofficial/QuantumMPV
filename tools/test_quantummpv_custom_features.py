@@ -24,9 +24,13 @@ def main() -> int:
     """Check protected UI and player features, returning zero or raising AssertionError."""
     appearance_model = read("app/src/main/java/com/quantummpv/app/preferences/AppearancePreferences.kt")
     appearance_screen = read("app/src/main/java/com/quantummpv/app/ui/preferences/AppearancePreferencesScreen.kt")
+    searchable_preferences = read("app/src/main/java/com/quantummpv/app/ui/preferences/SearchablePreference.kt")
+    search_navigation = read("app/src/main/java/com/quantummpv/app/ui/preferences/SettingsSearchNavigation.kt")
     main_screen = read("app/src/main/java/com/quantummpv/app/ui/browser/MainScreen.kt")
     video_card = read("app/src/main/java/com/quantummpv/app/ui/browser/cards/VideoCard.kt")
     glass_components = read("app/src/main/java/com/quantummpv/app/ui/theme/GlassComponents.kt")
+    audio_properties_sheet = read("app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/AudioPropertiesSheet.kt")
+    equalizer_sheet = read("app/src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/EqualizerSheet.kt")
     strings = read("app/src/main/res/values/strings.xml")
 
     require(
@@ -34,17 +38,38 @@ def main() -> int:
         appearance_model,
         "persisted global Liquid Glass default",
     )
+    require(r'if \(dynamicTintMode\.get\(\) != DynamicTintMode\.OFF && dynamicTintMode\.get\(\) != DynamicTintMode\.THEME\) \{\s*dynamicTintMode\.set\(DynamicTintMode\.OFF\)',
+            appearance_model, "legacy unsupported tint modes are normalized before rendering")
+    require(r'legacyGlassBottomNavigation = preferenceStore\.getBoolean\("glass_bottom_navigation",\s*false\)',
+            appearance_model, "persisted legacy navigation appearance compatibility")
     require(
         r'val surfaceStyle by preferences\.surfaceStyle\.collectAsState\(\)',
         appearance_screen,
         "surface-style preference shown in Appearance settings",
     )
     require(
-        r'val surfaceStyle = LocalGlassConfig\.current\.style\s+val glassBottomNavigation =\s*surfaceStyle != SurfaceStyle\.CLASSIC && surfaceStyle != SurfaceStyle\.MINIMAL',
+        r'val surfaceStyle = LocalGlassConfig\.current\.style\s+val glassBottomNavigation =\s*if \(appearancePreferences\.hasLegacyGlassBottomNavigation && !appearancePreferences\.hasStoredSurfaceStyle\) \{\s*legacyGlassBottomNavigation\s*\} else \{\s*surfaceStyle != SurfaceStyle\.CLASSIC && surfaceStyle != SurfaceStyle\.MINIMAL\s*\}',
         main_screen,
-        "global surface style selects the glass navigation renderer",
+        "new global style takes over after preserving the user's saved legacy navigation style",
     )
-    require(r'glass\s*=\s*glassBottomNavigation', main_screen, "global surface style reaches navigation rendering")
+    if len(re.findall(r'glass\s*=\s*glassBottomNavigation', main_screen)) != 2:
+        raise AssertionError("global/legacy surface style must reach both navigation renderers")
+    require(r'anchorItemIndex = 5,[\s\S]{0,250}pref_tree_flatten_depth_title', searchable_preferences,
+            "file-browser search results target the shifted card")
+    require(r'anchorItemIndex = 7,[\s\S]{0,250}pref_appearance_thumbnail_position_title', searchable_preferences,
+            "thumbnail search results target the shifted card")
+    require(r'anchorItemIndex = 9,[\s\S]{0,250}pref_nav_music_title', searchable_preferences,
+            "navigation search results target the shifted card")
+    require(r'anchorItemIndex = 13,[\s\S]{0,250}pref_anim_controls_style_title', searchable_preferences,
+            "animation search results target the shifted card")
+    require(r'pref_appearance_unlimited_name_lines_title, itemIndex = 5', search_navigation,
+            "file-browser fallback anchors use the current list index")
+    require(r'pref_appearance_show_video_thumbnails_title, itemIndex = 7', search_navigation,
+            "thumbnail fallback anchors use the current list index")
+    require(r'titleRes = R\.string\.pref_glass_intensity_title,\s*keywords', searchable_preferences,
+            "glass opacity search avoids a formatted summary without arguments")
+    require(r'value = dynamicTintMode,[\s\S]{0,100}values = listOf\(DynamicTintMode\.OFF, DynamicTintMode\.THEME\)', appearance_screen,
+            "the tint selector only exposes implemented, normalized tint modes")
     require(r'<string name="pref_glass_surface_style_title">Surface style</string>', strings,
             "visible surface-style settings label")
     print("PASS: global surface appearance remains visible and connected to navigation.")
@@ -65,6 +90,15 @@ def main() -> int:
     require(r'modifier\s*\.clip\(shape\)', glass_components, "glass clipping respects the caller-provided shape")
     require(r'Modifier\.hazeGlass\([\s\S]*?input = HazeInput\.Backdrop\(hazeState\)', glass_components,
             "glass surfaces render against the shared captured backdrop")
+    require(r'effectiveStyle\.supportsEdgeHighlight\) config\.edgeHighlight else EdgeHighlightMode\.OFF',
+            glass_components, "Cinema and unsupported styles suppress glass edge highlights")
+    require(r'when \(effectiveEdgeHighlightMode\)', glass_components,
+            "surface borders follow the capability-filtered edge-highlight mode")
+    for sheet in (audio_properties_sheet, equalizer_sheet):
+        require(r'contentWindowInsets = \{[\s\S]*?WindowInsetsSides\.Top \+ WindowInsetsSides\.Horizontal', sheet,
+                "modal sheet leaves bottom inset available to its glass background")
+        require(r'windowInsetsPadding\(WindowInsets\.navigationBars\.only\(WindowInsetsSides\.Bottom\)\)', sheet,
+                "glass sheet background paints behind the navigation-bar inset")
     print("PASS: VideoCard glass rendering preserves selection, Classic/Minimal fallback, Aurora gradients, and card shape.")
 
     subtitle_installer = read("app/src/main/java/com/quantummpv/app/ui/player/SubtitleFontInstaller.kt")

@@ -186,9 +186,14 @@ object MainScreen : Screen {
     val showPlaylistsTab by appearancePreferences.showPlaylistsTab.collectAsState()
     val showNetworkTab by appearancePreferences.showNetworkTab.collectAsState()
     val showJellyfinTab by appearancePreferences.showJellyfinTab.collectAsState()
+    val legacyGlassBottomNavigation by appearancePreferences.legacyGlassBottomNavigation.collectAsState()
     val surfaceStyle = LocalGlassConfig.current.style
     val glassBottomNavigation =
-      surfaceStyle != SurfaceStyle.CLASSIC && surfaceStyle != SurfaceStyle.MINIMAL
+      if (appearancePreferences.hasLegacyGlassBottomNavigation && !appearancePreferences.hasStoredSurfaceStyle) {
+        legacyGlassBottomNavigation
+      } else {
+        surfaceStyle != SurfaceStyle.CLASSIC && surfaceStyle != SurfaceStyle.MINIMAL
+      }
     val hideNavigationBar = NavigationBarState.shouldHideNavigationBar
     val isPermissionDenied = NavigationBarState.isPermissionDenied
     val isDualPaneFolderSelected = NavigationBarState.isDualPaneFolderSelected

@@ -550,12 +550,9 @@ object AppearancePreferencesScreen : Screen {
               PreferenceDivider()
 
               val dynamicTintMode by preferences.dynamicTintMode.collectAsState()
-              val supportedDynamicTintMode =
-                dynamicTintMode.takeIf { it == DynamicTintMode.OFF || it == DynamicTintMode.THEME }
-                  ?: DynamicTintMode.OFF
               ListPreference(
                 modifier = Modifier.settingsSearchTarget(R.string.pref_dynamic_tint_mode_title),
-                value = supportedDynamicTintMode,
+                value = dynamicTintMode,
                 onValueChange = preferences.dynamicTintMode::set,
                 values = listOf(DynamicTintMode.OFF, DynamicTintMode.THEME),
                 valueToText = { AnnotatedString(stringResource(id = it.titleRes)) },
@@ -563,7 +560,7 @@ object AppearancePreferencesScreen : Screen {
                 enabled = surfaceStyle.supportsDynamicTint,
                 summary = {
                   Text(
-                    stringResource(id = supportedDynamicTintMode.summaryRes),
+                    stringResource(id = dynamicTintMode.summaryRes),
                     color = MaterialTheme.colorScheme.outline,
                   )
                 },

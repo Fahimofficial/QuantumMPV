@@ -52,7 +52,7 @@ import com.quantummpv.app.ui.theme.spacing
 import kotlinx.collections.immutable.ImmutableList
 
 class AppearancePreferences(
-  preferenceStore: PreferenceStore,
+  private val preferenceStore: PreferenceStore,
 ) {
     companion object {
     const val CUSTOM_WALLPAPER_URI_KEY = "custom_wallpaper_uri"
@@ -73,6 +73,12 @@ class AppearancePreferences(
 
   // New Glass/Surface Style System
   val surfaceStyle = preferenceStore.getEnum("surface_style", SurfaceStyle.LIQUID_GLASS)
+  // Read the former navigation-only preference until the user chooses a global surface style.
+  val legacyGlassBottomNavigation = preferenceStore.getBoolean("glass_bottom_navigation", false)
+  val hasLegacyGlassBottomNavigation: Boolean
+    get() = "glass_bottom_navigation" in preferenceStore.getAll()
+  val hasStoredSurfaceStyle: Boolean
+    get() = "surface_style" in preferenceStore.getAll()
   val glassIntensity = preferenceStore.getFloat("glass_intensity", SurfaceStyle.LIQUID_GLASS.defaultIntensity)
   val glassBlurLevel = preferenceStore.getEnum("glass_blur_level", SurfaceStyle.LIQUID_GLASS.defaultBlurLevel)
   val dynamicTintMode = preferenceStore.getEnum("dynamic_tint_mode", DynamicTintMode.THEME)
@@ -152,7 +158,11 @@ class AppearancePreferences(
     preferenceStore.getBoolean("clip_button_migration_complete", false)
 
   init {
-        if (selectedCustomThemeName.get().isBlank()) {
+    if (dynamicTintMode.get() != DynamicTintMode.OFF && dynamicTintMode.get() != DynamicTintMode.THEME) {
+      dynamicTintMode.set(DynamicTintMode.OFF)
+    }
+
+    if (selectedCustomThemeName.get().isBlank()) {
       CustomThemeDefinition.parse(customTheme.get())?.let { legacyTheme ->
         selectedCustomThemeName.set(legacyTheme.name)
       }

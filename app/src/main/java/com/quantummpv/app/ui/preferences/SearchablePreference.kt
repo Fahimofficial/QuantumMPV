@@ -111,7 +111,6 @@ object SearchablePreferences {
       add(
         SearchablePreference(
           titleRes = R.string.pref_glass_intensity_title,
-          summaryRes = R.string.pref_glass_intensity_summary,
           keywords = listOf("glass", "opacity", "transparency", "surface", "appearance"),
           category = "Appearance",
           screen = AppearancePreferencesScreen,
@@ -1334,7 +1333,7 @@ object SearchablePreferences {
       addSearchEntries(
         category = "Appearance",
         screen = AppearancePreferencesScreen,
-        anchorItemIndex = 3,
+        anchorItemIndex = 5,
         SearchEntrySpec(R.string.pref_tree_flatten_depth_title, listOf("tree", "folder", "path", "flatten", "compression")),
         SearchEntrySpec(R.string.ui_dual_pane_view, listOf("tablet", "two pane", "split", "folder")),
         SearchEntrySpec(R.string.pref_appearance_watched_threshold_title, listOf("watched", "progress", "threshold", "percent")),
@@ -1343,7 +1342,7 @@ object SearchablePreferences {
       addSearchEntries(
         category = "Appearance",
         screen = AppearancePreferencesScreen,
-        anchorItemIndex = 5,
+        anchorItemIndex = 7,
         SearchEntrySpec(
           R.string.pref_appearance_thumbnail_position_title,
           listOf("thumbnail", "frame", "position", "percent", "preview"),
@@ -1353,7 +1352,7 @@ object SearchablePreferences {
       addSearchEntries(
         category = "Appearance",
         screen = AppearancePreferencesScreen,
-        anchorItemIndex = 7,
+        anchorItemIndex = 9,
         SearchEntrySpec(R.string.pref_nav_music_title, listOf("music", "audio", "tab", "navigation")),
         SearchEntrySpec(R.string.pref_nav_recents_title, listOf("recent", "history", "tab", "navigation")),
         SearchEntrySpec(R.string.pref_nav_playlists_title, listOf("playlist", "tab", "navigation")),
@@ -1365,7 +1364,7 @@ object SearchablePreferences {
       addSearchEntries(
         category = "Appearance",
         screen = AppearancePreferencesScreen,
-        anchorItemIndex = 9,
+        anchorItemIndex = 13,
         SearchEntrySpec(R.string.pref_anim_controls_style_title, listOf("animation", "controls", "fade", "slide")),
         SearchEntrySpec(R.string.pref_anim_video_open_title, listOf("animation", "video", "opening", "launch")),
         SearchEntrySpec(R.string.pref_anim_screen_nav_style_title, listOf("animation", "screen", "navigation", "transition")),
