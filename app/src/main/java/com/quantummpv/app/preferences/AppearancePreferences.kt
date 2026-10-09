@@ -73,6 +73,7 @@ class AppearancePreferences(
 
   // New Glass/Surface Style System
   val surfaceStyle = preferenceStore.getEnum("surface_style", SurfaceStyle.LIQUID_GLASS)
+
   // Read the former navigation-only preference until the user chooses a global surface style.
   val legacyGlassBottomNavigation = preferenceStore.getBoolean("glass_bottom_navigation", false)
   val hasLegacyGlassBottomNavigation: Boolean
