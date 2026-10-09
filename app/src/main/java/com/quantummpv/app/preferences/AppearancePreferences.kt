@@ -40,7 +40,6 @@ import com.quantummpv.app.ui.player.controls.components.tvInitialFocus
 import com.quantummpv.app.ui.theme.AppTheme
 import com.quantummpv.app.ui.theme.CustomThemeDefinition
 import com.quantummpv.app.ui.theme.DarkMode
-import com.quantummpv.app.ui.theme.DesignTokens.BlurLevel
 import com.quantummpv.app.ui.theme.DesignTokens.DynamicTintMode
 import com.quantummpv.app.ui.theme.DesignTokens.EdgeHighlightMode
 import com.quantummpv.app.ui.theme.DesignTokens.GlassConfig
@@ -71,13 +70,14 @@ class AppearancePreferences(
   val customWallpaperBlur = preferenceStore.getFloat("custom_wallpaper_blur", 0f)
   val customWallpaperAlpha = preferenceStore.getFloat("custom_wallpaper_alpha", 1f)
   val amoledMode = preferenceStore.getBoolean("amoled_mode", false)
+
   // New Glass/Surface Style System
-  val surfaceStyle = preferenceStore.getEnum("surface_style", SurfaceStyle.CLASSIC)
-  val glassIntensity = preferenceStore.getFloat("glass_intensity", 0.85f)
-  val glassBlurLevel = preferenceStore.getEnum("glass_blur_level", BlurLevel.LOW)
-  val dynamicTintMode = preferenceStore.getEnum("dynamic_tint_mode", DynamicTintMode.OFF)
-  val edgeHighlightMode = preferenceStore.getEnum("edge_highlight_mode", EdgeHighlightMode.OFF)
-  val refractionMode = preferenceStore.getEnum("refraction_mode", RefractionMode.OFF)
+  val surfaceStyle = preferenceStore.getEnum("surface_style", SurfaceStyle.LIQUID_GLASS)
+  val glassIntensity = preferenceStore.getFloat("glass_intensity", SurfaceStyle.LIQUID_GLASS.defaultIntensity)
+  val glassBlurLevel = preferenceStore.getEnum("glass_blur_level", SurfaceStyle.LIQUID_GLASS.defaultBlurLevel)
+  val dynamicTintMode = preferenceStore.getEnum("dynamic_tint_mode", DynamicTintMode.THEME)
+  val edgeHighlightMode = preferenceStore.getEnum("edge_highlight_mode", EdgeHighlightMode.SUBTLE)
+  val refractionMode = preferenceStore.getEnum("refraction_mode", RefractionMode.SUBTLE)
   val motionStyle = preferenceStore.getEnum("motion_style", MotionStyle.STANDARD)
   val performanceMode = preferenceStore.getEnum("performance_mode", PerformanceMode.AUTOMATIC)
   val cinemaMode = preferenceStore.getBoolean("cinema_mode", false)

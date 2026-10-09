@@ -689,6 +689,7 @@ private fun ExpressivePillNavigationBar(
       GlassComponents.GlassNavigationPill(
         modifier = modifier,
         shape = CircleShape,
+        forceGlass = true,
         content = content,
       )
     }

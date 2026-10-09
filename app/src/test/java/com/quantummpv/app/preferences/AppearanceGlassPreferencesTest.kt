@@ -35,9 +35,9 @@ class AppearanceGlassPreferencesTest {
     preferences = newPreferences()
   }
 
-  /** Verifies that empty storage selects Classic while retaining the stored glass defaults. */
+  /** Verifies that fresh installs show the requested Liquid Glass design by default. */
   @Test
-  fun freshPreferencesKeepClassicStyleWithDormantGlassDefaults() {
+  fun freshPreferencesEnableLiquidGlassWithVisibleOpticalDefaults() {
     assertEquals(defaultConfig, preferences.glassConfig)
   }
 
@@ -169,7 +169,15 @@ class AppearanceGlassPreferencesTest {
   /** Creates a new preference wrapper over the shared storage to exercise persistence across instances. */
   private fun newPreferences() = AppearancePreferences(AndroidPreferenceStore(context, storage))
 
-  private val defaultConfig = GlassConfig(intensity = 0.85f, blurLevel = BlurLevel.LOW)
+  private val defaultConfig =
+    GlassConfig(
+      style = SurfaceStyle.LIQUID_GLASS,
+      intensity = SurfaceStyle.LIQUID_GLASS.defaultIntensity,
+      blurLevel = SurfaceStyle.LIQUID_GLASS.defaultBlurLevel,
+      dynamicTint = DynamicTintMode.THEME,
+      edgeHighlight = EdgeHighlightMode.SUBTLE,
+      refraction = RefractionMode.SUBTLE,
+    )
   private val customConfig = GlassConfig(
     style = SurfaceStyle.LIQUID_GLASS,
     intensity = 0.42f,

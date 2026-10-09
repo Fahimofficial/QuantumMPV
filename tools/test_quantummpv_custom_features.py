@@ -30,17 +30,21 @@ def main() -> int:
     strings = read("app/src/main/res/values/strings.xml")
 
     require(
-        r'val surfaceStyle = preferenceStore\.getEnum\("surface_style",\s*SurfaceStyle\.CLASSIC\)',
+        r'val surfaceStyle = preferenceStore\.getEnum\("surface_style",\s*SurfaceStyle\.LIQUID_GLASS\)',
         appearance_model,
-        "persisted global surface style",
+        "persisted global Liquid Glass default",
     )
     require(
         r'val surfaceStyle by preferences\.surfaceStyle\.collectAsState\(\)',
         appearance_screen,
         "surface-style preference shown in Appearance settings",
     )
-    if len(re.findall(r'glass\s*=\s*glassBottomNavigation', main_screen)) != 2:
-        raise AssertionError("global surface style must reach both navigation renderers")
+    require(
+        r'val surfaceStyle = LocalGlassConfig\.current\.style\s+val glassBottomNavigation =\s*surfaceStyle != SurfaceStyle\.CLASSIC && surfaceStyle != SurfaceStyle\.MINIMAL',
+        main_screen,
+        "global surface style selects the glass navigation renderer",
+    )
+    require(r'glass\s*=\s*glassBottomNavigation', main_screen, "global surface style reaches navigation rendering")
     require(r'<string name="pref_glass_surface_style_title">Surface style</string>', strings,
             "visible surface-style settings label")
     print("PASS: global surface appearance remains visible and connected to navigation.")
@@ -53,10 +57,14 @@ def main() -> int:
             "selected cards retain their existing selection color instead of using the glass surface")
     require(r'if \(appTheme == AppTheme\.Aurora && !isSelected\)', video_card,
             "every unselected Aurora card keeps its gradient independently of glass style")
-    require(r'fun GlassMediaCardSurface\([\s\S]*?shape: Shape = [^\n]+', glass_components,
-            "media-card glass surface accepts a caller-provided shape")
-    require(r'val containerShape = shape', glass_components,
-            "media-card glass border and clip use the caller-provided shape")
+    require(
+        r'fun GlassMediaCardSurface\([\s\S]*?shape: Shape = [^\n]+[\s\S]*?GlassContainer\(\s*modifier = modifier,\s*shape = shape',
+        glass_components,
+        "media-card glass surface forwards the caller-provided shape",
+    )
+    require(r'modifier\s*\.clip\(shape\)', glass_components, "glass clipping respects the caller-provided shape")
+    require(r'Modifier\.hazeGlass\([\s\S]*?input = HazeInput\.Backdrop\(hazeState\)', glass_components,
+            "glass surfaces render against the shared captured backdrop")
     print("PASS: VideoCard glass rendering preserves selection, Classic/Minimal fallback, Aurora gradients, and card shape.")
 
     subtitle_installer = read("app/src/main/java/com/quantummpv/app/ui/player/SubtitleFontInstaller.kt")
