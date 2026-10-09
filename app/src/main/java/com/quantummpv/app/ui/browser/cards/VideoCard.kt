@@ -64,6 +64,9 @@ import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.ui.theme.AppShapeScale
 import com.quantummpv.app.ui.theme.AppTheme
+import com.quantummpv.app.ui.theme.DesignTokens.LocalGlassConfig
+import com.quantummpv.app.ui.theme.DesignTokens.SurfaceStyle
+import com.quantummpv.app.ui.theme.GlassComponents
 import com.quantummpv.app.ui.theme.LocalAppTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.filter
@@ -207,16 +210,21 @@ fun VideoCard(
 
   val cardShape = AppShapeScale.large
   val appTheme = LocalAppTheme.current
+  val glassConfig = LocalGlassConfig.current
+  val useGlassCardSurface =
+    !isSelected && glassConfig.style != SurfaceStyle.CLASSIC && glassConfig.style != SurfaceStyle.MINIMAL
   val cardContainerColor =
     if (isSelected) {
       MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.88f)
+    } else if (useGlassCardSurface) {
+      Color.Transparent
     } else {
       MaterialTheme.colorScheme.surfaceContainerLow.copy(
         alpha = if (appTheme == AppTheme.Aurora) 0.82f else 1f,
       )
     }
   val cardBrush =
-    if (appTheme == AppTheme.Aurora && !isSelected) {
+    if (appTheme == AppTheme.Aurora && !isSelected && !useGlassCardSurface) {
       Brush.linearGradient(
         listOf(
           MaterialTheme.colorScheme.surfaceContainerLow,
@@ -248,6 +256,13 @@ fun VideoCard(
           .fillMaxWidth()
           .then(cardBrush?.let { Modifier.background(it, cardShape) } ?: Modifier),
     ) {
+      if (useGlassCardSurface) {
+        GlassComponents.GlassMediaCardSurface(
+          modifier = Modifier.matchParentSize(),
+          shape = cardShape,
+        ) {}
+      }
+
       if (isSelected) {
         Box(
           modifier =

@@ -408,6 +408,7 @@ object GlassComponents {
     @Composable
     fun GlassMediaCardSurface(
         modifier: Modifier = Modifier,
+        shape: Shape = androidx.compose.material3.MaterialTheme.shapes.medium,
         content: @Composable () -> Unit,
     ) {
         val glassConfig = LocalGlassConfig.current
@@ -416,6 +417,7 @@ object GlassComponents {
             Surface(
                 modifier = modifier
                     .background(androidx.compose.material3.MaterialTheme.colorScheme.surface),
+                shape = shape,
                 content = { content() },
             )
             return
@@ -424,7 +426,7 @@ object GlassComponents {
         // Media cards use lighter glass treatment
         val effectiveOpacity = (calculateSurfaceOpacity() * 0.9f).coerceAtMost(1f)
         val surfaceColor = androidx.compose.material3.MaterialTheme.colorScheme.surface.copy(alpha = effectiveOpacity)
-        val containerShape = androidx.compose.material3.MaterialTheme.shapes.medium
+        val containerShape = shape
 
         Box(
             modifier = modifier
