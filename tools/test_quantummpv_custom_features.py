@@ -21,6 +21,7 @@ def require(pattern: str, text: str, description: str) -> None:
 
 
 def main() -> int:
+    """Check protected UI and player features, returning zero or raising AssertionError."""
     appearance_model = read("app/src/main/java/com/quantummpv/app/preferences/AppearancePreferences.kt")
     appearance_screen = read("app/src/main/java/com/quantummpv/app/ui/preferences/AppearancePreferencesScreen.kt")
     main_screen = read("app/src/main/java/com/quantummpv/app/ui/browser/MainScreen.kt")

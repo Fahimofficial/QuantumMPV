@@ -149,6 +149,10 @@ fun rememberVideoCardUiConfig(): VideoCardUiConfig {
   }
 }
 
+/**
+ * Displays a video in a list or grid with metadata, playback progress, and selection state.
+ * Uses the configured glass surface for unselected cards in non-Classic, non-Minimal styles.
+ */
 @Composable
 fun VideoCard(
   video: Video,

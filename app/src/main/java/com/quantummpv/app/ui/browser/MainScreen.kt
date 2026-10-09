@@ -163,6 +163,10 @@ object MainScreen : Screen {
     NavigationBarState.updateBottomBarVisibility(shouldShow)
   }
 
+  /**
+   * Displays the main browser tabs and navigation using the current appearance preferences.
+   * Enables glass navigation for glass surface styles or the legacy glass navigation toggle.
+   */
   @SuppressLint("ComposableNaming")
   @Composable
   override fun Content() {
