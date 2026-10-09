@@ -3717,11 +3717,9 @@ class PlayerActivity :
 
     val duration =
       PlaybackSession.getPropertyDouble("duration")
-        ?: PlaybackSession.getPropertyInt("duration")?.toDouble()
     val position =
       if (duration != null && duration > 0.0) {
         PlaybackSession.getPropertyDouble("time-pos")
-          ?: PlaybackSession.getPropertyInt("time-pos")?.toDouble()
       } else {
         null
       }
