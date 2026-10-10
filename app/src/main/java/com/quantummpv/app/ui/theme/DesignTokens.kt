@@ -184,7 +184,7 @@ object DesignTokens {
         ),
         ;
 
-        /** Maps presets removed from the picker to the closest remaining surface style. */
+      /** Maps presets removed from the picker to the closest remaining surface style. */
         val canonicalStyle: SurfaceStyle
             get() =
                 when (this) {
