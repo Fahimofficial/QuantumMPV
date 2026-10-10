@@ -181,7 +181,8 @@ object DesignTokens {
             supportsDynamicTint = false,
             supportsEdgeHighlight = false,
             supportsRefraction = false,
-        );
+        ),
+        ;
 
         /** Maps presets removed from the picker to the closest remaining surface style. */
         val canonicalStyle: SurfaceStyle
