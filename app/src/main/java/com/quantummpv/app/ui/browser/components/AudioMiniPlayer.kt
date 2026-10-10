@@ -52,6 +52,9 @@ import com.quantummpv.app.ui.player.MediaPlaybackService
 import com.quantummpv.app.ui.player.PlaybackSession
 import com.quantummpv.app.ui.player.PlayerActivity
 import com.quantummpv.app.ui.player.controls.components.MiniAudioVisualizer
+import com.quantummpv.app.ui.theme.DesignTokens.LocalGlassConfig
+import com.quantummpv.app.ui.theme.DesignTokens.SurfaceStyle
+import com.quantummpv.app.ui.theme.GlassComponents
 
 @Composable
 fun AudioMiniPlayer(modifier: Modifier = Modifier) {
@@ -62,6 +65,8 @@ fun AudioMiniPlayer(modifier: Modifier = Modifier) {
   val rawMediaTitle by PlaybackSession.propString["media-title"].collectAsStateWithLifecycle()
   val duration by PlaybackSession.propInt["duration"].collectAsStateWithLifecycle()
   val position by PlaybackSession.propInt["time-pos"].collectAsStateWithLifecycle()
+  val surfaceStyle = LocalGlassConfig.current.style
+  val useGlassSurface = surfaceStyle != SurfaceStyle.CLASSIC && surfaceStyle != SurfaceStyle.MINIMAL
 
   if (!isServiceRunning || sessionState.currentItem == null) return
 
@@ -88,34 +93,47 @@ fun AudioMiniPlayer(modifier: Modifier = Modifier) {
             }
           context.startActivity(intent)
         },
-    color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.95f),
+    color =
+      if (useGlassSurface) {
+        androidx.compose.ui.graphics.Color.Transparent
+      } else {
+        MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.95f)
+      },
     tonalElevation = 6.dp,
     shadowElevation = 8.dp,
     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
   ) {
     val primaryContainerColor = MaterialTheme.colorScheme.primaryContainer
 
-    Row(
-      modifier =
-        Modifier
-          .fillMaxWidth()
-          .drawBehind {
-            val dur = duration?.toFloat() ?: 0f
-            val pos = position?.toFloat() ?: 0f
-            val progressFraction = if (dur > 0f) (pos / dur).coerceIn(0f, 1f) else 0f
-            if (progressFraction > 0f) {
-              drawRect(
-                color = primaryContainerColor.copy(alpha = 0.35f),
-                size =
-                  Size(
-                    width = size.width * progressFraction,
-                    height = size.height,
-                  ),
-              )
-            }
-          }.padding(horizontal = 12.dp, vertical = 8.dp),
-      verticalAlignment = Alignment.CenterVertically,
-    ) {
+    Box(modifier = Modifier.fillMaxWidth()) {
+      if (useGlassSurface) {
+        GlassComponents.GlassMiniPlayerSurface(
+          modifier = Modifier.matchParentSize(),
+          shape = RoundedCornerShape(24.dp),
+        ) {}
+      }
+
+      Row(
+        modifier =
+          Modifier
+            .fillMaxWidth()
+            .drawBehind {
+              val dur = duration?.toFloat() ?: 0f
+              val pos = position?.toFloat() ?: 0f
+              val progressFraction = if (dur > 0f) (pos / dur).coerceIn(0f, 1f) else 0f
+              if (progressFraction > 0f) {
+                drawRect(
+                  color = primaryContainerColor.copy(alpha = 0.35f),
+                  size =
+                    Size(
+                      width = size.width * progressFraction,
+                      height = size.height,
+                    ),
+                )
+              }
+            }.padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+      ) {
       // Music Icon Badge
       Box(
         modifier =
@@ -230,6 +248,7 @@ fun AudioMiniPlayer(modifier: Modifier = Modifier) {
           tint = MaterialTheme.colorScheme.onSurfaceVariant,
           modifier = Modifier.size(18.dp),
         )
+      }
       }
     }
   }

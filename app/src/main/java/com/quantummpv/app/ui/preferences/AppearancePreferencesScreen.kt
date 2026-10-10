@@ -34,6 +34,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -70,7 +71,6 @@ import com.quantummpv.app.ui.preferences.components.SwitchPreference
 import com.quantummpv.app.ui.preferences.components.ThemePicker
 import com.quantummpv.app.ui.theme.CustomThemeDefinition
 import com.quantummpv.app.ui.theme.DarkMode
-import com.quantummpv.app.ui.theme.DesignTokens.BlurLevel
 import com.quantummpv.app.ui.theme.DesignTokens.DynamicTintMode
 import com.quantummpv.app.ui.theme.DesignTokens.EdgeHighlightMode
 import com.quantummpv.app.ui.theme.DesignTokens.MotionStyle
@@ -303,7 +303,6 @@ object AppearancePreferencesScreen : Screen {
                   PreferenceDivider()
 
                   val amoledMode by preferences.amoledMode.collectAsState()
-                  val glassBottomNavigation by preferences.glassBottomNavigation.collectAsState()
                   val useSystemOsdFont by preferences.useSystemOsdFont.collectAsState()
                   ThemePicker(
                     currentTheme = appTheme,
@@ -456,20 +455,6 @@ object AppearancePreferencesScreen : Screen {
 
                   PreferenceDivider()
                   SwitchPreference(
-                    modifier = Modifier.settingsSearchTarget(R.string.pref_appearance_glass_navigation_title),
-                    value = glassBottomNavigation,
-                    onValueChange = preferences.glassBottomNavigation::set,
-                    title = { Text(stringResource(R.string.pref_appearance_glass_navigation_title)) },
-                    summary = {
-                      Text(
-                        stringResource(R.string.pref_appearance_glass_navigation_summary),
-                        color = MaterialTheme.colorScheme.outline,
-                      )
-                    },
-                  )
-
-                  PreferenceDivider()
-                  SwitchPreference(
                     modifier = Modifier.settingsSearchTarget(R.string.pref_appearance_osd_font_title),
                     value = useSystemOsdFont,
                     enabled = "osd-font" !in currentMpvConfigOverrideOptions(),
@@ -507,6 +492,107 @@ object AppearancePreferencesScreen : Screen {
                   )
                 }
               }
+            }
+          }
+
+          // ── Glass & Surface Style ────────────────────────────────────────
+          item {
+            PreferenceSectionHeader(title = stringResource(R.string.pref_section_glass_surface))
+          }
+
+          item {
+            PreferenceCard {
+              val surfaceStyle by preferences.surfaceStyle.collectAsState()
+              ListPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_glass_surface_style_title),
+                value = surfaceStyle,
+                onValueChange = preferences.surfaceStyle::set,
+                values = SurfaceStyle.entries,
+                valueToText = { AnnotatedString(stringResource(id = it.titleRes)) },
+                title = { Text(stringResource(R.string.pref_glass_surface_style_title)) },
+                summary = {
+                  Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                      "${stringResource(id = surfaceStyle.titleRes)} — " +
+                        stringResource(id = surfaceStyle.summaryRes),
+                      color = MaterialTheme.colorScheme.outline,
+                    )
+                    Text(
+                      stringResource(R.string.pref_glass_surface_style_summary),
+                      color = MaterialTheme.colorScheme.outline,
+                    )
+                  }
+                },
+              )
+
+              PreferenceDivider()
+
+              val glassIntensity by preferences.glassIntensity.collectAsState()
+              SliderPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_glass_intensity_title),
+                value = glassIntensity,
+                onValueChange = { preferences.glassIntensity.set(it) },
+                title = { Text(stringResource(R.string.pref_glass_intensity_title)) },
+                valueRange = 0.1f..1f,
+                enabled = surfaceStyle != SurfaceStyle.CLASSIC && surfaceStyle != SurfaceStyle.MINIMAL,
+                summary = {
+                  Text(
+                    stringResource(
+                      R.string.pref_glass_intensity_summary,
+                      (glassIntensity * 100).roundToInt(),
+                    ),
+                    color = MaterialTheme.colorScheme.outline,
+                  )
+                },
+                onSliderValueChange = { preferences.glassIntensity.set(it) },
+                sliderValue = glassIntensity,
+              )
+
+              PreferenceDivider()
+
+              val dynamicTintMode by preferences.dynamicTintMode.collectAsState()
+              val supportedDynamicTintMode =
+                dynamicTintMode.takeIf { it == DynamicTintMode.OFF || it == DynamicTintMode.THEME }
+                  ?: DynamicTintMode.OFF
+              LaunchedEffect(dynamicTintMode) {
+                if (dynamicTintMode != supportedDynamicTintMode) {
+                  preferences.dynamicTintMode.set(supportedDynamicTintMode)
+                }
+              }
+              ListPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_dynamic_tint_mode_title),
+                value = supportedDynamicTintMode,
+                onValueChange = preferences.dynamicTintMode::set,
+                values = listOf(DynamicTintMode.OFF, DynamicTintMode.THEME),
+                valueToText = { AnnotatedString(stringResource(id = it.titleRes)) },
+                title = { Text(stringResource(R.string.pref_dynamic_tint_mode_title)) },
+                enabled = surfaceStyle.supportsDynamicTint,
+                summary = {
+                  Text(
+                    stringResource(id = supportedDynamicTintMode.summaryRes),
+                    color = MaterialTheme.colorScheme.outline,
+                  )
+                },
+              )
+
+              PreferenceDivider()
+
+              val edgeHighlightMode by preferences.edgeHighlightMode.collectAsState()
+              ListPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_edge_highlight_mode_title),
+                value = edgeHighlightMode,
+                onValueChange = preferences.edgeHighlightMode::set,
+                values = EdgeHighlightMode.entries,
+                valueToText = { AnnotatedString(stringResource(id = it.titleRes)) },
+                title = { Text(stringResource(R.string.pref_edge_highlight_mode_title)) },
+                enabled = surfaceStyle.supportsEdgeHighlight,
+                summary = {
+                  Text(
+                    stringResource(id = edgeHighlightMode.summaryRes),
+                    color = MaterialTheme.colorScheme.outline,
+                  )
+                },
+              )
             }
           }
 
@@ -1020,112 +1106,6 @@ object AppearancePreferencesScreen : Screen {
                   )
                 },
               )
-            }
-          }
-
-          // ── Glass & Surface Style ────────────────────────────────────────
-          item {
-            PreferenceSectionHeader(title = stringResource(R.string.pref_section_glass_surface))
-          }
-
-          item {
-            PreferenceCard {
-              val surfaceStyle by preferences.surfaceStyle.collectAsState()
-              ListPreference(
-                modifier = Modifier.settingsSearchTarget(R.string.pref_glass_surface_style_title),
-                value = surfaceStyle,
-                onValueChange = preferences.surfaceStyle::set,
-                values = SurfaceStyle.entries,
-                valueToText = { AnnotatedString(stringResource(id = it.titleRes)) },
-                title = { Text(stringResource(R.string.pref_glass_surface_style_title)) },
-                summary = {
-                  Text(
-                    stringResource(id = surfaceStyle.titleRes),
-                    color = MaterialTheme.colorScheme.outline,
-                  )
-                },
-              )
-
-              PreferenceDivider()
-
-              val glassIntensity by preferences.glassIntensity.collectAsState()
-              SliderPreference(
-                modifier = Modifier.settingsSearchTarget(R.string.pref_glass_intensity_title),
-                value = glassIntensity,
-                onValueChange = { preferences.glassIntensity.set(it) },
-                title = { Text(stringResource(R.string.pref_glass_intensity_title)) },
-                valueRange = 0.1f..1f,
-                summary = {
-                  Text(
-                    "${(glassIntensity * 100).roundToInt()}%",
-                    color = MaterialTheme.colorScheme.outline,
-                  )
-                },
-                onSliderValueChange = { preferences.glassIntensity.set(it) },
-                sliderValue = glassIntensity,
-              )
-
-              PreferenceDivider()
-
-              val glassBlurLevel by preferences.glassBlurLevel.collectAsState()
-              ListPreference(
-                modifier = Modifier.settingsSearchTarget(R.string.pref_glass_blur_level_title),
-                value = glassBlurLevel,
-                onValueChange = preferences.glassBlurLevel::set,
-                values = BlurLevel.entries,
-                valueToText = { AnnotatedString(stringResource(id = it.titleRes)) },
-                title = { Text(stringResource(R.string.pref_glass_blur_level_title)) },
-                summary = {
-                  Text(
-                    stringResource(id = glassBlurLevel.titleRes),
-                    color = MaterialTheme.colorScheme.outline,
-                  )
-                },
-              )
-
-              PreferenceDivider()
-
-              val dynamicTintMode by preferences.dynamicTintMode.collectAsState()
-              val supportedDynamicTintMode =
-                dynamicTintMode.takeIf { it == DynamicTintMode.OFF || it == DynamicTintMode.THEME }
-                  ?: DynamicTintMode.OFF
-              ListPreference(
-                modifier = Modifier.settingsSearchTarget(R.string.pref_dynamic_tint_mode_title),
-                value = supportedDynamicTintMode,
-                onValueChange = preferences.dynamicTintMode::set,
-                values = listOf(DynamicTintMode.OFF, DynamicTintMode.THEME),
-                valueToText = { AnnotatedString(stringResource(id = it.titleRes)) },
-                title = { Text(stringResource(R.string.pref_dynamic_tint_mode_title)) },
-                summary = {
-                  Text(
-                    stringResource(id = supportedDynamicTintMode.titleRes),
-                    color = MaterialTheme.colorScheme.outline,
-                  )
-                },
-              )
-
-              PreferenceDivider()
-
-              val edgeHighlightMode by preferences.edgeHighlightMode.collectAsState()
-              ListPreference(
-                modifier = Modifier.settingsSearchTarget(R.string.pref_edge_highlight_mode_title),
-                value = edgeHighlightMode,
-                onValueChange = preferences.edgeHighlightMode::set,
-                values = EdgeHighlightMode.entries,
-                valueToText = { AnnotatedString(stringResource(id = it.titleRes)) },
-                title = { Text(stringResource(R.string.pref_edge_highlight_mode_title)) },
-                summary = {
-                  Text(
-                    stringResource(id = edgeHighlightMode.titleRes),
-                    color = MaterialTheme.colorScheme.outline,
-                  )
-                },
-              )
-
-              PreferenceDivider()
-
-              // Refraction remains persisted for forward compatibility but is hidden until a
-              // surface implementation can apply it without misleading the user.
             }
           }
 

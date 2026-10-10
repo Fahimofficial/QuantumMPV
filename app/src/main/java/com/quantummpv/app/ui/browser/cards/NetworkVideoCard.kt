@@ -55,6 +55,9 @@ import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.ui.theme.AppShapeScale
+import com.quantummpv.app.ui.theme.DesignTokens.LocalGlassConfig
+import com.quantummpv.app.ui.theme.DesignTokens.SurfaceStyle
+import com.quantummpv.app.ui.theme.GlassComponents
 import com.quantummpv.app.utils.FormatUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -152,6 +155,8 @@ fun NetworkVideoCard(
   }
 
   val displayName = if (showExtensionField) file.name else file.name.substringBeforeLast('.', file.name)
+  val surfaceStyle = LocalGlassConfig.current.style
+  val useGlassSurface = surfaceStyle != SurfaceStyle.CLASSIC && surfaceStyle != SurfaceStyle.MINIMAL
 
   Card(
     modifier =
@@ -167,6 +172,13 @@ fun NetworkVideoCard(
     colors = CardDefaults.cardColors(containerColor = Color.Transparent),
   ) {
     Box(modifier = Modifier.fillMaxWidth()) {
+      if (useGlassSurface) {
+        GlassComponents.GlassMediaCardSurface(
+          modifier = Modifier.matchParentSize(),
+          shape = AppShapeScale.large,
+        ) {}
+      }
+
       if (isSelected) {
         Box(
           modifier =

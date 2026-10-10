@@ -12,6 +12,8 @@ import com.quantummpv.app.ui.theme.DesignTokens.PerformanceMode
 import com.quantummpv.app.ui.theme.DesignTokens.RefractionMode
 import com.quantummpv.app.ui.theme.DesignTokens.SurfaceStyle
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -35,10 +37,23 @@ class AppearanceGlassPreferencesTest {
     preferences = newPreferences()
   }
 
-  /** Verifies that empty storage selects Classic while retaining the stored glass defaults. */
+  /** Verifies that fresh installs show the requested Liquid Glass design by default. */
   @Test
-  fun freshPreferencesKeepClassicStyleWithDormantGlassDefaults() {
+  fun freshPreferencesEnableLiquidGlassWithVisibleOpticalDefaults() {
     assertEquals(defaultConfig, preferences.glassConfig)
+  }
+
+  @Test
+  fun legacyNavigationChoiceAppliesUntilGlobalSurfaceStyleIsSaved() {
+    storage.edit().putBoolean("glass_bottom_navigation", true).commit()
+    val legacyPreferences = newPreferences()
+
+    assertTrue(legacyPreferences.hasLegacyGlassBottomNavigation)
+    assertFalse(legacyPreferences.hasStoredSurfaceStyle)
+    assertEquals(true, legacyPreferences.legacyGlassBottomNavigation.get())
+
+    legacyPreferences.surfaceStyle.set(SurfaceStyle.CLASSIC)
+    assertTrue(legacyPreferences.hasStoredSurfaceStyle)
   }
 
   /** Verifies that raw persisted values populate all fields of a newly read glass configuration. */
@@ -48,7 +63,7 @@ class AppearanceGlassPreferencesTest {
       .putString("surface_style", "LIQUID_GLASS")
       .putFloat("glass_intensity", 0.42f)
       .putString("glass_blur_level", "HIGH")
-      .putString("dynamic_tint_mode", "ADAPTIVE")
+      .putString("dynamic_tint_mode", "THEME")
       .putString("edge_highlight_mode", "STRONG")
       .putString("refraction_mode", "EXPERIMENTAL")
       .putString("motion_style", "OFF")
@@ -59,13 +74,34 @@ class AppearanceGlassPreferencesTest {
     assertEquals(customConfig, newPreferences().glassConfig)
   }
 
+  @Test
+  fun unsupportedLegacyTintModesAreResetToOff() {
+    for (mode in listOf("MEDIA", "ADAPTIVE")) {
+      storage.edit().putString("dynamic_tint_mode", mode).commit()
+      val migratedPreferences = newPreferences()
+
+      assertEquals(DynamicTintMode.OFF, migratedPreferences.dynamicTintMode.get())
+      assertEquals("OFF", storage.getString("dynamic_tint_mode", null))
+      storage.edit().remove("dynamic_tint_mode").commit()
+    }
+  }
+
+  @Test
+  fun unsupportedTintImportedAfterInitializationNeverReachesGlassRendering() {
+    storage.edit().putString("dynamic_tint_mode", "MEDIA").commit()
+    assertEquals(DynamicTintMode.OFF, preferences.glassConfig.dynamicTint)
+
+    storage.edit().putString("dynamic_tint_mode", "ADAPTIVE").commit()
+    assertEquals(DynamicTintMode.OFF, preferences.glassConfig.dynamicTint)
+  }
+
   /** Checks both reconstructed settings and raw storage keys after writing every glass preference. */
   @Test
   fun preferenceWritesSurviveReconstructionAndUseStableStorageKeys() {
     preferences.surfaceStyle.set(SurfaceStyle.LIQUID_GLASS)
     preferences.glassIntensity.set(0.42f)
     preferences.glassBlurLevel.set(BlurLevel.HIGH)
-    preferences.dynamicTintMode.set(DynamicTintMode.ADAPTIVE)
+    preferences.dynamicTintMode.set(DynamicTintMode.THEME)
     preferences.edgeHighlightMode.set(EdgeHighlightMode.STRONG)
     preferences.refractionMode.set(RefractionMode.EXPERIMENTAL)
     preferences.motionStyle.set(MotionStyle.OFF)
@@ -76,7 +112,7 @@ class AppearanceGlassPreferencesTest {
     assertEquals("LIQUID_GLASS", storage.getString("surface_style", null))
     assertEquals(0.42f, storage.getFloat("glass_intensity", -1f), 0f)
     assertEquals("HIGH", storage.getString("glass_blur_level", null))
-    assertEquals("ADAPTIVE", storage.getString("dynamic_tint_mode", null))
+    assertEquals("THEME", storage.getString("dynamic_tint_mode", null))
     assertEquals("STRONG", storage.getString("edge_highlight_mode", null))
     assertEquals("EXPERIMENTAL", storage.getString("refraction_mode", null))
     assertEquals("OFF", storage.getString("motion_style", null))
@@ -99,8 +135,8 @@ class AppearanceGlassPreferencesTest {
     preferences.glassBlurLevel.set(BlurLevel.OFF)
     expected = expected.copy(blurLevel = BlurLevel.OFF)
     assertEquals(expected, preferences.glassConfig)
-    preferences.dynamicTintMode.set(DynamicTintMode.MEDIA)
-    expected = expected.copy(dynamicTint = DynamicTintMode.MEDIA)
+    preferences.dynamicTintMode.set(DynamicTintMode.THEME)
+    expected = expected.copy(dynamicTint = DynamicTintMode.THEME)
     assertEquals(expected, preferences.glassConfig)
     preferences.edgeHighlightMode.set(EdgeHighlightMode.SUBTLE)
     expected = expected.copy(edgeHighlight = EdgeHighlightMode.SUBTLE)
@@ -169,12 +205,20 @@ class AppearanceGlassPreferencesTest {
   /** Creates a new preference wrapper over the shared storage to exercise persistence across instances. */
   private fun newPreferences() = AppearancePreferences(AndroidPreferenceStore(context, storage))
 
-  private val defaultConfig = GlassConfig(intensity = 0.85f, blurLevel = BlurLevel.LOW)
+  private val defaultConfig =
+    GlassConfig(
+      style = SurfaceStyle.LIQUID_GLASS,
+      intensity = SurfaceStyle.LIQUID_GLASS.defaultIntensity,
+      blurLevel = SurfaceStyle.LIQUID_GLASS.defaultBlurLevel,
+      dynamicTint = DynamicTintMode.THEME,
+      edgeHighlight = EdgeHighlightMode.SUBTLE,
+      refraction = RefractionMode.SUBTLE,
+    )
   private val customConfig = GlassConfig(
     style = SurfaceStyle.LIQUID_GLASS,
     intensity = 0.42f,
     blurLevel = BlurLevel.HIGH,
-    dynamicTint = DynamicTintMode.ADAPTIVE,
+    dynamicTint = DynamicTintMode.THEME,
     edgeHighlight = EdgeHighlightMode.STRONG,
     refraction = RefractionMode.EXPERIMENTAL,
     motionStyle = MotionStyle.OFF,

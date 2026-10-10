@@ -9,15 +9,15 @@
 
 package com.quantummpv.app.ui.theme
 
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -27,496 +27,297 @@ import androidx.compose.ui.unit.dp
 import com.quantummpv.app.ui.theme.DesignTokens.DynamicTintMode
 import com.quantummpv.app.ui.theme.DesignTokens.EdgeHighlightMode
 import com.quantummpv.app.ui.theme.DesignTokens.LocalGlassConfig
+import com.quantummpv.app.ui.theme.DesignTokens.PerformanceMode
+import com.quantummpv.app.ui.theme.DesignTokens.RefractionMode
 import com.quantummpv.app.ui.theme.DesignTokens.SurfaceStyle
 import com.quantummpv.app.ui.theme.DesignTokens.calculateSurfaceOpacity
+import dev.chrisbanes.haze.ExperimentalHazeApi
+import dev.chrisbanes.haze.HazeInput
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.glass.GlassDefaults
+import dev.chrisbanes.haze.glass.GlassStyle
+import dev.chrisbanes.haze.glass.OpticalSizeValue
+import dev.chrisbanes.haze.glass.hazeGlass
+import dev.chrisbanes.haze.HazePerformanceMode as HazeRenderPerformance
+
+/** Shared backdrop state provided by [MpvrxTheme]; null is used by isolated previews and tests. */
+val LocalHazeState = staticCompositionLocalOf<HazeState?> { null }
 
 /**
- * Reusable glass surface components for QuantumMPV.
- * These components respect the global GlassConfig and provide consistent glass effects.
+ * Shared glass treatments for browser, navigation, dialogs, player controls, and sheets.
+ * Non-classic styles use Haze's backdrop Glass renderer. Classic and Minimal retain their
+ * existing Material surfaces so the feature remains optional and backwards compatible.
  */
 object GlassComponents {
-    /**
-     * Displays [content] on a surface styled by the current glass configuration.
-     * Classic and Minimal use a Material surface. Other styles apply opacity, supported
-     * edge highlights, and theme tint while keeping foreground content sharp.
-     *
-     * @param isOnVideo Whether background video luminance should affect opacity.
-     * @param videoLuminance Background luminance from 0 (dark) to 1 (bright), ignored off video.
-     */
     @Composable
     fun GlassSurface(
         modifier: Modifier = Modifier,
-        shape: Shape = androidx.compose.material3.MaterialTheme.shapes.medium,
+        shape: Shape = MaterialTheme.shapes.medium,
         isOnVideo: Boolean = false,
         videoLuminance: Float = 0.5f,
         content: @Composable () -> Unit,
     ) {
-        val glassConfig = LocalGlassConfig.current
-
-        // Quick path for classic/minimal styles
-        if (glassConfig.style == SurfaceStyle.CLASSIC || glassConfig.style == SurfaceStyle.MINIMAL) {
-            Surface(
-                modifier = modifier,
-                shape = shape,
-                color = androidx.compose.material3.MaterialTheme.colorScheme.surface,
-                content = { content() },
-            )
-            return
-        }
-
-        val effectiveOpacity = calculateSurfaceOpacity(
-            isOnVideo = isOnVideo,
-            videoLuminance = videoLuminance,
-        )
-
-        val colorScheme = androidx.compose.material3.MaterialTheme.colorScheme
-        val surfaceColor = colorScheme.surface.copy(alpha = effectiveOpacity)
-
-        // A backdrop source is not available at this composable boundary. Do not blur the
-        // solid surface fill: that has no visual effect and cannot blur content behind it.
-
-        // Edge highlight
-        val edgeHighlightModifier = if (glassConfig.edgeHighlight != EdgeHighlightMode.OFF &&
-               glassConfig.style.supportsEdgeHighlight) {
-            Modifier
-                .border(
-                    width = 1.dp,
-                    color = when (glassConfig.edgeHighlight) {
-                        EdgeHighlightMode.SUBTLE -> colorScheme.outline.copy(alpha = 0.15f)
-                        EdgeHighlightMode.STRONG -> colorScheme.outline.copy(alpha = 0.3f)
-                        else -> Color.Transparent
-                    },
-                    shape = shape,
-                )
-        } else {
-            Modifier
-        }
-
-        // Dynamic tint overlay
-        val dynamicTintModifier = if (glassConfig.dynamicTint == DynamicTintMode.THEME &&
-               glassConfig.style.supportsDynamicTint) {
-            Modifier.background(
-                color = colorScheme.primary.copy(alpha = 0.08f),
-                shape = shape,
-            )
-        } else {
-            Modifier
-        }
-
-        Box(
-            modifier = modifier
-                .clip(shape)
-                .then(edgeHighlightModifier),
-            contentAlignment = Alignment.Center,
-        ) {
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .background(surfaceColor, shape)
-                    .then(dynamicTintModifier),
-            )
-            content()
-        }
+        GlassContainer(modifier, shape, isOnVideo, videoLuminance, content = content)
     }
 
-    /**
-     * Displays bottom navigation content on a Material surface for Classic and Minimal styles.
-     * Other styles use opacity adjusted for cinema and battery saver modes, with supported edge highlights.
-     */
     @Composable
     fun GlassBottomNavBackground(
         modifier: Modifier = Modifier,
         content: @Composable () -> Unit,
     ) {
-        val glassConfig = LocalGlassConfig.current
-
-        if (glassConfig.style == SurfaceStyle.CLASSIC || glassConfig.style == SurfaceStyle.MINIMAL) {
-            Surface(
-                modifier = modifier
-                    .background(androidx.compose.material3.MaterialTheme.colorScheme.surface),
-                content = { content() },
-            )
-            return
-        }
-
-        val effectiveOpacity = calculateSurfaceOpacity()
-        val surfaceColor = androidx.compose.material3.MaterialTheme.colorScheme.surface.copy(alpha = effectiveOpacity)
-        val containerShape = androidx.compose.material3.MaterialTheme.shapes.medium
-
-        Box(
-            modifier = modifier
-                .clip(containerShape)
-                .background(surfaceColor, containerShape)
-                .then(
-                    if (glassConfig.edgeHighlight != EdgeHighlightMode.OFF &&
-                       glassConfig.style.supportsEdgeHighlight) {
-                        Modifier
-                            .border(
-                                width = 1.dp,
-                                color = androidx.compose.material3.MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
-                                shape = containerShape,
-                            )
-                    } else {
-                        Modifier
-                    }
-                ),
-            contentAlignment = Alignment.Center,
-            content = { content() },
-        )
+        GlassContainer(modifier, MaterialTheme.shapes.medium, content = content)
     }
 
-    /**
-     * Displays bottom sheet content on a Material surface for Classic and Minimal styles.
-     * Other styles add 0.1 to opacity already adjusted for cinema and battery saver modes,
-     * capped at 1, with supported edge highlights.
-     */
     @Composable
     fun GlassBottomSheetBackground(
         modifier: Modifier = Modifier,
+        shape: Shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        classicColor: Color = MaterialTheme.colorScheme.surfaceContainer,
         content: @Composable () -> Unit,
     ) {
-        val glassConfig = LocalGlassConfig.current
-
-        if (glassConfig.style == SurfaceStyle.CLASSIC || glassConfig.style == SurfaceStyle.MINIMAL) {
-            Surface(
-                modifier = modifier
-                    .background(androidx.compose.material3.MaterialTheme.colorScheme.surface),
-                content = { content() },
-            )
-            return
-        }
-
-        val effectiveOpacity = (calculateSurfaceOpacity() + 0.1f).coerceAtMost(1f)
-        val surfaceColor = androidx.compose.material3.MaterialTheme.colorScheme.surface.copy(alpha = effectiveOpacity)
-        val containerShape = androidx.compose.material3.MaterialTheme.shapes.large
-
-        Box(
-            modifier = modifier
-                .clip(containerShape)
-                .background(surfaceColor, containerShape)
-                .then(
-                    if (glassConfig.edgeHighlight != EdgeHighlightMode.OFF &&
-                       glassConfig.style.supportsEdgeHighlight) {
-                        Modifier
-                            .border(
-                                width = 1.dp,
-                                color = androidx.compose.material3.MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
-                                shape = containerShape,
-                            )
-                    } else {
-                        Modifier
-                    }
-                ),
-            contentAlignment = Alignment.Center,
-            content = { content() },
+        GlassContainer(
+            modifier = modifier,
+            shape = shape,
+            opacityBoost = 0.1f,
+            classicColor = classicColor,
+            content = content,
         )
     }
 
-    /**
-     * Displays dialog content using [classicColor] and [classicTonalElevation] for Classic
-     * and Minimal styles. Other styles use the theme surface color with calculated opacity
-     * increased by 0.05 and capped at 1, plus supported edge highlights.
-     */
     @Composable
     fun GlassDialogBackground(
         modifier: Modifier = Modifier,
-        shape: Shape = androidx.compose.material3.MaterialTheme.shapes.extraLarge,
-        classicColor: Color = androidx.compose.material3.MaterialTheme.colorScheme.surface,
+        shape: Shape = MaterialTheme.shapes.extraLarge,
+        classicColor: Color = MaterialTheme.colorScheme.surface,
         classicTonalElevation: androidx.compose.ui.unit.Dp = 0.dp,
         content: @Composable () -> Unit,
     ) {
-        val glassConfig = LocalGlassConfig.current
-
-        if (glassConfig.style == SurfaceStyle.CLASSIC || glassConfig.style == SurfaceStyle.MINIMAL) {
-            Surface(
-                modifier = modifier,
-                shape = shape,
-                color = classicColor,
-                tonalElevation = classicTonalElevation,
-                content = { content() },
-            )
-            return
-        }
-
-        val effectiveOpacity = (calculateSurfaceOpacity() + 0.05f).coerceAtMost(1f)
-        val surfaceColor = androidx.compose.material3.MaterialTheme.colorScheme.surface.copy(alpha = effectiveOpacity)
-
-        Box(
-            modifier = modifier
-                .clip(shape)
-                .background(surfaceColor, shape)
-                .then(
-                    if (glassConfig.dynamicTint == DynamicTintMode.THEME &&
-                       glassConfig.style.supportsDynamicTint) {
-                        Modifier.background(
-                            color = androidx.compose.material3.MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
-                            shape = shape,
-                        )
-                    } else {
-                        Modifier
-                    }
-                )
-                .then(
-                    if (glassConfig.edgeHighlight != EdgeHighlightMode.OFF &&
-                       glassConfig.style.supportsEdgeHighlight) {
-                        Modifier
-                            .border(
-                                width = 1.dp,
-                                color = androidx.compose.material3.MaterialTheme.colorScheme.outline
-                                    .copy(alpha = 0.15f),
-                                shape = shape,
-                            )
-                    } else {
-                        Modifier
-                    }
-                ),
-            contentAlignment = Alignment.Center,
-            content = { content() },
+        GlassContainer(
+            modifier = modifier,
+            shape = shape,
+            opacityBoost = 0.05f,
+            classicColor = classicColor,
+            classicTonalElevation = classicTonalElevation,
+            content = content,
         )
     }
 
-    /**
-     * Displays player controls on a Material surface for Classic and Minimal styles.
-     * Other styles apply video-adjusted opacity and supported edge highlights.
-     *
-     * @param isOnVideo Whether background video luminance should affect opacity.
-     * @param videoLuminance Background luminance from 0 (dark) to 1 (bright), ignored off video.
-     */
     @Composable
     fun GlassPlayerSurface(
         modifier: Modifier = Modifier,
+        shape: Shape = MaterialTheme.shapes.medium,
         isOnVideo: Boolean = true,
         videoLuminance: Float = 0.5f,
         content: @Composable () -> Unit,
     ) {
-        val glassConfig = LocalGlassConfig.current
-
-        if (glassConfig.style == SurfaceStyle.CLASSIC || glassConfig.style == SurfaceStyle.MINIMAL) {
-            Surface(
-                modifier = modifier
-                    .background(androidx.compose.material3.MaterialTheme.colorScheme.surface),
-                content = { content() },
-            )
-            return
-        }
-
-        val effectiveOpacity = calculateSurfaceOpacity(
+        GlassContainer(
+            modifier = modifier,
+            shape = shape,
             isOnVideo = isOnVideo,
             videoLuminance = videoLuminance,
-        )
-
-        val surfaceColor = androidx.compose.material3.MaterialTheme.colorScheme.surface.copy(alpha = effectiveOpacity)
-        val containerShape = androidx.compose.material3.MaterialTheme.shapes.medium
-
-        Box(
-            modifier = modifier
-                .clip(containerShape)
-                .background(surfaceColor, containerShape)
-                .then(
-                    if (glassConfig.edgeHighlight != EdgeHighlightMode.OFF &&
-                       glassConfig.style.supportsEdgeHighlight) {
-                        Modifier
-                            .border(
-                                width = 1.dp,
-                                color = androidx.compose.material3.MaterialTheme.colorScheme.outline.copy(alpha = 0.1f),
-                                shape = containerShape,
-                            )
-                    } else {
-                        Modifier
-                    }
-                ),
-            contentAlignment = Alignment.Center,
-            content = { content() },
+            content = content,
         )
     }
 
-    /**
-     * Displays mini-player content on a Material surface for Classic and Minimal styles.
-     * Other styles add 0.1 to calculated opacity, capped at 1, and animate color and opacity
-     * changes over 300 milliseconds, with supported edge highlights and theme tint.
-     */
     @Composable
     fun GlassMiniPlayerSurface(
         modifier: Modifier = Modifier,
+        shape: Shape = MaterialTheme.shapes.large,
         content: @Composable () -> Unit,
     ) {
-        val glassConfig = LocalGlassConfig.current
-
-        if (glassConfig.style == SurfaceStyle.CLASSIC || glassConfig.style == SurfaceStyle.MINIMAL) {
-            Surface(
-                modifier = modifier
-                    .background(androidx.compose.material3.MaterialTheme.colorScheme.surface),
-                content = { content() },
-            )
-            return
-        }
-
-        val effectiveOpacity = (calculateSurfaceOpacity() + 0.1f).coerceAtMost(1f)
-        val surfaceColor = androidx.compose.material3.MaterialTheme.colorScheme.surface.copy(alpha = effectiveOpacity)
-        val containerShape = androidx.compose.material3.MaterialTheme.shapes.large
-
-        // Animate surface appearance
-        val animatedOpacity by animateFloatAsState(
-            targetValue = effectiveOpacity,
-            animationSpec = tween(300),
-            label = "glassMiniPlayerOpacity",
-        )
-        val animatedSurfaceColor by animateColorAsState(
-            targetValue = surfaceColor,
-            animationSpec = tween(300),
-            label = "glassMiniPlayerColor",
-        )
-        val animatedColor = animatedSurfaceColor.copy(alpha = animatedOpacity)
-
-        Box(
-            modifier = modifier
-                .clip(containerShape)
-                .background(animatedColor, containerShape)
-                .then(
-                    if (glassConfig.edgeHighlight != EdgeHighlightMode.OFF &&
-                       glassConfig.style.supportsEdgeHighlight) {
-                        Modifier
-                            .border(
-                                width = 1.dp,
-                                color = androidx.compose.material3.MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
-                                shape = containerShape,
-                            )
-                    } else {
-                        Modifier
-                    }
-                )
-                .then(
-                    if (glassConfig.dynamicTint == DynamicTintMode.THEME &&
-                       glassConfig.style.supportsDynamicTint) {
-                        Modifier.background(
-                            color = androidx.compose.material3.MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
-                            shape = containerShape,
-                        )
-                    } else {
-                        Modifier
-                    }
-                ),
-            contentAlignment = Alignment.Center,
-            content = { content() },
+        GlassContainer(
+            modifier = modifier,
+            shape = shape,
+            opacityBoost = 0.1f,
+            content = content,
         )
     }
 
-    /**
-     * Displays media card content on a Material surface for Classic and Minimal styles.
-     * Other styles use 90% of calculated opacity, capped at 1, with supported edge highlights.
-     */
     @Composable
     fun GlassMediaCardSurface(
         modifier: Modifier = Modifier,
+        shape: Shape = MaterialTheme.shapes.medium,
         content: @Composable () -> Unit,
     ) {
-        val glassConfig = LocalGlassConfig.current
-
-        if (glassConfig.style == SurfaceStyle.CLASSIC || glassConfig.style == SurfaceStyle.MINIMAL) {
-            Surface(
-                modifier = modifier
-                    .background(androidx.compose.material3.MaterialTheme.colorScheme.surface),
-                content = { content() },
-            )
-            return
-        }
-
-        // Media cards use lighter glass treatment
-        val effectiveOpacity = (calculateSurfaceOpacity() * 0.9f).coerceAtMost(1f)
-        val surfaceColor = androidx.compose.material3.MaterialTheme.colorScheme.surface.copy(alpha = effectiveOpacity)
-        val containerShape = androidx.compose.material3.MaterialTheme.shapes.medium
-
-        Box(
-            modifier = modifier
-                .clip(containerShape)
-                .background(surfaceColor, containerShape)
-                .then(
-                    if (glassConfig.edgeHighlight != EdgeHighlightMode.OFF &&
-                       glassConfig.style.supportsEdgeHighlight) {
-                        Modifier
-                            .border(
-                                width = 1.dp,
-                                color = androidx.compose.material3.MaterialTheme.colorScheme.outline.copy(alpha = 0.1f),
-                                shape = containerShape,
-                            )
-                    } else {
-                        Modifier
-                    }
-                ),
-            contentAlignment = Alignment.Center,
-            content = { content() },
+        GlassContainer(
+            modifier = modifier,
+            shape = shape,
+            opacityScale = 0.9f,
+            content = content,
         )
     }
 
-    /**
-     * Displays navigation content with a background determined by [isSelected].
-     * Classic and Minimal use the primary container color when selected and transparency otherwise.
-     * Other styles use primary container alpha 0.9 when selected, or 70% of calculated opacity
-     * with a minimum of 0.3 otherwise. Supported edge highlights appear only when selected.
-     */
     @Composable
     fun GlassNavigationPill(
         modifier: Modifier = Modifier,
         isSelected: Boolean = false,
-        shape: Shape = androidx.compose.material3.MaterialTheme.shapes.medium,
+        forceGlass: Boolean = false,
+        shape: Shape = MaterialTheme.shapes.medium,
         content: @Composable () -> Unit,
     ) {
-        val glassConfig = LocalGlassConfig.current
-
-        if (glassConfig.style == SurfaceStyle.CLASSIC || glassConfig.style == SurfaceStyle.MINIMAL) {
-            Surface(
-                modifier = modifier,
-                color = if (isSelected) {
-                    androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer
-                } else {
-                    androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerHigh
-                },
-                shape = shape,
-                tonalElevation = 6.dp,
-                shadowElevation = 8.dp,
-                content = { content() },
-            )
-            return
-        }
-
-        val surfaceColor = if (isSelected) {
-            androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f)
-        } else {
-            androidx.compose.material3.MaterialTheme.colorScheme.surface.copy(
-                alpha = (calculateSurfaceOpacity() * 0.7f).coerceAtLeast(0.3f),
-            )
-        }
-
-        Box(
-            modifier = modifier
-                .clip(shape)
-                .background(surfaceColor, shape)
-                .then(
-                    if (glassConfig.dynamicTint == DynamicTintMode.THEME &&
-                       glassConfig.style.supportsDynamicTint) {
-                        Modifier.background(
-                            color = androidx.compose.material3.MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
-                            shape = shape,
-                        )
-                    } else {
-                        Modifier
-                    }
-                )
-                .then(
-                    if (glassConfig.edgeHighlight != EdgeHighlightMode.OFF &&
-                       glassConfig.style.supportsEdgeHighlight && isSelected) {
-                        Modifier
-                            .border(
-                                width = 1.dp,
-                                color = androidx.compose.material3.MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
-                                shape = shape,
-                            )
-                    } else {
-                        Modifier
-                    }
-                ),
-            contentAlignment = Alignment.Center,
-            content = { content() },
+        GlassContainer(
+            modifier = modifier,
+            shape = shape,
+            selected = isSelected,
+            forceGlass = forceGlass,
+            classicColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            classicTonalElevation = 6.dp,
+            classicShadowElevation = 8.dp,
+            content = content,
         )
     }
 }
+
+@OptIn(ExperimentalHazeApi::class)
+@Composable
+private fun GlassContainer(
+    modifier: Modifier,
+    shape: Shape,
+    isOnVideo: Boolean = false,
+    videoLuminance: Float = 0.5f,
+    opacityBoost: Float = 0f,
+    opacityScale: Float = 1f,
+    selected: Boolean = false,
+    forceGlass: Boolean = false,
+    classicColor: Color = MaterialTheme.colorScheme.surface,
+    classicTonalElevation: androidx.compose.ui.unit.Dp = 0.dp,
+    classicShadowElevation: androidx.compose.ui.unit.Dp = 0.dp,
+    content: @Composable () -> Unit,
+) {
+    val config = LocalGlassConfig.current
+    val colors = MaterialTheme.colorScheme
+
+    val usesGlassStyle = config.style != SurfaceStyle.CLASSIC && config.style != SurfaceStyle.MINIMAL
+    if (!usesGlassStyle && !forceGlass) {
+        Surface(
+            modifier = modifier,
+            shape = shape,
+            color = if (selected) colors.primaryContainer else classicColor,
+            tonalElevation = classicTonalElevation,
+            shadowElevation = classicShadowElevation,
+            content = content,
+        )
+        return
+    }
+
+    val effectiveStyle = if (usesGlassStyle) config.style else SurfaceStyle.LIQUID_GLASS
+    val hazeState = LocalHazeState.current
+    val opacity =
+        ((if (usesGlassStyle) {
+            calculateSurfaceOpacity(isOnVideo = isOnVideo, videoLuminance = videoLuminance)
+        } else {
+            config.intensity
+        } + opacityBoost) * opacityScale)
+            .coerceIn(0f, 1f)
+    val containerColor = (if (selected) colors.primaryContainer else colors.surface).copy(alpha = opacity)
+    val tint =
+        when {
+            !effectiveStyle.supportsDynamicTint -> null
+            config.dynamicTint == DynamicTintMode.OFF -> null
+            config.dynamicTint == DynamicTintMode.THEME -> colors.primary.copy(alpha = if (selected) 0.16f else 0.1f)
+            else -> colors.tertiary.copy(alpha = 0.08f)
+        }
+    val glassShape = shape.toGlassShape()
+    val baseStyle =
+        when (effectiveStyle) {
+            SurfaceStyle.CLEAR_GLASS -> GlassStyle.clear
+            SurfaceStyle.LIQUID_GLASS -> if (isOnVideo) GlassStyle.clear else GlassStyle.regular
+            SurfaceStyle.SOFT_GLASS -> GlassStyle.regular
+            SurfaceStyle.FROSTED_GLASS,
+            SurfaceStyle.AMOLED_GLASS,
+            SurfaceStyle.CINEMA,
+            SurfaceStyle.CLASSIC,
+            SurfaceStyle.MINIMAL,
+            -> GlassStyle.regular
+        }
+    val blurRadius = config.blurLevel.renderEffectRadius.dp
+    val refractionStrength =
+        if (!effectiveStyle.supportsRefraction) {
+            0f
+        } else {
+            when (config.refraction) {
+                RefractionMode.OFF -> 0f
+                RefractionMode.SUBTLE -> 0.28f
+                RefractionMode.EXPERIMENTAL -> 0.68f
+            }
+        }
+    val effectiveEdgeHighlightMode =
+        if (effectiveStyle.supportsEdgeHighlight) config.edgeHighlight else EdgeHighlightMode.OFF
+    val edgeHighlight =
+        when (effectiveEdgeHighlightMode) {
+            EdgeHighlightMode.OFF -> 0f
+            EdgeHighlightMode.SUBTLE -> 0.32f
+            EdgeHighlightMode.STRONG -> 0.68f
+        }
+    val optics =
+        GlassDefaults.optics.copy(
+            refractionStrength = refractionStrength,
+            blurRadius = OpticalSizeValue.Fixed(blurRadius),
+            depth = OpticalSizeValue.Fixed(if (isOnVideo) 0.7f else 1f),
+        )
+    val glassStyle =
+        remember(
+            baseStyle,
+            containerColor,
+            tint,
+            glassShape,
+            optics,
+            edgeHighlight,
+            config.refraction,
+            effectiveStyle,
+            selected,
+        ) {
+            baseStyle.then {
+                backgroundColor(containerColor)
+                if (tint != null) tint(tint)
+                shape(glassShape)
+                optics(optics)
+                specularIntensity(edgeHighlight)
+                edgeShadow(if (edgeHighlight == 0f) Color.Transparent else colors.onSurface.copy(alpha = 0.14f))
+                ambientResponse(if (edgeHighlight == 0f) 0.08f else 0.18f + edgeHighlight * 0.38f)
+                edgeSoftness(if (edgeHighlight == 0f) 0.dp else 1.dp)
+                chromaticAberrationStrength(
+                    if (effectiveStyle.supportsRefraction && config.refraction == RefractionMode.EXPERIMENTAL) 0.12f else 0f,
+                )
+            }
+        }
+    val borderColor =
+        when (effectiveEdgeHighlightMode) {
+            EdgeHighlightMode.OFF -> Color.Transparent
+            EdgeHighlightMode.SUBTLE -> colors.onSurface.copy(alpha = 0.14f)
+            EdgeHighlightMode.STRONG -> colors.onSurface.copy(alpha = 0.28f)
+        }
+    val hazeModifier =
+        if (hazeState != null) {
+            Modifier.hazeGlass(
+                input = HazeInput.Backdrop(hazeState),
+                style = glassStyle,
+                performanceMode = config.performanceMode.toHazePerformanceMode(),
+            )
+        } else {
+            Modifier
+                .background(containerColor, shape)
+                .then(if (tint == null) Modifier else Modifier.background(tint, shape))
+        }
+
+    Box(
+        modifier =
+            modifier
+                .clip(shape)
+                .then(hazeModifier)
+                .then(if (borderColor == Color.Transparent) Modifier else Modifier.border(1.dp, borderColor, shape)),
+        contentAlignment = Alignment.Center,
+        content = { content() },
+    )
+}
+
+private fun Shape.toGlassShape(): RoundedCornerShape =
+    this as? RoundedCornerShape ?: RoundedCornerShape(percent = 50)
+
+private fun PerformanceMode.toHazePerformanceMode(): HazeRenderPerformance =
+    when (this) {
+        PerformanceMode.BATTERY_SAVER -> HazeRenderPerformance.Performance
+        PerformanceMode.BALANCED -> HazeRenderPerformance.Balanced
+        PerformanceMode.QUALITY -> HazeRenderPerformance.Quality
+        PerformanceMode.AUTOMATIC -> HazeRenderPerformance.Default
+    }

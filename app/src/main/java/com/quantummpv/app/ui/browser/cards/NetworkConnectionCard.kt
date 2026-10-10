@@ -11,6 +11,7 @@ package com.quantummpv.app.ui.browser.cards
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -33,6 +34,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
@@ -42,6 +44,9 @@ import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.theme.AppMotion
 import com.quantummpv.app.ui.theme.AppShapeScale
+import com.quantummpv.app.ui.theme.DesignTokens.LocalGlassConfig
+import com.quantummpv.app.ui.theme.DesignTokens.SurfaceStyle
+import com.quantummpv.app.ui.theme.GlassComponents
 
 @Composable
 fun NetworkConnectionCard(
@@ -64,6 +69,8 @@ fun NetworkConnectionCard(
     animationSpec = AppMotion.Spatial.Expressive,
     label = "NetworkConnectionCardScale",
   )
+  val surfaceStyle = LocalGlassConfig.current.style
+  val useGlassSurface = surfaceStyle != SurfaceStyle.CLASSIC && surfaceStyle != SurfaceStyle.MINIMAL
 
   Card(
     modifier =
@@ -85,15 +92,23 @@ fun NetworkConnectionCard(
     shape = AppShapeScale.large,
     colors =
       CardDefaults.cardColors(
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        containerColor = if (useGlassSurface) Color.Transparent else MaterialTheme.colorScheme.surfaceContainer,
       ),
   ) {
-    Column(
-      modifier =
-        Modifier
-          .fillMaxWidth()
-          .padding(16.dp),
-    ) {
+    Box {
+      if (useGlassSurface) {
+        GlassComponents.GlassMediaCardSurface(
+          modifier = Modifier.matchParentSize(),
+          shape = AppShapeScale.large,
+        ) {}
+      }
+
+      Column(
+        modifier =
+          Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+      ) {
       // Header with name and actions
       Row(
         modifier = Modifier.fillMaxWidth(),
@@ -286,6 +301,7 @@ fun NetworkConnectionCard(
             }
           }
         }
+      }
       }
     }
   }

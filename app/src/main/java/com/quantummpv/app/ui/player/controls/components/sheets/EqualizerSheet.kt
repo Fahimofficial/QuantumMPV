@@ -19,15 +19,21 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -60,6 +66,9 @@ import com.quantummpv.app.ui.player.controls.components.rememberTvInitialFocusRe
 import com.quantummpv.app.ui.player.controls.components.tvFocusGroup
 import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.ui.player.controls.components.tvInitialFocus
+import com.quantummpv.app.ui.theme.DesignTokens.LocalGlassConfig
+import com.quantummpv.app.ui.theme.DesignTokens.SurfaceStyle
+import com.quantummpv.app.ui.theme.GlassComponents
 import kotlin.math.roundToInt
 
 enum class EqualizerPreset(
@@ -118,6 +127,8 @@ fun EqualizerSheet(
   onDismissRequest: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
+  val surfaceStyle = LocalGlassConfig.current.style
+  val useGlassSurface = surfaceStyle != SurfaceStyle.CLASSIC && surfaceStyle != SurfaceStyle.MINIMAL
   val initialFocusRequester =
     rememberTvInitialFocusRequester(requestKey = state.isEnabled)
   val sheetState =
@@ -129,17 +140,26 @@ fun EqualizerSheet(
   ModalBottomSheet(
     onDismissRequest = onDismissRequest,
     sheetState = sheetState,
-    containerColor = MaterialTheme.colorScheme.surfaceContainer,
+    containerColor =
+      if (useGlassSurface) androidx.compose.ui.graphics.Color.Transparent else MaterialTheme.colorScheme.surfaceContainer,
     dragHandle = null,
     modifier = modifier.tvFocusGroup(),
+    contentWindowInsets = {
+      BottomSheetDefaults.windowInsets.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)
+    },
   ) {
-    Column(
-      modifier =
-        Modifier
-          .fillMaxWidth()
-          .verticalScroll(rememberScrollState())
-          .padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 48.dp),
+    GlassComponents.GlassBottomSheetBackground(
+      modifier = Modifier.fillMaxWidth(),
+      classicColor = MaterialTheme.colorScheme.surfaceContainer,
     ) {
+      Column(
+        modifier =
+          Modifier
+            .fillMaxWidth()
+            .windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom))
+            .verticalScroll(rememberScrollState())
+            .padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 48.dp),
+      ) {
       Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -291,6 +311,7 @@ fun EqualizerSheet(
               MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
             },
         )
+      }
       }
     }
   }

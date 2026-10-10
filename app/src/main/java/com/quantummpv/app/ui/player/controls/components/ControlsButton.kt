@@ -13,6 +13,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.padding
@@ -35,6 +36,9 @@ import com.quantummpv.app.ui.icons.AppIcon
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.controls.LocalPlayerButtonsClickEvent
+import com.quantummpv.app.ui.theme.DesignTokens.LocalGlassConfig
+import com.quantummpv.app.ui.theme.DesignTokens.SurfaceStyle
+import com.quantummpv.app.ui.theme.GlassComponents
 import com.quantummpv.app.ui.theme.LocalDarkAppColorScheme
 import com.quantummpv.app.ui.theme.spacing
 
@@ -76,6 +80,8 @@ fun ControlsButton(
 ) {
   val interactionSource = remember { MutableInteractionSource() }
   val hideBackground = LocalHidePlayerButtonsBackground.current
+  val surfaceStyle = LocalGlassConfig.current.style
+  val useGlassSurface = surfaceStyle != SurfaceStyle.CLASSIC && surfaceStyle != SurfaceStyle.MINIMAL
   val resolvedColor = color ?: playerButtonContentColor()
 
   val clickEvent = LocalPlayerButtonsClickEvent.current
@@ -98,12 +104,12 @@ fun ControlsButton(
           indication = ripple(),
         ),
     shape = CircleShape,
-    color = if (hideBackground) Color.Transparent else playerButtonContainerColor(),
+    color = if (hideBackground || useGlassSurface) Color.Transparent else playerButtonContainerColor(),
     contentColor = resolvedColor,
     tonalElevation = 0.dp,
     shadowElevation = 0.dp,
     border =
-      if (hideBackground) {
+      if (hideBackground || useGlassSurface) {
         null
       } else {
         BorderStroke(
@@ -112,15 +118,24 @@ fun ControlsButton(
         )
       },
   ) {
-    Icon(
-      imageVector = icon,
-      contentDescription = title,
-      tint = if (enabled) resolvedColor else resolvedColor.copy(alpha = 0.38f),
-      modifier =
-        Modifier
-          .padding(MaterialTheme.spacing.small)
-          .size(20.dp),
-    )
+    Box(contentAlignment = Alignment.Center) {
+      if (useGlassSurface && !hideBackground) {
+        GlassComponents.GlassPlayerSurface(
+          modifier = Modifier.matchParentSize(),
+          shape = CircleShape,
+          isOnVideo = true,
+        ) {}
+      }
+      Icon(
+        imageVector = icon,
+        contentDescription = title,
+        tint = if (enabled) resolvedColor else resolvedColor.copy(alpha = 0.38f),
+        modifier =
+          Modifier
+            .padding(MaterialTheme.spacing.small)
+            .size(20.dp),
+      )
+    }
   }
 }
 

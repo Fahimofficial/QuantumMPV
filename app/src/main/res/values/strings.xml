@@ -68,8 +68,6 @@
   <string name="pref_appearance_nav_style_fade">Fade</string>
   <string name="pref_appearance_nav_style_none">None (Instant)</string>
   <string name="pref_appearance_theme_picker_label">App Theme</string>
-  <string name="pref_appearance_glass_navigation_title">Liquid Glass bottom navigation</string>
-  <string name="pref_appearance_glass_navigation_summary">Use a translucent surface and soft border for the bottom navigation bar.</string>
   <string name="pref_appearance_osd_font_title">Use Android system font for player text</string>
   <string name="pref_appearance_osd_font_summary">Use the Android system font instead of bundled Google Sans Flex for mpv on-screen text. Takes effect on the next player start; mpv.conf takes precedence.</string>
   <string name="pref_appearance_auto_scroll_title">Auto-scroll to last played</string>
@@ -2448,29 +2446,29 @@
   <string name="audio_swipe_folder_empty">No audio files found in this folder</string>
 
   <!-- Glass/Surface Style System -->
-  <string name="surface_style_classic">Quantum Classic</string>
-  <string name="surface_style_classic_summary">Original QuantumMPV appearance with solid surfaces</string>
+  <string name="surface_style_classic">Classic</string>
+  <string name="surface_style_classic_summary">Standard solid surfaces</string>
 
-  <string name="surface_style_soft_glass">Quantum Soft Glass</string>
-  <string name="surface_style_soft_glass_summary">Subtle translucent surfaces with light blur</string>
+  <string name="surface_style_soft_glass">Soft Glass</string>
+  <string name="surface_style_soft_glass_summary">Lightly translucent surfaces</string>
 
-  <string name="surface_style_frosted_glass">Quantum Frosted Glass</string>
-  <string name="surface_style_frosted_glass_summary">Frosted translucent surfaces with moderate blur</string>
+  <string name="surface_style_frosted_glass">Frosted Glass</string>
+  <string name="surface_style_frosted_glass_summary">More opaque translucent surfaces for a softer look</string>
 
-  <string name="surface_style_clear_glass">Quantum Clear Glass</string>
-  <string name="surface_style_clear_glass_summary">Lower opacity glass with minimal visual treatment</string>
+  <string name="surface_style_clear_glass">Clear Glass</string>
+  <string name="surface_style_clear_glass_summary">More transparent surfaces</string>
 
-  <string name="surface_style_liquid_glass">Quantum Liquid Glass</string>
-  <string name="surface_style_liquid_glass_summary">Advanced glass with blur, depth, edge highlights, and dynamic tint</string>
+  <string name="surface_style_liquid_glass">Liquid Glass</string>
+  <string name="surface_style_liquid_glass_summary">Translucent surfaces with optional theme tint and edge highlights</string>
 
-  <string name="surface_style_amoled_glass">Quantum AMOLED Glass</string>
-  <string name="surface_style_amoled_glass_summary">Optimized for OLED with deep blacks and low-opacity surfaces</string>
+  <string name="surface_style_amoled_glass">AMOLED Glass</string>
+  <string name="surface_style_amoled_glass_summary">Low-opacity surfaces for dark OLED themes</string>
 
-  <string name="surface_style_cinema">Quantum Cinema</string>
-  <string name="surface_style_cinema_summary">Minimal player-focused appearance with immersive behavior</string>
+  <string name="surface_style_cinema">Cinema</string>
+  <string name="surface_style_cinema_summary">Higher-opacity surfaces for a more legible, immersive look</string>
 
-  <string name="surface_style_minimal">Quantum Minimal</string>
-  <string name="surface_style_minimal_summary">Reduced decoration for simplicity and performance</string>
+  <string name="surface_style_minimal">Minimal</string>
+  <string name="surface_style_minimal_summary">Nearly solid surfaces with minimal translucency</string>
 
   <string name="blur_level_off">Off</string>
   <string name="blur_level_low">Low</string>
@@ -2518,17 +2516,18 @@
   <string name="refraction_experimental">Experimental</string>
   <string name="refraction_experimental_summary">Advanced refraction (may impact performance)</string>
 
-  <string name="pref_section_glass_surface">Glass and Surface</string>
-  <string name="pref_glass_surface_style_title">Surface Style</string>
-  <string name="pref_glass_intensity_title">Glass Intensity</string>
-  <string name="pref_glass_blur_level_title">Blur Quality</string>
-  <string name="pref_dynamic_tint_mode_title">Dynamic Tint</string>
-  <string name="pref_edge_highlight_mode_title">Edge Highlight</string>
+  <string name="pref_section_glass_surface">Surface Appearance</string>
+  <string name="pref_glass_surface_style_title">Surface style</string>
+  <string name="pref_glass_surface_style_summary">Choose the style for supported surfaces, including bottom navigation and confirmation dialogs.</string>
+  <string name="pref_glass_intensity_title">Surface opacity</string>
+  <string name="pref_glass_intensity_summary">Opacity: %1$d percent. Lower values are more transparent.</string>
+  <string name="pref_dynamic_tint_mode_title">Theme tint</string>
+  <string name="pref_edge_highlight_mode_title">Surface edge highlight</string>
   <string name="pref_refraction_mode_title">Refraction</string>
 
-  <string name="pref_section_performance_motion">Performance and Motion</string>
+  <string name="pref_section_performance_motion">Motion and Surface Behavior</string>
   <string name="pref_motion_style_title">Animation Style</string>
   <string name="pref_performance_mode_title">Rendering Quality</string>
-  <string name="pref_cinema_mode_title">Cinema Mode</string>
+  <string name="pref_cinema_mode_title">Cinema mode</string>
   <string name="pref_cinema_mode_summary">Increase glass surface opacity for a more immersive appearance</string>
 </resources>

@@ -62,6 +62,8 @@ import com.quantummpv.app.R
 import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.ui.theme.DesignTokens.rememberGlassConfig
+import dev.chrisbanes.haze.hazeSource
+import dev.chrisbanes.haze.rememberHazeState
 import org.koin.compose.koinInject
 import kotlin.math.hypot
 
@@ -322,6 +324,7 @@ fun MpvrxTheme(
 
   // Provide theme transition state first, OUTSIDE MaterialExpressiveTheme
   val glassConfig = rememberGlassConfig()
+  val hazeState = rememberHazeState()
 
   CompositionLocalProvider(
     LocalSpacing provides Spacing(),
@@ -331,15 +334,18 @@ fun MpvrxTheme(
     LocalDarkAppColorScheme provides darkColorScheme,
     LocalAppTheme provides appTheme,
     DesignTokens.LocalGlassConfig provides glassConfig,
+    LocalHazeState provides hazeState,
   ) {
-    ThemeTransitionContent {
-      MaterialExpressiveTheme(
-        colorScheme = colorScheme,
-        typography = if (useSystemFont || localeNeedsSystemFont) SystemTypography else AppTypography,
-        shapes = AppShapes,
-        motionScheme = MotionScheme.expressive(),
-        content = content,
-      )
+    Box(modifier = Modifier.fillMaxSize().hazeSource(hazeState)) {
+      ThemeTransitionContent {
+        MaterialExpressiveTheme(
+          colorScheme = colorScheme,
+          typography = if (useSystemFont || localeNeedsSystemFont) SystemTypography else AppTypography,
+          shapes = AppShapes,
+          motionScheme = MotionScheme.expressive(),
+          content = content,
+        )
+      }
     }
   }
 }

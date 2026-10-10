@@ -56,6 +56,9 @@ import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.ui.theme.AppShapeScale
+import com.quantummpv.app.ui.theme.DesignTokens.LocalGlassConfig
+import com.quantummpv.app.ui.theme.DesignTokens.SurfaceStyle
+import com.quantummpv.app.ui.theme.GlassComponents
 import com.quantummpv.app.utils.FormatUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -159,6 +162,8 @@ fun FolderCard(
   }
 
   val maxLines = if (unlimitedNameLines) Int.MAX_VALUE else 2
+  val surfaceStyle = LocalGlassConfig.current.style
+  val useGlassSurface = surfaceStyle != SurfaceStyle.CLASSIC && surfaceStyle != SurfaceStyle.MINIMAL
   val selectionInset = 2.dp
   val selectionContainerColor =
     if (isSelected) {
@@ -208,6 +213,13 @@ fun FolderCard(
     colors = CardDefaults.cardColors(containerColor = Color.Transparent),
   ) {
     Box(modifier = Modifier.fillMaxWidth()) {
+      if (useGlassSurface) {
+        GlassComponents.GlassMediaCardSurface(
+          modifier = Modifier.matchParentSize(),
+          shape = cardShape,
+        ) {}
+      }
+
       if (isSelected || isActive) {
         Box(
           modifier =

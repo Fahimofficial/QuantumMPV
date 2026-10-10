@@ -12,12 +12,18 @@ package com.quantummpv.app.ui.player.controls.components.sheets
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -31,6 +37,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.quantummpv.app.ui.theme.DesignTokens.LocalGlassConfig
+import com.quantummpv.app.ui.theme.DesignTokens.SurfaceStyle
+import com.quantummpv.app.ui.theme.GlassComponents
 
 data class AudioPropertyItem(
   val label: String,
@@ -44,6 +53,8 @@ fun AudioPropertiesSheet(
   onDismissRequest: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
+  val surfaceStyle = LocalGlassConfig.current.style
+  val useGlassSurface = surfaceStyle != SurfaceStyle.CLASSIC && surfaceStyle != SurfaceStyle.MINIMAL
   val sheetState =
     rememberBottomSheetState(
       initialValue = SheetValue.Hidden,
@@ -53,17 +64,26 @@ fun AudioPropertiesSheet(
   ModalBottomSheet(
     onDismissRequest = onDismissRequest,
     sheetState = sheetState,
-    containerColor = MaterialTheme.colorScheme.surfaceContainer,
+    containerColor =
+      if (useGlassSurface) androidx.compose.ui.graphics.Color.Transparent else MaterialTheme.colorScheme.surfaceContainer,
     dragHandle = null,
     modifier = modifier,
+    contentWindowInsets = {
+      BottomSheetDefaults.windowInsets.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)
+    },
   ) {
-    Column(
-      modifier =
-        Modifier
-          .fillMaxWidth()
-          .verticalScroll(rememberScrollState())
-          .padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 48.dp),
+    GlassComponents.GlassBottomSheetBackground(
+      modifier = Modifier.fillMaxWidth(),
+      classicColor = MaterialTheme.colorScheme.surfaceContainer,
     ) {
+      Column(
+        modifier =
+          Modifier
+            .fillMaxWidth()
+            .windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom))
+            .verticalScroll(rememberScrollState())
+            .padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 48.dp),
+      ) {
       Text(
         text = "AUDIO PROPERTIES",
         style = MaterialTheme.typography.labelMedium,
@@ -102,6 +122,7 @@ fun AudioPropertiesSheet(
         if (index < properties.lastIndex) {
           Spacer(modifier = Modifier.height(8.dp))
         }
+      }
       }
     }
   }

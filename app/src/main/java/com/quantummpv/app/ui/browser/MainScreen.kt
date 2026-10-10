@@ -105,6 +105,8 @@ import com.quantummpv.app.ui.player.NavigationAnimStyle
 import com.quantummpv.app.ui.player.controls.components.rememberTvInitialFocusRequester
 import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.ui.player.controls.components.tvInitialFocus
+import com.quantummpv.app.ui.theme.DesignTokens.LocalGlassConfig
+import com.quantummpv.app.ui.theme.DesignTokens.SurfaceStyle
 import com.quantummpv.app.ui.theme.GlassComponents
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.NavigationPager
@@ -162,6 +164,10 @@ object MainScreen : Screen {
     NavigationBarState.updateBottomBarVisibility(shouldShow)
   }
 
+  /**
+   * Displays the main browser tabs and navigation using the current appearance preferences.
+   * Enables glass navigation for glass surface styles or the legacy glass navigation toggle.
+   */
   @SuppressLint("ComposableNaming")
   @Composable
   override fun Content() {
@@ -180,7 +186,14 @@ object MainScreen : Screen {
     val showPlaylistsTab by appearancePreferences.showPlaylistsTab.collectAsState()
     val showNetworkTab by appearancePreferences.showNetworkTab.collectAsState()
     val showJellyfinTab by appearancePreferences.showJellyfinTab.collectAsState()
-    val glassBottomNavigation by appearancePreferences.glassBottomNavigation.collectAsState()
+    val legacyGlassBottomNavigation by appearancePreferences.legacyGlassBottomNavigation.collectAsState()
+    val surfaceStyle = LocalGlassConfig.current.style
+    val glassBottomNavigation =
+      if (appearancePreferences.hasLegacyGlassBottomNavigation && !appearancePreferences.hasStoredSurfaceStyle) {
+        legacyGlassBottomNavigation
+      } else {
+        surfaceStyle != SurfaceStyle.CLASSIC && surfaceStyle != SurfaceStyle.MINIMAL
+      }
     val hideNavigationBar = NavigationBarState.shouldHideNavigationBar
     val isPermissionDenied = NavigationBarState.isPermissionDenied
     val isDualPaneFolderSelected = NavigationBarState.isDualPaneFolderSelected
@@ -681,6 +694,7 @@ private fun ExpressivePillNavigationBar(
       GlassComponents.GlassNavigationPill(
         modifier = modifier,
         shape = CircleShape,
+        forceGlass = true,
         content = content,
       )
     }
