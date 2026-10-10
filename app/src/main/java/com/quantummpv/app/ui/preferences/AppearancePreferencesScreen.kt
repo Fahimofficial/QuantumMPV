@@ -34,6 +34,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -550,9 +551,17 @@ object AppearancePreferencesScreen : Screen {
               PreferenceDivider()
 
               val dynamicTintMode by preferences.dynamicTintMode.collectAsState()
+              val supportedDynamicTintMode =
+                dynamicTintMode.takeIf { it == DynamicTintMode.OFF || it == DynamicTintMode.THEME }
+                  ?: DynamicTintMode.OFF
+              LaunchedEffect(dynamicTintMode) {
+                if (dynamicTintMode != supportedDynamicTintMode) {
+                  preferences.dynamicTintMode.set(supportedDynamicTintMode)
+                }
+              }
               ListPreference(
                 modifier = Modifier.settingsSearchTarget(R.string.pref_dynamic_tint_mode_title),
-                value = dynamicTintMode,
+                value = supportedDynamicTintMode,
                 onValueChange = preferences.dynamicTintMode::set,
                 values = listOf(DynamicTintMode.OFF, DynamicTintMode.THEME),
                 valueToText = { AnnotatedString(stringResource(id = it.titleRes)) },
@@ -560,7 +569,7 @@ object AppearancePreferencesScreen : Screen {
                 enabled = surfaceStyle.supportsDynamicTint,
                 summary = {
                   Text(
-                    stringResource(id = dynamicTintMode.summaryRes),
+                    stringResource(id = supportedDynamicTintMode.summaryRes),
                     color = MaterialTheme.colorScheme.outline,
                   )
                 },

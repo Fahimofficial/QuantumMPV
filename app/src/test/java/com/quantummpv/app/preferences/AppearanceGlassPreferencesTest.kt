@@ -86,6 +86,15 @@ class AppearanceGlassPreferencesTest {
     }
   }
 
+  @Test
+  fun unsupportedTintImportedAfterInitializationNeverReachesGlassRendering() {
+    storage.edit().putString("dynamic_tint_mode", "MEDIA").commit()
+    assertEquals(DynamicTintMode.OFF, preferences.glassConfig.dynamicTint)
+
+    storage.edit().putString("dynamic_tint_mode", "ADAPTIVE").commit()
+    assertEquals(DynamicTintMode.OFF, preferences.glassConfig.dynamicTint)
+  }
+
   /** Checks both reconstructed settings and raw storage keys after writing every glass preference. */
   @Test
   fun preferenceWritesSurviveReconstructionAndUseStableStorageKeys() {

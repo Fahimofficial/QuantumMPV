@@ -320,11 +320,14 @@ object DesignTokens {
         val motionStyle by preferences.motionStyle.collectAsState()
         val performanceMode by preferences.performanceMode.collectAsState()
         val cinemaMode by preferences.cinemaMode.collectAsState()
+        val supportedDynamicTint =
+            dynamicTint.takeIf { it == DynamicTintMode.OFF || it == DynamicTintMode.THEME }
+                ?: DynamicTintMode.OFF
         return GlassConfig(
             style = style,
             intensity = intensity,
             blurLevel = blurLevel,
-            dynamicTint = dynamicTint,
+            dynamicTint = supportedDynamicTint,
             edgeHighlight = edgeHighlight,
             refraction = refraction,
             motionStyle = motionStyle,

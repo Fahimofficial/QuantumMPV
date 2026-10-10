@@ -23,6 +23,7 @@ def require(pattern: str, text: str, description: str) -> None:
 def main() -> int:
     """Check protected UI and player features, returning zero or raising AssertionError."""
     appearance_model = read("app/src/main/java/com/quantummpv/app/preferences/AppearancePreferences.kt")
+    design_tokens = read("app/src/main/java/com/quantummpv/app/ui/theme/DesignTokens.kt")
     appearance_screen = read("app/src/main/java/com/quantummpv/app/ui/preferences/AppearancePreferencesScreen.kt")
     searchable_preferences = read("app/src/main/java/com/quantummpv/app/ui/preferences/SearchablePreference.kt")
     search_navigation = read("app/src/main/java/com/quantummpv/app/ui/preferences/SettingsSearchNavigation.kt")
@@ -40,6 +41,10 @@ def main() -> int:
     )
     require(r'if \(dynamicTintMode\.get\(\) != DynamicTintMode\.OFF && dynamicTintMode\.get\(\) != DynamicTintMode\.THEME\) \{\s*dynamicTintMode\.set\(DynamicTintMode\.OFF\)',
             appearance_model, "legacy unsupported tint modes are normalized before rendering")
+    require(r'dynamicTint =\s*dynamicTintMode\.get\(\)\.takeIf \{ it == DynamicTintMode\.OFF \|\| it == DynamicTintMode\.THEME \}\s*\?: DynamicTintMode\.OFF',
+            appearance_model, "late-imported tint modes cannot reach glass rendering")
+    require(r'val supportedDynamicTint =\s*dynamicTint\.takeIf \{ it == DynamicTintMode\.OFF \|\| it == DynamicTintMode\.THEME \}\s*\?: DynamicTintMode\.OFF[\s\S]{0,500}dynamicTint = supportedDynamicTint',
+            design_tokens, "late-imported tint modes are filtered by the runtime glass configuration collector")
     require(r'legacyGlassBottomNavigation = preferenceStore\.getBoolean\("glass_bottom_navigation",\s*false\)',
             appearance_model, "persisted legacy navigation appearance compatibility")
     require(
@@ -68,7 +73,9 @@ def main() -> int:
             "thumbnail fallback anchors use the current list index")
     require(r'titleRes = R\.string\.pref_glass_intensity_title,\s*keywords', searchable_preferences,
             "glass opacity search avoids a formatted summary without arguments")
-    require(r'value = dynamicTintMode,[\s\S]{0,100}values = listOf\(DynamicTintMode\.OFF, DynamicTintMode\.THEME\)', appearance_screen,
+    require(r'LaunchedEffect\(dynamicTintMode\) \{\s*if \(dynamicTintMode != supportedDynamicTintMode\) \{\s*preferences\.dynamicTintMode\.set\(supportedDynamicTintMode\)',
+            appearance_screen, "late-imported tint modes are normalized in the Appearance selector")
+    require(r'value = supportedDynamicTintMode,[\s\S]{0,100}values = listOf\(DynamicTintMode\.OFF, DynamicTintMode\.THEME\)', appearance_screen,
             "the tint selector only exposes implemented, normalized tint modes")
     require(r'<string name="pref_glass_surface_style_title">Surface style</string>', strings,
             "visible surface-style settings label")

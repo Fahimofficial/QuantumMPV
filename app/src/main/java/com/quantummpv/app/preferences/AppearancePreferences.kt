@@ -96,7 +96,9 @@ class AppearancePreferences(
       style = surfaceStyle.get(),
       intensity = glassIntensity.get(),
       blurLevel = glassBlurLevel.get(),
-      dynamicTint = dynamicTintMode.get(),
+      dynamicTint =
+        dynamicTintMode.get().takeIf { it == DynamicTintMode.OFF || it == DynamicTintMode.THEME }
+          ?: DynamicTintMode.OFF,
       edgeHighlight = edgeHighlightMode.get(),
       refraction = refractionMode.get(),
       motionStyle = motionStyle.get(),
