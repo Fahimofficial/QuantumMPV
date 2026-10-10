@@ -129,13 +129,14 @@ class DesignTokensCompositionTest {
     assertOpacity(0.25f, config, isOnVideo = false, videoLuminance = 0f)
   }
 
-  /** Checks that the Cinema style preset and the cinema mode opacity increase remain independent. */
+  /** Checks that the retired Cinema preset maps to Frosted without enabling cinema opacity mode. */
   @Test
-  fun cinemaStyleDoesNotImplicitlyEnableTheSeparateCinemaMode() {
+  fun retiredCinemaPresetMapsToFrostedWithoutEnablingCinemaMode() {
     val config = GlassConfig().copyWithStyle(SurfaceStyle.CINEMA)
 
-    assertOpacity(0.9f, config)
-    assertOpacity(1f, config.copy(cinemaMode = true))
+    assertEquals(SurfaceStyle.FROSTED_GLASS, config.style)
+    assertOpacity(SurfaceStyle.FROSTED_GLASS.defaultIntensity, config)
+    assertOpacity(SurfaceStyle.FROSTED_GLASS.defaultIntensity + 0.1f, config.copy(cinemaMode = true))
   }
 
   /** Verifies that Classic and Minimal return the original modifier even with video opacity overrides. */
