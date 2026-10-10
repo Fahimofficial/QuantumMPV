@@ -45,13 +45,9 @@ class GlassConfigTest {
     val before = original.copy()
     val presets = listOf(
       Triple(SurfaceStyle.CLASSIC, 1f, BlurLevel.OFF),
-      Triple(SurfaceStyle.SOFT_GLASS, 0.85f, BlurLevel.LOW),
       Triple(SurfaceStyle.FROSTED_GLASS, 0.75f, BlurLevel.MEDIUM),
       Triple(SurfaceStyle.CLEAR_GLASS, 0.6f, BlurLevel.LOW),
       Triple(SurfaceStyle.LIQUID_GLASS, 0.7f, BlurLevel.HIGH),
-      Triple(SurfaceStyle.AMOLED_GLASS, 0.5f, BlurLevel.LOW),
-      Triple(SurfaceStyle.CINEMA, 0.9f, BlurLevel.MEDIUM),
-      Triple(SurfaceStyle.MINIMAL, 1f, BlurLevel.OFF),
     )
 
     for ((style, intensity, blur) in presets) {
@@ -62,6 +58,18 @@ class GlassConfigTest {
       )
     }
     assertEquals("Changing a style must not mutate the source config", before, original)
+  }
+
+  @Test
+  fun removedPresetsMapToTheClosestRetainedStyle() {
+    assertEquals(
+      listOf(SurfaceStyle.CLASSIC, SurfaceStyle.FROSTED_GLASS, SurfaceStyle.CLEAR_GLASS, SurfaceStyle.LIQUID_GLASS),
+      SurfaceStyle.selectableStyles,
+    )
+    assertEquals(SurfaceStyle.FROSTED_GLASS, SurfaceStyle.SOFT_GLASS.canonicalStyle)
+    assertEquals(SurfaceStyle.FROSTED_GLASS, SurfaceStyle.AMOLED_GLASS.canonicalStyle)
+    assertEquals(SurfaceStyle.FROSTED_GLASS, SurfaceStyle.CINEMA.canonicalStyle)
+    assertEquals(SurfaceStyle.CLASSIC, SurfaceStyle.MINIMAL.canonicalStyle)
   }
 
   /** Verifies that selecting the current style resets customized intensity and blur to its defaults. */

@@ -93,7 +93,7 @@ class AppearancePreferences(
   // This is a computed property that always returns the current config based on preferences
   val glassConfig: GlassConfig
     get() = GlassConfig(
-      style = surfaceStyle.get(),
+      style = surfaceStyle.get().canonicalStyle,
       intensity = glassIntensity.get(),
       blurLevel = glassBlurLevel.get(),
       dynamicTint =
@@ -105,6 +105,27 @@ class AppearancePreferences(
       performanceMode = performanceMode.get(),
       cinemaMode = cinemaMode.get(),
     )
+
+  /** Selects a retained preset and applies its default opacity and blur while preserving other effects. */
+  fun setSurfaceStyle(style: SurfaceStyle) {
+    val preset = glassConfig.copyWithStyle(style)
+    surfaceStyle.set(preset.style)
+    glassIntensity.set(preset.intensity)
+    glassBlurLevel.set(preset.blurLevel)
+  }
+
+  /** Maps a stored legacy preset to its closest retained style without resetting custom intensity or blur. */
+  fun canonicalizeSurfaceStyle(style: SurfaceStyle = surfaceStyle.get()): SurfaceStyle {
+    val canonicalStyle = style.canonicalStyle
+    if (style != canonicalStyle) {
+      if (style == SurfaceStyle.CINEMA) {
+        dynamicTintMode.set(DynamicTintMode.OFF)
+        edgeHighlightMode.set(EdgeHighlightMode.OFF)
+      }
+      surfaceStyle.set(canonicalStyle)
+    }
+    return canonicalStyle
+  }
 
   val useSystemOsdFont = preferenceStore.getBoolean("use_system_osd_font", false)
   val useSystemFont = preferenceStore.getBoolean("use_system_font", false)
@@ -161,6 +182,8 @@ class AppearancePreferences(
     preferenceStore.getBoolean("clip_button_migration_complete", false)
 
   init {
+    canonicalizeSurfaceStyle()
+
     if (dynamicTintMode.get() != DynamicTintMode.OFF && dynamicTintMode.get() != DynamicTintMode.THEME) {
       dynamicTintMode.set(DynamicTintMode.OFF)
     }

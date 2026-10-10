@@ -181,7 +181,21 @@ object DesignTokens {
             supportsDynamicTint = false,
             supportsEdgeHighlight = false,
             supportsRefraction = false,
-        )
+        );
+
+        /** Maps presets removed from the picker to the closest remaining surface style. */
+        val canonicalStyle: SurfaceStyle
+            get() =
+                when (this) {
+                    SOFT_GLASS, AMOLED_GLASS, CINEMA -> FROSTED_GLASS
+                    MINIMAL -> CLASSIC
+                    else -> this
+                }
+
+        companion object {
+            /** The small set of surface presets with distinct rendering behavior. */
+            val selectableStyles = listOf(CLASSIC, FROSTED_GLASS, CLEAR_GLASS, LIQUID_GLASS)
+        }
     }
 
     enum class BlurLevel(
@@ -257,12 +271,15 @@ object DesignTokens {
         val performanceMode: PerformanceMode = PerformanceMode.AUTOMATIC,
         val cinemaMode: Boolean = false,
     ) {
-        /** Returns a copy using [newStyle] and its default intensity and blur, preserving other settings. */
-        fun copyWithStyle(newStyle: SurfaceStyle): GlassConfig = copy(
-            style = newStyle,
-            intensity = newStyle.defaultIntensity,
-            blurLevel = newStyle.defaultBlurLevel,
-        )
+        /** Returns a copy using [newStyle]'s canonical preset and defaults, preserving other settings. */
+        fun copyWithStyle(newStyle: SurfaceStyle): GlassConfig {
+            val canonicalStyle = newStyle.canonicalStyle
+            return copy(
+                style = canonicalStyle,
+                intensity = canonicalStyle.defaultIntensity,
+                blurLevel = canonicalStyle.defaultBlurLevel,
+            )
+        }
     }
 
     enum class DynamicTintMode(
@@ -324,7 +341,7 @@ object DesignTokens {
             dynamicTint.takeIf { it == DynamicTintMode.OFF || it == DynamicTintMode.THEME }
                 ?: DynamicTintMode.OFF
         return GlassConfig(
-            style = style,
+            style = style.canonicalStyle,
             intensity = intensity,
             blurLevel = blurLevel,
             dynamicTint = supportedDynamicTint,
