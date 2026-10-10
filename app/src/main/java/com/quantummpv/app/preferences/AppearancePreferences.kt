@@ -92,19 +92,20 @@ class AppearancePreferences(
   // Computed GlassConfig - combines all glass settings
   // This is a computed property that always returns the current config based on preferences
   val glassConfig: GlassConfig
-    get() = GlassConfig(
-      style = surfaceStyle.get().canonicalStyle,
-      intensity = glassIntensity.get(),
-      blurLevel = glassBlurLevel.get(),
-      dynamicTint =
-        dynamicTintMode.get().takeIf { it == DynamicTintMode.OFF || it == DynamicTintMode.THEME }
-          ?: DynamicTintMode.OFF,
-      edgeHighlight = edgeHighlightMode.get(),
-      refraction = refractionMode.get(),
-      motionStyle = motionStyle.get(),
-      performanceMode = performanceMode.get(),
-      cinemaMode = cinemaMode.get(),
-    )
+    get() {
+      val storedSurfaceStyle = surfaceStyle.get()
+      return GlassConfig(
+        style = storedSurfaceStyle.canonicalStyle,
+        intensity = glassIntensity.get(),
+        blurLevel = glassBlurLevel.get(),
+        dynamicTint = storedSurfaceStyle.effectiveDynamicTint(dynamicTintMode.get()),
+        edgeHighlight = storedSurfaceStyle.effectiveEdgeHighlight(edgeHighlightMode.get()),
+        refraction = refractionMode.get(),
+        motionStyle = motionStyle.get(),
+        performanceMode = performanceMode.get(),
+        cinemaMode = cinemaMode.get(),
+      )
+    }
 
   /** Selects a retained preset and applies its default opacity and blur while preserving other effects. */
   fun setSurfaceStyle(style: SurfaceStyle) {

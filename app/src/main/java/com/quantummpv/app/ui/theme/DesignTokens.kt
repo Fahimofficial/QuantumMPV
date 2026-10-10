@@ -192,6 +192,19 @@ object DesignTokens {
                     else -> this
                 }
 
+        /** Resolves tint from stored settings without restoring the retired Cinema preset's suppressed effect. */
+        fun effectiveDynamicTint(mode: DynamicTintMode): DynamicTintMode =
+            if (this == CINEMA) {
+                DynamicTintMode.OFF
+            } else {
+                mode.takeIf { it == DynamicTintMode.OFF || it == DynamicTintMode.THEME }
+                    ?: DynamicTintMode.OFF
+            }
+
+        /** Resolves highlights from stored settings without restoring the retired Cinema preset's suppressed effect. */
+        fun effectiveEdgeHighlight(mode: EdgeHighlightMode): EdgeHighlightMode =
+            if (this == CINEMA) EdgeHighlightMode.OFF else mode
+
         companion object {
             /** The small set of surface presets with distinct rendering behavior. */
             val selectableStyles = listOf(CLASSIC, FROSTED_GLASS, CLEAR_GLASS, LIQUID_GLASS)
@@ -337,15 +350,12 @@ object DesignTokens {
         val motionStyle by preferences.motionStyle.collectAsState()
         val performanceMode by preferences.performanceMode.collectAsState()
         val cinemaMode by preferences.cinemaMode.collectAsState()
-        val supportedDynamicTint =
-            dynamicTint.takeIf { it == DynamicTintMode.OFF || it == DynamicTintMode.THEME }
-                ?: DynamicTintMode.OFF
         return GlassConfig(
             style = style.canonicalStyle,
             intensity = intensity,
             blurLevel = blurLevel,
-            dynamicTint = supportedDynamicTint,
-            edgeHighlight = edgeHighlight,
+            dynamicTint = style.effectiveDynamicTint(dynamicTint),
+            edgeHighlight = style.effectiveEdgeHighlight(edgeHighlight),
             refraction = refraction,
             motionStyle = motionStyle,
             performanceMode = performanceMode,

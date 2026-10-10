@@ -72,6 +72,26 @@ class GlassConfigTest {
     assertEquals(SurfaceStyle.CLASSIC, SurfaceStyle.MINIMAL.canonicalStyle)
   }
 
+  @Test
+  fun retiredCinemaSuppressesImportedTintAndHighlightsUntilMigration() {
+    assertEquals(
+      DynamicTintMode.OFF,
+      SurfaceStyle.CINEMA.effectiveDynamicTint(DynamicTintMode.THEME),
+    )
+    assertEquals(
+      EdgeHighlightMode.OFF,
+      SurfaceStyle.CINEMA.effectiveEdgeHighlight(EdgeHighlightMode.STRONG),
+    )
+    assertEquals(
+      DynamicTintMode.THEME,
+      SurfaceStyle.FROSTED_GLASS.effectiveDynamicTint(DynamicTintMode.THEME),
+    )
+    assertEquals(
+      EdgeHighlightMode.STRONG,
+      SurfaceStyle.FROSTED_GLASS.effectiveEdgeHighlight(EdgeHighlightMode.STRONG),
+    )
+  }
+
   /** Verifies that selecting the current style resets customized intensity and blur to its defaults. */
   @Test
   fun reselectingCurrentStyleRestoresItsPreset() {

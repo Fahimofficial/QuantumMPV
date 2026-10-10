@@ -89,11 +89,16 @@ class AppearanceGlassPreferencesTest {
 
   @Test
   fun importedCinemaStyleKeepsItsPreviouslySuppressedEffectsOff() {
+    preferences.dynamicTintMode.set(DynamicTintMode.THEME)
+    preferences.edgeHighlightMode.set(EdgeHighlightMode.STRONG)
     storage.edit().putString("surface_style", "CINEMA").commit()
 
-    assertEquals(SurfaceStyle.FROSTED_GLASS, preferences.canonicalizeSurfaceStyle())
-    assertEquals(DynamicTintMode.OFF, preferences.dynamicTintMode.get())
-    assertEquals(EdgeHighlightMode.OFF, preferences.edgeHighlightMode.get())
+    val importedConfig = preferences.glassConfig
+    assertEquals(SurfaceStyle.FROSTED_GLASS, importedConfig.style)
+    assertEquals(DynamicTintMode.OFF, importedConfig.dynamicTint)
+    assertEquals(EdgeHighlightMode.OFF, importedConfig.edgeHighlight)
+    assertEquals(DynamicTintMode.THEME, preferences.dynamicTintMode.get())
+    assertEquals(EdgeHighlightMode.STRONG, preferences.edgeHighlightMode.get())
   }
 
   @Test
