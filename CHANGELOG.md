@@ -1,4 +1,11 @@
 # Changelog
+## 1.3.1-preview.2
+This preview builds on v1.3.1-preview.1 with the completed Glass & Surface Style integration.
+### What's New
+- **Consistent surface styling**: Apply the selected appearance across browser video cards, navigation, player controls, the audio mini-player, and audio/equalizer sheets.
+- **Appearance choices**: Make Liquid Glass the default while retaining Classic and Minimal styles; navigation presentation now follows the selected surface style.
+- **Style compatibility**: Preserve selected-card styling and legacy navigation behavior, and normalize imported tint settings for supported styles.
+
 ## 1.3.0
 Preview release containing the compatible mpvRx 2.7.0, 2.7.1, and 2.7.2 improvements selected for QuantumMPV without replacing its custom playback, subtitle, configuration, or release architecture.
 ### What's New
