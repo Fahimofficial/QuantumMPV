@@ -60,7 +60,6 @@ class AppearanceGlassPreferencesTest {
   fun redundantSavedSurfaceStylesMigrateToClosestSelectableStyle() {
     val legacyStyles = mapOf(
       "SOFT_GLASS" to SurfaceStyle.FROSTED_GLASS,
-      "CLEAR_GLASS" to SurfaceStyle.FROSTED_GLASS,
       "AMOLED_GLASS" to SurfaceStyle.FROSTED_GLASS,
       "CINEMA" to SurfaceStyle.FROSTED_GLASS,
       "MINIMAL" to SurfaceStyle.CLASSIC,
@@ -82,10 +81,19 @@ class AppearanceGlassPreferencesTest {
   }
 
   @Test
-  fun importedLegacySurfaceStyleIsCanonicalizedInRuntimeConfiguration() {
-    storage.edit().putString("surface_style", "CLEAR_GLASS").commit()
+  fun importedClearGlassKeepsItsDistinctRuntimeStyleAndSettings() {
+    storage.edit()
+      .putString("surface_style", "CLEAR_GLASS")
+      .putFloat("glass_intensity", 0.42f)
+      .putString("glass_blur_level", "LOW")
+      .commit()
 
-    assertEquals(SurfaceStyle.FROSTED_GLASS, preferences.glassConfig.style)
+    val importedConfig = preferences.glassConfig
+    assertEquals(SurfaceStyle.CLEAR_GLASS, importedConfig.style)
+    assertEquals(0.42f, importedConfig.intensity, 0f)
+    assertEquals(BlurLevel.LOW, importedConfig.blurLevel)
+    assertEquals(SurfaceStyle.CLEAR_GLASS, preferences.canonicalizeSurfaceStyle())
+    assertEquals("CLEAR_GLASS", storage.getString("surface_style", null))
   }
 
   @Test

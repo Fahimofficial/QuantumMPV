@@ -188,7 +188,7 @@ object DesignTokens {
         val canonicalStyle: SurfaceStyle
             get() =
                 when (this) {
-                    SOFT_GLASS, CLEAR_GLASS, AMOLED_GLASS, CINEMA -> FROSTED_GLASS
+                    SOFT_GLASS, AMOLED_GLASS, CINEMA -> FROSTED_GLASS
                     MINIMAL -> CLASSIC
                     else -> this
                 }
@@ -208,7 +208,7 @@ object DesignTokens {
 
         companion object {
             /** The small set of surface presets with distinct rendering behavior. */
-            val selectableStyles = listOf(CLASSIC, FROSTED_GLASS, LIQUID_GLASS)
+            val selectableStyles = listOf(CLASSIC, FROSTED_GLASS, CLEAR_GLASS, LIQUID_GLASS)
         }
     }
 
