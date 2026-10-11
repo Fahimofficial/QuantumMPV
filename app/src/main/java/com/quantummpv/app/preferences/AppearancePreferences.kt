@@ -107,7 +107,10 @@ class AppearancePreferences(
       )
     }
 
-  /** Selects a retained preset and applies its default opacity and blur while preserving other effects. */
+  /**
+   * Persists [style]'s canonical preset and its default intensity and blur, even when reselecting it.
+   * Other settings are preserved, except that [SurfaceStyle.CINEMA] also disables tint and highlights.
+   */
   fun setSurfaceStyle(style: SurfaceStyle) {
     val preset = glassConfig.copyWithStyle(style)
     surfaceStyle.set(preset.style)
@@ -119,7 +122,12 @@ class AppearancePreferences(
     }
   }
 
-  /** Maps a stored legacy preset to its closest retained style without resetting custom intensity or blur. */
+  /**
+   * Returns [style]'s canonical preset and persists it only when [style] is a legacy preset.
+   * Preserves custom intensity and blur; migrating [SurfaceStyle.CINEMA] disables tint and highlights.
+   *
+   * @param style Stored preset to migrate; defaults to the current surface-style preference.
+   */
   fun canonicalizeSurfaceStyle(style: SurfaceStyle = surfaceStyle.get()): SurfaceStyle {
     val canonicalStyle = style.canonicalStyle
     if (style != canonicalStyle) {

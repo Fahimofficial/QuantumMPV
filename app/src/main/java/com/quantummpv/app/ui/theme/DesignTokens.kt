@@ -193,7 +193,10 @@ object DesignTokens {
                     else -> this
                 }
 
-        /** Resolves tint from stored settings without restoring the retired Cinema preset's suppressed effect. */
+        /**
+         * Returns [DynamicTintMode.OFF] for [CINEMA]; otherwise preserves Off or Theme tint
+         * and maps Media or Adaptive tint to Off.
+         */
         fun effectiveDynamicTint(mode: DynamicTintMode): DynamicTintMode =
             if (this == CINEMA) {
                 DynamicTintMode.OFF
@@ -285,7 +288,11 @@ object DesignTokens {
         val performanceMode: PerformanceMode = PerformanceMode.AUTOMATIC,
         val cinemaMode: Boolean = false,
     ) {
-        /** Returns a copy using [newStyle]'s canonical preset and defaults, preserving non-Cinema effects. */
+        /**
+         * Returns a copy using [newStyle]'s canonical preset and its default intensity and blur.
+         * Other settings are preserved, except that [SurfaceStyle.CINEMA] disables tint and highlights
+         * in the copy. The separate [cinemaMode] setting is preserved for every preset.
+         */
         fun copyWithStyle(newStyle: SurfaceStyle): GlassConfig {
             val canonicalStyle = newStyle.canonicalStyle
             return copy(
@@ -340,7 +347,11 @@ object DesignTokens {
         }
     }
 
-    /** Collects appearance preferences as Compose state and returns their current glass configuration. */
+    /**
+     * Collects appearance preferences as Compose state and returns their current glass configuration.
+     * Resolves legacy styles to canonical presets while preserving stored intensity and blur.
+     * Suppresses Cinema tint and highlights and unsupported tint modes without persisting these conversions.
+     */
     @Composable
     fun rememberGlassConfig(): GlassConfig {
         val preferences = koinInject<AppearancePreferences>()
