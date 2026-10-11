@@ -188,7 +188,7 @@ object DesignTokens {
         val canonicalStyle: SurfaceStyle
             get() =
                 when (this) {
-                    SOFT_GLASS, AMOLED_GLASS, CINEMA -> FROSTED_GLASS
+                    SOFT_GLASS, CLEAR_GLASS, AMOLED_GLASS, CINEMA -> FROSTED_GLASS
                     MINIMAL -> CLASSIC
                     else -> this
                 }
@@ -208,7 +208,7 @@ object DesignTokens {
 
         companion object {
             /** The small set of surface presets with distinct rendering behavior. */
-            val selectableStyles = listOf(CLASSIC, FROSTED_GLASS, CLEAR_GLASS, LIQUID_GLASS)
+            val selectableStyles = listOf(CLASSIC, FROSTED_GLASS, LIQUID_GLASS)
         }
     }
 
@@ -285,13 +285,15 @@ object DesignTokens {
         val performanceMode: PerformanceMode = PerformanceMode.AUTOMATIC,
         val cinemaMode: Boolean = false,
     ) {
-        /** Returns a copy using [newStyle]'s canonical preset and defaults, preserving other settings. */
+        /** Returns a copy using [newStyle]'s canonical preset and defaults, preserving non-Cinema effects. */
         fun copyWithStyle(newStyle: SurfaceStyle): GlassConfig {
             val canonicalStyle = newStyle.canonicalStyle
             return copy(
                 style = canonicalStyle,
                 intensity = canonicalStyle.defaultIntensity,
                 blurLevel = canonicalStyle.defaultBlurLevel,
+                dynamicTint = if (newStyle == SurfaceStyle.CINEMA) DynamicTintMode.OFF else dynamicTint,
+                edgeHighlight = if (newStyle == SurfaceStyle.CINEMA) EdgeHighlightMode.OFF else edgeHighlight,
             )
         }
     }

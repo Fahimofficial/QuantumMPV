@@ -46,7 +46,6 @@ class GlassConfigTest {
     val presets = listOf(
       Triple(SurfaceStyle.CLASSIC, 1f, BlurLevel.OFF),
       Triple(SurfaceStyle.FROSTED_GLASS, 0.75f, BlurLevel.MEDIUM),
-      Triple(SurfaceStyle.CLEAR_GLASS, 0.6f, BlurLevel.LOW),
       Triple(SurfaceStyle.LIQUID_GLASS, 0.7f, BlurLevel.HIGH),
     )
 
@@ -63,10 +62,15 @@ class GlassConfigTest {
   @Test
   fun removedPresetsMapToTheClosestRetainedStyle() {
     assertEquals(
-      listOf(SurfaceStyle.CLASSIC, SurfaceStyle.FROSTED_GLASS, SurfaceStyle.CLEAR_GLASS, SurfaceStyle.LIQUID_GLASS),
+      listOf(
+        SurfaceStyle.CLASSIC,
+        SurfaceStyle.FROSTED_GLASS,
+        SurfaceStyle.LIQUID_GLASS,
+      ),
       SurfaceStyle.selectableStyles,
     )
     assertEquals(SurfaceStyle.FROSTED_GLASS, SurfaceStyle.SOFT_GLASS.canonicalStyle)
+    assertEquals(SurfaceStyle.FROSTED_GLASS, SurfaceStyle.CLEAR_GLASS.canonicalStyle)
     assertEquals(SurfaceStyle.FROSTED_GLASS, SurfaceStyle.AMOLED_GLASS.canonicalStyle)
     assertEquals(SurfaceStyle.FROSTED_GLASS, SurfaceStyle.CINEMA.canonicalStyle)
     assertEquals(SurfaceStyle.CLASSIC, SurfaceStyle.MINIMAL.canonicalStyle)

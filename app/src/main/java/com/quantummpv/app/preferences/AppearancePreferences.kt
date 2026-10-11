@@ -113,6 +113,10 @@ class AppearancePreferences(
     surfaceStyle.set(preset.style)
     glassIntensity.set(preset.intensity)
     glassBlurLevel.set(preset.blurLevel)
+    if (style == SurfaceStyle.CINEMA) {
+      dynamicTintMode.set(preset.dynamicTint)
+      edgeHighlightMode.set(preset.edgeHighlight)
+    }
   }
 
   /** Maps a stored legacy preset to its closest retained style without resetting custom intensity or blur. */
