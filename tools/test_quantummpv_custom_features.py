@@ -41,14 +41,37 @@ def main() -> int:
     )
     require(r'if \(dynamicTintMode\.get\(\) != DynamicTintMode\.OFF && dynamicTintMode\.get\(\) != DynamicTintMode\.THEME\) \{\s*dynamicTintMode\.set\(DynamicTintMode\.OFF\)',
             appearance_model, "legacy unsupported tint modes are normalized before rendering")
-    require(r'dynamicTint =\s*dynamicTintMode\.get\(\)\.takeIf \{ it == DynamicTintMode\.OFF \|\| it == DynamicTintMode\.THEME \}\s*\?: DynamicTintMode\.OFF',
-            appearance_model, "late-imported tint modes cannot reach glass rendering")
-    require(r'val supportedDynamicTint =\s*dynamicTint\.takeIf \{ it == DynamicTintMode\.OFF \|\| it == DynamicTintMode\.THEME \}\s*\?: DynamicTintMode\.OFF[\s\S]{0,500}dynamicTint = supportedDynamicTint',
-            design_tokens, "late-imported tint modes are filtered by the runtime glass configuration collector")
+    require(
+        r'dynamicTint = storedSurfaceStyle\.effectiveDynamicTint\(dynamicTintMode\.get\(\)\),\s*'
+        r'edgeHighlight = storedSurfaceStyle\.effectiveEdgeHighlight\(edgeHighlightMode\.get\(\)\)',
+        appearance_model,
+        "preference-based glass config suppresses legacy Cinema effects before migration",
+    )
+    require(
+        r'fun effectiveDynamicTint\(mode: DynamicTintMode\): DynamicTintMode =\s*'
+        r'if \(this == CINEMA\) \{\s*DynamicTintMode\.OFF\s*\} else \{\s*'
+        r'mode\.takeIf \{ it == DynamicTintMode\.OFF \|\| it == DynamicTintMode\.THEME \}\s*'
+        r'\?: DynamicTintMode\.OFF\s*\}',
+        design_tokens,
+        "Cinema and unsupported tint modes remain suppressed before migration",
+    )
+    require(
+        r'fun effectiveEdgeHighlight\(mode: EdgeHighlightMode\): EdgeHighlightMode =\s*'
+        r'if \(this == CINEMA\) EdgeHighlightMode\.OFF else mode',
+        design_tokens,
+        "Cinema suppresses restored edge highlights before migration",
+    )
+    require(
+        r'dynamicTint = style\.effectiveDynamicTint\(dynamicTint\),\s*'
+        r'edgeHighlight = style\.effectiveEdgeHighlight\(edgeHighlight\)',
+        design_tokens,
+        "Compose glass configuration applies the Cinema-aware effect filters",
+    )
     require(r'legacyGlassBottomNavigation = preferenceStore\.getBoolean\("glass_bottom_navigation",\s*false\)',
             appearance_model, "persisted legacy navigation appearance compatibility")
     require(
-        r'val surfaceStyle by preferences\.surfaceStyle\.collectAsState\(\)',
+        r'val storedSurfaceStyle by preferences\.surfaceStyle\.collectAsState\(\)\s+'
+        r'val surfaceStyle = storedSurfaceStyle\.canonicalStyle',
         appearance_screen,
         "surface-style preference shown in Appearance settings",
     )

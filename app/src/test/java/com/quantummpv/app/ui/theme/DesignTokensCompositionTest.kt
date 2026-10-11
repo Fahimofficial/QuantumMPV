@@ -1,5 +1,6 @@
 package com.quantummpv.app.ui.theme
 
+import android.content.Context
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.AbstractApplier
 import androidx.compose.runtime.Composable
@@ -7,6 +8,10 @@ import androidx.compose.runtime.Composition
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Recomposer
 import androidx.compose.ui.Modifier
+import com.quantummpv.app.preferences.AppearancePreferences
+import com.quantummpv.app.preferences.preference.AndroidPreferenceStore
+import com.quantummpv.app.ui.theme.DesignTokens.DynamicTintMode
+import com.quantummpv.app.ui.theme.DesignTokens.EdgeHighlightMode
 import com.quantummpv.app.ui.theme.DesignTokens.GlassConfig
 import com.quantummpv.app.ui.theme.DesignTokens.GlassConfigProvider
 import com.quantummpv.app.ui.theme.DesignTokens.LocalGlassConfig
@@ -20,7 +25,11 @@ import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertSame
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.koin.core.context.startKoin
+import org.koin.core.context.stopKoin
+import org.koin.dsl.module
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import kotlin.coroutines.EmptyCoroutineContext
 
@@ -129,13 +138,48 @@ class DesignTokensCompositionTest {
     assertOpacity(0.25f, config, isOnVideo = false, videoLuminance = 0f)
   }
 
-  /** Checks that the Cinema style preset and the cinema mode opacity increase remain independent. */
+  /** Checks that the retired Cinema preset maps to Frosted without enabling cinema opacity mode. */
   @Test
-  fun cinemaStyleDoesNotImplicitlyEnableTheSeparateCinemaMode() {
-    val config = GlassConfig().copyWithStyle(SurfaceStyle.CINEMA)
+  fun retiredCinemaPresetMapsToFrostedWithoutEnablingCinemaMode() {
+    val config =
+      GlassConfig(
+        dynamicTint = DesignTokens.DynamicTintMode.THEME,
+        edgeHighlight = DesignTokens.EdgeHighlightMode.STRONG,
+      ).copyWithStyle(SurfaceStyle.CINEMA)
 
-    assertOpacity(0.9f, config)
-    assertOpacity(1f, config.copy(cinemaMode = true))
+    assertEquals(SurfaceStyle.FROSTED_GLASS, config.style)
+    assertEquals(DesignTokens.DynamicTintMode.OFF, config.dynamicTint)
+    assertEquals(DesignTokens.EdgeHighlightMode.OFF, config.edgeHighlight)
+    assertOpacity(SurfaceStyle.FROSTED_GLASS.defaultIntensity, config)
+    assertOpacity(SurfaceStyle.FROSTED_GLASS.defaultIntensity + 0.1f, config.copy(cinemaMode = true))
+  }
+
+  @Test
+  fun postInitializationCinemaImportSuppressesEffectsInBothRuntimeReaders() {
+    val context = RuntimeEnvironment.getApplication()
+    val storage = context.getSharedPreferences("design-tokens-cinema-test", Context.MODE_PRIVATE)
+    storage.edit().clear().commit()
+    val preferences = AppearancePreferences(AndroidPreferenceStore(context, storage))
+    preferences.dynamicTintMode.set(DynamicTintMode.THEME)
+    preferences.edgeHighlightMode.set(EdgeHighlightMode.STRONG)
+    storage.edit().putString("surface_style", "CINEMA").commit()
+
+    startKoin { modules(module { single { preferences } }) }
+    try {
+      val preferenceConfig = preferences.glassConfig
+      var composedConfig: GlassConfig? = null
+      compose { composedConfig = DesignTokens.rememberGlassConfig() }
+
+      for (config in listOf(preferenceConfig, requireNotNull(composedConfig))) {
+        assertEquals(SurfaceStyle.FROSTED_GLASS, config.style)
+        assertEquals(DynamicTintMode.OFF, config.dynamicTint)
+        assertEquals(EdgeHighlightMode.OFF, config.edgeHighlight)
+      }
+      assertEquals(DynamicTintMode.THEME, preferences.dynamicTintMode.get())
+      assertEquals(EdgeHighlightMode.STRONG, preferences.edgeHighlightMode.get())
+    } finally {
+      stopKoin()
+    }
   }
 
   /** Verifies that Classic and Minimal return the original modifier even with video opacity overrides. */

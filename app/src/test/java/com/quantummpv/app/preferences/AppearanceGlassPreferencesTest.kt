@@ -56,6 +56,90 @@ class AppearanceGlassPreferencesTest {
     assertTrue(legacyPreferences.hasStoredSurfaceStyle)
   }
 
+  @Test
+  fun redundantSavedSurfaceStylesMigrateToClosestSelectableStyle() {
+    val legacyStyles = mapOf(
+      "SOFT_GLASS" to SurfaceStyle.FROSTED_GLASS,
+      "AMOLED_GLASS" to SurfaceStyle.FROSTED_GLASS,
+      "CINEMA" to SurfaceStyle.FROSTED_GLASS,
+      "MINIMAL" to SurfaceStyle.CLASSIC,
+    )
+
+    for ((storedStyle, expectedStyle) in legacyStyles) {
+      storage.edit().putString("surface_style", storedStyle).commit()
+
+      val migratedPreferences = newPreferences()
+
+      assertEquals(expectedStyle, migratedPreferences.surfaceStyle.get())
+      assertEquals(expectedStyle.name, storage.getString("surface_style", null))
+    }
+
+    storage.edit().putString("surface_style", "CINEMA").commit()
+    val cinemaPreferences = newPreferences()
+    assertEquals(DynamicTintMode.OFF, cinemaPreferences.dynamicTintMode.get())
+    assertEquals(EdgeHighlightMode.OFF, cinemaPreferences.edgeHighlightMode.get())
+  }
+
+  @Test
+  fun importedClearGlassKeepsItsDistinctRuntimeStyleAndSettings() {
+    storage.edit()
+      .putString("surface_style", "CLEAR_GLASS")
+      .putFloat("glass_intensity", 0.42f)
+      .putString("glass_blur_level", "LOW")
+      .commit()
+
+    val importedConfig = preferences.glassConfig
+    assertEquals(SurfaceStyle.CLEAR_GLASS, importedConfig.style)
+    assertEquals(0.42f, importedConfig.intensity, 0f)
+    assertEquals(BlurLevel.LOW, importedConfig.blurLevel)
+    assertEquals(SurfaceStyle.CLEAR_GLASS, preferences.canonicalizeSurfaceStyle())
+    assertEquals("CLEAR_GLASS", storage.getString("surface_style", null))
+  }
+
+  @Test
+  fun importedCinemaStyleKeepsItsPreviouslySuppressedEffectsOff() {
+    preferences.dynamicTintMode.set(DynamicTintMode.THEME)
+    preferences.edgeHighlightMode.set(EdgeHighlightMode.STRONG)
+    storage.edit().putString("surface_style", "CINEMA").commit()
+
+    val importedConfig = preferences.glassConfig
+    assertEquals(SurfaceStyle.FROSTED_GLASS, importedConfig.style)
+    assertEquals(DynamicTintMode.OFF, importedConfig.dynamicTint)
+    assertEquals(EdgeHighlightMode.OFF, importedConfig.edgeHighlight)
+    assertEquals(DynamicTintMode.THEME, preferences.dynamicTintMode.get())
+    assertEquals(EdgeHighlightMode.STRONG, preferences.edgeHighlightMode.get())
+  }
+
+  @Test
+  fun selectingSurfaceStyleAppliesItsPresetDefaultsAndPreservesSeparateEffects() {
+    preferences.glassIntensity.set(0.33f)
+    preferences.glassBlurLevel.set(BlurLevel.HIGH)
+    preferences.dynamicTintMode.set(DynamicTintMode.OFF)
+    preferences.edgeHighlightMode.set(EdgeHighlightMode.STRONG)
+
+    preferences.setSurfaceStyle(SurfaceStyle.FROSTED_GLASS)
+
+    assertEquals(SurfaceStyle.FROSTED_GLASS, preferences.surfaceStyle.get())
+    assertEquals(SurfaceStyle.FROSTED_GLASS.defaultIntensity, preferences.glassIntensity.get(), 0f)
+    assertEquals(SurfaceStyle.FROSTED_GLASS.defaultBlurLevel, preferences.glassBlurLevel.get())
+    assertEquals(DynamicTintMode.OFF, preferences.dynamicTintMode.get())
+    assertEquals(EdgeHighlightMode.STRONG, preferences.edgeHighlightMode.get())
+  }
+
+  @Test
+  fun selectingRetiredCinemaPersistsDisabledTintAndHighlights() {
+    preferences.dynamicTintMode.set(DynamicTintMode.THEME)
+    preferences.edgeHighlightMode.set(EdgeHighlightMode.STRONG)
+
+    preferences.setSurfaceStyle(SurfaceStyle.CINEMA)
+
+    assertEquals(SurfaceStyle.FROSTED_GLASS, preferences.surfaceStyle.get())
+    assertEquals(DynamicTintMode.OFF, preferences.dynamicTintMode.get())
+    assertEquals(EdgeHighlightMode.OFF, preferences.edgeHighlightMode.get())
+    assertEquals("OFF", storage.getString("dynamic_tint_mode", null))
+    assertEquals("OFF", storage.getString("edge_highlight_mode", null))
+  }
+
   /** Verifies that raw persisted values populate all fields of a newly read glass configuration. */
   @Test
   fun persistedKeysPopulateEveryFieldOfTheGlassConfiguration() {
@@ -126,8 +210,8 @@ class AppearanceGlassPreferencesTest {
     val initial = preferences.glassConfig
     var expected = defaultConfig
 
-    preferences.surfaceStyle.set(SurfaceStyle.CLEAR_GLASS)
-    expected = expected.copy(style = SurfaceStyle.CLEAR_GLASS)
+    preferences.surfaceStyle.set(SurfaceStyle.FROSTED_GLASS)
+    expected = expected.copy(style = SurfaceStyle.FROSTED_GLASS)
     assertEquals(expected, preferences.glassConfig)
     preferences.glassIntensity.set(0f)
     expected = expected.copy(intensity = 0f)
@@ -173,12 +257,12 @@ class AppearanceGlassPreferencesTest {
     }
   }
 
-  /** Checks that every style persists while preserving separately stored intensity and blur values. */
+  /** Checks that every selectable style persists while preserving separately stored intensity and blur. */
   @Test
-  fun allSurfaceStylesRoundTripWithoutOverwritingExplicitIntensityAndBlur() {
+  fun selectableSurfaceStylesRoundTripWithoutOverwritingExplicitIntensityAndBlur() {
     preferences.glassIntensity.set(0.37f)
     preferences.glassBlurLevel.set(BlurLevel.HIGH)
-    for (style in SurfaceStyle.entries) {
+    for (style in SurfaceStyle.selectableStyles) {
       preferences.surfaceStyle.set(style)
 
       assertEquals(
