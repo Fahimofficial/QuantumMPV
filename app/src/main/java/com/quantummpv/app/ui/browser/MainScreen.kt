@@ -287,7 +287,8 @@ object MainScreen : Screen {
         if (!isAlreadySettled) {
           tabNavigationJob =
             coroutineScope.launch {
-              if (navStyle == NavigationAnimStyle.None) {
+              val isAdjacent = kotlin.math.abs(pagerState.settledPage - targetIndex) <= 1
+              if (navStyle == NavigationAnimStyle.None || !isAdjacent) {
                 pagerState.scrollToPage(targetIndex)
               } else {
                 pagerState.animateScrollToPage(
@@ -689,31 +690,31 @@ private fun ExpressivePillNavigationBar(
   val indicatorLeft = androidx.compose.ui.unit.lerp(tabOffsets[pageFloor], tabOffsets[pageCeil], pageFraction)
   val indicatorWidth = androidx.compose.ui.unit.lerp(tabWidths[pageFloor], tabWidths[pageCeil], pageFraction)
 
-  val navigationContainer: @Composable (@Composable () -> Unit) -> Unit = if (glass) {
-    { content ->
-      GlassComponents.GlassNavigationPill(
-        modifier = modifier,
-        shape = CircleShape,
-        forceGlass = true,
-        content = content,
-      )
+val navigationContainer: @Composable (@Composable () -> Unit) -> Unit = if (glass) {
+      { content ->
+        GlassComponents.GlassNavigationPillLightweight(
+          modifier = modifier,
+          shape = CircleShape,
+          forceGlass = true,
+          content = content,
+        )
+      }
+    } else {
+      { content ->
+        Surface(
+          modifier = modifier,
+          shape = CircleShape,
+          color = MaterialTheme.colorScheme.surfaceContainerHigh,
+          tonalElevation = 6.dp,
+          shadowElevation = 8.dp,
+          border = BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.48f),
+          ),
+          content = content,
+        )
+      }
     }
-  } else {
-    { content ->
-      Surface(
-        modifier = modifier,
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        tonalElevation = 6.dp,
-        shadowElevation = 8.dp,
-        border = BorderStroke(
-          width = 1.dp,
-          color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.48f),
-        ),
-        content = content,
-      )
-    }
-  }
 
   navigationContainer {
     Box(

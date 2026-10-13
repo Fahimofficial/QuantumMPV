@@ -99,7 +99,8 @@ internal fun rememberTabNavigation(state: PagerState): (Int) -> Unit {
       job?.cancel()
       if (!isAlreadySettled) {
         job = scope.launch {
-          if (style == NavigationAnimStyle.None) {
+          val isAdjacent = kotlin.math.abs(state.settledPage - page) <= 1
+          if (style == NavigationAnimStyle.None || !isAdjacent) {
             state.scrollToPage(page)
           } else {
             state.animateScrollToPage(page, animationSpec = tween(navigationDurationMillis(speed), easing = FastOutSlowInEasing))

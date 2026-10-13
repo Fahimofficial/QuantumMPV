@@ -30,6 +30,7 @@ import com.quantummpv.app.ui.theme.DesignTokens.LocalGlassConfig
 import com.quantummpv.app.ui.theme.DesignTokens.PerformanceMode
 import com.quantummpv.app.ui.theme.DesignTokens.RefractionMode
 import com.quantummpv.app.ui.theme.DesignTokens.SurfaceStyle
+import com.quantummpv.app.ui.theme.DesignTokens.BlurLevel
 import com.quantummpv.app.ui.theme.DesignTokens.calculateSurfaceOpacity
 import dev.chrisbanes.haze.ExperimentalHazeApi
 import dev.chrisbanes.haze.HazeInput
@@ -156,6 +157,26 @@ object GlassComponents {
         content: @Composable () -> Unit,
     ) {
         GlassContainer(
+            modifier = modifier,
+            shape = shape,
+            selected = isSelected,
+            forceGlass = forceGlass,
+            classicColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            classicTonalElevation = 6.dp,
+            classicShadowElevation = 8.dp,
+            content = content,
+        )
+    }
+
+    @Composable
+    fun GlassNavigationPillLightweight(
+        modifier: Modifier = Modifier,
+        isSelected: Boolean = false,
+        forceGlass: Boolean = false,
+        shape: Shape = MaterialTheme.shapes.medium,
+        content: @Composable () -> Unit,
+    ) {
+        LightweightGlassContainer(
             modifier = modifier,
             shape = shape,
             selected = isSelected,
@@ -321,3 +342,94 @@ private fun PerformanceMode.toHazePerformanceMode(): HazeRenderPerformance =
         PerformanceMode.QUALITY -> HazeRenderPerformance.Quality
         PerformanceMode.AUTOMATIC -> HazeRenderPerformance.Default
     }
+
+@OptIn(ExperimentalHazeApi::class)
+@Composable
+private fun LightweightGlassContainer(
+    modifier: Modifier,
+    shape: Shape,
+    selected: Boolean = false,
+    forceGlass: Boolean = false,
+    classicColor: Color = MaterialTheme.colorScheme.surface,
+    classicTonalElevation: androidx.compose.ui.unit.Dp = 0.dp,
+    classicShadowElevation: androidx.compose.ui.unit.Dp = 0.dp,
+    content: @Composable () -> Unit,
+) {
+    val config = LocalGlassConfig.current
+    val colors = MaterialTheme.colorScheme
+
+    val usesGlassStyle = config.style != SurfaceStyle.CLASSIC && config.style != SurfaceStyle.MINIMAL
+    if (!usesGlassStyle && !forceGlass) {
+        Surface(
+            modifier = modifier,
+            shape = shape,
+            color = if (selected) colors.primaryContainer else classicColor,
+            tonalElevation = classicTonalElevation,
+            shadowElevation = classicShadowElevation,
+            content = content,
+        )
+        return
+    }
+
+    val hazeState = LocalHazeState.current
+
+    val baseOpacity = if (selected) 0.95f else 0.8f
+    val containerColor = (if (selected) colors.primaryContainer else colors.surface).copy(alpha = baseOpacity)
+
+    val glassShape = shape.toGlassShape()
+
+    val blurRadius = (config.blurLevel.renderEffectRadius.coerceAtMost(BlurLevel.LOW.renderEffectRadius)).dp
+
+    val refractionStrength = 0f
+
+    val effectiveEdgeHighlightMode = EdgeHighlightMode.OFF
+    val edgeHighlight = 0f
+
+    val optics =
+        GlassDefaults.optics.copy(
+            refractionStrength = refractionStrength,
+            blurRadius = OpticalSizeValue.Fixed(blurRadius),
+            depth = OpticalSizeValue.Fixed(1f),
+        )
+
+    val glassStyle =
+        remember(
+            containerColor,
+            glassShape,
+            optics,
+        ) {
+            GlassStyle.clear.then {
+                backgroundColor(containerColor)
+                shape(glassShape)
+                optics(optics)
+                specularIntensity(edgeHighlight)
+                edgeShadow(Color.Transparent)
+                ambientResponse(0.08f)
+                edgeSoftness(0.dp)
+                chromaticAberrationStrength(0f)
+            }
+        }
+
+    val borderColor = colors.outlineVariant.copy(alpha = 0.3f)
+
+    val hazeModifier =
+        if (hazeState != null) {
+            Modifier.hazeGlass(
+                input = HazeInput.Backdrop(hazeState),
+                style = glassStyle,
+                performanceMode = HazeRenderPerformance.Performance,
+            )
+        } else {
+            Modifier.background(containerColor, shape)
+        }
+
+    Box(
+        modifier =
+            modifier
+                .clip(shape)
+                .then(hazeModifier)
+                .then(Modifier.border(1.dp, borderColor, shape)),
+        contentAlignment = Alignment.Center,
+        content = { content() },
+    )
+}
