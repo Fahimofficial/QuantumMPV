@@ -1,4 +1,12 @@
 # Changelog
+## 1.3.1-preview.3
+This preview builds on v1.3.1-preview.2 with smoother navigation, floating app search, and refinements to glass surfaces and player controls.
+### What's New
+- **Surface style choices**: Keep four distinct styles—Classic, Frosted Glass, Clear Glass, and Liquid Glass—while mapping saved legacy styles to the closest retained option and preserving Cinema's no-tint/no-highlight behavior.
+- **Smoother navigation**: Reduce jitter when switching between distant tabs, defer navigation geometry updates until transitions settle, and use lighter glass rendering.
+- **Floating app search**: Open Settings Search from a quick-access floating button that hides when space is limited or selection mode is active.
+- **Player and browser polish**: Improve HUD contrast while controls are visible, keep multi-column card titles consistent while honoring the full-name preference, and constrain audio/equalizer sheets to 460 dp in landscape.
+
 ## 1.3.1-preview.2
 This preview builds on v1.3.1-preview.1 with the completed Glass & Surface Style integration.
 ### What's New
