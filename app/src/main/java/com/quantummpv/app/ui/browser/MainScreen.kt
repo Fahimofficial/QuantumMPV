@@ -635,10 +635,9 @@ object MainScreen : Screen {
           }
         }
 
-        // Floating search button inspired by Vetro's separate search action.
-        // Positioned to the right of the navbar. Opens the universal settings search screen
-        // which provides access to all app settings and features.
-        // Hidden during selection mode, when navbar is hidden, or when space is constrained.
+        // Floating quick actions to the right of the navbar: the existing settings search (unchanged)
+        // with a menu button above it (Settings, Library Insights). They share one visibility rule and
+        // one entrance animation. Hidden during selection mode or when the navbar is hidden.
         val showFloatingSearch = !hideNavigationBar &&
           visibleTabs.isNotEmpty() &&
           !isPermissionDenied &&
@@ -661,14 +660,27 @@ object MainScreen : Screen {
             .navigationBarsPadding()
             .padding(end = 24.dp, bottom = 88.dp + 12.dp),
         ) {
-          com.quantummpv.app.ui.browser.components.FloatingSearchButton(
-            visible = showFloatingSearch,
-            onSearchClick = {
-              backStack.navigateTo(com.quantummpv.app.ui.preferences.SettingsSearchScreen)
-            },
-            navbarEndOffset = NavigationBarState.navbarLeftOffset + NavigationBarState.navbarWidth,
-            bottomPadding = 0.dp,
-          )
+          Column(
+            horizontalAlignment = Alignment.End,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+          ) {
+            com.quantummpv.app.ui.browser.components.FloatingMenuButton(
+              onSettingsClick = {
+                backStack.navigateTo(com.quantummpv.app.ui.preferences.PreferencesScreen)
+              },
+              onLibraryInsightsClick = {
+                backStack.navigateTo(com.quantummpv.app.ui.browser.insights.LibraryInsightsScreen)
+              },
+            )
+            com.quantummpv.app.ui.browser.components.FloatingSearchButton(
+              visible = showFloatingSearch,
+              onSearchClick = {
+                backStack.navigateTo(com.quantummpv.app.ui.preferences.SettingsSearchScreen)
+              },
+              navbarEndOffset = NavigationBarState.navbarLeftOffset + NavigationBarState.navbarWidth,
+              bottomPadding = 0.dp,
+            )
+          }
         }
       }
     }

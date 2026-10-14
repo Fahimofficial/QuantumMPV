@@ -184,18 +184,17 @@ object DesignTokens {
         ),
         ;
 
-      /** Maps presets removed from the picker to the closest remaining surface style. */
+      /** Maps every preset to Classic or Clear Glass; legacy entries stay so stored names still parse. */
         val canonicalStyle: SurfaceStyle
             get() =
                 when (this) {
-                    SOFT_GLASS, AMOLED_GLASS -> FROSTED_GLASS
-                    MINIMAL -> CLASSIC
-                    else -> this
+                    CLASSIC, MINIMAL, CINEMA -> CLASSIC
+                    CLEAR_GLASS, SOFT_GLASS, FROSTED_GLASS, LIQUID_GLASS, AMOLED_GLASS -> CLEAR_GLASS
                 }
 
-        /** Maps retired Cinema to the retained style used by the appearance selector and renderer. */
+        /** The retained style used by the appearance selector and renderer; identical to [canonicalStyle]. */
         val selectableStyle: SurfaceStyle
-            get() = if (this == CINEMA) FROSTED_GLASS else canonicalStyle
+            get() = canonicalStyle
 
         /**
          * Returns [DynamicTintMode.OFF] for [CINEMA]; otherwise preserves Off or Theme tint
@@ -214,8 +213,8 @@ object DesignTokens {
             if (this == CINEMA) EdgeHighlightMode.OFF else mode
 
         companion object {
-            /** The small set of surface presets with distinct rendering behavior. */
-            val selectableStyles = listOf(CLASSIC, FROSTED_GLASS, CLEAR_GLASS, LIQUID_GLASS)
+            /** The two surface presets offered in the picker; Classic is the default. */
+            val selectableStyles = listOf(CLASSIC, CLEAR_GLASS)
         }
     }
 

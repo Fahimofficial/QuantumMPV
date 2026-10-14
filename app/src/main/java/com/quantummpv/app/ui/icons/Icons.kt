@@ -208,6 +208,7 @@ object Icons {
     val SdCard by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Sd_card) }
     val Search by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Search) }
     val Settings by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Settings) }
+    val Insights by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Insights) }
     val Security by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Security) }
     val Shadow by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Shadow) }
     val Share by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Share) }
@@ -426,6 +427,7 @@ object Icons {
     val SdCard get() = Shared.SdCard
     val Search get() = Shared.Search
     val Settings get() = Shared.Settings
+    val Insights get() = Shared.Insights
     val Security get() = Shared.Security
     val Shadow get() = Shared.Shadow
     val Share get() = Shared.Share

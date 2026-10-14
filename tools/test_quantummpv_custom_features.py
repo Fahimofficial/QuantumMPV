@@ -35,9 +35,14 @@ def main() -> int:
     strings = read("app/src/main/res/values/strings.xml")
 
     require(
-        r'val surfaceStyle = preferenceStore\.getEnum\("surface_style",\s*SurfaceStyle\.LIQUID_GLASS\)',
+        r'val surfaceStyle = preferenceStore\.getEnum\("surface_style",\s*SurfaceStyle\.CLASSIC\)',
         appearance_model,
-        "persisted global Liquid Glass default",
+        "persisted global Classic default",
+    )
+    require(
+        r'val selectableStyles = listOf\(CLASSIC,\s*CLEAR_GLASS\)',
+        design_tokens,
+        "surface-style picker offers only Classic and Clear Glass",
     )
     require(r'if \(dynamicTintMode\.get\(\) != DynamicTintMode\.OFF && dynamicTintMode\.get\(\) != DynamicTintMode\.THEME\) \{\s*dynamicTintMode\.set\(DynamicTintMode\.OFF\)',
             appearance_model, "legacy unsupported tint modes are normalized before rendering")
