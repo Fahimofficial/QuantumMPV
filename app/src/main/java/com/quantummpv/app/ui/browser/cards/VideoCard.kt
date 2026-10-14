@@ -453,7 +453,9 @@ fun VideoCard(
               ) {
                 Text(
                   text = video.durationFormatted,
-                  style = MaterialTheme.typography.labelSmall,
+                  style = MaterialTheme.typography.labelSmall.copy(
+                    fontFeatureSettings = "tnum"
+                  ),
                   color = Color.White,
                 )
               }
@@ -501,7 +503,8 @@ fun VideoCard(
               } else {
                 MaterialTheme.colorScheme.onSurface
               },
-            maxLines = maxLines,
+            minLines = if (gridColumns > 1) 2 else 1,
+            maxLines = if (gridColumns > 1) 2 else maxLines,
             overflow = TextOverflow.Ellipsis,
             textAlign =
               if (useFolderNameStyle) {
@@ -773,7 +776,9 @@ fun VideoCard(
               ) {
                 Text(
                   text = video.durationFormatted,
-                  style = MaterialTheme.typography.labelSmall,
+                  style = MaterialTheme.typography.labelSmall.copy(
+                    fontFeatureSettings = "tnum"
+                  ),
                   color = Color.White,
                 )
               }
