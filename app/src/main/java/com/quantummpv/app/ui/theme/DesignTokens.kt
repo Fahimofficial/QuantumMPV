@@ -188,7 +188,7 @@ object DesignTokens {
         val canonicalStyle: SurfaceStyle
             get() =
                 when (this) {
-                    SOFT_GLASS, AMOLED_GLASS -> FROSTED_GLASS
+                    SOFT_GLASS, AMOLED_GLASS, CINEMA -> FROSTED_GLASS
                     MINIMAL -> CLASSIC
                     else -> this
                 }
