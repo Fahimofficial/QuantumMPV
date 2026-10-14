@@ -285,9 +285,15 @@ object MainScreen : Screen {
       if (targetIndex >= 0) {
         tabNavigationJob?.cancel()
         if (!isAlreadySettled) {
+          // Distinguish adjacent from non-adjacent tab changes to avoid jitter through
+          // intermediate pages. Adjacent changes use the animated pager transition so
+          // the moving indicator follows the swipe naturally. Non-adjacent jumps use
+          // instant scrollToPage so the indicator animates directly to the destination
+          // while the pager content changes without traversing intermediate browser pages.
+          val isAdjacent = kotlin.math.abs(pagerState.settledPage - targetIndex) <= 1
           tabNavigationJob =
             coroutineScope.launch {
-              if (navStyle == NavigationAnimStyle.None) {
+              if (navStyle == NavigationAnimStyle.None || !isAdjacent) {
                 pagerState.scrollToPage(targetIndex)
               } else {
                 pagerState.animateScrollToPage(
@@ -615,13 +621,54 @@ object MainScreen : Screen {
                   }
                 }
                 .onGloballyPositioned { coords ->
-                  val width = with(density) { coords.size.width.toDp() }
-                  NavigationBarState.navbarWidth = width
-                  NavigationBarState.navbarLeftOffset =
-                    (containerWidth * centerFraction.value - width / 2).coerceAtLeast(16.dp)
+                  // Publish navbar geometry only when settled, not on every animation frame.
+                  // This reduces recomposition cost during navbar motion. Consumers that need
+                  // per-frame positioning use derivedStateOf or draw-phase updates.
+                  if (!pagerState.isScrollInProgress && pagerState.currentPageOffsetFraction == 0f) {
+                    val width = with(density) { coords.size.width.toDp() }
+                    NavigationBarState.navbarWidth = width
+                    NavigationBarState.navbarLeftOffset =
+                      (containerWidth * centerFraction.value - width / 2).coerceAtLeast(16.dp)
+                  }
                 },
             )
           }
+        }
+
+        // Floating search button inspired by Vetro's separate search action.
+        // Positioned to the right of the navbar. Opens the universal settings search screen
+        // which provides access to all app settings and features.
+        // Hidden during selection mode, when navbar is hidden, or when space is constrained.
+        val showFloatingSearch = !hideNavigationBar &&
+          visibleTabs.isNotEmpty() &&
+          !isPermissionDenied &&
+          !NavigationBarState.isInSelectionMode
+
+        AnimatedVisibility(
+          visible = showFloatingSearch,
+          enter = if (navStyle == NavigationAnimStyle.None) EnterTransition.None else
+            slideInVertically(
+              animationSpec = tween(duration, easing = FastOutSlowInEasing),
+              initialOffsetY = { fullHeight -> fullHeight * 2 },
+            ) + fadeIn(tween(duration)),
+          exit = if (navStyle == NavigationAnimStyle.None) ExitTransition.None else
+            slideOutVertically(
+              animationSpec = tween(duration, easing = FastOutSlowInEasing),
+              targetOffsetY = { fullHeight -> fullHeight * 2 },
+            ) + fadeOut(tween(duration)),
+          modifier = Modifier
+            .align(Alignment.BottomEnd)
+            .navigationBarsPadding()
+            .padding(end = 24.dp, bottom = 88.dp + 12.dp),
+        ) {
+          com.quantummpv.app.ui.browser.components.FloatingSearchButton(
+            visible = showFloatingSearch,
+            onSearchClick = {
+              backStack.navigateTo(com.quantummpv.app.ui.preferences.SettingsSearchScreen)
+            },
+            navbarEndOffset = NavigationBarState.navbarLeftOffset + NavigationBarState.navbarWidth,
+            bottomPadding = 0.dp,
+          )
         }
       }
     }
