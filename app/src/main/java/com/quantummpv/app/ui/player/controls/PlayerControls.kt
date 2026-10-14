@@ -752,6 +752,7 @@ fun PlayerControls(
                     )
                   )
                 )
+                .alpha((transparentOverlay / 0.8f).coerceIn(0f, 1f))
           )
 
           // Bottom HUD scrim gradient for bright-frame contrast
@@ -773,6 +774,7 @@ fun PlayerControls(
                     )
                   )
                 )
+                .alpha((transparentOverlay / 0.8f).coerceIn(0f, 1f))
           )
 
           AnimatedVisibility(

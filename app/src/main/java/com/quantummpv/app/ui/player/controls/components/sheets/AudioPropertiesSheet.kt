@@ -76,16 +76,14 @@ fun AudioPropertiesSheet(
     },
   ) {
     GlassComponents.GlassBottomSheetBackground(
-      modifier =
-        Modifier
-          .fillMaxWidth()
-          .windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom)),
+      modifier = Modifier.fillMaxWidth(),
       classicColor = MaterialTheme.colorScheme.surfaceContainer,
     ) {
       Column(
         modifier =
           Modifier
             .fillMaxWidth()
+            .windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom))
             .verticalScroll(rememberScrollState())
             .padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 48.dp),
       ) {
