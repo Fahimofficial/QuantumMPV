@@ -65,6 +65,12 @@ object NavigationBarState {
   val miniPlayerClearance: Dp
     get() = if (isMiniPlayerVisible) 96.dp else 0.dp
 
+  // Shared landscape/tablet constraint: 24dp player padding + 48dp art + 20dp spacers + 104dp controls.
+  val landscapeMiniPlayerMinimumWidth: Dp = 196.dp
+
+  // The video mini-player is the tallest variant; menu overlays clear this value when stacked.
+  val stackedMiniPlayerMaximumHeight: Dp = 76.dp
+
   var shouldHideNavigationBar: Boolean by mutableStateOf(false)
     private set
 

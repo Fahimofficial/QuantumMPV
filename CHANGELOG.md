@@ -3,7 +3,9 @@
 ### What's New
 - **Two surface styles**: The surface picker now offers Classic and Clear Glass, and Classic is the default for new installs and for anyone who never chose a style. Saved legacy styles are mapped automatically: Soft, Frosted, Liquid and AMOLED Glass become Clear Glass, while Minimal and Cinema become Classic. Cinema keeps its no-tint/no-highlight behavior until it is migrated.
 - **Library Insights**: A new screen, opened from the new floating menu, summarizes what you have played using only data already stored on this device: videos played, completed, unfinished, played in the last 7 days, plus "Continue watching" and "Recently played" lists. Videos that no longer exist are ignored, and the screen follows the Recently Played setting, showing nothing when it is off. Total watch time is not shown because it is not tracked yet.
-- **Floating menu**: A circular menu button above the floating search button opens a small panel with Settings and Library Insights. It closes on an outside tap or Back and follows the Off and Reduced motion settings.
+- **Responsive floating dock**: The overflow control is pinned inside the navigation pill and the separate circular Search action sits immediately beside it. On narrow screens, tab labels collapse and the 48 dp tab targets scroll inside the pill instead of colliding with Search or hiding destinations.
+- **Contextual Search**: The floating Search action now opens the active tab’s existing search and keyboard for Home, Music, Recents, Playlists, Network, and Jellyfin. The top-bar Search action is suppressed only while the floating dock owns it, avoiding duplicates; nested screens retain their normal action.
+- **Glass menu**: The Settings and Library Insights panel now renders in-window through the shared lightweight Haze glass treatment, expands above its overflow trigger, dismisses on outside tap or Back, and follows Off/Reduced motion settings.
 
 ## 1.3.1-preview.3
 This preview builds on v1.3.1-preview.2 with smoother navigation, floating app search, and refinements to glass surfaces and player controls.

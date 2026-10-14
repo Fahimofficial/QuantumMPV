@@ -152,6 +152,10 @@ fun JellyfinContent(
   var serverToReauth by remember { mutableStateOf<JellyfinServer?>(null) }
   var isManageServersOpen by rememberSaveable { mutableStateOf(false) }
   var isSearching by rememberSaveable { mutableStateOf(false) }
+  val topBarSearchAction =
+    com.quantummpv.app.ui.browser.mainTabSearchAction(isSearching) {
+      isSearching = true
+    }
   var isSeerrRequestsOpen by rememberSaveable { mutableStateOf(false) }
   var isSortDialogOpen by rememberSaveable { mutableStateOf(false) }
   var isFabExpanded by remember { mutableStateOf(false) }
@@ -415,7 +419,7 @@ fun JellyfinContent(
           onSortClick = if (uiState.openLibrary != null && !(uiState.openLibrary?.isMusic == true && uiState.musicActiveTab == JellyfinMusicTab.HOME)) {
             { isSortDialogOpen = true }
           } else null,
-          onSearchClick = { isSearching = true },
+          onSearchClick = topBarSearchAction,
           // Seerr requests only surface on the untouched Jellyfin home page.
           onRequestClick = if (!isMusicOnlyMode && uiState.openLibrary == null && uiState.selectedLibraryId == null) {
             { isSeerrRequestsOpen = true }

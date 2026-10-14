@@ -16,17 +16,20 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -42,9 +45,9 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
@@ -75,7 +78,6 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -94,6 +96,7 @@ import com.quantummpv.app.preferences.MusicSourceProvider
 import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.presentation.Screen
+import com.quantummpv.app.ui.browser.components.FloatingSearchButtonSize
 import com.quantummpv.app.ui.browser.folderlist.FolderListScreen
 import com.quantummpv.app.ui.browser.music.MusicLibraryContent
 import com.quantummpv.app.ui.browser.networkstreaming.NetworkStreamingScreen
@@ -117,7 +120,23 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import org.koin.compose.koinInject
-import kotlin.math.roundToInt
+
+private val DockHorizontalMargin = 16.dp
+private val DockItemGap = 8.dp
+private val DockBottomPadding = 12.dp
+private val NavigationDockHeight = 56.dp
+private val NavigationItemSize = 48.dp
+private val NavigationItemSpacing = 4.dp
+private val NavigationContentPadding = 4.dp
+private val NavigationVerticalPadding = 4.dp
+private val SideBySideMiniPlayerGap = 12.dp
+private val SideBySideMiniPlayerEndPadding = 12.dp
+private val PreferredMenuWidth = 208.dp
+private val MinimumCompactDockWidth =
+  NavigationItemSize +
+    com.quantummpv.app.ui.browser.components.FloatingMenuButtonSize +
+    FloatingSearchButtonSize +
+    DockItemGap
 
 @Serializable
 object MainScreen : Screen {
@@ -178,6 +197,8 @@ object MainScreen : Screen {
     val navStyle by playerPreferences.appNavStyle.collectAsState()
     val animSpeed by playerPreferences.animationSpeed.collectAsState()
     val duration = navigationDurationMillis(animSpeed)
+    val mainSearchController = remember { MainSearchActionController() }
+    var menuExpanded by rememberSaveable { mutableStateOf(false) }
     var persistentSelectedTab by rememberSaveable { mutableStateOf(MainTab.HOME) }
     val mediaServerPreferences = koinInject<MediaServerPreferences>()
     val musicSourceProvider by mediaServerPreferences.musicSourceProvider.collectAsState()
@@ -218,6 +239,8 @@ object MainScreen : Screen {
         }
       }
 
+    val showDock = !hideNavigationBar && visibleTabs.isNotEmpty() && !isPermissionDenied
+
     // Track whether the floating pill nav bar is on screen so the mini player can
     // sit at the very bottom when navigating to screens without it.
     DisposableEffect(Unit) {
@@ -227,7 +250,7 @@ object MainScreen : Screen {
     }
     SideEffect {
       NavigationBarState.isNavBarVisible =
-        backStack.lastOrNull() == MainScreen && !hideNavigationBar && visibleTabs.isNotEmpty() && !isPermissionDenied
+        backStack.lastOrNull() == MainScreen && showDock
     }
 
     val coroutineScope = rememberCoroutineScope()
@@ -356,11 +379,14 @@ object MainScreen : Screen {
     Scaffold(
       modifier = Modifier.fillMaxSize(),
     ) { _ ->
-      Box(modifier = Modifier.fillMaxSize()) {
+      BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         if (visibleTabs.isEmpty()) {
           CompositionLocalProvider(
             LocalNavigationBarHeight provides contentBottomPadding,
             LocalMainNavigationBar provides mainNavBar,
+            LocalMainSearchActionController provides mainSearchController,
+            LocalMainSearchDockVisible provides showDock,
+            LocalMainSearchTab provides MainTab.HOME,
           ) {
             FolderListScreen.Content()
           }
@@ -368,6 +394,8 @@ object MainScreen : Screen {
           CompositionLocalProvider(
             LocalNavigationBarHeight provides contentBottomPadding,
             LocalMainNavigationBar provides mainNavBar,
+            LocalMainSearchActionController provides mainSearchController,
+            LocalMainSearchDockVisible provides showDock,
           ) {
             NavigationPager(
               state = pagerState,
@@ -377,7 +405,8 @@ object MainScreen : Screen {
               userScrollEnabled = !isPermissionDenied,
             ) { page ->
               val tab = visibleTabs.getOrNull(page) ?: return@NavigationPager
-              when (tab) {
+              CompositionLocalProvider(LocalMainSearchTab provides tab) {
+                when (tab) {
                 MainTab.HOME -> FolderListScreen.Content()
                 MainTab.MUSIC -> {
                   if (musicSourceProvider == MusicSourceProvider.JELLYFIN) {
@@ -564,123 +593,183 @@ object MainScreen : Screen {
                 MainTab.NETWORK -> NetworkStreamingScreen.Content()
                 MainTab.JELLYFIN -> com.quantummpv.app.ui.browser.jellyfin.JellyfinContent(viewModel = jellyfinViewModel)
               }
+              }
             }
           }
         }
 
-        // Animated bottom navigation bar with slide animations
+        val containerWidth = maxWidth
+        val sideBySideDockLimit =
+          maxWidth -
+            DockHorizontalMargin -
+            SideBySideMiniPlayerGap -
+            SideBySideMiniPlayerEndPadding -
+            NavigationBarState.landscapeMiniPlayerMinimumWidth
+        val reserveLandscapeMiniPlayer =
+          isMiniPlayerVisible &&
+            (isLandscape || isTablet) &&
+            !isDualPaneFolderSelected &&
+            sideBySideDockLimit >= MinimumCompactDockWidth
+        val dockMeasure =
+          measureNavigationDock(
+            containerWidth = maxWidth,
+            tabs = visibleTabs,
+            maximumDockWidth = if (reserveLandscapeMiniPlayer) sideBySideDockLimit else maxWidth,
+          )
+        val navWidth = dockMeasure.navWidth
+        val dockWidth = dockMeasure.dockWidth
+        val horizontalMargin = dockMeasure.horizontalMargin
+        val showNavLabels = dockMeasure.showLabels
+        val centerFraction by animateFloatAsState(
+          targetValue = when {
+            isDualPaneFolderSelected && selectedTab == MainTab.HOME -> 0.2f
+            isMiniPlayerVisible && (isLandscape || isTablet) -> 0f
+            else -> 0.5f
+          },
+          animationSpec =
+            if (navStyle == NavigationAnimStyle.None) {
+              snap()
+            } else {
+              com.quantummpv.app.ui.theme.AppMotion.spatial(
+                com.quantummpv.app.ui.theme.AppMotion.Spatial.Standard,
+                com.quantummpv.app.ui.theme.AppMotion.ReducedAlpha,
+              )
+            },
+          label = "dock_alignment",
+        )
+        val maximumStart = (containerWidth - dockWidth - horizontalMargin).coerceAtLeast(horizontalMargin)
+        val dockStart =
+          (containerWidth * centerFraction - dockWidth / 2).coerceIn(horizontalMargin, maximumStart)
+        val stackedMiniPlayer =
+          isMiniPlayerVisible &&
+            (isLandscape || isTablet) &&
+            !isDualPaneFolderSelected &&
+            containerWidth -
+              (dockStart + dockWidth + SideBySideMiniPlayerGap) -
+              SideBySideMiniPlayerEndPadding < NavigationBarState.landscapeMiniPlayerMinimumWidth
+        val menuPanelBottomPadding =
+          if (stackedMiniPlayer) {
+            maxOf(
+              DockBottomPadding + NavigationDockHeight + DockItemGap,
+              NavigationBarState.navigationBarClearance +
+                NavigationBarState.stackedMiniPlayerMaximumHeight +
+                DockItemGap,
+            )
+          } else {
+            DockBottomPadding + NavigationDockHeight + DockItemGap
+          }
+        val menuMeasure =
+          measureNavigationMenu(
+            containerWidth = containerWidth,
+            dockStart = dockStart,
+            navigationWidth = navWidth,
+            horizontalMargin = horizontalMargin,
+          )
+        val showContextualSearch =
+          mainSearchController.isAvailable(selectedTab) && !mainSearchController.isSearchActive(selectedTab)
+
+        LaunchedEffect(selectedTab, showDock) {
+          menuExpanded = false
+        }
+        BackHandler(enabled = menuExpanded && showDock) { menuExpanded = false }
+
+        // Dismissal/scrim is below the dock and its in-window menu, so menu rows remain tappable.
         AnimatedVisibility(
-          visible = !hideNavigationBar && visibleTabs.isNotEmpty() && !isPermissionDenied,
-          enter = if (navStyle == NavigationAnimStyle.None) EnterTransition.None else
-            slideInVertically(
-              animationSpec = tween(duration, easing = FastOutSlowInEasing),
-              initialOffsetY = { fullHeight -> fullHeight * 2 },
-            ) + fadeIn(tween(duration)),
-          exit = if (navStyle == NavigationAnimStyle.None) ExitTransition.None else
-            slideOutVertically(
-              animationSpec = tween(duration, easing = FastOutSlowInEasing),
-              targetOffsetY = { fullHeight -> fullHeight * 2 },
-            ) + fadeOut(tween(duration)),
+          visible = menuExpanded && showDock,
+          enter = menuScrimEnter(),
+          exit = menuScrimExit(),
+          modifier = Modifier.matchParentSize(),
+        ) {
+          Box(
+            modifier =
+              Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.12f))
+                .clickable(
+                  interactionSource = remember { MutableInteractionSource() },
+                  indication = null,
+                  onClick = { menuExpanded = false },
+                ),
+          )
+        }
+
+        com.quantummpv.app.ui.browser.components.FloatingGlassMenuPanel(
+          visible = menuExpanded && showDock,
+          onSettingsClick = {
+            menuExpanded = false
+            backStack.navigateTo(com.quantummpv.app.ui.preferences.PreferencesScreen)
+          },
+          onLibraryInsightsClick = {
+            menuExpanded = false
+            backStack.navigateTo(com.quantummpv.app.ui.browser.insights.LibraryInsightsScreen)
+          },
+          modifier =
+            Modifier
+              .align(Alignment.BottomStart)
+              .navigationBarsPadding()
+              .padding(bottom = menuPanelBottomPadding)
+              .offset(x = menuMeasure.start)
+              .width(menuMeasure.width),
+        )
+
+        // One responsive dock: scrollable navigation pill + embedded overflow, then Search.
+        AnimatedVisibility(
+          visible = showDock,
+          enter = navigationDockEnter(navStyle, duration),
+          exit = navigationDockExit(navStyle, duration),
           modifier =
             Modifier
               .fillMaxWidth()
               .align(Alignment.BottomStart)
               .navigationBarsPadding()
-              .padding(bottom = 12.dp),
+              .padding(bottom = DockBottomPadding),
         ) {
-          BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-            val containerWidth = maxWidth
-            val density = LocalDensity.current
-            val centerFraction = animateFloatAsState(
-              targetValue = when {
-                isDualPaneFolderSelected && selectedTab == MainTab.HOME -> 0.2f
-                isMiniPlayerVisible && (isLandscape || isTablet) -> 0f
-                else -> 0.5f
-              },
-              animationSpec = if (navStyle == NavigationAnimStyle.None) snap() else tween(duration, easing = FastOutSlowInEasing),
-              label = "pill_alignment",
-            )
-
-            ExpressivePillNavigationBar(
-              visibleTabs = visibleTabs,
-              selectedTab = selectedTab,
-              onTabSelected = onTabSelected,
-              pagerState = pagerState,
-              glass = glassBottomNavigation,
-              modifier = Modifier
-                .layout { measurable, constraints ->
-                  val margin = 16.dp.roundToPx()
-                  val placeable = measurable.measure(
-                    constraints.copy(minWidth = 0, maxWidth = (constraints.maxWidth - margin * 2).coerceAtLeast(0)),
+          Box(
+              modifier =
+                Modifier
+                  .offset(x = dockStart)
+                  .width(dockWidth)
+                  .height(NavigationDockHeight)
+                  .onGloballyPositioned {
+                    if (!pagerState.isScrollInProgress && pagerState.currentPageOffsetFraction == 0f) {
+                      NavigationBarState.navbarLeftOffset = dockStart
+                      NavigationBarState.navbarWidth = dockWidth
+                    }
+                  },
+            ) {
+              Row(
+                modifier = Modifier.fillMaxSize(),
+                horizontalArrangement = Arrangement.spacedBy(DockItemGap),
+                verticalAlignment = Alignment.CenterVertically,
+              ) {
+                ExpressivePillNavigationBar(
+                  visibleTabs = visibleTabs,
+                  selectedTab = selectedTab,
+                  onTabSelected = {
+                    menuExpanded = false
+                    onTabSelected(it)
+                  },
+                  pagerState = pagerState,
+                  glass = glassBottomNavigation,
+                  showLabels = showNavLabels,
+                  menuExpanded = menuExpanded,
+                  onMenuExpandedChange = { menuExpanded = it },
+                  modifier = Modifier.width(navWidth),
+                )
+                Box(
+                  modifier = Modifier.size(FloatingSearchButtonSize),
+                  contentAlignment = Alignment.Center,
+                ) {
+                  ContextualSearchSlot(
+                    visible = showContextualSearch,
+                    onSearchClick = {
+                      menuExpanded = false
+                      mainSearchController.request(selectedTab)
+                    },
                   )
-                  layout(constraints.maxWidth, placeable.height) {
-                    // Place using the actual width, avoiding springs chasing animated measurements.
-                    val start = (constraints.maxWidth * centerFraction.value - placeable.width / 2f)
-                      .roundToInt().coerceAtLeast(margin)
-                    placeable.placeRelative(start, 0)
-                  }
                 }
-                .onGloballyPositioned { coords ->
-                  // Publish navbar geometry only when settled, not on every animation frame.
-                  // This reduces recomposition cost during navbar motion. Consumers that need
-                  // per-frame positioning use derivedStateOf or draw-phase updates.
-                  if (!pagerState.isScrollInProgress && pagerState.currentPageOffsetFraction == 0f) {
-                    val width = with(density) { coords.size.width.toDp() }
-                    NavigationBarState.navbarWidth = width
-                    NavigationBarState.navbarLeftOffset =
-                      (containerWidth * centerFraction.value - width / 2).coerceAtLeast(16.dp)
-                  }
-                },
-            )
-          }
-        }
-
-        // Floating quick actions to the right of the navbar: the existing settings search (unchanged)
-        // with a menu button above it (Settings, Library Insights). They share one visibility rule and
-        // one entrance animation. Hidden during selection mode or when the navbar is hidden.
-        val showFloatingSearch = !hideNavigationBar &&
-          visibleTabs.isNotEmpty() &&
-          !isPermissionDenied &&
-          !NavigationBarState.isInSelectionMode
-
-        AnimatedVisibility(
-          visible = showFloatingSearch,
-          enter = if (navStyle == NavigationAnimStyle.None) EnterTransition.None else
-            slideInVertically(
-              animationSpec = tween(duration, easing = FastOutSlowInEasing),
-              initialOffsetY = { fullHeight -> fullHeight * 2 },
-            ) + fadeIn(tween(duration)),
-          exit = if (navStyle == NavigationAnimStyle.None) ExitTransition.None else
-            slideOutVertically(
-              animationSpec = tween(duration, easing = FastOutSlowInEasing),
-              targetOffsetY = { fullHeight -> fullHeight * 2 },
-            ) + fadeOut(tween(duration)),
-          modifier = Modifier
-            .align(Alignment.BottomEnd)
-            .navigationBarsPadding()
-            .padding(end = 24.dp, bottom = 88.dp + 12.dp),
-        ) {
-          Column(
-            horizontalAlignment = Alignment.End,
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-          ) {
-            com.quantummpv.app.ui.browser.components.FloatingMenuButton(
-              onSettingsClick = {
-                backStack.navigateTo(com.quantummpv.app.ui.preferences.PreferencesScreen)
-              },
-              onLibraryInsightsClick = {
-                backStack.navigateTo(com.quantummpv.app.ui.browser.insights.LibraryInsightsScreen)
-              },
-            )
-            com.quantummpv.app.ui.browser.components.FloatingSearchButton(
-              visible = showFloatingSearch,
-              onSearchClick = {
-                backStack.navigateTo(com.quantummpv.app.ui.preferences.SettingsSearchScreen)
-              },
-              navbarEndOffset = NavigationBarState.navbarLeftOffset + NavigationBarState.navbarWidth,
-              bottomPadding = 0.dp,
-            )
-          }
+              }
+            }
         }
       }
     }
@@ -688,16 +777,18 @@ object MainScreen : Screen {
 }
 
 /**
- * Displays selectable tabs, or nothing when [visibleTabs] is empty.
- * [pagerState] drives indicator position and tab widths when supplied; otherwise [selectedTab] does.
- * [glass] uses the current glass surface style for the container. Selecting a tab invokes
- * [onTabSelected], with haptic feedback when it differs from [selectedTab].
+ * Responsive floating navigation pill. Labels expand when space permits; otherwise the 48dp tab
+ * targets remain horizontally scrollable while the overflow trigger stays pinned at the end.
+ * [pagerState] is the single source of truth for the travelling selected indicator.
  */
 @Composable
 private fun ExpressivePillNavigationBar(
   visibleTabs: List<MainScreen.MainTab>,
   selectedTab: MainScreen.MainTab,
   onTabSelected: (MainScreen.MainTab) -> Unit,
+  showLabels: Boolean = true,
+  menuExpanded: Boolean = false,
+  onMenuExpandedChange: (Boolean) -> Unit = { },
   modifier: Modifier = Modifier,
   pagerState: PagerState? = null,
   glass: Boolean = false,
@@ -705,6 +796,19 @@ private fun ExpressivePillNavigationBar(
   if (visibleTabs.isEmpty()) return
   val haptics = LocalHapticFeedback.current
   val initialFocusRequester = rememberTvInitialFocusRequester(visibleTabs.isNotEmpty())
+  val scrollState = rememberScrollState()
+  val reduceMotion = com.quantummpv.app.ui.theme.AppMotion.shouldReduceMotion()
+  val disableMotion = com.quantummpv.app.ui.theme.AppMotion.shouldDisableAnimations()
+  val selectionScaleSpec =
+    com.quantummpv.app.ui.theme.AppMotion.spatial(
+      com.quantummpv.app.ui.theme.AppMotion.Spatial.Snappy,
+      com.quantummpv.app.ui.theme.AppMotion.ReducedAlpha,
+    )
+  val scrollSpec =
+    com.quantummpv.app.ui.theme.AppMotion.spatial(
+      com.quantummpv.app.ui.theme.AppMotion.Spatial.Standard,
+      com.quantummpv.app.ui.theme.AppMotion.ReducedAlpha,
+    )
 
   val position =
     if (pagerState != null) {
@@ -715,168 +819,365 @@ private fun ExpressivePillNavigationBar(
     } else {
       visibleTabs.indexOf(selectedTab).coerceAtLeast(0).toFloat()
     }
-
-  fun activeTabWidth(tab: MainScreen.MainTab) =
-    when (tab) {
-      MainScreen.MainTab.HOME -> 92.dp
-      MainScreen.MainTab.MUSIC -> 92.dp
-      MainScreen.MainTab.RECENTS -> 104.dp
-      MainScreen.MainTab.PLAYLISTS -> 108.dp
-      MainScreen.MainTab.NETWORK -> 106.dp
-      MainScreen.MainTab.JELLYFIN -> 100.dp
-    }
-
-  val inactiveTabWidth = 44.dp
-  val spacing = 4.dp
-  val startPadding = 6.dp
   val tabWidths =
     visibleTabs.mapIndexed { index, tab ->
-      val fraction = (1f - kotlin.math.abs(position - index)).coerceIn(0f, 1f)
-      androidx.compose.ui.unit.lerp(inactiveTabWidth, activeTabWidth(tab), fraction)
+      if (showLabels) {
+        val fraction = (1f - kotlin.math.abs(position - index)).coerceIn(0f, 1f)
+        androidx.compose.ui.unit.lerp(NavigationItemSize, activeTabWidth(tab), fraction)
+      } else {
+        NavigationItemSize
+      }
     }
   val tabOffsets =
     buildList {
-      var offset = startPadding
+      var offset = NavigationContentPadding
       tabWidths.forEach { width ->
         add(offset)
-        offset += width + spacing
+        offset += width + NavigationItemSpacing
       }
     }
+  val tabsContentWidth =
+    tabWidths.fold(0.dp) { total, width -> total + width } +
+      NavigationItemSpacing * (visibleTabs.size - 1).coerceAtLeast(0) +
+      NavigationContentPadding * 2
   val pageFloor = position.toInt().coerceIn(visibleTabs.indices)
   val pageCeil = (pageFloor + 1).coerceIn(visibleTabs.indices)
   val pageFraction = (position - pageFloor).coerceIn(0f, 1f)
   val indicatorLeft = androidx.compose.ui.unit.lerp(tabOffsets[pageFloor], tabOffsets[pageCeil], pageFraction)
   val indicatorWidth = androidx.compose.ui.unit.lerp(tabWidths[pageFloor], tabWidths[pageCeil], pageFraction)
 
-  val navigationContainer: @Composable (@Composable () -> Unit) -> Unit = if (glass) {
-    { content ->
-      GlassComponents.GlassNavigationPill(
-        modifier = modifier,
-        shape = CircleShape,
-        forceGlass = true,
-        content = content,
-      )
+  val navigationContainer: @Composable (@Composable () -> Unit) -> Unit =
+    if (glass) {
+      { content ->
+        GlassComponents.GlassNavigationPill(
+          modifier = modifier.height(NavigationDockHeight),
+          shape = CircleShape,
+          forceGlass = true,
+          content = content,
+        )
+      }
+    } else {
+      { content ->
+        Surface(
+          modifier = modifier.height(NavigationDockHeight),
+          shape = CircleShape,
+          color = MaterialTheme.colorScheme.surfaceContainerHigh,
+          tonalElevation = 6.dp,
+          shadowElevation = 8.dp,
+          border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.48f)),
+          content = content,
+        )
+      }
     }
-  } else {
-    { content ->
-      Surface(
-        modifier = modifier,
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        tonalElevation = 6.dp,
-        shadowElevation = 8.dp,
-        border = BorderStroke(
-          width = 1.dp,
-          color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.48f),
-        ),
-        content = content,
-      )
-    }
-  }
 
   navigationContainer {
-    Box(
-      modifier =
-        Modifier
-          .wrapContentWidth()
-          .padding(horizontal = startPadding, vertical = 6.dp),
-    ) {
-      Box(
-        modifier =
-          Modifier
-            .offset(x = indicatorLeft - startPadding)
-            .width(indicatorWidth)
-            .height(44.dp)
-            .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.primaryContainer),
-      )
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+      val density = LocalDensity.current
+      val tabViewportWidth =
+        (maxWidth - com.quantummpv.app.ui.browser.components.FloatingMenuButtonSize).coerceAtLeast(0.dp)
+      val maxScroll = scrollState.maxValue
+      val settledPage = pagerState?.settledPage ?: visibleTabs.indexOf(selectedTab).coerceAtLeast(0)
 
-      Row(
-        modifier = Modifier.selectableGroup(),
-        horizontalArrangement = Arrangement.spacedBy(spacing, Alignment.CenterHorizontally),
-        verticalAlignment = Alignment.CenterVertically,
-      ) {
-        visibleTabs.forEachIndexed { index, tab ->
-          key(tab) {
-            val activeFraction = (1f - kotlin.math.abs(position - index)).coerceIn(0f, 1f)
-            val navBounceScale by animateFloatAsState(
-              targetValue = if (tab == selectedTab) 1f else 0.96f,
-              animationSpec = spring(
-                dampingRatio = Spring.DampingRatioMediumBouncy,
-                stiffness = Spring.StiffnessMediumLow,
-              ),
-              label = "bottomNavigationBounce",
-            )
-            val label =
-              when (tab) {
-                MainScreen.MainTab.HOME -> stringResource(R.string.ui_home)
-                MainScreen.MainTab.MUSIC -> stringResource(R.string.ui_music)
-                MainScreen.MainTab.RECENTS -> stringResource(R.string.ui_recents)
-                MainScreen.MainTab.PLAYLISTS -> stringResource(R.string.ui_playlists)
-                MainScreen.MainTab.NETWORK -> stringResource(R.string.ui_network)
-                MainScreen.MainTab.JELLYFIN -> stringResource(R.string.ui_jellyfin)
-              }
-            val contentColor =
-              androidx.compose.ui.graphics.lerp(
-                MaterialTheme.colorScheme.onSurfaceVariant,
-                MaterialTheme.colorScheme.onPrimaryContainer,
-                activeFraction,
-              )
+      LaunchedEffect(settledPage, showLabels, maxScroll, tabViewportWidth) {
+        val index = settledPage.coerceIn(visibleTabs.indices)
+        val selectedCenter = tabOffsets[index] + tabWidths[index] / 2
+        val target =
+          with(density) {
+            (selectedCenter - tabViewportWidth / 2).roundToPx().coerceIn(0, maxScroll)
+          }
+        if (disableMotion) scrollState.scrollTo(target) else scrollState.animateScrollTo(target, scrollSpec)
+      }
 
+      Row(modifier = Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
+        Box(
+          modifier =
+            Modifier
+              .width(tabViewportWidth)
+              .height(NavigationDockHeight)
+              .horizontalScroll(scrollState),
+        ) {
+          Box(modifier = Modifier.width(tabsContentWidth).height(NavigationDockHeight)) {
             Box(
               modifier =
                 Modifier
-                  .width(tabWidths[index])
-                  .height(44.dp)
-                  .then(if (tab == selectedTab) Modifier.tvInitialFocus(initialFocusRequester) else Modifier)
-                  .tvFocusHighlight(CircleShape, focusedScale = 1.06f)
+                  .offset(x = indicatorLeft, y = NavigationVerticalPadding)
+                  .width(indicatorWidth)
+                  .height(NavigationItemSize)
                   .clip(CircleShape)
-                  .selectable(
-                    selected = tab == selectedTab,
-                    role = Role.Tab,
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = ripple(bounded = true),
-                  ) {
-                    if (tab != selectedTab) haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
-                    onTabSelected(tab)
-                  },
-              contentAlignment = Alignment.Center,
+                  .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.18f))
+                  .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.28f), CircleShape),
+            )
+
+            Row(
+              modifier =
+                Modifier
+                  .selectableGroup()
+                  .padding(
+                    start = NavigationContentPadding,
+                    end = NavigationContentPadding,
+                    top = NavigationVerticalPadding,
+                    bottom = NavigationVerticalPadding,
+                  ),
+              horizontalArrangement = Arrangement.spacedBy(NavigationItemSpacing),
+              verticalAlignment = Alignment.CenterVertically,
             ) {
-              Row(
-                modifier = Modifier
-                  .graphicsLayer {
-                    scaleX = navBounceScale
-                    scaleY = navBounceScale
-                  }
-                  .padding(horizontal = 8.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically,
-              ) {
-                MainTabIcon(tab, contentColor, label)
-                if (activeFraction > 0.05f) {
-                  Spacer(modifier = Modifier.width(androidx.compose.ui.unit.lerp(0.dp, 6.dp, activeFraction)))
-                  Text(
-                    text = label,
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = contentColor,
-                    maxLines = 1,
-                    softWrap = false,
-                    overflow = TextOverflow.Clip,
-                    modifier =
-                      Modifier.graphicsLayer {
-                        alpha = ((activeFraction - 0.25f) / 0.75f).coerceIn(0f, 1f)
-                      },
+              visibleTabs.forEachIndexed { index, tab ->
+                key(tab) {
+                  val activeFraction = (1f - kotlin.math.abs(position - index)).coerceIn(0f, 1f)
+                  val selected = tab == selectedTab
+                  val navBounceScale by animateFloatAsState(
+                    targetValue = if (reduceMotion || !selected) 1f else 1.03f,
+                    animationSpec = selectionScaleSpec,
+                    label = "bottom_navigation_selection_scale",
                   )
+                  val label = mainTabLabel(tab)
+                  val contentColor =
+                    androidx.compose.ui.graphics.lerp(
+                      MaterialTheme.colorScheme.onSurfaceVariant,
+                      MaterialTheme.colorScheme.primary,
+                      activeFraction,
+                    )
+
+                  Box(
+                    modifier =
+                      Modifier
+                        .width(tabWidths[index])
+                        .height(NavigationItemSize)
+                        .then(if (selected) Modifier.tvInitialFocus(initialFocusRequester) else Modifier)
+                        .tvFocusHighlight(CircleShape, focusedScale = 1.06f)
+                        .clip(CircleShape)
+                        .selectable(
+                          selected = selected,
+                          role = Role.Tab,
+                          interactionSource = remember { MutableInteractionSource() },
+                          indication = ripple(bounded = true),
+                        ) {
+                          if (!selected) haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                          onTabSelected(tab)
+                        },
+                    contentAlignment = Alignment.Center,
+                  ) {
+                    Row(
+                      modifier =
+                        Modifier
+                          .graphicsLayer {
+                            scaleX = navBounceScale
+                            scaleY = navBounceScale
+                          }.padding(horizontal = 8.dp),
+                      horizontalArrangement = Arrangement.Center,
+                      verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                      MainTabIcon(tab, contentColor, label)
+                      if (showLabels && activeFraction > 0.05f) {
+                        Spacer(modifier = Modifier.width(androidx.compose.ui.unit.lerp(0.dp, 6.dp, activeFraction)))
+                        Text(
+                          text = label,
+                          style = MaterialTheme.typography.labelMedium,
+                          fontWeight = FontWeight.Bold,
+                          color = contentColor,
+                          maxLines = 1,
+                          softWrap = false,
+                          overflow = TextOverflow.Clip,
+                          modifier =
+                            Modifier.graphicsLayer {
+                              alpha = ((activeFraction - 0.25f) / 0.75f).coerceIn(0f, 1f)
+                            },
+                        )
+                      }
+                    }
+                  }
                 }
               }
             }
           }
         }
+
+        com.quantummpv.app.ui.browser.components.FloatingMenuButton(
+          expanded = menuExpanded,
+          onExpandedChange = onMenuExpandedChange,
+        )
       }
     }
   }
 }
+
+@Composable
+private fun mainTabLabel(tab: MainScreen.MainTab): String =
+  when (tab) {
+    MainScreen.MainTab.HOME -> stringResource(R.string.ui_home)
+    MainScreen.MainTab.MUSIC -> stringResource(R.string.ui_music)
+    MainScreen.MainTab.RECENTS -> stringResource(R.string.ui_recents)
+    MainScreen.MainTab.PLAYLISTS -> stringResource(R.string.ui_playlists)
+    MainScreen.MainTab.NETWORK -> stringResource(R.string.ui_network)
+    MainScreen.MainTab.JELLYFIN -> stringResource(R.string.ui_jellyfin)
+  }
+
+internal data class NavigationDockMeasure(
+  val horizontalMargin: androidx.compose.ui.unit.Dp,
+  val navWidth: androidx.compose.ui.unit.Dp,
+  val dockWidth: androidx.compose.ui.unit.Dp,
+  val showLabels: Boolean,
+)
+
+/**
+ * Chooses expanded labels when possible and a scrollable compact viewport otherwise. Margins shrink
+ * before a 48 dp tab target, the overflow button, or the separate Search action are compromised.
+ */
+internal fun measureNavigationDock(
+  containerWidth: androidx.compose.ui.unit.Dp,
+  tabs: List<MainScreen.MainTab>,
+  maximumDockWidth: androidx.compose.ui.unit.Dp = containerWidth,
+): NavigationDockMeasure {
+  val layoutWidth = minOf(containerWidth, maximumDockWidth).coerceAtLeast(0.dp)
+  val horizontalMargin =
+    minOf(
+      DockHorizontalMargin,
+      (layoutWidth - MinimumCompactDockWidth).coerceAtLeast(0.dp) / 2,
+    )
+  val availableDockWidth = (layoutWidth - horizontalMargin * 2).coerceAtLeast(0.dp)
+  val maximumNavWidth = (availableDockWidth - FloatingSearchButtonSize - DockItemGap).coerceAtLeast(0.dp)
+  val expandedNavWidth = expandedNavigationWidth(tabs)
+  val compactNavWidth = compactNavigationWidth(tabs)
+  val showLabels = expandedNavWidth <= maximumNavWidth
+  val navWidth = if (showLabels) expandedNavWidth else minOf(compactNavWidth, maximumNavWidth)
+  return NavigationDockMeasure(
+    horizontalMargin = horizontalMargin,
+    navWidth = navWidth,
+    dockWidth = navWidth + DockItemGap + FloatingSearchButtonSize,
+    showLabels = showLabels,
+  )
+}
+
+internal data class NavigationMenuMeasure(
+  val start: androidx.compose.ui.unit.Dp,
+  val width: androidx.compose.ui.unit.Dp,
+)
+
+/** Keeps the in-window menu fully reachable even when the dock is narrower than the panel. */
+internal fun measureNavigationMenu(
+  containerWidth: androidx.compose.ui.unit.Dp,
+  dockStart: androidx.compose.ui.unit.Dp,
+  navigationWidth: androidx.compose.ui.unit.Dp,
+  horizontalMargin: androidx.compose.ui.unit.Dp,
+): NavigationMenuMeasure {
+  val maximumWidth = (containerWidth - horizontalMargin * 2).coerceAtLeast(0.dp)
+  val width = minOf(PreferredMenuWidth, maximumWidth)
+  val maximumStart = (containerWidth - horizontalMargin - width).coerceAtLeast(horizontalMargin)
+  val start = (dockStart + navigationWidth - width).coerceIn(horizontalMargin, maximumStart)
+  return NavigationMenuMeasure(start = start, width = width)
+}
+
+private fun activeTabWidth(tab: MainScreen.MainTab) =
+  when (tab) {
+    MainScreen.MainTab.HOME -> 92.dp
+    MainScreen.MainTab.MUSIC -> 92.dp
+    MainScreen.MainTab.RECENTS -> 104.dp
+    MainScreen.MainTab.PLAYLISTS -> 108.dp
+    MainScreen.MainTab.NETWORK -> 106.dp
+    MainScreen.MainTab.JELLYFIN -> 100.dp
+  }
+
+/** Stable width budget using the widest active label, so selecting a tab never resizes the dock. */
+private fun expandedNavigationWidth(tabs: List<MainScreen.MainTab>) =
+  (tabs.maxOfOrNull { activeTabWidth(it) } ?: 0.dp) +
+    NavigationItemSize * (tabs.size - 1).coerceAtLeast(0) +
+    NavigationItemSpacing * (tabs.size - 1).coerceAtLeast(0) +
+    NavigationContentPadding * 2 +
+    com.quantummpv.app.ui.browser.components.FloatingMenuButtonSize
+
+private fun compactNavigationWidth(tabs: List<MainScreen.MainTab>) =
+  NavigationItemSize * tabs.size +
+    NavigationItemSpacing * (tabs.size - 1).coerceAtLeast(0) +
+    NavigationContentPadding * 2 +
+    com.quantummpv.app.ui.browser.components.FloatingMenuButtonSize
+
+@Composable
+private fun menuScrimEnter(): EnterTransition =
+  when {
+    com.quantummpv.app.ui.theme.AppMotion.shouldDisableAnimations() -> EnterTransition.None
+    com.quantummpv.app.ui.theme.AppMotion.shouldReduceMotion() ->
+      fadeIn(animationSpec = com.quantummpv.app.ui.theme.AppMotion.ReducedAlpha)
+    else -> fadeIn(animationSpec = com.quantummpv.app.ui.theme.AppMotion.Effect.Alpha)
+  }
+
+@Composable
+private fun menuScrimExit(): ExitTransition =
+  when {
+    com.quantummpv.app.ui.theme.AppMotion.shouldDisableAnimations() -> ExitTransition.None
+    com.quantummpv.app.ui.theme.AppMotion.shouldReduceMotion() ->
+      fadeOut(animationSpec = com.quantummpv.app.ui.theme.AppMotion.ReducedAlpha)
+    else -> fadeOut(animationSpec = com.quantummpv.app.ui.theme.AppMotion.Effect.Alpha)
+  }
+
+@Composable
+private fun navigationDockEnter(
+  navStyle: NavigationAnimStyle,
+  duration: Int,
+): EnterTransition =
+  when {
+    navStyle == NavigationAnimStyle.None || com.quantummpv.app.ui.theme.AppMotion.shouldDisableAnimations() ->
+      EnterTransition.None
+    com.quantummpv.app.ui.theme.AppMotion.shouldReduceMotion() ->
+      fadeIn(animationSpec = com.quantummpv.app.ui.theme.AppMotion.ReducedAlpha)
+    else ->
+      slideInVertically(
+        animationSpec = tween(duration, easing = FastOutSlowInEasing),
+        initialOffsetY = { fullHeight -> fullHeight * 2 },
+      ) + fadeIn(tween(duration))
+  }
+
+@Composable
+private fun navigationDockExit(
+  navStyle: NavigationAnimStyle,
+  duration: Int,
+): ExitTransition =
+  when {
+    navStyle == NavigationAnimStyle.None || com.quantummpv.app.ui.theme.AppMotion.shouldDisableAnimations() ->
+      ExitTransition.None
+    com.quantummpv.app.ui.theme.AppMotion.shouldReduceMotion() ->
+      fadeOut(animationSpec = com.quantummpv.app.ui.theme.AppMotion.ReducedAlpha)
+    else ->
+      slideOutVertically(
+        animationSpec = tween(duration, easing = FastOutSlowInEasing),
+        targetOffsetY = { fullHeight -> fullHeight * 2 },
+      ) + fadeOut(tween(duration))
+  }
+
+@Composable
+private fun ContextualSearchSlot(
+  visible: Boolean,
+  onSearchClick: () -> Unit,
+) {
+  AnimatedVisibility(
+    visible = visible,
+    enter = contextualSearchEnter(),
+    exit = contextualSearchExit(),
+  ) {
+    com.quantummpv.app.ui.browser.components.FloatingSearchButton(onSearchClick = onSearchClick)
+  }
+}
+
+@Composable
+private fun contextualSearchEnter(): EnterTransition =
+  when {
+    com.quantummpv.app.ui.theme.AppMotion.shouldDisableAnimations() -> EnterTransition.None
+    com.quantummpv.app.ui.theme.AppMotion.shouldReduceMotion() ->
+      fadeIn(animationSpec = com.quantummpv.app.ui.theme.AppMotion.ReducedAlpha)
+    else ->
+      scaleIn(animationSpec = com.quantummpv.app.ui.theme.AppMotion.Spatial.Snappy, initialScale = 0.9f) +
+        fadeIn(animationSpec = com.quantummpv.app.ui.theme.AppMotion.Effect.Alpha)
+  }
+
+@Composable
+private fun contextualSearchExit(): ExitTransition =
+  when {
+    com.quantummpv.app.ui.theme.AppMotion.shouldDisableAnimations() -> ExitTransition.None
+    com.quantummpv.app.ui.theme.AppMotion.shouldReduceMotion() ->
+      fadeOut(animationSpec = com.quantummpv.app.ui.theme.AppMotion.ReducedAlpha)
+    else ->
+      scaleOut(animationSpec = com.quantummpv.app.ui.theme.AppMotion.Spatial.Snappy, targetScale = 0.9f) +
+        fadeOut(animationSpec = com.quantummpv.app.ui.theme.AppMotion.Effect.Alpha)
+  }
 
 @Composable
 private fun MainTabIcon(

@@ -162,6 +162,10 @@ fun MediaLibraryContent(forceAudio: Boolean = false) {
 
   var searchQuery by rememberSaveable { mutableStateOf("") }
   var isSearching by rememberSaveable { mutableStateOf(false) }
+  val topBarSearchAction =
+    com.quantummpv.app.ui.browser.mainTabSearchAction(isSearching) {
+      isSearching = true
+    }
   val keyboardController = LocalSoftwareKeyboardController.current
   val focusRequester = remember { FocusRequester() }
   val filteredVideosWithInfo =
@@ -446,7 +450,7 @@ fun MediaLibraryContent(forceAudio: Boolean = false) {
           onBackClick = null,
           onCancelSelection = { selectionManager.clear() },
           onSortClick = { sortDialogOpen.value = true },
-          onSearchClick = { isSearching = true },
+          onSearchClick = topBarSearchAction,
           onSettingsClick = {
             backstack.navigateTo(com.quantummpv.app.ui.preferences.PreferencesScreen)
           },

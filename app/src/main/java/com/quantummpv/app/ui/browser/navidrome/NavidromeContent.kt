@@ -102,6 +102,10 @@ fun NavidromeContent(
   val navidromeRepository = koinInject<NavidromeRepository>()
 
   var isSearching by rememberSaveable { mutableStateOf(false) }
+  val topBarSearchAction =
+    com.quantummpv.app.ui.browser.mainTabSearchAction(isSearching) {
+      isSearching = true
+    }
   var isAddDialogOpen by remember { mutableStateOf(false) }
   var isSortDialogOpen by rememberSaveable { mutableStateOf(false) }
   val searchFocusRequester = remember { FocusRequester() }
@@ -224,7 +228,7 @@ fun NavidromeContent(
           onSortClick = if (uiState.activeTab != NavidromeMusicTab.HOME) {
             { isSortDialogOpen = true }
           } else null,
-          onSearchClick = { isSearching = true },
+          onSearchClick = topBarSearchAction,
           onSettingsClick = {
             backstack.navigateTo(com.quantummpv.app.ui.preferences.PreferencesScreen)
           },

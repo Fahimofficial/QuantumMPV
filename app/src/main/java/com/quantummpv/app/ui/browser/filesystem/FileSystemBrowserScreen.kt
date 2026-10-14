@@ -222,6 +222,10 @@ fun FileSystemBrowserScreen(path: String? = null) {
   // Search state
   var searchQuery by rememberSaveable { mutableStateOf("") }
   var isSearching by rememberSaveable { mutableStateOf(false) }
+  val topBarSearchAction =
+    com.quantummpv.app.ui.browser.mainTabSearchAction(isSearching) {
+      isSearching = true
+    }
   var searchResults by remember { mutableStateOf<List<FileSystemItem>>(emptyList()) }
   var isSearchLoading by remember { mutableStateOf(false) }
   val keyboardController = LocalSoftwareKeyboardController.current
@@ -548,9 +552,7 @@ fun FileSystemBrowserScreen(path: String? = null) {
               },
             onCancelSelection = { selectionManager.clear() },
             onSortClick = { sortDialogOpen.value = true },
-            onSearchClick = {
-              isSearching = !isSearching
-            },
+            onSearchClick = topBarSearchAction,
             onSettingsClick = {
               backstack.navigateTo(com.quantummpv.app.ui.preferences.PreferencesScreen)
             },
