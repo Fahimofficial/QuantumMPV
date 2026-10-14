@@ -120,8 +120,8 @@ def main() -> int:
     require(r'modifier\s*\.clip\(shape\)', glass_components, "glass clipping respects the caller-provided shape")
     require(r'Modifier\.hazeGlass\([\s\S]*?input = HazeInput\.Backdrop\(hazeState\)', glass_components,
             "glass surfaces render against the shared captured backdrop")
-    require(r'effectiveStyle\.supportsEdgeHighlight\) config\.edgeHighlight else EdgeHighlightMode\.OFF',
-            glass_components, "Cinema and unsupported styles suppress glass edge highlights")
+    require(r'effectiveStyle\.supportsEdgeHighlight && !lightweightNav\) config\.edgeHighlight else EdgeHighlightMode\.OFF',
+            glass_components, "Cinema and unsupported styles, plus lightweight navigation, suppress glass edge highlights")
     require(r'when \(effectiveEdgeHighlightMode\)', glass_components,
             "surface borders follow the capability-filtered edge-highlight mode")
     for sheet in (audio_properties_sheet, equalizer_sheet):

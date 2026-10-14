@@ -155,11 +155,15 @@ object GlassComponents {
         shape: Shape = MaterialTheme.shapes.medium,
         content: @Composable () -> Unit,
     ) {
+        // Navigation pill uses a lightweight glass configuration optimized for frequent animation:
+        // reduced blur radius, no refraction, minimal edge highlight. This keeps frame times
+        // responsive while preserving the floating glass aesthetic.
         GlassContainer(
             modifier = modifier,
             shape = shape,
             selected = isSelected,
             forceGlass = forceGlass,
+            lightweightNav = true,
             classicColor = MaterialTheme.colorScheme.surfaceContainerHigh,
             classicTonalElevation = 6.dp,
             classicShadowElevation = 8.dp,
@@ -179,6 +183,7 @@ private fun GlassContainer(
     opacityScale: Float = 1f,
     selected: Boolean = false,
     forceGlass: Boolean = false,
+    lightweightNav: Boolean = false,
     classicColor: Color = MaterialTheme.colorScheme.surface,
     classicTonalElevation: androidx.compose.ui.unit.Dp = 0.dp,
     classicShadowElevation: androidx.compose.ui.unit.Dp = 0.dp,
@@ -230,9 +235,16 @@ private fun GlassContainer(
             SurfaceStyle.MINIMAL,
             -> GlassStyle.regular
         }
-    val blurRadius = config.blurLevel.renderEffectRadius.dp
+    // Lightweight navigation mode: reduced blur, no refraction, minimal edge effects.
+    // This keeps the navbar responsive during frequent animation while preserving the
+    // glass aesthetic. Regular surfaces use the full-fidelity glass configuration.
+    val blurRadius = if (lightweightNav) {
+        (config.blurLevel.renderEffectRadius * 0.5f).dp
+    } else {
+        config.blurLevel.renderEffectRadius.dp
+    }
     val refractionStrength =
-        if (!effectiveStyle.supportsRefraction) {
+        if (!effectiveStyle.supportsRefraction || lightweightNav) {
             0f
         } else {
             when (config.refraction) {
@@ -242,7 +254,7 @@ private fun GlassContainer(
             }
         }
     val effectiveEdgeHighlightMode =
-        if (effectiveStyle.supportsEdgeHighlight) config.edgeHighlight else EdgeHighlightMode.OFF
+        if (effectiveStyle.supportsEdgeHighlight && !lightweightNav) config.edgeHighlight else EdgeHighlightMode.OFF
     val edgeHighlight =
         when (effectiveEdgeHighlightMode) {
             EdgeHighlightMode.OFF -> 0f
@@ -266,6 +278,7 @@ private fun GlassContainer(
             config.refraction,
             effectiveStyle,
             selected,
+            lightweightNav,
         ) {
             baseStyle.then {
                 backgroundColor(containerColor)
@@ -277,7 +290,7 @@ private fun GlassContainer(
                 ambientResponse(if (edgeHighlight == 0f) 0.08f else 0.18f + edgeHighlight * 0.38f)
                 edgeSoftness(if (edgeHighlight == 0f) 0.dp else 1.dp)
                 chromaticAberrationStrength(
-                    if (effectiveStyle.supportsRefraction && config.refraction == RefractionMode.EXPERIMENTAL) 0.12f else 0f,
+                    if (effectiveStyle.supportsRefraction && !lightweightNav && config.refraction == RefractionMode.EXPERIMENTAL) 0.12f else 0f,
                 )
             }
         }
