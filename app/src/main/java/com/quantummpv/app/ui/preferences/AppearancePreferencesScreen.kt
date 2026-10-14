@@ -504,12 +504,13 @@ object AppearancePreferencesScreen : Screen {
             PreferenceCard {
               val storedSurfaceStyle by preferences.surfaceStyle.collectAsState()
               val surfaceStyle = storedSurfaceStyle.canonicalStyle
+              val selectableSurfaceStyle = surfaceStyle.selectableStyle
               LaunchedEffect(storedSurfaceStyle) {
                 preferences.canonicalizeSurfaceStyle(storedSurfaceStyle)
               }
               ListPreference(
                 modifier = Modifier.settingsSearchTarget(R.string.pref_glass_surface_style_title),
-                value = surfaceStyle,
+                value = selectableSurfaceStyle,
                 onValueChange = preferences::setSurfaceStyle,
                 values = SurfaceStyle.selectableStyles,
                 valueToText = { AnnotatedString(stringResource(id = it.titleRes)) },
@@ -517,8 +518,8 @@ object AppearancePreferencesScreen : Screen {
                 summary = {
                   Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
-                      "${stringResource(id = surfaceStyle.titleRes)} — " +
-                        stringResource(id = surfaceStyle.summaryRes),
+                      "${stringResource(id = selectableSurfaceStyle.titleRes)} — " +
+                        stringResource(id = selectableSurfaceStyle.summaryRes),
                       color = MaterialTheme.colorScheme.outline,
                     )
                     Text(
@@ -538,7 +539,7 @@ object AppearancePreferencesScreen : Screen {
                 onValueChange = { preferences.glassIntensity.set(it) },
                 title = { Text(stringResource(R.string.pref_glass_intensity_title)) },
                 valueRange = 0.1f..1f,
-                enabled = surfaceStyle != SurfaceStyle.CLASSIC,
+                enabled = selectableSurfaceStyle != SurfaceStyle.CLASSIC,
                 summary = {
                   Text(
                     stringResource(

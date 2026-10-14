@@ -188,10 +188,14 @@ object DesignTokens {
         val canonicalStyle: SurfaceStyle
             get() =
                 when (this) {
-                    SOFT_GLASS, AMOLED_GLASS, CINEMA -> FROSTED_GLASS
+                    SOFT_GLASS, AMOLED_GLASS -> FROSTED_GLASS
                     MINIMAL -> CLASSIC
                     else -> this
                 }
+
+        /** Maps retired Cinema to the retained style used by the appearance selector and renderer. */
+        val selectableStyle: SurfaceStyle
+            get() = if (this == CINEMA) FROSTED_GLASS else canonicalStyle
 
         /**
          * Returns [DynamicTintMode.OFF] for [CINEMA]; otherwise preserves Off or Theme tint
@@ -294,7 +298,7 @@ object DesignTokens {
          * in the copy. The separate [cinemaMode] setting is preserved for every preset.
          */
         fun copyWithStyle(newStyle: SurfaceStyle): GlassConfig {
-            val canonicalStyle = newStyle.canonicalStyle
+            val canonicalStyle = newStyle.selectableStyle
             return copy(
                 style = canonicalStyle,
                 intensity = canonicalStyle.defaultIntensity,
@@ -365,7 +369,7 @@ object DesignTokens {
         val performanceMode by preferences.performanceMode.collectAsState()
         val cinemaMode by preferences.cinemaMode.collectAsState()
         return GlassConfig(
-            style = style.canonicalStyle,
+            style = style.selectableStyle,
             intensity = intensity,
             blurLevel = blurLevel,
             dynamicTint = style.effectiveDynamicTint(dynamicTint),
