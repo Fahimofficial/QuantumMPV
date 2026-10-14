@@ -19,7 +19,6 @@ import kotlin.math.abs
  * jitter through intermediate pages when tapping distant destinations.
  */
 class NavigationSmoothnessTest {
-
   /**
    * Verifies that adjacent tab changes (distance <= 1) are identified correctly.
    * Adjacent changes should use animated pager transitions for smooth finger-following.
