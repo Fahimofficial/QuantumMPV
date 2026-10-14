@@ -84,6 +84,20 @@ class AppearanceGlassPreferencesTest {
     assertEquals(EdgeHighlightMode.OFF, cinemaPreferences.edgeHighlightMode.get())
   }
 
+  /** A saved glass style without saved opacity/blur keeps its former glass look instead of turning opaque. */
+  @Test
+  fun savedGlassStyleWithoutSavedOpacityKeepsTheFormerGlassDefaults() {
+    storage.edit().putString("surface_style", "LIQUID_GLASS").commit()
+
+    val migrated = newPreferences().glassConfig
+    val relaunched = newPreferences().glassConfig
+
+    assertEquals(SurfaceStyle.CLEAR_GLASS, migrated.style)
+    assertEquals(SurfaceStyle.LIQUID_GLASS.defaultIntensity, migrated.intensity, 0f)
+    assertEquals(SurfaceStyle.LIQUID_GLASS.defaultBlurLevel, migrated.blurLevel)
+    assertEquals("the result must be stable across launches", migrated, relaunched)
+  }
+
   @Test
   fun importedClearGlassKeepsItsDistinctRuntimeStyleAndSettings() {
     storage.edit()

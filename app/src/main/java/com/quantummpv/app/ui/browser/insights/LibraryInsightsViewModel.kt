@@ -11,7 +11,6 @@ package com.quantummpv.app.ui.browser.insights
 
 import android.app.Application
 import android.net.Uri
-import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -22,6 +21,7 @@ import com.quantummpv.app.domain.recentlyplayed.repository.RecentlyPlayedReposit
 import com.quantummpv.app.preferences.AdvancedPreferences
 import com.quantummpv.app.preferences.BrowserPreferences
 import com.quantummpv.app.ui.player.PlaybackIdentity
+import com.quantummpv.app.ui.player.resolveLocalPath
 import com.quantummpv.app.utils.storage.FileTypeUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -137,23 +137,24 @@ class LibraryInsightsViewModel(
       getApplication<Application>().contentResolver.openAssetFileDescriptor(Uri.parse(uri), "r")?.close()
       true
     } catch (e: FileNotFoundException) {
-      Log.d(TAG, "Document no longer exists: $uri", e)
       false
     } catch (e: RuntimeException) {
-      Log.d(TAG, "Could not verify document, keeping it: $uri", e)
       true
     }
 
   /**
-   * Candidate playback-state keys for a history path, using the same identities the file browser
-   * writes. Network items are keyed by connection and cannot be derived from a history path, so they
-   * simply have no known progress.
+   * Candidate playback-state keys for a history path, using the same identities the player and file
+   * browser write. A `content://` document is resolved to its local path exactly as the player does
+   * ([resolveLocalPath]), because the player saves its state under that path's identity. Network
+   * items are keyed by connection and cannot be derived from a history path, so they simply have no
+   * known progress.
    */
   private fun playbackIdentities(path: String): List<String> {
     val localPath =
       when {
         path.startsWith("/") -> path
         path.startsWith("file://") -> path.removePrefix("file://")
+        path.startsWith("content://") -> resolveDocumentPath(path)
         else -> null
       } ?: return listOf(PlaybackIdentity.forUri(path))
     return listOf(
@@ -164,8 +165,11 @@ class LibraryInsightsViewModel(
     )
   }
 
+  /** The local path behind a document URI as the player resolves it, or null when it cannot be resolved. */
+  private fun resolveDocumentPath(uri: String): String? =
+    runCatching { Uri.parse(uri).resolveLocalPath(getApplication<Application>()) }.getOrNull()
+
   companion object {
-    private const val TAG = "LibraryInsightsVM"
     private const val STOP_TIMEOUT_MILLIS = 5_000L
 
     /** Creates the view model with the application context it needs. */
