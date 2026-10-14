@@ -152,7 +152,10 @@ fun EqualizerSheet(
     },
   ) {
     GlassComponents.GlassBottomSheetBackground(
-      modifier = Modifier.fillMaxWidth(),
+      modifier =
+        Modifier
+          .fillMaxWidth()
+          .windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom)),
       classicColor = MaterialTheme.colorScheme.surfaceContainer,
     ) {
       Column(

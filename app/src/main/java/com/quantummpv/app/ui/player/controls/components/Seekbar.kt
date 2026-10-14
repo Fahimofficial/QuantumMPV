@@ -60,6 +60,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -1766,9 +1767,9 @@ fun VideoTimer(
       fontFeatureSettings = "tnum",
       shadow = Shadow(
         color = Color.Black.copy(alpha = 0.55f),
-        offset = androidx.compose.ui.geometry.Offset(1f, 1f),
-        blurRadius = 4f
-      )
+        offset = Offset(1f, 1f),
+        blurRadius = 4f,
+      ),
     ),
   )
 }
