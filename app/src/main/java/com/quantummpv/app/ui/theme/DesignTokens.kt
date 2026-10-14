@@ -131,8 +131,8 @@ object DesignTokens {
         FROSTED_GLASS(
             titleRes = R.string.surface_style_frosted_glass,
             summaryRes = R.string.surface_style_frosted_glass_summary,
-            defaultIntensity = 0.75f,
-            defaultBlurLevel = BlurLevel.MEDIUM,
+            defaultIntensity = 0.72f,
+            defaultBlurLevel = BlurLevel.HIGH,
             supportsDynamicTint = true,
             supportsEdgeHighlight = true,
             supportsRefraction = false,
@@ -140,8 +140,8 @@ object DesignTokens {
         CLEAR_GLASS(
             titleRes = R.string.surface_style_clear_glass,
             summaryRes = R.string.surface_style_clear_glass_summary,
-            defaultIntensity = 0.6f,
-            defaultBlurLevel = BlurLevel.LOW,
+            defaultIntensity = 0.40f,
+            defaultBlurLevel = BlurLevel.OFF,
             supportsDynamicTint = true,
             supportsEdgeHighlight = true,
             supportsRefraction = false,
@@ -149,8 +149,8 @@ object DesignTokens {
         LIQUID_GLASS(
             titleRes = R.string.surface_style_liquid_glass,
             summaryRes = R.string.surface_style_liquid_glass_summary,
-            defaultIntensity = 0.7f,
-            defaultBlurLevel = BlurLevel.HIGH,
+            defaultIntensity = 0.52f,
+            defaultBlurLevel = BlurLevel.MEDIUM,
             supportsDynamicTint = true,
             supportsEdgeHighlight = true,
             supportsRefraction = true,
@@ -167,8 +167,8 @@ object DesignTokens {
         CINEMA(
             titleRes = R.string.surface_style_cinema,
             summaryRes = R.string.surface_style_cinema_summary,
-            defaultIntensity = 0.9f,
-            defaultBlurLevel = BlurLevel.MEDIUM,
+            defaultIntensity = 0.94f,
+            defaultBlurLevel = BlurLevel.OFF,
             supportsDynamicTint = false,
             supportsEdgeHighlight = false,
             supportsRefraction = false,
@@ -188,10 +188,14 @@ object DesignTokens {
         val canonicalStyle: SurfaceStyle
             get() =
                 when (this) {
-                    SOFT_GLASS, AMOLED_GLASS, CINEMA -> FROSTED_GLASS
+                    SOFT_GLASS, AMOLED_GLASS -> FROSTED_GLASS
                     MINIMAL -> CLASSIC
                     else -> this
                 }
+
+        /** Maps retired Cinema to the retained style used by the appearance selector and renderer. */
+        val selectableStyle: SurfaceStyle
+            get() = if (this == CINEMA) FROSTED_GLASS else canonicalStyle
 
         /**
          * Returns [DynamicTintMode.OFF] for [CINEMA]; otherwise preserves Off or Theme tint
@@ -220,9 +224,9 @@ object DesignTokens {
         val renderEffectRadius: Int,
     ) {
         OFF(R.string.blur_level_off, 0),
-        LOW(R.string.blur_level_low, 8),
-        MEDIUM(R.string.blur_level_medium, 16),
-        HIGH(R.string.blur_level_high, 24),
+        LOW(R.string.blur_level_low, 0),
+        MEDIUM(R.string.blur_level_medium, 24),
+        HIGH(R.string.blur_level_high, 32),
     }
 
     enum class MotionStyle(
@@ -294,7 +298,7 @@ object DesignTokens {
          * in the copy. The separate [cinemaMode] setting is preserved for every preset.
          */
         fun copyWithStyle(newStyle: SurfaceStyle): GlassConfig {
-            val canonicalStyle = newStyle.canonicalStyle
+            val canonicalStyle = newStyle.selectableStyle
             return copy(
                 style = canonicalStyle,
                 intensity = canonicalStyle.defaultIntensity,
@@ -365,7 +369,7 @@ object DesignTokens {
         val performanceMode by preferences.performanceMode.collectAsState()
         val cinemaMode by preferences.cinemaMode.collectAsState()
         return GlassConfig(
-            style = style.canonicalStyle,
+            style = style.selectableStyle,
             intensity = intensity,
             blurLevel = blurLevel,
             dynamicTint = style.effectiveDynamicTint(dynamicTint),

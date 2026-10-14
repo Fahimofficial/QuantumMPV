@@ -453,7 +453,9 @@ fun VideoCard(
               ) {
                 Text(
                   text = video.durationFormatted,
-                  style = MaterialTheme.typography.labelSmall,
+                  style = MaterialTheme.typography.labelSmall.copy(
+                    fontFeatureSettings = "tnum"
+                  ),
                   color = Color.White,
                 )
               }
@@ -501,6 +503,7 @@ fun VideoCard(
               } else {
                 MaterialTheme.colorScheme.onSurface
               },
+            minLines = if (gridColumns > 1) 2 else 1,
             maxLines = maxLines,
             overflow = TextOverflow.Ellipsis,
             textAlign =
@@ -773,7 +776,9 @@ fun VideoCard(
               ) {
                 Text(
                   text = video.durationFormatted,
-                  style = MaterialTheme.typography.labelSmall,
+                  style = MaterialTheme.typography.labelSmall.copy(
+                    fontFeatureSettings = "tnum"
+                  ),
                   color = Color.White,
                 )
               }

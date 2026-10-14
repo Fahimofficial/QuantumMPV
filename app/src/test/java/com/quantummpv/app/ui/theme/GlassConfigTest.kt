@@ -45,9 +45,9 @@ class GlassConfigTest {
     val before = original.copy()
     val presets = listOf(
       Triple(SurfaceStyle.CLASSIC, 1f, BlurLevel.OFF),
-      Triple(SurfaceStyle.FROSTED_GLASS, 0.75f, BlurLevel.MEDIUM),
-      Triple(SurfaceStyle.CLEAR_GLASS, 0.6f, BlurLevel.LOW),
-      Triple(SurfaceStyle.LIQUID_GLASS, 0.7f, BlurLevel.HIGH),
+      Triple(SurfaceStyle.FROSTED_GLASS, 0.72f, BlurLevel.HIGH),
+      Triple(SurfaceStyle.CLEAR_GLASS, 0.40f, BlurLevel.OFF),
+      Triple(SurfaceStyle.LIQUID_GLASS, 0.52f, BlurLevel.MEDIUM),
     )
 
     for ((style, intensity, blur) in presets) {
@@ -74,7 +74,7 @@ class GlassConfigTest {
     assertEquals(SurfaceStyle.FROSTED_GLASS, SurfaceStyle.SOFT_GLASS.canonicalStyle)
     assertEquals(SurfaceStyle.CLEAR_GLASS, SurfaceStyle.CLEAR_GLASS.canonicalStyle)
     assertEquals(SurfaceStyle.FROSTED_GLASS, SurfaceStyle.AMOLED_GLASS.canonicalStyle)
-    assertEquals(SurfaceStyle.FROSTED_GLASS, SurfaceStyle.CINEMA.canonicalStyle)
+    assertEquals(SurfaceStyle.CINEMA, SurfaceStyle.CINEMA.canonicalStyle)
     assertEquals(SurfaceStyle.CLASSIC, SurfaceStyle.MINIMAL.canonicalStyle)
   }
 
@@ -98,13 +98,23 @@ class GlassConfigTest {
     )
   }
 
+  /** Verifies CINEMA zero-tint/zero-highlight invariants. */
+  @Test
+  fun cinemaStyleHasZeroTintZeroHighlightAndHighOpacity() {
+    assertEquals(0.94f, SurfaceStyle.CINEMA.defaultIntensity, 0.001f)
+    assertEquals(BlurLevel.OFF, SurfaceStyle.CINEMA.defaultBlurLevel)
+    assertEquals(false, SurfaceStyle.CINEMA.supportsDynamicTint)
+    assertEquals(false, SurfaceStyle.CINEMA.supportsEdgeHighlight)
+    assertEquals(false, SurfaceStyle.CINEMA.supportsRefraction)
+  }
+
   /** Verifies that selecting the current style resets customized intensity and blur to its defaults. */
   @Test
   fun reselectingCurrentStyleRestoresItsPreset() {
     val customized = GlassConfig(style = SurfaceStyle.LIQUID_GLASS, intensity = 0f, blurLevel = BlurLevel.OFF)
 
     assertEquals(
-      customized.copy(intensity = 0.7f, blurLevel = BlurLevel.HIGH),
+      customized.copy(intensity = 0.52f, blurLevel = BlurLevel.MEDIUM),
       customized.copyWithStyle(SurfaceStyle.LIQUID_GLASS),
     )
   }
@@ -140,6 +150,6 @@ class GlassConfigTest {
       assertEquals("$mode dynamic effects", mode != PerformanceMode.BATTERY_SAVER, mode.enableDynamicEffects)
       assertEquals("$mode animation simplification", mode == PerformanceMode.BATTERY_SAVER, mode.simplifyAnimations)
     }
-    assertEquals(listOf(0, 8, 16, 24), BlurLevel.entries.map { it.renderEffectRadius })
+    assertEquals(listOf(0, 0, 24, 32), BlurLevel.entries.map { it.renderEffectRadius })
   }
 }

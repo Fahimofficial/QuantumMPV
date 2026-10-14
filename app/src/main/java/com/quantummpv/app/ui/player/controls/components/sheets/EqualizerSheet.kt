@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -136,6 +137,8 @@ fun EqualizerSheet(
       initialValue = SheetValue.Hidden,
       enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded),
     )
+  val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+  val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
 
   ModalBottomSheet(
     onDismissRequest = onDismissRequest,
@@ -143,7 +146,7 @@ fun EqualizerSheet(
     containerColor =
       if (useGlassSurface) androidx.compose.ui.graphics.Color.Transparent else MaterialTheme.colorScheme.surfaceContainer,
     dragHandle = null,
-    modifier = modifier.tvFocusGroup(),
+    modifier = modifier.tvFocusGroup().then(if (isLandscape) Modifier.widthIn(max = 460.dp) else Modifier),
     contentWindowInsets = {
       BottomSheetDefaults.windowInsets.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)
     },

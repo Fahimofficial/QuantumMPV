@@ -733,6 +733,50 @@ fun PlayerControls(
             (if (isPortrait) 104.dp else 88.dp) +
               (navigationBarsPadding?.calculateBottomPadding() ?: 0.dp)
 
+          // Top HUD scrim gradient for bright-frame contrast
+          Box(
+            modifier =
+              Modifier
+                .constrainAs(createRef()) {
+                  top.linkTo(parent.top)
+                  start.linkTo(parent.start)
+                  end.linkTo(parent.end)
+                  height = Dimension.wrapContent
+                }.fillMaxWidth()
+                .height(120.dp)
+                .background(
+                  Brush.verticalGradient(
+                    colors = listOf(
+                      Color.Black.copy(alpha = 0.55f),
+                      Color.Transparent
+                    )
+                  )
+                )
+                .alpha((transparentOverlay / 0.8f).coerceIn(0f, 1f))
+          )
+
+          // Bottom HUD scrim gradient for bright-frame contrast
+          Box(
+            modifier =
+              Modifier
+                .constrainAs(createRef()) {
+                  bottom.linkTo(parent.bottom)
+                  start.linkTo(parent.start)
+                  end.linkTo(parent.end)
+                  height = Dimension.wrapContent
+                }.fillMaxWidth()
+                .height(120.dp)
+                .background(
+                  Brush.verticalGradient(
+                    colors = listOf(
+                      Color.Transparent,
+                      Color.Black.copy(alpha = 0.55f)
+                    )
+                  )
+                )
+                .alpha((transparentOverlay / 0.8f).coerceIn(0f, 1f))
+          )
+
           AnimatedVisibility(
             isBrightnessSliderShown && showBrightnessGestureOverlay,
             enter =

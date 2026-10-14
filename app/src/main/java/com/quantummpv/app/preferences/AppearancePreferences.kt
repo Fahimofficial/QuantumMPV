@@ -95,7 +95,7 @@ class AppearancePreferences(
     get() {
       val storedSurfaceStyle = surfaceStyle.get()
       return GlassConfig(
-        style = storedSurfaceStyle.canonicalStyle,
+        style = storedSurfaceStyle.selectableStyle,
         intensity = glassIntensity.get(),
         blurLevel = glassBlurLevel.get(),
         dynamicTint = storedSurfaceStyle.effectiveDynamicTint(dynamicTintMode.get()),
@@ -129,7 +129,7 @@ class AppearancePreferences(
    * @param style Stored preset to migrate; defaults to the current surface-style preference.
    */
   fun canonicalizeSurfaceStyle(style: SurfaceStyle = surfaceStyle.get()): SurfaceStyle {
-    val canonicalStyle = style.canonicalStyle
+    val canonicalStyle = style.selectableStyle
     if (style != canonicalStyle) {
       if (style == SurfaceStyle.CINEMA) {
         dynamicTintMode.set(DynamicTintMode.OFF)

@@ -60,6 +60,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -1762,7 +1763,14 @@ fun VideoTimer(
     text = timeText,
     color = textColor,
     textAlign = TextAlign.Center,
-    style = MaterialTheme.typography.labelSmall,
+    style = MaterialTheme.typography.labelSmall.copy(
+      fontFeatureSettings = "tnum",
+      shadow = Shadow(
+        color = Color.Black.copy(alpha = 0.55f),
+        offset = Offset(1f, 1f),
+        blurRadius = 4f,
+      ),
+    ),
   )
 }
 
