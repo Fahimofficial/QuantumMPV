@@ -504,7 +504,7 @@ fun VideoCard(
                 MaterialTheme.colorScheme.onSurface
               },
             minLines = if (gridColumns > 1) 2 else 1,
-            maxLines = if (gridColumns > 1) 2 else maxLines,
+            maxLines = maxLines,
             overflow = TextOverflow.Ellipsis,
             textAlign =
               if (useFolderNameStyle) {
