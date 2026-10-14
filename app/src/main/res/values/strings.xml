@@ -2530,4 +2530,21 @@
   <string name="pref_performance_mode_title">Rendering Quality</string>
   <string name="pref_cinema_mode_title">Cinema mode</string>
   <string name="pref_cinema_mode_summary">Increase glass surface opacity for a more immersive appearance</string>
+
+  <!-- Library Insights -->
+  <string name="library_insights_title">Library Insights</string>
+  <string name="library_insights_empty_title">No viewing history yet</string>
+  <string name="library_insights_empty_message">Your viewing statistics will appear here once you start watching videos</string>
+  <string name="library_insights_overview">Overview</string>
+  <string name="library_insights_watch_time">Watch Time</string>
+  <string name="library_insights_videos_watched">Videos Watched</string>
+  <string name="library_insights_completed">Completed</string>
+  <string name="library_insights_total_items">History Items</string>
+  <string name="library_insights_recently_watched">Recently Watched</string>
+  <string name="library_insights_most_watched">Most Watched</string>
+  <string name="library_insights_times_watched">Watched %d times</string>
+
+  <!-- Menu -->
+  <string name="ui_menu">Menu</string>
+  <string name="ui_settings">Settings</string>
 </resources>

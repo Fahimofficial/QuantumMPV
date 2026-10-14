@@ -1,4 +1,11 @@
 # Changelog
+## Unreleased
+### What's New
+- **Simplified surface styles**: Reduced surface style options to two primary choices—Classic (default) and Clear Glass—while maintaining backward compatibility with legacy style preferences that automatically map to the appropriate canonical style.
+- **Library Insights**: New dedicated screen showing viewing statistics including total watch time, videos watched, completed videos, recently watched, and most watched content, all derived from existing playback history.
+- **Floating glass menu**: Replaced floating search button with Vetro-inspired glass menu button providing quick access to Settings and Library Insights through a smooth expanding popup with coordinated animations.
+- **Navigation refinements**: Enhanced animation coordination, improved popup transitions, and streamlined menu interaction patterns.
+
 ## 1.3.1-preview.3
 This preview builds on v1.3.1-preview.2 with smoother navigation, floating app search, and refinements to glass surfaces and player controls.
 ### What's New
