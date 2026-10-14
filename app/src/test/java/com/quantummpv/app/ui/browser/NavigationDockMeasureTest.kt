@@ -49,6 +49,12 @@ class NavigationDockMeasureTest {
   }
 
   @Test
+  fun menuClearsPortraitOrStackedMiniPlayer() {
+    assertEquals(76.dp, menuPanelBottomPadding(miniPlayerAboveDock = false))
+    assertEquals(172.dp, menuPanelBottomPadding(miniPlayerAboveDock = true))
+  }
+
+  @Test
   fun menuClampsInsideTheSupported180DpSplitScreen() {
     val menu =
       measureNavigationMenu(
@@ -68,12 +74,12 @@ class NavigationDockMeasureTest {
     val measure = measureNavigationDock(
       containerWidth = 600.dp,
       tabs = allTabs,
-      maximumDockWidth = 364.dp,
+      maximumDockWidth = 293.dp,
     )
 
     assertFalse(measure.showLabels)
-    assertTrue(measure.dockWidth <= 364.dp)
-    assertTrue(600.dp - (16.dp + measure.dockWidth + 12.dp) - 12.dp >= 196.dp)
+    assertTrue(measure.dockWidth <= 293.dp)
+    assertTrue(600.dp - (16.dp + measure.dockWidth + 12.dp) - 12.dp >= 267.dp)
   }
 
   @Test

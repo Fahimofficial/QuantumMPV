@@ -13,7 +13,7 @@ class MiniPlayerDockLayoutTest {
         isNavBarOnScreen = true,
         screenWidth = 600.dp,
         navBarLeft = 16.dp,
-        navBarWidth = 332.dp,
+        navBarWidth = 293.dp,
       ),
     )
   }

@@ -152,11 +152,14 @@ fun JellyfinContent(
   var serverToReauth by remember { mutableStateOf<JellyfinServer?>(null) }
   var isManageServersOpen by rememberSaveable { mutableStateOf(false) }
   var isSearching by rememberSaveable { mutableStateOf(false) }
+  var isSeerrRequestsOpen by rememberSaveable { mutableStateOf(false) }
   val topBarSearchAction =
-    com.quantummpv.app.ui.browser.mainTabSearchAction(isSearching) {
+    com.quantummpv.app.ui.browser.mainTabSearchAction(
+      isSearchActive = isSearching,
+      enabled = !isSeerrRequestsOpen,
+    ) {
       isSearching = true
     }
-  var isSeerrRequestsOpen by rememberSaveable { mutableStateOf(false) }
   var isSortDialogOpen by rememberSaveable { mutableStateOf(false) }
   var isFabExpanded by remember { mutableStateOf(false) }
   val isFabVisible = remember { mutableStateOf(true) }

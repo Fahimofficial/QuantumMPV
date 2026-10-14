@@ -137,6 +137,12 @@ private val MinimumCompactDockWidth =
     com.quantummpv.app.ui.browser.components.FloatingMenuButtonSize +
     FloatingSearchButtonSize +
     DockItemGap
+private val MinimumSideBySideMiniPlayerWindowWidth =
+  DockHorizontalMargin +
+    MinimumCompactDockWidth +
+    SideBySideMiniPlayerGap +
+    SideBySideMiniPlayerEndPadding +
+    NavigationBarState.landscapeMiniPlayerMinimumWidth
 
 @Serializable
 object MainScreen : Screen {
@@ -358,7 +364,13 @@ object MainScreen : Screen {
 
     // On portrait phones the edge-to-edge mini player sits above the pill nav bar,
     // so screens/FABs must clear it.
-    val miniPlayerNavClearance = if (isMiniPlayerVisible && isPortrait && !isTablet) 96.dp else 0.dp
+    val stackedLandscapeMiniPlayer =
+      isMiniPlayerVisible &&
+        (isLandscape || isTablet) &&
+        !isDualPaneFolderSelected &&
+        configuration.screenWidthDp.dp < MinimumSideBySideMiniPlayerWindowWidth
+    val miniPlayerNavClearance =
+      if (isMiniPlayerVisible && ((isPortrait && !isTablet) || stackedLandscapeMiniPlayer)) 96.dp else 0.dp
     val contentBottomPadding = (if (visibleTabs.isEmpty()) 0.dp else 88.dp) + miniPlayerNavClearance
     val jellyfinViewModel: com.quantummpv.app.ui.browser.jellyfin.JellyfinViewModel =
       androidx.lifecycle.viewmodel.compose.viewModel(
@@ -647,17 +659,9 @@ object MainScreen : Screen {
             containerWidth -
               (dockStart + dockWidth + SideBySideMiniPlayerGap) -
               SideBySideMiniPlayerEndPadding < NavigationBarState.landscapeMiniPlayerMinimumWidth
-        val menuPanelBottomPadding =
-          if (stackedMiniPlayer) {
-            maxOf(
-              DockBottomPadding + NavigationDockHeight + DockItemGap,
-              NavigationBarState.navigationBarClearance +
-                NavigationBarState.stackedMiniPlayerMaximumHeight +
-                DockItemGap,
-            )
-          } else {
-            DockBottomPadding + NavigationDockHeight + DockItemGap
-          }
+        val portraitMiniPlayerAboveDock = isMiniPlayerVisible && isPortrait && !isTablet
+        val menuNeedsMiniPlayerClearance = stackedMiniPlayer || portraitMiniPlayerAboveDock
+        val menuPanelBottomPadding = menuPanelBottomPadding(menuNeedsMiniPlayerClearance)
         val menuMeasure =
           measureNavigationMenu(
             containerWidth = containerWidth,
@@ -1047,6 +1051,18 @@ internal fun measureNavigationDock(
     showLabels = showLabels,
   )
 }
+
+internal fun menuPanelBottomPadding(miniPlayerAboveDock: Boolean): androidx.compose.ui.unit.Dp =
+  if (miniPlayerAboveDock) {
+    maxOf(
+      DockBottomPadding + NavigationDockHeight + DockItemGap,
+      NavigationBarState.navigationBarClearance +
+        NavigationBarState.stackedMiniPlayerMaximumHeight +
+        DockItemGap,
+    )
+  } else {
+    DockBottomPadding + NavigationDockHeight + DockItemGap
+  }
 
 internal data class NavigationMenuMeasure(
   val start: androidx.compose.ui.unit.Dp,
