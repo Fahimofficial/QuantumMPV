@@ -9,411 +9,294 @@
 
 package com.quantummpv.app.ui.browser.insights
 
-import androidx.compose.foundation.background
+import android.app.Application
+import android.text.format.DateUtils
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.rememberTopAppBarState
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.quantummpv.app.R
 import com.quantummpv.app.presentation.Screen
-import com.quantummpv.app.ui.browser.components.BrowserTopBar
+import com.quantummpv.app.ui.browser.states.EmptyState
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
-import com.quantummpv.app.ui.theme.GlassComponents
+import com.quantummpv.app.ui.theme.LocalEmphasizedTypography
+import com.quantummpv.app.ui.utils.LocalBackStack
+import com.quantummpv.app.ui.utils.popSafely
 import kotlinx.serialization.Serializable
-import kotlin.time.Duration.Companion.milliseconds
+import java.text.NumberFormat
 
 /**
- * Library Insights screen — displays user's actual viewing activity and statistics
- * derived from existing playback history tracking.
- *
- * Metrics shown:
- * - Total watch time (from successfully tracked sessions)
- * - Number of unique videos watched
- * - Number of completed videos (where progress >= 90%)
- * - Recently watched videos with metadata
- * - Most watched videos (by play count)
- *
- * Data limitations:
- * - Only reflects videos added to history since tracking was enabled
- * - Opening a file does not equal watching it (tracks actual playback sessions)
- * - Watch time accuracy depends on mpv's duration metadata
- * - Deleted files are excluded from current statistics
- * - Empty state shown for new users with no history
+ * Library Insights: figures about what the user has actually played, built only from the existing
+ * Recently Played history and saved playback positions. Nothing is shown when there is no history,
+ * and nothing is estimated from a video's full length.
  */
 @Serializable
 object LibraryInsightsScreen : Screen {
   @OptIn(ExperimentalMaterial3Api::class)
   @Composable
   override fun Content() {
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
+    val backStack = LocalBackStack.current
+    val emphasizedTypography = LocalEmphasizedTypography.current
     val viewModel: LibraryInsightsViewModel =
-      viewModel(factory = LibraryInsightsViewModel.factory(context.applicationContext as android.app.Application))
+      viewModel(factory = LibraryInsightsViewModel.factory(context.applicationContext as Application))
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
 
-    val insightsState by viewModel.insightsState.collectAsState()
-    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(rememberTopAppBarState())
+    // Saved positions are not observed, so refresh whenever the screen becomes visible again.
+    LifecycleResumeEffect(viewModel) {
+      viewModel.refresh()
+      onPauseOrDispose { }
+    }
 
     Scaffold(
-      modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
       topBar = {
-        BrowserTopBar(
-          title = stringResource(R.string.library_insights_title),
-          scrollBehavior = scrollBehavior,
+        TopAppBar(
+          title = {
+            Text(
+              text = stringResource(R.string.library_insights_title),
+              style = emphasizedTypography.headlineSmall,
+              color = MaterialTheme.colorScheme.primary,
+            )
+          },
+          navigationIcon = {
+            IconButton(onClick = { backStack.popSafely() }) {
+              Icon(
+                Icons.RoundedFilled.ArrowBack,
+                contentDescription = stringResource(R.string.ui_go_back),
+                tint = MaterialTheme.colorScheme.secondary,
+              )
+            }
+          },
         )
       },
     ) { padding ->
-      when {
-        insightsState.isLoading -> {
-          Box(
-            modifier = Modifier
-              .fillMaxSize()
-              .padding(padding),
-            contentAlignment = Alignment.Center,
-          ) {
-            CircularProgressIndicator(
-              modifier = Modifier.size(48.dp),
-              color = MaterialTheme.colorScheme.primary,
+      Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+        when (val current = state) {
+          LibraryInsightsUiState.Loading ->
+            CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+
+          LibraryInsightsUiState.HistoryDisabled ->
+            EmptyState(
+              icon = Icons.RoundedFilled.History,
+              title = stringResource(R.string.library_insights_disabled_title),
+              message = stringResource(R.string.library_insights_disabled_message),
+              modifier = Modifier.align(Alignment.Center),
             )
-          }
-        }
 
-        insightsState.isEmpty -> {
-          Box(
-            modifier = Modifier
-              .fillMaxSize()
-              .padding(padding),
-            contentAlignment = Alignment.Center,
-          ) {
-            EmptyInsightsState()
-          }
-        }
+          LibraryInsightsUiState.Empty ->
+            EmptyState(
+              icon = Icons.RoundedFilled.Insights,
+              title = stringResource(R.string.library_insights_empty_title),
+              message = stringResource(R.string.library_insights_empty_message),
+              modifier = Modifier.align(Alignment.Center),
+            )
 
-        else -> {
-          InsightsContent(
-            insightsState = insightsState,
-            modifier = Modifier
-              .fillMaxSize()
-              .padding(padding),
-          )
+          is LibraryInsightsUiState.Content -> InsightsContent(current.insights)
         }
       }
     }
   }
 }
 
+/** Overview tiles followed by the "continue watching" and "recently played" lists. */
 @Composable
-private fun EmptyInsightsState() {
-  Column(
-    modifier = Modifier.padding(24.dp),
-    horizontalAlignment = Alignment.CenterHorizontally,
-    verticalArrangement = Arrangement.spacedBy(16.dp),
-  ) {
-    Icon(
-      Icons.RoundedFilled.Insights,
-      contentDescription = null,
-      modifier = Modifier.size(72.dp),
-      tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-    )
-    Text(
-      text = stringResource(R.string.library_insights_empty_title),
-      style = MaterialTheme.typography.titleLarge,
-      fontWeight = FontWeight.Bold,
-      textAlign = TextAlign.Center,
-    )
-    Text(
-      text = stringResource(R.string.library_insights_empty_message),
-      style = MaterialTheme.typography.bodyMedium,
-      color = MaterialTheme.colorScheme.onSurfaceVariant,
-      textAlign = TextAlign.Center,
-    )
-  }
-}
+private fun InsightsContent(insights: LibraryInsights) {
+  // Fixed per result so relative times don't tick while the list is being scrolled.
+  val now = remember(insights) { System.currentTimeMillis() }
+  val bottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
-@Composable
-private fun InsightsContent(
-  insightsState: LibraryInsightsState,
-  modifier: Modifier = Modifier,
-) {
   LazyColumn(
-    modifier = modifier,
-    contentPadding = PaddingValues(16.dp),
-    verticalArrangement = Arrangement.spacedBy(16.dp),
+    modifier = Modifier.fillMaxSize(),
+    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp + bottomInset),
+    verticalArrangement = Arrangement.spacedBy(12.dp),
   ) {
-    // Overview statistics cards
-    item {
+    item(key = "overview") {
+      SectionTitle(stringResource(R.string.library_insights_overview))
+    }
+    item(key = "tiles_primary") {
+      Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+        StatTile(
+          label = stringResource(R.string.library_insights_videos_played),
+          value = insights.videosPlayed,
+          modifier = Modifier.weight(1f),
+        )
+        StatTile(
+          label = stringResource(R.string.library_insights_completed),
+          value = insights.completed,
+          modifier = Modifier.weight(1f),
+        )
+      }
+    }
+    item(key = "tiles_secondary") {
+      Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+        StatTile(
+          label = stringResource(R.string.library_insights_in_progress),
+          value = insights.inProgress,
+          modifier = Modifier.weight(1f),
+        )
+        StatTile(
+          label = stringResource(R.string.library_insights_last_7_days),
+          value = insights.playedLast7Days,
+          modifier = Modifier.weight(1f),
+        )
+      }
+    }
+
+    if (insights.continueWatching.isNotEmpty()) {
+      item(key = "continue_title") { SectionTitle(stringResource(R.string.library_insights_continue_watching)) }
+      items(insights.continueWatching, key = { "continue:${it.filePath}" }) { VideoRow(it, now) }
+    }
+
+    if (insights.recentlyPlayed.isNotEmpty()) {
+      item(key = "recent_title") { SectionTitle(stringResource(R.string.library_insights_recently_played)) }
+      items(insights.recentlyPlayed, key = { "recent:${it.filePath}" }) { VideoRow(it, now) }
+    }
+
+    item(key = "footnote") {
       Text(
-        text = stringResource(R.string.library_insights_overview),
-        style = MaterialTheme.typography.titleMedium,
-        fontWeight = FontWeight.Bold,
-        modifier = Modifier.padding(bottom = 8.dp),
+        text = stringResource(R.string.library_insights_footnote),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
       )
-    }
-
-    item {
-      Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-      ) {
-        StatCard(
-          title = stringResource(R.string.library_insights_watch_time),
-          value = formatWatchTime(insightsState.totalWatchTimeMs),
-          icon = Icons.RoundedFilled.Schedule,
-          modifier = Modifier.weight(1f),
-        )
-        StatCard(
-          title = stringResource(R.string.library_insights_videos_watched),
-          value = insightsState.uniqueVideosWatched.toString(),
-          icon = Icons.RoundedFilled.VideoLibrary,
-          modifier = Modifier.weight(1f),
-        )
-      }
-    }
-
-    item {
-      Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-      ) {
-        StatCard(
-          title = stringResource(R.string.library_insights_completed),
-          value = insightsState.completedVideos.toString(),
-          icon = Icons.RoundedFilled.CheckCircle,
-          modifier = Modifier.weight(1f),
-        )
-        StatCard(
-          title = stringResource(R.string.library_insights_total_items),
-          value = insightsState.totalHistoryItems.toString(),
-          icon = Icons.RoundedFilled.History,
-          modifier = Modifier.weight(1f),
-        )
-      }
-    }
-
-    // Recently watched section
-    if (insightsState.recentlyWatched.isNotEmpty()) {
-      item {
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-          text = stringResource(R.string.library_insights_recently_watched),
-          style = MaterialTheme.typography.titleMedium,
-          fontWeight = FontWeight.Bold,
-          modifier = Modifier.padding(bottom = 8.dp),
-        )
-      }
-
-      items(insightsState.recentlyWatched.take(5)) { video ->
-        RecentVideoCard(video = video)
-      }
-    }
-
-    // Most watched section
-    if (insightsState.mostWatched.isNotEmpty()) {
-      item {
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-          text = stringResource(R.string.library_insights_most_watched),
-          style = MaterialTheme.typography.titleMedium,
-          fontWeight = FontWeight.Bold,
-          modifier = Modifier.padding(bottom = 8.dp),
-        )
-      }
-
-      items(insightsState.mostWatched.take(5)) { video ->
-        MostWatchedCard(video = video)
-      }
     }
   }
 }
 
+/** Heading above a group of tiles or rows. */
 @Composable
-private fun StatCard(
-  title: String,
-  value: String,
-  icon: com.quantummpv.app.ui.icons.AppIcon,
+private fun SectionTitle(text: String) {
+  Text(
+    text = text,
+    style = MaterialTheme.typography.titleMedium,
+    fontWeight = FontWeight.Bold,
+    color = MaterialTheme.colorScheme.primary,
+    modifier = Modifier.semantics { heading() },
+  )
+}
+
+/** A single count with its label, read by accessibility services as one item. */
+@Composable
+private fun StatTile(
+  label: String,
+  value: Int,
   modifier: Modifier = Modifier,
 ) {
-  GlassComponents.GlassSurface(
-    modifier = modifier,
+  Surface(
+    modifier = modifier.semantics(mergeDescendants = true) { },
     shape = RoundedCornerShape(16.dp),
+    color = MaterialTheme.colorScheme.surfaceContainerHigh,
   ) {
-    Column(
-      modifier = Modifier
-        .fillMaxWidth()
-        .padding(16.dp),
-      horizontalAlignment = Alignment.CenterHorizontally,
-      verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-      Icon(
-        icon,
-        contentDescription = null,
-        modifier = Modifier.size(32.dp),
-        tint = MaterialTheme.colorScheme.primary,
-      )
+    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
       Text(
-        text = value,
+        text = NumberFormat.getInstance().format(value),
         style = MaterialTheme.typography.headlineMedium,
         fontWeight = FontWeight.Bold,
         color = MaterialTheme.colorScheme.onSurface,
       )
       Text(
-        text = title,
+        text = label,
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        textAlign = TextAlign.Center,
       )
     }
   }
 }
 
+/** One video: title, localized "how long ago", and either a progress bar or a watched marker. */
 @Composable
-private fun RecentVideoCard(video: InsightVideo) {
-  GlassComponents.GlassSurface(
-    modifier = Modifier.fillMaxWidth(),
+private fun VideoRow(
+  video: InsightVideo,
+  now: Long,
+) {
+  Surface(
+    modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) { },
     shape = RoundedCornerShape(12.dp),
+    color = MaterialTheme.colorScheme.surfaceContainerHigh,
   ) {
-    Row(
-      modifier = Modifier
-        .fillMaxWidth()
-        .padding(12.dp),
-      verticalAlignment = Alignment.CenterVertically,
-      horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-      Box(
-        modifier = Modifier
-          .size(56.dp)
-          .clip(RoundedCornerShape(8.dp))
-          .background(MaterialTheme.colorScheme.surfaceVariant),
-        contentAlignment = Alignment.Center,
-      ) {
+    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+      Text(
+        text = video.displayName,
+        style = MaterialTheme.typography.bodyMedium,
+        fontWeight = FontWeight.Medium,
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis,
+      )
+      Text(
+        text = DateUtils.getRelativeTimeSpanString(video.lastPlayedAt, now, DateUtils.MINUTE_IN_MILLIS).toString(),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+      VideoProgress(video)
+    }
+  }
+}
+
+/** A "Watched" marker for completed videos, a bar plus percentage when progress is known, else nothing. */
+@Composable
+private fun VideoProgress(video: InsightVideo) {
+  val progress = video.progress
+  when {
+    video.isCompleted ->
+      Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         Icon(
-          Icons.RoundedFilled.Movie,
+          Icons.RoundedFilled.CheckCircle,
           contentDescription = null,
-          modifier = Modifier.size(28.dp),
-          tint = MaterialTheme.colorScheme.onSurfaceVariant,
+          modifier = Modifier.size(16.dp),
+          tint = MaterialTheme.colorScheme.primary,
+        )
+        Text(
+          text = stringResource(R.string.video_label_watched),
+          style = MaterialTheme.typography.labelMedium,
+          color = MaterialTheme.colorScheme.primary,
         )
       }
 
-      Column(
-        modifier = Modifier.weight(1f),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-      ) {
+    progress != null ->
+      Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
         Text(
-          text = video.displayName,
-          style = MaterialTheme.typography.bodyMedium,
-          fontWeight = FontWeight.Medium,
-          maxLines = 1,
-        )
-        Text(
-          text = formatTimestamp(video.lastPlayedTimestamp),
-          style = MaterialTheme.typography.bodySmall,
+          text = stringResource(R.string.library_insights_progress_percent, (progress * PERCENT).toInt()),
+          style = MaterialTheme.typography.labelSmall,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
       }
-    }
   }
 }
 
-@Composable
-private fun MostWatchedCard(video: InsightVideo) {
-  GlassComponents.GlassSurface(
-    modifier = Modifier.fillMaxWidth(),
-    shape = RoundedCornerShape(12.dp),
-  ) {
-    Row(
-      modifier = Modifier
-        .fillMaxWidth()
-        .padding(12.dp),
-      verticalAlignment = Alignment.CenterVertically,
-      horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-      Box(
-        modifier = Modifier
-          .size(56.dp)
-          .clip(RoundedCornerShape(8.dp))
-          .background(MaterialTheme.colorScheme.primaryContainer),
-        contentAlignment = Alignment.Center,
-      ) {
-        Text(
-          text = video.playCount.toString(),
-          style = MaterialTheme.typography.titleMedium,
-          fontWeight = FontWeight.Bold,
-          color = MaterialTheme.colorScheme.onPrimaryContainer,
-        )
-      }
-
-      Column(
-        modifier = Modifier.weight(1f),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-      ) {
-        Text(
-          text = video.displayName,
-          style = MaterialTheme.typography.bodyMedium,
-          fontWeight = FontWeight.Medium,
-          maxLines = 1,
-        )
-        Text(
-          text = stringResource(R.string.library_insights_times_watched, video.playCount),
-          style = MaterialTheme.typography.bodySmall,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-      }
-    }
-  }
-}
-
-private fun formatWatchTime(milliseconds: Long): String {
-  val duration = milliseconds.milliseconds
-  val hours = duration.inWholeHours
-  val minutes = (duration.inWholeMinutes % 60)
-
-  return when {
-    hours > 0 -> "${hours}h ${minutes}m"
-    minutes > 0 -> "${minutes}m"
-    else -> "< 1m"
-  }
-}
-
-private fun formatTimestamp(timestamp: Long): String {
-  val now = System.currentTimeMillis()
-  val diff = now - timestamp
-  val days = diff / (1000 * 60 * 60 * 24)
-  val hours = diff / (1000 * 60 * 60)
-  val minutes = diff / (1000 * 60)
-
-  return when {
-    days > 0 -> "$days day${if (days != 1L) "s" else ""} ago"
-    hours > 0 -> "$hours hour${if (hours != 1L) "s" else ""} ago"
-    minutes > 0 -> "$minutes minute${if (minutes != 1L) "s" else ""} ago"
-    else -> "Just now"
-  }
-}
+private const val PERCENT = 100

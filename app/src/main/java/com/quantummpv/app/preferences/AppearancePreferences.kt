@@ -72,7 +72,7 @@ class AppearancePreferences(
   val amoledMode = preferenceStore.getBoolean("amoled_mode", false)
 
   // New Glass/Surface Style System
-  val surfaceStyle = preferenceStore.getEnum("surface_style", SurfaceStyle.LIQUID_GLASS)
+  val surfaceStyle = preferenceStore.getEnum("surface_style", SurfaceStyle.CLASSIC)
 
   // Read the former navigation-only preference until the user chooses a global surface style.
   val legacyGlassBottomNavigation = preferenceStore.getBoolean("glass_bottom_navigation", false)
@@ -80,8 +80,8 @@ class AppearancePreferences(
     get() = "glass_bottom_navigation" in preferenceStore.getAll()
   val hasStoredSurfaceStyle: Boolean
     get() = "surface_style" in preferenceStore.getAll()
-  val glassIntensity = preferenceStore.getFloat("glass_intensity", SurfaceStyle.LIQUID_GLASS.defaultIntensity)
-  val glassBlurLevel = preferenceStore.getEnum("glass_blur_level", SurfaceStyle.LIQUID_GLASS.defaultBlurLevel)
+  val glassIntensity = preferenceStore.getFloat("glass_intensity", SurfaceStyle.CLASSIC.defaultIntensity)
+  val glassBlurLevel = preferenceStore.getEnum("glass_blur_level", SurfaceStyle.CLASSIC.defaultBlurLevel)
   val dynamicTintMode = preferenceStore.getEnum("dynamic_tint_mode", DynamicTintMode.THEME)
   val edgeHighlightMode = preferenceStore.getEnum("edge_highlight_mode", EdgeHighlightMode.SUBTLE)
   val refractionMode = preferenceStore.getEnum("refraction_mode", RefractionMode.SUBTLE)

@@ -263,7 +263,6 @@ object Icons {
 
   object RoundedFilled {
     val AccessTime get() = Shared.AccessTime
-    val Schedule get() = Shared.AccessTime // Alias for clarity
     val AccountBalance get() = Shared.AccountBalance
     val AccountTree get() = Shared.AccountTree
     val Add get() = Shared.Add

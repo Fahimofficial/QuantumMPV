@@ -11,186 +11,168 @@ package com.quantummpv.app.ui.browser.insights
 
 import android.app.Application
 import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.quantummpv.app.database.entities.RecentlyPlayedEntity
+import com.quantummpv.app.domain.playbackstate.repository.PlaybackStateRepository
 import com.quantummpv.app.domain.recentlyplayed.repository.RecentlyPlayedRepository
 import com.quantummpv.app.preferences.AdvancedPreferences
+import com.quantummpv.app.preferences.BrowserPreferences
+import com.quantummpv.app.ui.player.PlaybackIdentity
+import com.quantummpv.app.utils.storage.FileTypeUtils
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import org.koin.java.KoinJavaComponent.inject
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.mapLatest
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
+import org.koin.core.component.KoinComponent
+import org.koin.core.component.inject
 import java.io.File
+import java.io.FileNotFoundException
 
-/**
- * ViewModel for Library Insights screen.
- * Calculates viewing statistics from existing playback history.
- */
-class LibraryInsightsViewModel(application: Application) : AndroidViewModel(application) {
-  private val repository: RecentlyPlayedRepository by inject(RecentlyPlayedRepository::class.java)
-  private val preferences: AdvancedPreferences by inject(AdvancedPreferences::class.java)
+/** What the Library Insights screen should currently show. */
+sealed interface LibraryInsightsUiState {
+  /** The first calculation has not finished yet. */
+  data object Loading : LibraryInsightsUiState
 
-  private val _insightsState = MutableStateFlow(LibraryInsightsState())
-  val insightsState: StateFlow<LibraryInsightsState> = _insightsState.asStateFlow()
+  /** The user turned off Recently Played, so no history is read or shown. */
+  data object HistoryDisabled : LibraryInsightsUiState
 
-  init {
-    loadInsights()
-  }
+  /** History is on but contains no playable, still-existing video. */
+  data object Empty : LibraryInsightsUiState
 
-  private fun loadInsights() {
-    viewModelScope.launch {
-      _insightsState.value = _insightsState.value.copy(isLoading = true)
-
-      val insights = withContext(Dispatchers.IO) {
-        calculateInsights()
-      }
-
-      _insightsState.value = insights
-    }
-  }
-
-  private suspend fun calculateInsights(): LibraryInsightsState {
-    if (!preferences.enableRecentlyPlayed.get()) {
-      return LibraryInsightsState(isLoading = false, isEmpty = true)
-    }
-
-    val allHistory = repository.getRecentlyPlayed(limit = 1000)
-    if (allHistory.isEmpty()) {
-      return LibraryInsightsState(isLoading = false, isEmpty = true)
-    }
-
-    // Filter out deleted files and group by file path
-    val validHistory = allHistory.filter { entity ->
-      val path = entity.filePath
-      isValidPath(path)
-    }
-
-    if (validHistory.isEmpty()) {
-      return LibraryInsightsState(isLoading = false, isEmpty = true)
-    }
-
-    // Group by file path to get unique videos and their play counts
-    val videoGroups = validHistory.groupBy { it.filePath }
-
-    // Calculate total watch time (sum of durations for unique videos)
-    val totalWatchTimeMs = videoGroups.values.sumOf { sessions ->
-      // Use the most recent session's duration for each video
-      sessions.maxByOrNull { it.lastPlayedTimestamp }?.duration ?: 0L
-    }
-
-    // Count unique videos
-    val uniqueVideosWatched = videoGroups.size
-
-    // Count completed videos (assume >= 90% progress means completed)
-    // Since we don't track progress in the current schema, we'll count videos
-    // that have been played multiple times as "completed"
-    val completedVideos = videoGroups.count { (_, sessions) -> sessions.size >= 2 }
-
-    // Recently watched (last 10 unique videos, most recent first)
-    val recentlyWatched = videoGroups.values
-      .map { sessions ->
-        val latest = sessions.maxByOrNull { it.lastPlayedTimestamp }!!
-        InsightVideo(
-          filePath = latest.filePath,
-          displayName = latest.videoTitle?.takeIf { it.isNotBlank() }
-            ?: latest.fileName.takeIf { it.isNotBlank() }
-            ?: File(latest.filePath).name,
-          lastPlayedTimestamp = latest.lastPlayedTimestamp,
-          playCount = sessions.size,
-          duration = latest.duration,
-        )
-      }
-      .sortedByDescending { it.lastPlayedTimestamp }
-      .take(10)
-
-    // Most watched (by play count, top 10)
-    val mostWatched = videoGroups.values
-      .map { sessions ->
-        val representative = sessions.first()
-        InsightVideo(
-          filePath = representative.filePath,
-          displayName = representative.videoTitle?.takeIf { it.isNotBlank() }
-            ?: representative.fileName.takeIf { it.isNotBlank() }
-            ?: File(representative.filePath).name,
-          lastPlayedTimestamp = sessions.maxOf { it.lastPlayedTimestamp },
-          playCount = sessions.size,
-          duration = representative.duration,
-        )
-      }
-      .sortedByDescending { it.playCount }
-      .filter { it.playCount > 1 } // Only show videos watched more than once
-      .take(10)
-
-    return LibraryInsightsState(
-      isLoading = false,
-      isEmpty = false,
-      totalWatchTimeMs = totalWatchTimeMs,
-      uniqueVideosWatched = uniqueVideosWatched,
-      completedVideos = completedVideos,
-      totalHistoryItems = validHistory.size,
-      recentlyWatched = recentlyWatched,
-      mostWatched = mostWatched,
-    )
-  }
-
-  private fun isValidPath(path: String): Boolean {
-    return try {
-      // For file paths, don't use Uri.parse as it treats # as fragment separator
-      if (path.startsWith("/") || path.startsWith("file://")) {
-        val filePath = if (path.startsWith("file://")) {
-          path.removePrefix("file://")
-        } else {
-          path
-        }
-        File(filePath).exists()
-      } else {
-        // Network URIs are considered valid if they have a non-file scheme
-        val uri = Uri.parse(path)
-        val scheme = uri.scheme
-        scheme != null && !scheme.equals("file", ignoreCase = true)
-      }
-    } catch (e: Exception) {
-      false
-    }
-  }
-
-  companion object {
-    fun factory(application: Application): ViewModelProvider.Factory {
-      return object : ViewModelProvider.Factory {
-        @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(modelClass: Class<T>): T {
-          return LibraryInsightsViewModel(application) as T
-        }
-      }
-    }
-  }
+  /** At least one video was played; [insights] holds the figures. */
+  data class Content(
+    val insights: LibraryInsights,
+  ) : LibraryInsightsUiState
 }
 
 /**
- * State holder for Library Insights screen.
+ * Exposes [LibraryInsightsUiState] derived from the existing Recently Played history and saved
+ * playback positions. No data is copied or stored: the state follows the live history table and the
+ * live Recently Played preference, so clearing or disabling history is reflected immediately.
  */
-data class LibraryInsightsState(
-  val isLoading: Boolean = true,
-  val isEmpty: Boolean = false,
-  val totalWatchTimeMs: Long = 0L,
-  val uniqueVideosWatched: Int = 0,
-  val completedVideos: Int = 0,
-  val totalHistoryItems: Int = 0,
-  val recentlyWatched: List<InsightVideo> = emptyList(),
-  val mostWatched: List<InsightVideo> = emptyList(),
-)
+class LibraryInsightsViewModel(
+  application: Application,
+) : AndroidViewModel(application),
+  KoinComponent {
+  private val recentlyPlayedRepository: RecentlyPlayedRepository by inject()
+  private val playbackStateRepository: PlaybackStateRepository by inject()
+  private val advancedPreferences: AdvancedPreferences by inject()
+  private val browserPreferences: BrowserPreferences by inject()
 
-/**
- * Represents a video in the insights display.
- */
-data class InsightVideo(
-  val filePath: String,
-  val displayName: String,
-  val lastPlayedTimestamp: Long,
-  val playCount: Int,
-  val duration: Long = 0L,
-)
+  private val refreshTick = MutableStateFlow(0)
+
+  /**
+   * The replay cache is dropped as soon as collection stops, so figures from an earlier visit are
+   * never shown again after history was cleared or disabled in the meantime.
+   */
+  @OptIn(ExperimentalCoroutinesApi::class)
+  val uiState: StateFlow<LibraryInsightsUiState> =
+    combine(
+      advancedPreferences.enableRecentlyPlayed.changes(),
+      recentlyPlayedRepository.observeRecentlyPlayed(limit = Int.MAX_VALUE),
+      refreshTick,
+    ) { enabled, history, _ -> enabled to history }
+      .mapLatest { (enabled, history) ->
+        if (enabled) calculate(history) else LibraryInsightsUiState.HistoryDisabled
+      }.flowOn(Dispatchers.IO)
+      .stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(stopTimeoutMillis = STOP_TIMEOUT_MILLIS, replayExpirationMillis = 0),
+        initialValue = LibraryInsightsUiState.Loading,
+      )
+
+  /** Recomputes now; used when returning to the screen because saved positions are not observed. */
+  fun refresh() {
+    refreshTick.update { it + 1 }
+  }
+
+  /** Runs on an IO dispatcher: reads saved positions and checks that each file still exists. */
+  private suspend fun calculate(history: List<RecentlyPlayedEntity>): LibraryInsightsUiState {
+    val savedStates = playbackStateRepository.getAllPlaybackStates().associateBy { it.mediaTitle }
+    val insights =
+      LibraryInsightsCalculator.calculate(
+        history = history.filterNot(::isAudio),
+        watchedThresholdPercent = browserPreferences.watchedThreshold.get(),
+        nowMillis = System.currentTimeMillis(),
+        fileExists = ::stillExists,
+        playbackStateFor = { path -> playbackIdentities(path).firstNotNullOfOrNull { savedStates[it] } },
+      )
+    return if (insights.videosPlayed == 0) {
+      LibraryInsightsUiState.Empty
+    } else {
+      LibraryInsightsUiState.Content(insights)
+    }
+  }
+
+  /** Audio is left out because this screen is about video viewing. */
+  private fun isAudio(entity: RecentlyPlayedEntity): Boolean =
+    FileTypeUtils.isAudioFile(File(entity.fileName.ifBlank { entity.filePath }))
+
+  /**
+   * Returns false only when the file is known to be gone. Local paths are checked on disk and
+   * document-provider URIs through the content resolver. Remote streams cannot be verified without a
+   * network call and a document whose existence cannot be determined is kept rather than dropped.
+   */
+  private fun stillExists(path: String): Boolean =
+    when {
+      path.startsWith("/") -> File(path).exists()
+      path.startsWith("file://") -> File(path.removePrefix("file://")).exists()
+      path.startsWith("content://") -> contentUriExists(path)
+      else -> true
+    }
+
+  /** A missing document throws [FileNotFoundException]; other failures (e.g. revoked access) are inconclusive. */
+  private fun contentUriExists(uri: String): Boolean =
+    try {
+      getApplication<Application>().contentResolver.openAssetFileDescriptor(Uri.parse(uri), "r")?.close()
+      true
+    } catch (e: FileNotFoundException) {
+      Log.d(TAG, "Document no longer exists: $uri", e)
+      false
+    } catch (e: RuntimeException) {
+      Log.d(TAG, "Could not verify document, keeping it: $uri", e)
+      true
+    }
+
+  /**
+   * Candidate playback-state keys for a history path, using the same identities the file browser
+   * writes. Network items are keyed by connection and cannot be derived from a history path, so they
+   * simply have no known progress.
+   */
+  private fun playbackIdentities(path: String): List<String> {
+    val localPath =
+      when {
+        path.startsWith("/") -> path
+        path.startsWith("file://") -> path.removePrefix("file://")
+        else -> null
+      } ?: return listOf(PlaybackIdentity.forUri(path))
+    return listOf(
+      PlaybackIdentity.forLocalPath(localPath),
+      PlaybackIdentity.forUri(path),
+      PlaybackIdentity.forUri(localPath),
+      PlaybackIdentity.forUri("file://$localPath"),
+    )
+  }
+
+  companion object {
+    private const val TAG = "LibraryInsightsVM"
+    private const val STOP_TIMEOUT_MILLIS = 5_000L
+
+    /** Creates the view model with the application context it needs. */
+    fun factory(application: Application): ViewModelProvider.Factory =
+      object : ViewModelProvider.Factory {
+        @Suppress("UNCHECKED_CAST")
+        override fun <T : ViewModel> create(modelClass: Class<T>): T = LibraryInsightsViewModel(application) as T
+      }
+  }
+}

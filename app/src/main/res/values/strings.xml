@@ -2534,17 +2534,19 @@
   <!-- Library Insights -->
   <string name="library_insights_title">Library Insights</string>
   <string name="library_insights_empty_title">No viewing history yet</string>
-  <string name="library_insights_empty_message">Your viewing statistics will appear here once you start watching videos</string>
+  <string name="library_insights_empty_message">Videos you play will show up here. Nothing is shown until you have watched something.</string>
+  <string name="library_insights_disabled_title">Recently Played is turned off</string>
+  <string name="library_insights_disabled_message">Turn on Recently Played in Advanced settings to see your viewing insights. History stays on this device.</string>
   <string name="library_insights_overview">Overview</string>
-  <string name="library_insights_watch_time">Watch Time</string>
-  <string name="library_insights_videos_watched">Videos Watched</string>
+  <string name="library_insights_videos_played">Videos played</string>
   <string name="library_insights_completed">Completed</string>
-  <string name="library_insights_total_items">History Items</string>
-  <string name="library_insights_recently_watched">Recently Watched</string>
-  <string name="library_insights_most_watched">Most Watched</string>
-  <string name="library_insights_times_watched">Watched %d times</string>
+  <string name="library_insights_in_progress">Unfinished</string>
+  <string name="library_insights_last_7_days">Played in last 7 days</string>
+  <string name="library_insights_continue_watching">Continue watching</string>
+  <string name="library_insights_recently_played">Recently played</string>
+  <string name="library_insights_progress_percent">%1$d%% watched</string>
+  <string name="library_insights_footnote">Based on the play history and saved positions on this device. Watch time is not tracked yet.</string>
 
-  <!-- Menu -->
+  <!-- Floating menu -->
   <string name="ui_menu">Menu</string>
-  <string name="ui_settings">Settings</string>
 </resources>

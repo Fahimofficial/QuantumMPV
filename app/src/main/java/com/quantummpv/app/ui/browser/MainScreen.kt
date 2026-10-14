@@ -635,16 +635,16 @@ object MainScreen : Screen {
           }
         }
 
-        // Floating menu button with Settings and Library Insights options.
-        // Positioned to the right of the navbar. Inspired by Vetro's glass popup design.
-        // Hidden during selection mode, when navbar is hidden, or when space is constrained.
-        val showFloatingMenu = !hideNavigationBar &&
+        // Floating quick actions to the right of the navbar: the existing settings search (unchanged)
+        // with a menu button above it (Settings, Library Insights). They share one visibility rule and
+        // one entrance animation. Hidden during selection mode or when the navbar is hidden.
+        val showFloatingSearch = !hideNavigationBar &&
           visibleTabs.isNotEmpty() &&
           !isPermissionDenied &&
           !NavigationBarState.isInSelectionMode
 
         AnimatedVisibility(
-          visible = showFloatingMenu,
+          visible = showFloatingSearch,
           enter = if (navStyle == NavigationAnimStyle.None) EnterTransition.None else
             slideInVertically(
               animationSpec = tween(duration, easing = FastOutSlowInEasing),
@@ -660,17 +660,27 @@ object MainScreen : Screen {
             .navigationBarsPadding()
             .padding(end = 24.dp, bottom = 88.dp + 12.dp),
         ) {
-          com.quantummpv.app.ui.browser.components.FloatingMenuButton(
-            visible = showFloatingMenu,
-            onSettingsClick = {
-              backStack.navigateTo(com.quantummpv.app.ui.preferences.PreferencesScreen)
-            },
-            onLibraryInsightsClick = {
-              backStack.navigateTo(com.quantummpv.app.ui.browser.insights.LibraryInsightsScreen)
-            },
-            navbarEndOffset = NavigationBarState.navbarLeftOffset + NavigationBarState.navbarWidth,
-            bottomPadding = 0.dp,
-          )
+          Column(
+            horizontalAlignment = Alignment.End,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+          ) {
+            com.quantummpv.app.ui.browser.components.FloatingMenuButton(
+              onSettingsClick = {
+                backStack.navigateTo(com.quantummpv.app.ui.preferences.PreferencesScreen)
+              },
+              onLibraryInsightsClick = {
+                backStack.navigateTo(com.quantummpv.app.ui.browser.insights.LibraryInsightsScreen)
+              },
+            )
+            com.quantummpv.app.ui.browser.components.FloatingSearchButton(
+              visible = showFloatingSearch,
+              onSearchClick = {
+                backStack.navigateTo(com.quantummpv.app.ui.preferences.SettingsSearchScreen)
+              },
+              navbarEndOffset = NavigationBarState.navbarLeftOffset + NavigationBarState.navbarWidth,
+              bottomPadding = 0.dp,
+            )
+          }
         }
       }
     }

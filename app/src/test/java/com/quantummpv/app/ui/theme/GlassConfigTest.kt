@@ -45,9 +45,7 @@ class GlassConfigTest {
     val before = original.copy()
     val presets = listOf(
       Triple(SurfaceStyle.CLASSIC, 1f, BlurLevel.OFF),
-      Triple(SurfaceStyle.FROSTED_GLASS, 0.72f, BlurLevel.HIGH),
       Triple(SurfaceStyle.CLEAR_GLASS, 0.40f, BlurLevel.OFF),
-      Triple(SurfaceStyle.LIQUID_GLASS, 0.52f, BlurLevel.MEDIUM),
     )
 
     for ((style, intensity, blur) in presets) {
@@ -60,22 +58,27 @@ class GlassConfigTest {
     assertEquals("Changing a style must not mutate the source config", before, original)
   }
 
+  /** The picker offers exactly Classic and Clear Glass; every other preset resolves to one of them. */
   @Test
-  fun removedPresetsMapToTheClosestRetainedStyle() {
-    assertEquals(
-      listOf(
-        SurfaceStyle.CLASSIC,
-        SurfaceStyle.FROSTED_GLASS,
-        SurfaceStyle.CLEAR_GLASS,
-        SurfaceStyle.LIQUID_GLASS,
-      ),
-      SurfaceStyle.selectableStyles,
+  fun removedPresetsMapToOneOfTheTwoRetainedStyles() {
+    assertEquals(listOf(SurfaceStyle.CLASSIC, SurfaceStyle.CLEAR_GLASS), SurfaceStyle.selectableStyles)
+
+    val expected = mapOf(
+      SurfaceStyle.CLASSIC to SurfaceStyle.CLASSIC,
+      SurfaceStyle.MINIMAL to SurfaceStyle.CLASSIC,
+      SurfaceStyle.CINEMA to SurfaceStyle.CLASSIC,
+      SurfaceStyle.CLEAR_GLASS to SurfaceStyle.CLEAR_GLASS,
+      SurfaceStyle.SOFT_GLASS to SurfaceStyle.CLEAR_GLASS,
+      SurfaceStyle.FROSTED_GLASS to SurfaceStyle.CLEAR_GLASS,
+      SurfaceStyle.LIQUID_GLASS to SurfaceStyle.CLEAR_GLASS,
+      SurfaceStyle.AMOLED_GLASS to SurfaceStyle.CLEAR_GLASS,
     )
-    assertEquals(SurfaceStyle.FROSTED_GLASS, SurfaceStyle.SOFT_GLASS.canonicalStyle)
-    assertEquals(SurfaceStyle.CLEAR_GLASS, SurfaceStyle.CLEAR_GLASS.canonicalStyle)
-    assertEquals(SurfaceStyle.FROSTED_GLASS, SurfaceStyle.AMOLED_GLASS.canonicalStyle)
-    assertEquals(SurfaceStyle.CINEMA, SurfaceStyle.CINEMA.canonicalStyle)
-    assertEquals(SurfaceStyle.CLASSIC, SurfaceStyle.MINIMAL.canonicalStyle)
+    assertEquals("every preset must have an explicit mapping", SurfaceStyle.entries.toSet(), expected.keys)
+    for ((legacy, retained) in expected) {
+      assertEquals("$legacy canonical", retained, legacy.canonicalStyle)
+      assertEquals("$legacy selectable", retained, legacy.selectableStyle)
+      assertEquals("$legacy must resolve to a pickable style", true, retained in SurfaceStyle.selectableStyles)
+    }
   }
 
   @Test
@@ -111,11 +114,11 @@ class GlassConfigTest {
   /** Verifies that selecting the current style resets customized intensity and blur to its defaults. */
   @Test
   fun reselectingCurrentStyleRestoresItsPreset() {
-    val customized = GlassConfig(style = SurfaceStyle.LIQUID_GLASS, intensity = 0f, blurLevel = BlurLevel.OFF)
+    val customized = GlassConfig(style = SurfaceStyle.CLEAR_GLASS, intensity = 0.9f, blurLevel = BlurLevel.HIGH)
 
     assertEquals(
-      customized.copy(intensity = 0.52f, blurLevel = BlurLevel.MEDIUM),
-      customized.copyWithStyle(SurfaceStyle.LIQUID_GLASS),
+      customized.copy(intensity = 0.40f, blurLevel = BlurLevel.OFF),
+      customized.copyWithStyle(SurfaceStyle.CLEAR_GLASS),
     )
   }
 

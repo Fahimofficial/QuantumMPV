@@ -138,20 +138,23 @@ class DesignTokensCompositionTest {
     assertOpacity(0.25f, config, isOnVideo = false, videoLuminance = 0f)
   }
 
-  /** Checks that the retired Cinema preset maps to Frosted without enabling cinema opacity mode. */
+  /**
+   * Checks that the retired Cinema preset maps to Classic with tint and highlights off.
+   * Classic reports its base opacity unchanged, so the separate Cinema-mode increment is not applied.
+   */
   @Test
-  fun retiredCinemaPresetMapsToFrostedWithoutEnablingCinemaMode() {
+  fun retiredCinemaPresetMapsToClassicWithEffectsOff() {
     val config =
       GlassConfig(
         dynamicTint = DesignTokens.DynamicTintMode.THEME,
         edgeHighlight = DesignTokens.EdgeHighlightMode.STRONG,
       ).copyWithStyle(SurfaceStyle.CINEMA)
 
-    assertEquals(SurfaceStyle.FROSTED_GLASS, config.style)
+    assertEquals(SurfaceStyle.CLASSIC, config.style)
     assertEquals(DesignTokens.DynamicTintMode.OFF, config.dynamicTint)
     assertEquals(DesignTokens.EdgeHighlightMode.OFF, config.edgeHighlight)
-    assertOpacity(SurfaceStyle.FROSTED_GLASS.defaultIntensity, config)
-    assertOpacity(SurfaceStyle.FROSTED_GLASS.defaultIntensity + 0.1f, config.copy(cinemaMode = true))
+    assertOpacity(SurfaceStyle.CLASSIC.defaultIntensity, config)
+    assertOpacity(SurfaceStyle.CLASSIC.defaultIntensity, config.copy(cinemaMode = true))
   }
 
   @Test
@@ -171,7 +174,7 @@ class DesignTokensCompositionTest {
       compose { composedConfig = DesignTokens.rememberGlassConfig() }
 
       for (config in listOf(preferenceConfig, requireNotNull(composedConfig))) {
-        assertEquals(SurfaceStyle.FROSTED_GLASS, config.style)
+        assertEquals(SurfaceStyle.CLASSIC, config.style)
         assertEquals(DynamicTintMode.OFF, config.dynamicTint)
         assertEquals(EdgeHighlightMode.OFF, config.edgeHighlight)
       }

@@ -119,21 +119,11 @@ object DesignTokens {
             supportsEdgeHighlight = false,
             supportsRefraction = false,
         ),
-        CLEAR_GLASS(
-            titleRes = R.string.surface_style_clear_glass,
-            summaryRes = R.string.surface_style_clear_glass_summary,
-            defaultIntensity = 0.40f,
-            defaultBlurLevel = BlurLevel.MEDIUM,
-            supportsDynamicTint = true,
-            supportsEdgeHighlight = true,
-            supportsRefraction = false,
-        ),
-        // Legacy styles mapped to the two current options for backward compatibility
         SOFT_GLASS(
             titleRes = R.string.surface_style_soft_glass,
             summaryRes = R.string.surface_style_soft_glass_summary,
-            defaultIntensity = 0.40f,
-            defaultBlurLevel = BlurLevel.MEDIUM,
+            defaultIntensity = 0.85f,
+            defaultBlurLevel = BlurLevel.LOW,
             supportsDynamicTint = true,
             supportsEdgeHighlight = true,
             supportsRefraction = false,
@@ -141,8 +131,17 @@ object DesignTokens {
         FROSTED_GLASS(
             titleRes = R.string.surface_style_frosted_glass,
             summaryRes = R.string.surface_style_frosted_glass_summary,
+            defaultIntensity = 0.72f,
+            defaultBlurLevel = BlurLevel.HIGH,
+            supportsDynamicTint = true,
+            supportsEdgeHighlight = true,
+            supportsRefraction = false,
+        ),
+        CLEAR_GLASS(
+            titleRes = R.string.surface_style_clear_glass,
+            summaryRes = R.string.surface_style_clear_glass_summary,
             defaultIntensity = 0.40f,
-            defaultBlurLevel = BlurLevel.MEDIUM,
+            defaultBlurLevel = BlurLevel.OFF,
             supportsDynamicTint = true,
             supportsEdgeHighlight = true,
             supportsRefraction = false,
@@ -150,17 +149,17 @@ object DesignTokens {
         LIQUID_GLASS(
             titleRes = R.string.surface_style_liquid_glass,
             summaryRes = R.string.surface_style_liquid_glass_summary,
-            defaultIntensity = 0.40f,
+            defaultIntensity = 0.52f,
             defaultBlurLevel = BlurLevel.MEDIUM,
             supportsDynamicTint = true,
             supportsEdgeHighlight = true,
-            supportsRefraction = false,
+            supportsRefraction = true,
         ),
         AMOLED_GLASS(
             titleRes = R.string.surface_style_amoled_glass,
             summaryRes = R.string.surface_style_amoled_glass_summary,
-            defaultIntensity = 0.40f,
-            defaultBlurLevel = BlurLevel.MEDIUM,
+            defaultIntensity = 0.5f,
+            defaultBlurLevel = BlurLevel.LOW,
             supportsDynamicTint = true,
             supportsEdgeHighlight = true,
             supportsRefraction = false,
@@ -168,7 +167,7 @@ object DesignTokens {
         CINEMA(
             titleRes = R.string.surface_style_cinema,
             summaryRes = R.string.surface_style_cinema_summary,
-            defaultIntensity = 1f,
+            defaultIntensity = 0.94f,
             defaultBlurLevel = BlurLevel.OFF,
             supportsDynamicTint = false,
             supportsEdgeHighlight = false,
@@ -185,36 +184,36 @@ object DesignTokens {
         ),
         ;
 
-      /** Maps all legacy presets to one of the two selectable styles. */
+      /** Maps every preset to Classic or Clear Glass; legacy entries stay so stored names still parse. */
         val canonicalStyle: SurfaceStyle
             get() =
                 when (this) {
-                    CLASSIC, CINEMA, MINIMAL -> CLASSIC
-                    else -> CLEAR_GLASS
+                    CLASSIC, MINIMAL, CINEMA -> CLASSIC
+                    CLEAR_GLASS, SOFT_GLASS, FROSTED_GLASS, LIQUID_GLASS, AMOLED_GLASS -> CLEAR_GLASS
                 }
 
-        /** Maps all styles to selectable versions for the appearance picker. */
+        /** The retained style used by the appearance selector and renderer; identical to [canonicalStyle]. */
         val selectableStyle: SurfaceStyle
             get() = canonicalStyle
 
         /**
-         * Returns [DynamicTintMode.OFF] for [CLASSIC]; otherwise preserves Off or Theme tint
+         * Returns [DynamicTintMode.OFF] for [CINEMA]; otherwise preserves Off or Theme tint
          * and maps Media or Adaptive tint to Off.
          */
         fun effectiveDynamicTint(mode: DynamicTintMode): DynamicTintMode =
-            if (this == CLASSIC) {
+            if (this == CINEMA) {
                 DynamicTintMode.OFF
             } else {
                 mode.takeIf { it == DynamicTintMode.OFF || it == DynamicTintMode.THEME }
                     ?: DynamicTintMode.OFF
             }
 
-        /** Resolves highlights from stored settings. */
+        /** Resolves highlights from stored settings without restoring the retired Cinema preset's suppressed effect. */
         fun effectiveEdgeHighlight(mode: EdgeHighlightMode): EdgeHighlightMode =
-            if (this == CLASSIC) EdgeHighlightMode.OFF else mode
+            if (this == CINEMA) EdgeHighlightMode.OFF else mode
 
         companion object {
-            /** The two selectable surface styles. */
+            /** The two surface presets offered in the picker; Classic is the default. */
             val selectableStyles = listOf(CLASSIC, CLEAR_GLASS)
         }
     }

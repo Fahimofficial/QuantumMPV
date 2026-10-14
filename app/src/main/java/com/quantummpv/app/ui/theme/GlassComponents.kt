@@ -226,12 +226,12 @@ private fun GlassContainer(
     val baseStyle =
         when (effectiveStyle) {
             SurfaceStyle.CLEAR_GLASS -> GlassStyle.clear
-            SurfaceStyle.CLASSIC,
-            SurfaceStyle.SOFT_GLASS,
+            SurfaceStyle.LIQUID_GLASS -> if (isOnVideo) GlassStyle.clear else GlassStyle.regular
+            SurfaceStyle.SOFT_GLASS -> GlassStyle.regular
             SurfaceStyle.FROSTED_GLASS,
-            SurfaceStyle.LIQUID_GLASS,
             SurfaceStyle.AMOLED_GLASS,
             SurfaceStyle.CINEMA,
+            SurfaceStyle.CLASSIC,
             SurfaceStyle.MINIMAL,
             -> GlassStyle.regular
         }

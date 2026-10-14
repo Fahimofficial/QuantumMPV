@@ -9,267 +9,276 @@
 
 package com.quantummpv.app.ui.browser.components
 
-import android.content.res.Configuration
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.Spring
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupPositionProvider
+import androidx.compose.ui.window.PopupProperties
 import com.quantummpv.app.R
+import com.quantummpv.app.ui.icons.AppIcon
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
+import com.quantummpv.app.ui.theme.AppMotion
+import com.quantummpv.app.ui.theme.DesignTokens
+import com.quantummpv.app.ui.theme.DesignTokens.LocalGlassConfig
+import com.quantummpv.app.ui.theme.DesignTokens.SurfaceStyle
 import com.quantummpv.app.ui.theme.GlassComponents
 
+private const val PRESSED_SCALE = 0.92f
+private const val OPEN_ROTATION_DEGREES = 90f
+private const val PANEL_ENTER_SCALE = 0.92f
+private const val GLASS_PANEL_ALPHA = 0.92f
+private val ButtonSize = 52.dp
+private val IconSize = 26.dp
+private val MinRowHeight = 48.dp
+private val PanelGap = DesignTokens.Spacing.sm
+private val PanelEdgeMargin = DesignTokens.Spacing.lg
+
 /**
- * A floating menu button that opens a glass popup with Settings and Library Insights options.
- * Positioned to the right of the navigation bar, inspired by Vetro's design patterns.
+ * Circular menu button that opens a floating panel with exactly two destinations: Settings and
+ * Library Insights.
  *
- * The popup appears above the button with a smooth upward animation and glass styling.
+ * The panel lives in a [Popup], so it sits above the mini player and selection bars, dismisses on an
+ * outside tap or Back, and is kept inside the window by [AboveAnchorPositionProvider]. All motion
+ * goes through [AppMotion], so the Off and Reduced motion styles are respected.
  *
- * @param visible Controls overall visibility based on navigation and selection state
- * @param onSettingsClick Callback to open Settings screen
- * @param onLibraryInsightsClick Callback to open Library Insights screen
- * @param navbarEndOffset Horizontal position where the navbar ends
- * @param bottomPadding Bottom padding to align with other floating elements
- * @param modifier Modifier for positioning and styling
+ * @param onSettingsClick Opens the existing Settings destination.
+ * @param onLibraryInsightsClick Opens the Library Insights destination.
  */
 @Composable
 fun FloatingMenuButton(
-  visible: Boolean,
   onSettingsClick: () -> Unit,
   onLibraryInsightsClick: () -> Unit,
-  navbarEndOffset: Dp,
-  bottomPadding: Dp,
   modifier: Modifier = Modifier,
 ) {
-  val configuration = LocalConfiguration.current
-  val density = LocalDensity.current
-  val screenWidth = configuration.screenWidthDp.dp
-  val isTablet = configuration.smallestScreenWidthDp >= 600
-  val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+  val panelState = remember { MutableTransitionState(false) }
+  val interactionSource = remember { MutableInteractionSource() }
+  val isPressed by interactionSource.collectIsPressedAsState()
+  val reduceMotion = AppMotion.shouldReduceMotion()
+  val feedbackSpec = AppMotion.spatial(AppMotion.Spatial.Snappy, AppMotion.ReducedAlpha)
 
-  // Hide on narrow screens where the button would crowd the navbar
-  val hasRoom = screenWidth >= 360.dp || isTablet || isLandscape
-
-  var isMenuExpanded by remember { mutableStateOf(false) }
-  var isPressed by remember { mutableStateOf(false) }
-
-  // Scale animation for press feedback
   val scale by animateFloatAsState(
-    targetValue = if (isPressed) 0.9f else 1f,
-    animationSpec = spring(
-      dampingRatio = Spring.DampingRatioMediumBouncy,
-      stiffness = Spring.StiffnessMedium,
-    ),
-    label = "floating_menu_scale",
+    targetValue = if (isPressed && !reduceMotion) PRESSED_SCALE else 1f,
+    animationSpec = feedbackSpec,
+    label = "floating_menu_press",
   )
-
-  // Rotation animation for menu icon
   val rotation by animateFloatAsState(
-    targetValue = if (isMenuExpanded) 90f else 0f,
-    animationSpec = spring(
-      dampingRatio = Spring.DampingRatioMediumBouncy,
-      stiffness = Spring.StiffnessMedium,
-    ),
-    label = "menu_icon_rotation",
+    targetValue = if (panelState.targetState && !reduceMotion) OPEN_ROTATION_DEGREES else 0f,
+    animationSpec = feedbackSpec,
+    label = "floating_menu_rotation",
   )
 
-  Box(modifier = modifier) {
-    // Glass popup menu that appears above the button
-    AnimatedVisibility(
-      visible = isMenuExpanded,
-      enter = slideInVertically(
-        animationSpec = spring(
-          dampingRatio = Spring.DampingRatioMediumBouncy,
-          stiffness = Spring.StiffnessMediumLow,
-        ),
-        initialOffsetY = { it / 2 },
-      ) + fadeIn(tween(200)) + scaleIn(
-        animationSpec = spring(
-          dampingRatio = Spring.DampingRatioMediumBouncy,
-          stiffness = Spring.StiffnessMediumLow,
-        ),
-        initialScale = 0.8f,
-      ),
-      exit = slideOutVertically(
-        animationSpec = tween(200),
-        targetOffsetY = { it / 2 },
-      ) + fadeOut(tween(150)) + scaleOut(
-        animationSpec = tween(200),
-        targetScale = 0.8f,
-      ),
-      modifier = Modifier
-        .align(Alignment.TopCenter)
-        .offset(y = (-80).dp), // Position above the button
-    ) {
-      GlassComponents.GlassSurface(
-        modifier = Modifier.width(180.dp),
-        shape = RoundedCornerShape(16.dp),
-      ) {
-        Column(
-          modifier = Modifier
-            .padding(vertical = 8.dp),
-          verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-          MenuOption(
-            icon = Icons.RoundedFilled.Settings,
-            text = stringResource(R.string.ui_settings),
-            onClick = {
-              isMenuExpanded = false
-              onSettingsClick()
-            },
-          )
-          MenuOption(
-            icon = Icons.RoundedFilled.Insights,
-            text = stringResource(R.string.library_insights_title),
-            onClick = {
-              isMenuExpanded = false
-              onLibraryInsightsClick()
-            },
-          )
-        }
-      }
+  val density = LocalDensity.current
+  val positionProvider =
+    remember(density) {
+      with(density) { AboveAnchorPositionProvider(gapPx = PanelGap.roundToPx(), marginPx = PanelEdgeMargin.roundToPx()) }
     }
 
-    // The circular menu button
-    AnimatedVisibility(
-      visible = visible && hasRoom,
-      enter = scaleIn(
-        animationSpec = spring(
-          dampingRatio = Spring.DampingRatioMediumBouncy,
-          stiffness = Spring.StiffnessMediumLow,
-        ),
-      ) + fadeIn(),
-      exit = scaleOut(
-        animationSpec = spring(
-          dampingRatio = Spring.DampingRatioNoBouncy,
-          stiffness = Spring.StiffnessMedium,
-        ),
-      ) + fadeOut(),
-      modifier = Modifier
-        .align(Alignment.BottomCenter)
-        .padding(bottom = bottomPadding),
-    ) {
-      GlassComponents.GlassNavigationPill(
-        forceGlass = true,
-        shape = CircleShape,
-      ) {
-        IconButton(
-          onClick = {
-            isPressed = true
-            isMenuExpanded = !isMenuExpanded
-            isPressed = false
-          },
-          modifier = Modifier
-            .size(52.dp)
+  fun close() {
+    panelState.targetState = false
+  }
+
+  Box(modifier = modifier) {
+    GlassComponents.GlassNavigationPill(forceGlass = true, shape = CircleShape) {
+      IconButton(
+        onClick = { panelState.targetState = !panelState.targetState },
+        interactionSource = interactionSource,
+        modifier =
+          Modifier
+            .size(ButtonSize)
             .tvFocusHighlight(CircleShape, focusedScale = 1.06f)
             .graphicsLayer {
               scaleX = scale
               scaleY = scale
               rotationZ = rotation
             },
+      ) {
+        Icon(
+          Icons.RoundedFilled.MoreVert,
+          contentDescription = stringResource(R.string.ui_menu),
+          modifier = Modifier.size(IconSize),
+          tint = MaterialTheme.colorScheme.onSurface,
+        )
+      }
+    }
+
+    // Stay composed until the exit animation has finished, then drop the popup window.
+    if (panelState.currentState || panelState.targetState) {
+      Popup(
+        popupPositionProvider = positionProvider,
+        onDismissRequest = ::close,
+        properties = PopupProperties(focusable = true),
+      ) {
+        AnimatedVisibility(
+          visibleState = panelState,
+          enter = panelEnter(reduceMotion),
+          exit = panelExit(reduceMotion),
         ) {
-          Icon(
-            Icons.RoundedFilled.MoreVert,
-            contentDescription = stringResource(R.string.ui_menu),
-            modifier = Modifier.size(26.dp),
-            tint = MaterialTheme.colorScheme.onSurface,
+          MenuPanel(
+            onSettingsClick = {
+              close()
+              onSettingsClick()
+            },
+            onLibraryInsightsClick = {
+              close()
+              onLibraryInsightsClick()
+            },
           )
         }
       }
     }
+  }
+}
 
-    // Scrim to dismiss menu when clicking outside
-    if (isMenuExpanded) {
-      Box(
-        modifier = Modifier
-          .matchParentSize()
-          .clickable(
-            interactionSource = remember { MutableInteractionSource() },
-            indication = null,
-            onClick = { isMenuExpanded = false },
-          ),
-      )
+/** Fade in, plus a short scale from the bottom-end corner (where the button is) unless motion is reduced. */
+@Composable
+private fun panelEnter(reduceMotion: Boolean): EnterTransition {
+  val fade = AppMotion.spatial(AppMotion.Effect.Alpha, AppMotion.ReducedAlpha)
+  if (reduceMotion) return fadeIn(animationSpec = fade)
+  val scale = AppMotion.spatial(AppMotion.Spatial.Standard, AppMotion.ReducedAlpha)
+  return fadeIn(animationSpec = fade) +
+    scaleIn(animationSpec = scale, initialScale = PANEL_ENTER_SCALE, transformOrigin = TransformOrigin(1f, 1f))
+}
+
+/** Mirror of [panelEnter], so dismissal is as deliberate as opening. */
+@Composable
+private fun panelExit(reduceMotion: Boolean): ExitTransition {
+  val fade = AppMotion.spatial(AppMotion.Effect.Alpha, AppMotion.ReducedAlpha)
+  if (reduceMotion) return fadeOut(animationSpec = fade)
+  val scale = AppMotion.spatial(AppMotion.Spatial.Standard, AppMotion.ReducedAlpha)
+  return fadeOut(animationSpec = fade) +
+    scaleOut(animationSpec = scale, targetScale = PANEL_ENTER_SCALE, transformOrigin = TransformOrigin(1f, 1f))
+}
+
+/**
+ * The panel surface. A popup is a separate window and cannot sample the app's blurred backdrop, so
+ * glass styles use slightly translucent tint rather than a blur.
+ */
+@Composable
+private fun MenuPanel(
+  onSettingsClick: () -> Unit,
+  onLibraryInsightsClick: () -> Unit,
+) {
+  val usesGlass = LocalGlassConfig.current.style != SurfaceStyle.CLASSIC
+  val container = MaterialTheme.colorScheme.surfaceContainerHigh
+  Surface(
+    shape = RoundedCornerShape(DesignTokens.Radius.large),
+    color = if (usesGlass) container.copy(alpha = GLASS_PANEL_ALPHA) else container,
+    shadowElevation = DesignTokens.Elevation.level5,
+    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.48f)),
+  ) {
+    Column(
+      modifier = Modifier.widthIn(min = 200.dp, max = 280.dp).padding(DesignTokens.Spacing.sm),
+      verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.xs),
+    ) {
+      MenuRow(Icons.RoundedFilled.Settings, stringResource(R.string.ui_settings), onSettingsClick)
+      MenuRow(Icons.RoundedFilled.Insights, stringResource(R.string.library_insights_title), onLibraryInsightsClick)
     }
   }
 }
 
+/** A tappable icon-and-label row with a minimum 48dp touch height. */
 @Composable
-private fun MenuOption(
-  icon: com.quantummpv.app.ui.icons.AppIcon,
-  text: String,
+private fun MenuRow(
+  icon: AppIcon,
+  label: String,
   onClick: () -> Unit,
-  modifier: Modifier = Modifier,
 ) {
+  val shape = RoundedCornerShape(DesignTokens.Radius.card)
   Row(
-    modifier = modifier
-      .fillMaxWidth()
-      .height(48.dp)
-      .clip(RoundedCornerShape(8.dp))
-      .clickable(
-        interactionSource = remember { MutableInteractionSource() },
-        indication = ripple(),
-        role = Role.Button,
-        onClick = onClick,
-      )
-      .padding(horizontal = 16.dp, vertical = 8.dp),
+    modifier =
+      Modifier
+        .fillMaxWidth()
+        .heightIn(min = MinRowHeight)
+        .tvFocusHighlight(shape, focusedScale = 1.02f)
+        .clip(shape)
+        .clickable(role = Role.Button, onClick = onClick)
+        .padding(horizontal = DesignTokens.Spacing.md, vertical = DesignTokens.Spacing.sm),
     verticalAlignment = Alignment.CenterVertically,
-    horizontalArrangement = Arrangement.Start,
   ) {
-    Icon(
-      icon,
-      contentDescription = null,
-      modifier = Modifier.size(24.dp),
-      tint = MaterialTheme.colorScheme.primary,
-    )
-    Spacer(modifier = Modifier.width(12.dp))
+    Icon(icon, contentDescription = null, modifier = Modifier.size(IconSize), tint = MaterialTheme.colorScheme.primary)
+    Spacer(modifier = Modifier.width(DesignTokens.Spacing.md))
     Text(
-      text = text,
-      style = MaterialTheme.typography.bodyMedium,
+      text = label,
+      style = MaterialTheme.typography.bodyLarge,
       fontWeight = FontWeight.Medium,
       color = MaterialTheme.colorScheme.onSurface,
+      modifier = Modifier.weight(1f),
     )
+  }
+}
+
+/**
+ * Places a popup above its anchor, end-aligned with it, and keeps it fully inside the window.
+ * If there is no room above, it opens below the anchor instead.
+ *
+ * @property gapPx Space between the anchor and the popup.
+ * @property marginPx Minimum distance kept from every window edge.
+ */
+internal class AboveAnchorPositionProvider(
+  private val gapPx: Int,
+  private val marginPx: Int,
+) : PopupPositionProvider {
+  override fun calculatePosition(
+    anchorBounds: IntRect,
+    windowSize: IntSize,
+    layoutDirection: LayoutDirection,
+    popupContentSize: IntSize,
+  ): IntOffset {
+    val preferredX =
+      if (layoutDirection == LayoutDirection.Ltr) anchorBounds.right - popupContentSize.width else anchorBounds.left
+    val maxX = (windowSize.width - popupContentSize.width - marginPx).coerceAtLeast(marginPx)
+
+    val above = anchorBounds.top - popupContentSize.height - gapPx
+    val preferredY = if (above >= marginPx) above else anchorBounds.bottom + gapPx
+    val maxY = (windowSize.height - popupContentSize.height - marginPx).coerceAtLeast(marginPx)
+
+    return IntOffset(preferredX.coerceIn(marginPx, maxX), preferredY.coerceIn(marginPx, maxY))
   }
 }
