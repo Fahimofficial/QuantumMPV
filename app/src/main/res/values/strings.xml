@@ -1456,6 +1456,7 @@
   <string name="ui_copy">Copy</string>
   <string name="ui_move">Move</string>
   <string name="a11y_select_item">Select</string>
+  <string name="secret_storage_save_failed">Couldn\'t save the key securely on this device, so it wasn\'t saved. Please try again.</string>
   <string name="server_dialog_address">Server Address</string>
   <string name="server_dialog_display_name">Display Name (Optional)</string>
   <string name="server_dialog_auth_method">Authentication Method</string>

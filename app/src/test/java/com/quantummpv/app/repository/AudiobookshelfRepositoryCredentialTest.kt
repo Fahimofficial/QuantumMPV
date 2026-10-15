@@ -48,4 +48,19 @@ class AudiobookshelfRepositoryCredentialTest {
     assertEquals("", servers.single().token)
     coVerify(exactly = 0) { dao.update(any()) }
   }
+
+  @Test
+  fun legacyPlaintextTokenIsMigratedWithTokenOnlyCompareAndSet() {
+    val entity = AudiobookshelfServerEntity(id = 7, name = "Home", serverUrl = "https://abs.example", username = "me", token = "plain")
+    val dao = mockk<AudiobookshelfServerDao>(relaxed = true)
+    every { dao.getAllServers() } returns flowOf(listOf(entity))
+    val key = newKey()
+    val repository = AudiobookshelfRepository(dao, mockk<AudiobookshelfClient>(), NetworkCredentialCipher { key })
+
+    val servers = runBlocking { repository.allServers.first() }
+
+    assertEquals("plain", servers.single().token)
+    coVerify(exactly = 1) { dao.replaceToken(7, "plain", match { it.startsWith("mpvrx-credential:v1:") }) }
+    coVerify(exactly = 0) { dao.update(any()) }
+  }
 }

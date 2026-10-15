@@ -35,6 +35,14 @@ interface AudiobookshelfServerDao {
   @Delete
   suspend fun delete(server: AudiobookshelfServerEntity)
 
+  /** Replaces only the token, and only if it still holds [expectedToken]; returns rows changed. */
+  @Query("UPDATE audiobookshelf_servers SET token = :newToken WHERE id = :id AND token = :expectedToken")
+  suspend fun replaceToken(
+    id: Long,
+    expectedToken: String,
+    newToken: String,
+  ): Int
+
   @Query("DELETE FROM audiobookshelf_servers WHERE id = :id")
   suspend fun deleteById(id: Long)
 }

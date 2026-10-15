@@ -14,8 +14,11 @@ import com.quantummpv.app.data.network.credentials.AndroidNetworkCredentialKey
 import com.quantummpv.app.data.network.credentials.NetworkCredentialCipher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -42,15 +45,21 @@ class EncryptedStringPreference(
   }
 
   /**
-   * Writes the encrypted value. If the Keystore cannot encrypt, nothing is written: storing the
-   * secret in plaintext would defeat the purpose, and the previous value stays in place.
+   * Writes the encrypted value. If the Keystore cannot encrypt, nothing is written (storing the
+   * secret in plaintext would defeat the purpose) and [SecretStorageFailures] is notified so the
+   * app can tell the user the key was not saved.
    */
   override fun set(value: String) {
     if (value.isEmpty()) {
       delegate.set("")
       return
     }
-    encryptOrNull(value)?.let(delegate::set)
+    val encrypted = encryptOrNull(value)
+    if (encrypted != null) {
+      delegate.set(encrypted)
+    } else {
+      SecretStorageFailures.report(key())
+    }
   }
 
   override fun isSet(): Boolean = delegate.isSet()
@@ -82,3 +91,13 @@ class EncryptedStringPreference(
 
 /** Wraps a string preference so its value is encrypted at rest. */
 fun Preference<String>.encrypted(): Preference<String> = EncryptedStringPreference(this)
+
+/** Emits the preference key whenever a secret could not be saved because encryption failed. */
+object SecretStorageFailures {
+  private val events = MutableSharedFlow<String>(extraBufferCapacity = 4)
+  val failures: SharedFlow<String> = events.asSharedFlow()
+
+  fun report(key: String) {
+    events.tryEmit(key)
+  }
+}

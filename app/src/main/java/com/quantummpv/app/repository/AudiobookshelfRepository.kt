@@ -113,7 +113,8 @@ class AudiobookshelfRepository(
   private suspend fun decryptAndMigrate(entity: AudiobookshelfServerEntity): AudiobookshelfServer {
     val token = decryptCredential(entity.token)
     if (entity.token.isNotEmpty() && !credentialCipher.isEncrypted(entity.token)) {
-      runCatching { dao.update(entity.copy(token = encryptForStorage(token))) }
+      // Token-only compare-and-set, so a concurrent updateServer() is never overwritten.
+      runCatching { dao.replaceToken(entity.id, expectedToken = entity.token, newToken = encryptForStorage(token)) }
         .onFailure { Log.w(TAG, "Could not encrypt legacy Audiobookshelf token; keeping it for now", it) }
     }
     return entity.toDomain().copy(token = token)
