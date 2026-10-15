@@ -9,7 +9,10 @@
 
 package com.quantummpv.app.domain.update
 
-/** Resolves the SHA-256 an update APK must match before it may be installed. */
+/**
+ * Resolves the SHA-256 an update APK must match before it may be installed. This verifies download
+ * integrity (truncation/corruption), not publisher authenticity; see UpdateManager.downloadApk.
+ */
 internal object UpdateIntegrity {
   private val hexSha256 = Regex("^[0-9a-fA-F]{64}$")
 

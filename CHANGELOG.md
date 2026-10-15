@@ -12,7 +12,7 @@
 - **Secure folder**: Other apps can no longer ask the player to open files in QuantumMPV's private storage, which previously allowed hidden secure-folder videos to play without the PIN.
 - **Updates**: Update APKs download to a temporary file and are installed only after their size and published SHA-256 match. An interrupted download is no longer offered as ready to install.
 - **Saved secrets**: Seerr, AI-provider and subtitle-provider API keys and Audiobookshelf tokens are now encrypted at rest; existing values are migrated automatically. Backups skip secure-folder media and regenerable thumbnails.
-- **Resume position**: Playback progress is saved every 15 seconds while playing, so a crash or low-memory kill loses at most a few seconds of progress.
+- **Resume position**: Playback progress is saved every 15 seconds while playing, so a crash or low-memory kill loses at most 15 seconds of progress.
 - **Floating dock**: The Search circle now matches the navigation pill's height and surface, and the Settings / Library Insights menu uses a solid surface in Classic appearance instead of glass.
 - **Surface opacity**: The glass "Surface opacity" slider now visibly changes how see-through glass surfaces are.
 - **Library errors**: A failed library scan shows an error with a "Try again" button instead of looking like an empty library.

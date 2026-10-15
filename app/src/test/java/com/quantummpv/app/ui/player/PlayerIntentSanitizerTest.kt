@@ -97,4 +97,13 @@ class PlayerIntentSanitizerTest {
 
     assertNull(PlayerIntentSanitizer.sanitize(context, intent).getStringExtra(Intent.EXTRA_TEXT))
   }
+
+  @Test
+  fun foreignContentUriCannotTraverseIntoPrivateStorage() {
+    val file = File(secureFile).apply { parentFile?.mkdirs(); writeText("x") }
+    val traversal = Uri.parse("content://attacker.invalid/storage/..${file.absolutePath}")
+
+    assertNull(traversal.resolveLocalPath(context))
+    assertNull(traversal.openContentFd(context, allowFdFallback = false))
+  }
 }

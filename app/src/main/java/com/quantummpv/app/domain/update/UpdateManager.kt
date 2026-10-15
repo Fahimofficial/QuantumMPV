@@ -226,8 +226,9 @@ class UpdateManager(
 
   /**
    * Streams into a `.part` file while hashing, then renames it into place only after the size and
-   * SHA-256 match the release metadata. An interrupted or tampered download therefore never shows
-   * up as a ready-to-install APK.
+   * SHA-256 match the release metadata. This catches interrupted, truncated or corrupted downloads;
+   * it is not an authenticity check, because the hash comes from the same feed as the download URL.
+   * Authenticity still rests on HTTPS and Android's installer requiring the same signing certificate.
    */
   private fun downloadApk(
     asset: Asset,

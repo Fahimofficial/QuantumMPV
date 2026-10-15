@@ -46,7 +46,11 @@ class MediaScannerWorker(
     val mediaEntities = mutableListOf<MediaIndexEntity>()
 
     try {
-      rootDir.walkTopDown().onEnter { dir ->
+      var traversalFailed = false
+      rootDir.walkTopDown().onFail { dir, error ->
+        traversalFailed = true
+        Log.w("MediaScanner", "Could not read ${dir.path}", error)
+      }.onEnter { dir ->
         if (!includeNoMedia && File(dir, ".nomedia").exists()) return@onEnter false
         true
       }.forEach { file ->
@@ -78,6 +82,12 @@ class MediaScannerWorker(
             )
           }
         }
+      }
+
+      // An incomplete walk would delete still-existing files from the index; keep the old one.
+      if (traversalFailed) {
+        Log.w("MediaScanner", "Scan incomplete; keeping the existing index")
+        return@withContext Result.retry()
       }
 
       // Replace atomically: readers never see a half-cleared index and stale rows are dropped.

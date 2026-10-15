@@ -13,13 +13,14 @@ package com.quantummpv.app.database.dao
 object MediaIndexFtsQuery {
   /**
    * Converts free text into an FTS4 MATCH expression. FTS4 has no leading wildcard, so each
-   * token becomes a quoted prefix term (`"tok*"`); quotes in user text are stripped so they
-   * cannot break the expression. Returns null when the text has no searchable token.
+   * letter/digit run becomes a quoted prefix term (`"tok*"`); punctuation, quotes and operators
+   * in user text are dropped so they cannot break the expression. Returns null when the text has no searchable token.
    */
   fun from(text: String): String? =
     text
-      .split(Regex("\\s+"))
-      .map { token -> token.replace("\"", "").replace("*", "").trim() }
+      // FTS4's tokenizer splits on punctuation too ("Star-Wars" is two tokens), so do the same
+      // here; otherwise "sta-wa" would require "sta" to match a whole token.
+      .split(Regex("[^\\p{L}\\p{N}]+"))
       .filter { it.isNotEmpty() }
       .takeIf { it.isNotEmpty() }
       ?.joinToString(" ") { "\"$it*\"" }

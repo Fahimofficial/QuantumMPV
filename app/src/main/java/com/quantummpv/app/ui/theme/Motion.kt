@@ -10,9 +10,14 @@
 package com.quantummpv.app.ui.theme
 
 import android.animation.ValueAnimator
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.database.ContentObserver
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import android.provider.Settings
 import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -39,6 +44,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.ui.theme.DesignTokens.MotionStyle
@@ -103,25 +109,48 @@ fun rememberMotionPolicy(): MotionPolicy {
 }
 
 /**
- * Observes the system "Animator duration scale" developer/accessibility setting, so turning
- * animations off (or "Remove animations") takes effect immediately instead of on next launch.
+ * Observes whether the system has disabled animators: the "Animator duration scale" / "Remove
+ * animations" setting, and Battery Saver, which also turns animators off without changing that
+ * setting. Changes take effect immediately instead of on next launch.
  */
 @Composable
 fun rememberSystemAnimationsDisabled(): Boolean {
   val context = LocalContext.current
   var disabled by remember { mutableStateOf(!ValueAnimator.areAnimatorsEnabled()) }
   DisposableEffect(context) {
+    val handler = Handler(Looper.getMainLooper())
     val resolver = context.contentResolver
+    // The framework updates ValueAnimator's scale shortly after the setting/broadcast arrives,
+    // so re-read it on the next main-loop turn.
+    val refresh = Runnable { disabled = !ValueAnimator.areAnimatorsEnabled() }
     val observer =
-      object : ContentObserver(Handler(Looper.getMainLooper())) {
+      object : ContentObserver(handler) {
         override fun onChange(selfChange: Boolean) {
-          val scale = Settings.Global.getFloat(resolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f)
-          disabled = scale == 0f
+          handler.post(refresh)
+        }
+      }
+    val powerSaveReceiver =
+      object : BroadcastReceiver() {
+        override fun onReceive(
+          receiverContext: Context?,
+          intent: Intent?,
+        ) {
+          handler.post(refresh)
         }
       }
     resolver.registerContentObserver(Settings.Global.getUriFor(Settings.Global.ANIMATOR_DURATION_SCALE), false, observer)
-    observer.onChange(false)
-    onDispose { resolver.unregisterContentObserver(observer) }
+    ContextCompat.registerReceiver(
+      context,
+      powerSaveReceiver,
+      IntentFilter(PowerManager.ACTION_POWER_SAVE_MODE_CHANGED),
+      ContextCompat.RECEIVER_NOT_EXPORTED,
+    )
+    refresh.run()
+    onDispose {
+      resolver.unregisterContentObserver(observer)
+      context.unregisterReceiver(powerSaveReceiver)
+      handler.removeCallbacks(refresh)
+    }
   }
   return disabled
 }

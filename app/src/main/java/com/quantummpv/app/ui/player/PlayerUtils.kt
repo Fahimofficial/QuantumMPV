@@ -69,18 +69,34 @@ internal fun Uri.openContentFd(
   context: Context,
   allowFdFallback: Boolean = true,
 ): String? =
-  extractLocalPath()
+  extractLocalPath()?.unlessAppPrivate(context)
     ?: tryFileDescriptorPath(context, allowFdFallback)
-    ?: tryMediaStoreQuery(context)
-    ?: tryDocumentUriParsing(context)
+    ?: tryMediaStoreQuery(context)?.unlessAppPrivate(context)
+    ?: tryDocumentUriParsing(context)?.unlessAppPrivate(context)
     ?: (if (allowFdFallback) tryFileDescriptorFallback(context) else null)
 
 /** Resolves identity only; unlike [openContentFd], this never detaches a file descriptor. */
 internal fun Uri.resolveLocalPath(context: Context): String? =
   when (scheme?.lowercase()) {
     "file" -> path
-    "content" -> extractLocalPath() ?: tryMediaStoreQuery(context) ?: tryDocumentUriParsing(context)
+    "content" ->
+      extractLocalPath()?.unlessAppPrivate(context)
+        ?: tryMediaStoreQuery(context)?.unlessAppPrivate(context)
+        ?: tryDocumentUriParsing(context)?.unlessAppPrivate(context)
     else -> null
+  }
+
+/**
+ * Paths parsed from a URI string, a provider's DATA column or a document ID are controlled by
+ * whoever supplied the URI (e.g. `content://other/storage/../data/user/0/<pkg>/files/...`).
+ * Never let them resolve into this app's private storage; the descriptor-based strategy is
+ * unaffected because a foreign provider cannot open our private files.
+ */
+private fun String.unlessAppPrivate(context: Context): String? =
+  takeUnless { path ->
+    PlayerIntentSanitizer.policyFor(context).isPrivatePath(path).also { blocked ->
+      if (blocked) Log.w(TAG, "Ignoring content URI path that resolves into private storage")
+    }
   }
 
 /**

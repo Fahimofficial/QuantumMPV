@@ -13,6 +13,7 @@ import android.content.res.Configuration
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
@@ -22,6 +23,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -200,7 +202,7 @@ fun BrowserBottomBar(
               )
             options.firstOrNull { opt ->
               val totalWidth =
-                (opt.buttonSize * visibleCount) + (opt.spacing * (visibleCount - 1)) + (opt.rowPaddingHorizontal * 2) +
+                (maxOf(opt.buttonSize, MinTouchTarget) * visibleCount) + (opt.spacing * (visibleCount - 1)) + (opt.rowPaddingHorizontal * 2) +
                   (opt.surfacePaddingHorizontal * 2)
               totalWidth <= availableWidth
             } ?: options.last()
@@ -216,7 +218,7 @@ fun BrowserBottomBar(
               )
             options.firstOrNull { opt ->
               val totalWidth =
-                (opt.buttonSize * visibleCount) + (opt.spacing * (visibleCount - 1)) + (opt.rowPaddingHorizontal * 2) +
+                (maxOf(opt.buttonSize, MinTouchTarget) * visibleCount) + (opt.spacing * (visibleCount - 1)) + (opt.rowPaddingHorizontal * 2) +
                   (opt.surfacePaddingHorizontal * 2)
               totalWidth <= availableWidth
             } ?: options.last()
@@ -232,7 +234,7 @@ fun BrowserBottomBar(
               )
             options.firstOrNull { opt ->
               val totalWidth =
-                (opt.buttonSize * visibleCount) + (opt.spacing * (visibleCount - 1)) + (opt.rowPaddingHorizontal * 2) +
+                (maxOf(opt.buttonSize, MinTouchTarget) * visibleCount) + (opt.spacing * (visibleCount - 1)) + (opt.rowPaddingHorizontal * 2) +
                   (opt.surfacePaddingHorizontal * 2)
               totalWidth <= availableWidth
             } ?: options.last()
@@ -253,12 +255,15 @@ fun BrowserBottomBar(
         tonalElevation = 0.dp,
         shadowElevation = 12.dp,
       ) {
+        // Scrolls only when even the smallest layout (with 48 dp touch targets) cannot fit.
         Row(
           modifier =
-            Modifier.padding(
-              horizontal = layoutParams.rowPaddingHorizontal,
-              vertical = layoutParams.rowPaddingVertical,
-            ),
+            Modifier
+              .horizontalScroll(rememberScrollState())
+              .padding(
+                horizontal = layoutParams.rowPaddingHorizontal,
+                vertical = layoutParams.rowPaddingVertical,
+              ),
           horizontalArrangement = Arrangement.spacedBy(layoutParams.spacing),
           verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -332,6 +337,9 @@ fun BrowserBottomBar(
     }
   }
 }
+
+/** Matches minimumInteractiveComponentSize(), which every action button applies. */
+private val MinTouchTarget = 48.dp
 
 @Composable
 private fun BrowserBottomBarButton(

@@ -1783,7 +1783,6 @@ class MediaPlaybackService :
         withTimeoutOrNull(TASK_REMOVAL_SAVE_TIMEOUT_MS) {
           pendingSave?.cancelAndJoin()
           persistPlaybackState(identifier, snapshot)
-          true
         } ?: false
       }
     if (!completed) {
@@ -1792,13 +1791,14 @@ class MediaPlaybackService :
     }
   }
 
+  /** Returns true only when the snapshot was written; cancellation is propagated, never swallowed. */
   private suspend fun persistPlaybackState(
     identifier: String,
     capturedSnapshot: PlaybackStateSnapshot,
-  ) {
-    if (identifier.isBlank() || capturedSnapshot.mediaIdentifier != identifier) return
+  ): Boolean {
+    if (identifier.isBlank() || capturedSnapshot.mediaIdentifier != identifier) return false
 
-    playbackStateMutex.withLock {
+    return playbackStateMutex.withLock {
     runCatching {
       val oldState = playbackStateRepository.getVideoDataByTitle(identifier)
       val snapshot =
@@ -1818,8 +1818,9 @@ class MediaPlaybackService :
       PlaybackStateEvents.notifyChanged(identifier)
     }
     }.onFailure { error ->
+      if (error is kotlinx.coroutines.CancellationException) throw error
       Log.e(TAG, "Error saving playback state from service", error)
-    }
+    }.isSuccess
   }
 
   /*

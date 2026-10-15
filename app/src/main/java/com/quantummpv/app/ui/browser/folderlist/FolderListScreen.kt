@@ -1232,6 +1232,8 @@ private fun FolderListContent(
   val retryScope = rememberCoroutineScope()
   val showLoading = isLoading && !hasCompletedInitialLoad
   val showEmpty = folders.isEmpty() && hasCompletedInitialLoad && !foldersWereDeleted
+  // A failed load wins over the "folders were deleted" suppression so retry is always reachable.
+  val showLoadError = folders.isEmpty() && hasCompletedInitialLoad && loadFailed
 
   val hasEnoughItems = folders.size > 20
   val scrollbarAlpha by androidx.compose.animation.core.animateFloatAsState(
@@ -1250,7 +1252,7 @@ private fun FolderListContent(
     listState = listState,
     modifier = Modifier.fillMaxSize(),
   ) {
-    if (showLoading || showEmpty) {
+    if (showLoading || showEmpty || showLoadError) {
       Box(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center,
@@ -1261,7 +1263,7 @@ private fun FolderListContent(
             title = stringResource(if (audioOnly) R.string.ui_scanning_for_songs else R.string.ui_scanning_for_videos),
             message = scanStatus ?: stringResource(R.string.loading_state_scanning_message),
           )
-        } else if (showEmpty && loadFailed) {
+        } else if (showLoadError) {
           // A failed scan must not masquerade as an empty library.
           com.quantummpv.app.ui.browser.states.ErrorState(
             title = stringResource(R.string.error_state_library_title),

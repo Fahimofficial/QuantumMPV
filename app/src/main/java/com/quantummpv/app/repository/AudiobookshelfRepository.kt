@@ -9,11 +9,11 @@
 
 package com.quantummpv.app.repository
 
+import android.util.Log
 import com.quantummpv.app.data.audiobookshelf.AudiobookshelfClient
 import com.quantummpv.app.data.network.credentials.AndroidNetworkCredentialKey
 import com.quantummpv.app.data.network.credentials.NetworkCredentialCipher
 import com.quantummpv.app.data.network.credentials.NetworkCredentialStorageException
-import com.quantummpv.app.data.network.credentials.NetworkCredentialUnavailableException
 import com.quantummpv.app.database.dao.AudiobookshelfServerDao
 import com.quantummpv.app.database.entities.AudiobookshelfServerEntity
 import com.quantummpv.app.domain.audiobookshelf.AudiobookshelfBook
@@ -113,17 +113,23 @@ class AudiobookshelfRepository(
   private suspend fun decryptAndMigrate(entity: AudiobookshelfServerEntity): AudiobookshelfServer {
     val token = decryptCredential(entity.token)
     if (entity.token.isNotEmpty() && !credentialCipher.isEncrypted(entity.token)) {
-      dao.update(entity.copy(token = encryptForStorage(token)))
+      runCatching { dao.update(entity.copy(token = encryptForStorage(token))) }
+        .onFailure { Log.w(TAG, "Could not encrypt legacy Audiobookshelf token; keeping it for now", it) }
     }
     return entity.toDomain().copy(token = token)
   }
 
+  /**
+   * Returns an empty token when the Keystore key is gone (e.g. after a backup restore), so the
+   * server stays listed and can be signed into again or removed instead of breaking the list.
+   */
   private fun decryptCredential(storedValue: String): String {
     if (storedValue.isEmpty() || !credentialCipher.isEncrypted(storedValue)) return storedValue
     return try {
       credentialCipher.decrypt(storedValue)
     } catch (e: Exception) {
-      throw NetworkCredentialUnavailableException(e)
+      Log.w(TAG, "Audiobookshelf token can no longer be decrypted; treating server as signed out", e)
+      ""
     }
   }
 
@@ -142,4 +148,8 @@ class AudiobookshelfRepository(
         throw NetworkCredentialStorageException(e)
       }
     }
+
+  private companion object {
+    const val TAG = "AudiobookshelfRepository"
+  }
 }

@@ -67,4 +67,17 @@ class EncryptedStringPreferenceTest {
     assertEquals("", raw.get())
     assertEquals("", pref.get())
   }
+
+  @Test
+  fun encryptionFailureNeverPersistsPlaintext() {
+    val raw = store.getString("api_key", "")
+    val pref = EncryptedStringPreference(raw, cipher)
+    pref.set("first")
+    val stored = raw.get()
+
+    EncryptedStringPreference(raw, NetworkCredentialCipher { error("keystore unavailable") }).set("second")
+
+    assertEquals("previous ciphertext is kept", stored, raw.get())
+    assertEquals("first", pref.get())
+  }
 }

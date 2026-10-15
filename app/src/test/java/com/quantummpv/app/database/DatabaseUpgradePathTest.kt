@@ -83,6 +83,8 @@ class DatabaseUpgradePathTest {
         dao.upsert(listOf(indexEntry("/storage/emulated/0/Movies/Big Buck Bunny.mkv")))
         val query = MediaIndexFtsQuery.from("bunn")!!
         assertEquals(1, dao.searchMedia(query).first().size)
+        dao.upsert(listOf(indexEntry("/storage/emulated/0/Movies/Star-Wars.mkv")))
+        assertEquals(1, dao.searchMedia(MediaIndexFtsQuery.from("sta-wa")!!).first().size)
         dao.clearAll()
         assertEquals(0, dao.searchMedia(query).first().size)
       }
@@ -91,7 +93,8 @@ class DatabaseUpgradePathTest {
 
   @Test
   fun ftsQueryBuilderProducesPrefixTermsAndIgnoresBlankInput() {
-    assertEquals("\"big*\" \"bunny*\"", MediaIndexFtsQuery.from("  big  bun\"ny* "))
+    assertEquals("\"big*\" \"bunny*\"", MediaIndexFtsQuery.from("  big  bunny* "))
+    assertEquals("\"Sta*\" \"Wa*\"", MediaIndexFtsQuery.from("Sta-Wa"))
     assertNull(MediaIndexFtsQuery.from("  \"* "))
   }
 

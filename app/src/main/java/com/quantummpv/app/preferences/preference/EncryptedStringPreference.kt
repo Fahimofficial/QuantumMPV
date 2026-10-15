@@ -23,7 +23,7 @@ import kotlinx.coroutines.flow.stateIn
 /**
  * Stores a secret (API key or token) encrypted with the app's Android Keystore key while keeping
  * the plain [Preference] API for callers. Values written by earlier builds in plaintext are
- * re-encrypted on first read. If the key is gone (for example after restoring a backup onto a new
+ * re-encrypted on first read (left as-is if encryption is unavailable). If the key is gone (for example after restoring a backup onto a new
  * device) the value reads as empty so the user is simply asked to sign in again.
  */
 class EncryptedStringPreference(
@@ -41,8 +41,16 @@ class EncryptedStringPreference(
     return stored
   }
 
+  /**
+   * Writes the encrypted value. If the Keystore cannot encrypt, nothing is written: storing the
+   * secret in plaintext would defeat the purpose, and the previous value stays in place.
+   */
   override fun set(value: String) {
-    delegate.set(if (value.isEmpty()) "" else encryptOrNull(value) ?: value)
+    if (value.isEmpty()) {
+      delegate.set("")
+      return
+    }
+    encryptOrNull(value)?.let(delegate::set)
   }
 
   override fun isSet(): Boolean = delegate.isSet()
@@ -64,7 +72,7 @@ class EncryptedStringPreference(
 
   private fun encryptOrNull(value: String): String? =
     runCatching { cipher.encrypt(value) }
-      .onFailure { Log.e(TAG, "Keystore unavailable; ${key()} kept unencrypted", it) }
+      .onFailure { Log.e(TAG, "Keystore unavailable; ${key()} was not encrypted", it) }
       .getOrNull()
 
   private companion object {
