@@ -1663,7 +1663,8 @@ class MediaInfoActivity : AppCompatActivity() {
     withContext(Dispatchers.IO) {
       try {
         val textFileName = "mediainfo_${fileName.substringBeforeLast('.')}.txt"
-        val file = File(cacheDir, textFileName)
+        // Must stay inside a directory declared in res/xml/provider_paths.xml.
+        val file = File(File(cacheDir, "shared").apply { mkdirs() }, textFileName)
         file.writeText(content)
 
         withContext(Dispatchers.Main) {

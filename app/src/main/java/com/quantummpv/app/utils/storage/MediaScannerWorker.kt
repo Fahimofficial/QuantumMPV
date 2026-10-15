@@ -3,8 +3,10 @@ package com.quantummpv.app.utils.storage
 import android.content.Context
 import android.net.Uri
 import android.util.Log
+import androidx.room.withTransaction
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import com.quantummpv.app.database.MpvRxDatabase
 import com.quantummpv.app.database.dao.MediaIndexDao
 import com.quantummpv.app.database.entities.MediaIndexEntity
 import com.quantummpv.app.database.repository.VideoMetadataCacheRepository
@@ -16,10 +18,16 @@ import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import java.io.File
 
+/**
+ * Experimental full-library index (planned replacement for runtime folder scans). It is not scheduled by the app yet; the browser
+ * still uses MediaStore + FolderViewScanner. Each run replaces the whole index so files that were
+ * deleted or moved since the previous run do not linger in search results.
+ */
 class MediaScannerWorker(
   context: Context,
   params: WorkerParameters,
 ) : CoroutineWorker(context, params), KoinComponent {
+  private val database: MpvRxDatabase by inject()
   private val mediaIndexDao: MediaIndexDao by inject()
   private val foldersPreferences: FoldersPreferences by inject()
   private val browserPreferences: BrowserPreferences by inject()
@@ -72,9 +80,10 @@ class MediaScannerWorker(
         }
       }
 
-      // Batch upsert to DB
-      if (mediaEntities.isNotEmpty()) {
-        mediaIndexDao.upsert(mediaEntities)
+      // Replace atomically: readers never see a half-cleared index and stale rows are dropped.
+      database.withTransaction {
+        mediaIndexDao.clearAll()
+        if (mediaEntities.isNotEmpty()) mediaIndexDao.upsert(mediaEntities)
       }
 
       Log.d("MediaScanner", "Completed media scan. Indexed ${mediaEntities.size} items.")

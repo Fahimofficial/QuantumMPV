@@ -28,6 +28,7 @@ import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -37,7 +38,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.quantummpv.app.R
 import com.quantummpv.app.ui.icons.AppIcon
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
@@ -109,24 +112,37 @@ fun BrowserBottomBar(
   AnimatedVisibility(
     visible = isSelectionMode,
     modifier = modifier,
+    // Routed through AppMotion so Off snaps and Reduced fades instead of sliding.
     enter =
-      androidx.compose.animation.slideInVertically(
-        animationSpec =
-          androidx.compose.animation.core.spring(
-            dampingRatio = com.quantummpv.app.ui.theme.AppMotion.Spatial.ExpressiveDp.dampingRatio,
-            stiffness = com.quantummpv.app.ui.theme.AppMotion.Spatial.ExpressiveDp.stiffness,
-          ),
-        initialOffsetY = { fullHeight -> fullHeight * 2 },
-      ) + fadeIn(),
+      when {
+        com.quantummpv.app.ui.theme.AppMotion.shouldDisableAnimations() -> androidx.compose.animation.EnterTransition.None
+        com.quantummpv.app.ui.theme.AppMotion.shouldReduceMotion() ->
+          fadeIn(animationSpec = com.quantummpv.app.ui.theme.AppMotion.ReducedAlpha)
+        else ->
+          androidx.compose.animation.slideInVertically(
+            animationSpec =
+              androidx.compose.animation.core.spring(
+                dampingRatio = com.quantummpv.app.ui.theme.AppMotion.Spatial.ExpressiveDp.dampingRatio,
+                stiffness = com.quantummpv.app.ui.theme.AppMotion.Spatial.ExpressiveDp.stiffness,
+              ),
+            initialOffsetY = { fullHeight -> fullHeight * 2 },
+          ) + fadeIn()
+      },
     exit =
-      androidx.compose.animation.slideOutVertically(
-        animationSpec =
-          androidx.compose.animation.core.spring(
-            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioNoBouncy,
-            stiffness = androidx.compose.animation.core.Spring.StiffnessMedium,
-          ),
-        targetOffsetY = { fullHeight -> fullHeight * 2 },
-      ) + fadeOut(),
+      when {
+        com.quantummpv.app.ui.theme.AppMotion.shouldDisableAnimations() -> androidx.compose.animation.ExitTransition.None
+        com.quantummpv.app.ui.theme.AppMotion.shouldReduceMotion() ->
+          fadeOut(animationSpec = com.quantummpv.app.ui.theme.AppMotion.ReducedAlpha)
+        else ->
+          androidx.compose.animation.slideOutVertically(
+            animationSpec =
+              androidx.compose.animation.core.spring(
+                dampingRatio = androidx.compose.animation.core.Spring.DampingRatioNoBouncy,
+                stiffness = androidx.compose.animation.core.Spring.StiffnessMedium,
+              ),
+            targetOffsetY = { fullHeight -> fullHeight * 2 },
+          ) + fadeOut()
+      },
   ) {
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
       val availableWidth = maxWidth
@@ -250,7 +266,7 @@ fun BrowserBottomBar(
             effectiveShowCopy,
             onCopyClick,
             Icons.RoundedFilled.ContentCopy,
-            "Copy",
+            stringResource(R.string.ui_copy),
             layoutParams.buttonSize,
             layoutParams.iconSize,
           )
@@ -258,7 +274,7 @@ fun BrowserBottomBar(
             effectiveShowMove,
             onMoveClick,
             Icons.RoundedFilled.DriveFileMove,
-            "Move",
+            stringResource(R.string.ui_move),
             layoutParams.buttonSize,
             layoutParams.iconSize,
           )
@@ -266,7 +282,7 @@ fun BrowserBottomBar(
             effectiveShowDownscale,
             onDownscaleClick,
             Icons.RoundedFilled.FitScreen,
-            "Compressor",
+            stringResource(R.string.ui_compressor),
             layoutParams.buttonSize,
             layoutParams.iconSize,
           )
@@ -274,7 +290,7 @@ fun BrowserBottomBar(
             effectiveShowRename,
             onRenameClick,
             Icons.RoundedFilled.DriveFileRenameOutline,
-            "Rename",
+            stringResource(R.string.rename),
             layoutParams.buttonSize,
             layoutParams.iconSize,
           )
@@ -282,7 +298,7 @@ fun BrowserBottomBar(
             effectiveShowPlayNext,
             onPlayNextClick ?: {},
             Icons.RoundedFilled.SkipNext,
-            "Play Next",
+            stringResource(R.string.video_swipe_play_next),
             layoutParams.buttonSize,
             layoutParams.iconSize,
           )
@@ -290,7 +306,7 @@ fun BrowserBottomBar(
             effectiveShowAddToQueue,
             onAddToQueueClick ?: {},
             Icons.RoundedFilled.QueueMusic,
-            "Add to Queue",
+            stringResource(R.string.video_swipe_add_queue),
             layoutParams.buttonSize,
             layoutParams.iconSize,
           )
@@ -298,7 +314,7 @@ fun BrowserBottomBar(
             effectiveShowAddToPlaylist,
             onAddToPlaylistClick,
             Icons.RoundedFilled.PlaylistAdd,
-            "Add to Playlist",
+            stringResource(R.string.ui_add_to_playlist),
             layoutParams.buttonSize,
             layoutParams.iconSize,
           )
@@ -306,7 +322,7 @@ fun BrowserBottomBar(
             effectiveShowDelete,
             onDeleteClick,
             Icons.RoundedFilled.Delete,
-            "Delete",
+            stringResource(R.string.delete),
             layoutParams.buttonSize,
             layoutParams.iconSize,
             tint = MaterialTheme.colorScheme.error,
@@ -333,6 +349,8 @@ private fun BrowserBottomBarButton(
       modifier =
         Modifier
           .tvFocusHighlight(CircleShape, focusedScale = 1.06f)
+          // Compact layouts shrink the visual button, never the 48dp touch target.
+          .minimumInteractiveComponentSize()
           .size(buttonSize),
     ) {
       Icon(

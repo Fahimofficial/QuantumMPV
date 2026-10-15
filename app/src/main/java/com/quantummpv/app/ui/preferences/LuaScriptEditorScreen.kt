@@ -267,7 +267,7 @@ data class LuaScriptEditorScreen(
             val scriptFile = scriptsDir.findFile(scriptName)
             if (scriptFile != null && scriptFile.exists()) {
               // Copy to cache directory for sharing
-              val cacheFile = File(context.cacheDir, scriptName)
+              val cacheFile = File(File(context.cacheDir, "shared").apply { mkdirs() }, scriptName)
               context.contentResolver.openInputStream(scriptFile.uri)?.use { input ->
                 cacheFile.outputStream().use { output ->
                   input.copyTo(output)

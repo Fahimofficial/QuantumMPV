@@ -927,7 +927,7 @@ fun JellyfinPosterCard(
         ) {
           Text(
             text = qBadge,
-            style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold),
+            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, fontWeight = FontWeight.Bold),
             // Always-dark accent: colorScheme.primary is too dark for the black scrim in light mode.
             color = (LocalDarkAppColorScheme.current ?: MaterialTheme.colorScheme).primary,
             modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),

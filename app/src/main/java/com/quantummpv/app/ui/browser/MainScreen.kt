@@ -25,7 +25,6 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -58,7 +57,6 @@ import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
@@ -115,7 +113,6 @@ import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.ui.player.controls.components.tvInitialFocus
 import com.quantummpv.app.ui.theme.DesignTokens.LocalGlassConfig
 import com.quantummpv.app.ui.theme.DesignTokens.SurfaceStyle
-import com.quantummpv.app.ui.theme.GlassComponents
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.NavigationPager
 import com.quantummpv.app.ui.utils.navigateTo
@@ -266,6 +263,7 @@ object MainScreen : Screen {
     }
 
     val coroutineScope = rememberCoroutineScope()
+    val disablePagerMotion = com.quantummpv.app.ui.theme.AppMotion.shouldDisableAnimations()
 
     val initialPageIndex =
       remember(visibleTabs) {
@@ -328,7 +326,7 @@ object MainScreen : Screen {
           val isAdjacent = kotlin.math.abs(pagerState.settledPage - targetIndex) <= 1
           tabNavigationJob =
             coroutineScope.launch {
-              if (navStyle == NavigationAnimStyle.None || !isAdjacent) {
+              if (navStyle == NavigationAnimStyle.None || !isAdjacent || disablePagerMotion) {
                 pagerState.scrollToPage(targetIndex)
               } else {
                 pagerState.animateScrollToPage(
@@ -710,6 +708,7 @@ object MainScreen : Screen {
             menuExpanded = false
             backStack.navigateTo(com.quantummpv.app.ui.browser.insights.LibraryInsightsScreen)
           },
+          glass = glassBottomNavigation,
           // The top safe-area inset and bottom clearance bound the panel's height, so short windows
           // shrink it to the space left above the dock or stacked mini player and its rows scroll.
           modifier =
@@ -772,6 +771,7 @@ object MainScreen : Screen {
                 ) {
                   ContextualSearchSlot(
                     visible = showContextualSearch,
+                    glass = glassBottomNavigation,
                     onSearchClick = {
                       menuExpanded = false
                       mainSearchController.request(selectedTab)
@@ -856,29 +856,14 @@ private fun ExpressivePillNavigationBar(
   val indicatorLeft = androidx.compose.ui.unit.lerp(tabOffsets[pageFloor], tabOffsets[pageCeil], pageFraction)
   val indicatorWidth = androidx.compose.ui.unit.lerp(tabWidths[pageFloor], tabWidths[pageCeil], pageFraction)
 
-  val navigationContainer: @Composable (@Composable () -> Unit) -> Unit =
-    if (glass) {
-      { content ->
-        GlassComponents.GlassNavigationPill(
-          modifier = modifier.height(NavigationDockHeight),
-          shape = CircleShape,
-          forceGlass = true,
-          content = content,
-        )
-      }
-    } else {
-      { content ->
-        Surface(
-          modifier = modifier.height(NavigationDockHeight),
-          shape = CircleShape,
-          color = MaterialTheme.colorScheme.surfaceContainerHigh,
-          tonalElevation = 6.dp,
-          shadowElevation = 8.dp,
-          border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.48f)),
-          content = content,
-        )
-      }
-    }
+  val navigationContainer: @Composable (@Composable () -> Unit) -> Unit = { content ->
+    com.quantummpv.app.ui.browser.components.NavigationDockSurface(
+      glass = glass,
+      shape = CircleShape,
+      modifier = modifier.height(NavigationDockHeight),
+      content = content,
+    )
+  }
 
   navigationContainer {
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
@@ -1177,6 +1162,7 @@ private fun navigationDockExit(
 @Composable
 private fun ContextualSearchSlot(
   visible: Boolean,
+  glass: Boolean,
   onSearchClick: () -> Unit,
 ) {
   AnimatedVisibility(
@@ -1184,7 +1170,7 @@ private fun ContextualSearchSlot(
     enter = contextualSearchEnter(),
     exit = contextualSearchExit(),
   ) {
-    com.quantummpv.app.ui.browser.components.FloatingSearchButton(onSearchClick = onSearchClick)
+    com.quantummpv.app.ui.browser.components.FloatingSearchButton(onSearchClick = onSearchClick, glass = glass)
   }
 }
 

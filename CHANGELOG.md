@@ -7,6 +7,19 @@
 - **Contextual Search**: The floating Search action now opens the active tab’s existing search and keyboard for Home, Music, Recents, Playlists, Network, and Jellyfin. The top-bar Search action is suppressed only while the floating dock owns it, avoiding duplicates; nested screens retain their normal action.
 - **Glass menu**: The Settings and Library Insights panel now renders in-window through the shared lightweight Haze glass treatment, expands above its overflow trigger, dismisses on outside tap or Back, and follows Off/Reduced motion settings.
 
+### Fixes
+- **Upgrade crash**: Upgrading from v1.0/v1.1 (database version 23) or a preview build (version 24) no longer fails to open the library database. The new migration creates every table and column added since, and is covered by upgrade-path tests.
+- **Secure folder**: Other apps can no longer ask the player to open files in QuantumMPV's private storage, which previously allowed hidden secure-folder videos to play without the PIN.
+- **Updates**: Update APKs download to a temporary file and are installed only after their size and published SHA-256 match. An interrupted download is no longer offered as ready to install.
+- **Saved secrets**: Seerr, AI-provider and subtitle-provider API keys and Audiobookshelf tokens are now encrypted at rest; existing values are migrated automatically. Backups skip secure-folder media and regenerable thumbnails.
+- **Resume position**: Playback progress is saved every 15 seconds while playing, so a crash or low-memory kill loses at most a few seconds of progress.
+- **Floating dock**: The Search circle now matches the navigation pill's height and surface, and the Settings / Library Insights menu uses a solid surface in Classic appearance instead of glass.
+- **Surface opacity**: The glass "Surface opacity" slider now visibly changes how see-through glass surfaces are.
+- **Library errors**: A failed library scan shows an error with a "Try again" button instead of looking like an empty library.
+- **Sharing**: Sharing Media Info and Lua scripts works again (the shared files were outside the provider's allowed folders).
+- **Accessibility and motion**: Selection-bar buttons keep a 48 dp touch target and have translated labels; cards announce their selected state; PiP controls are translated; idle pulses and shimmers stop under Reduced/Off motion, and the system "Remove animations" setting now applies immediately.
+- **Themed icon**: The monochrome launcher and notification icon now show the QuantumMPV ring-and-play mark.
+
 ## 1.3.1-preview.3
 This preview builds on v1.3.1-preview.2 with smoother navigation, floating app search, and refinements to glass surfaces and player controls.
 ### What's New

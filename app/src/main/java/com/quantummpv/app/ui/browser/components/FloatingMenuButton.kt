@@ -33,7 +33,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -56,8 +55,9 @@ import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.ui.theme.AppMotion
-import com.quantummpv.app.ui.theme.DesignTokens
+import com.quantummpv.app.ui.theme.AppShapeScale
 import com.quantummpv.app.ui.theme.GlassComponents
+import com.quantummpv.app.ui.theme.spacing
 
 private const val PRESSED_SCALE = 0.92f
 private const val OPEN_ROTATION_DEGREES = 90f
@@ -111,8 +111,8 @@ fun FloatingMenuButton(
 }
 
 /**
- * In-window glass menu anchored above the dock. Keeping it in the main composition lets the shared
- * Haze backdrop produce real glass instead of the flat translucent surface used in preview 4.
+ * In-window menu anchored above the dock. Keeping it in the main composition lets the shared Haze
+ * backdrop produce real glass in glass mode, while Classic gets the same solid surface as the dock.
  * The caller bounds its height; when a short window leaves less room than both rows need, the rows
  * scroll inside the panel instead of being clipped.
  */
@@ -122,6 +122,7 @@ fun FloatingGlassMenuPanel(
   onSettingsClick: () -> Unit,
   onLibraryInsightsClick: () -> Unit,
   modifier: Modifier = Modifier,
+  glass: Boolean = false,
 ) {
   val reduceMotion = AppMotion.shouldReduceMotion()
   val disableMotion = AppMotion.shouldDisableAnimations()
@@ -157,16 +158,18 @@ fun FloatingGlassMenuPanel(
     },
     modifier = modifier,
   ) {
+    // Follows the dock: solid in Classic, glass only when the dock itself is glass.
     GlassComponents.GlassFloatingMenuSurface(
-      shape = RoundedCornerShape(DesignTokens.Radius.large),
+      shape = AppShapeScale.large,
+      forceGlass = glass,
       modifier = Modifier.fillMaxWidth(),
     ) {
       Column(
         modifier =
           Modifier
             .verticalScroll(rememberScrollState())
-            .padding(DesignTokens.Spacing.sm),
-        verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.xs),
+            .padding(MaterialTheme.spacing.smaller),
+        verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.extraSmall),
       ) {
         MenuRow(
           icon = Icons.RoundedFilled.Settings,
@@ -190,7 +193,7 @@ private fun MenuRow(
   label: String,
   onClick: () -> Unit,
 ) {
-  val shape = RoundedCornerShape(DesignTokens.Radius.card)
+  val shape = AppShapeScale.medium
   Row(
     modifier =
       Modifier
@@ -199,11 +202,11 @@ private fun MenuRow(
         .tvFocusHighlight(shape, focusedScale = 1.02f)
         .clip(shape)
         .clickable(role = Role.Button, onClick = onClick)
-        .padding(horizontal = DesignTokens.Spacing.md, vertical = DesignTokens.Spacing.sm),
+        .padding(horizontal = MaterialTheme.spacing.small, vertical = MaterialTheme.spacing.smaller),
     verticalAlignment = Alignment.CenterVertically,
   ) {
     Icon(icon, contentDescription = null, modifier = Modifier.size(MenuIconSize), tint = MaterialTheme.colorScheme.primary)
-    Spacer(modifier = Modifier.width(DesignTokens.Spacing.md))
+    Spacer(modifier = Modifier.width(MaterialTheme.spacing.small))
     Text(
       text = label,
       style = MaterialTheme.typography.bodyLarge,

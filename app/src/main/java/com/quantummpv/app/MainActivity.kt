@@ -376,7 +376,7 @@ class MainActivity : AppCompatActivity() {
     val intent = Intent(this, PlayerActivity::class.java).apply {
       action = MediaPlaybackService.ACTION_OPEN_PLAYER
       putExtra("is_audio", isCurrentMediaAudioOnly())
-      putExtra("internal_launch", true)
+      putExtra("internal_launch", true).also { com.quantummpv.app.ui.player.InternalPlayerLaunch.mark(it) }
       putExtra("launch_source", "pip_maximize")
       flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
     }

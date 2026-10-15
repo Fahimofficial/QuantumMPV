@@ -80,3 +80,22 @@ After adding the buildscript classpath resolution rules and rerunning dependency
 ## Website dependency remediation
 
 The website lockfile was audited separately because it is an npm project and is not represented in the Gradle SBOM. The lockfile-only audit initially found nine npm advisories; safe upgrades reduced this to four path-to-regexp findings in Blume's Vercel adapter chain. A reproducible npm manifest and lockfile override now pin `path-to-regexp` to 6.3.0 while retaining Blume 1.6.3. `npm ci --ignore-scripts --dry-run` succeeds and `npm audit` reports **zero vulnerabilities**.
+
+## Bundled Python runtime (yt-dlp)
+
+`app/src/main/jniLibs/*/libpython.so` and `app/src/main/assets/ytdl/python313.zip` are committed binaries
+(added in `fddb98da`, last updated in `b1a0fc6b`). Their upstream build provenance was never recorded, so the
+current bytes are pinned here; any change to these files must update this table in the same pull request and
+state where the new build came from.
+
+| File | SHA-256 |
+| --- | --- |
+| `jniLibs/arm64-v8a/libpython.so` | `e41982d1d30ec6de8a2e71b4cb46d67849ee00e85a78685064a1573e2d610d90` |
+| `jniLibs/armeabi-v7a/libpython.so` | `96baf206e847640175a76774103e765dd23b850a92f95ae3c114aef22bb9130f` |
+| `jniLibs/x86/libpython.so` | `87d45c647e5a457be6300bbebca2acb97a8f00a8eb5a365b6b3a97912ae3da5e` |
+| `jniLibs/x86_64/libpython.so` | `297ca623f33982d4fe4b1425e9981da51b73a15605f844c5db379480df978cd4` |
+| `assets/ytdl/python313.zip` | `70a211bcd992c9e82d44bf538033cb96c90ac5164b06dcc4db459c47ab3ca0a4` |
+
+The unused `mpvlibGitHubReleases` Ivy repository was removed from `settings.gradle.kts`: no dependency used
+the `app.gyrolet.mpvlib` group, because the mpvlib AARs are fetched and SHA-256 verified by
+`tools/verify_native_artifacts.py` and consumed as local files.

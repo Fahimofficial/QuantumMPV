@@ -236,7 +236,7 @@ class NetworkBrowserViewModel(
 
     val intent = Intent(Intent.ACTION_VIEW, uri)
     intent.setClass(application, PlayerActivity::class.java)
-    intent.putExtra("internal_launch", true)
+    intent.putExtra("internal_launch", true).also { com.quantummpv.app.ui.player.InternalPlayerLaunch.mark(it) }
     intent.putExtra("launch_source", "network_stream")
     intent.putExtra(PlayerActivity.EXTRA_PREPARED_PLAYBACK_QUEUE, true)
     intent.putExtra(PlayerActivity.EXTRA_PREPARED_PLAYBACK_TOKEN, launchToken)

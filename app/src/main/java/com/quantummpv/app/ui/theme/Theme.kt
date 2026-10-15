@@ -162,7 +162,7 @@ private fun ThemeTransitionOverlay(
   content: @Composable () -> Unit,
 ) {
   val view = LocalView.current
-  val reduceMotion = LocalMotionPolicy.current.reduceMotion
+  val reduceMotion = LocalMotionPolicy.current.shouldReduceAnimations
   val featherPx = with(LocalDensity.current) { THEME_REVEAL_FEATHER.toPx() }
   val bitmap = state.screenshotBitmap
   val progress = state.animationProgress.value

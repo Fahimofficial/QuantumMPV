@@ -35,8 +35,10 @@ fun MiniAudioVisualizer(
   barSpacing: Dp = 2.dp,
 ) {
   val infiniteTransition = rememberInfiniteTransition(label = "mini_visualizer_bars")
+  // Static bars under reduced/disabled motion; the playing state is still conveyed by height.
+  val animateBars = isPlaying && !com.quantummpv.app.ui.theme.AppMotion.shouldReduceMotion()
 
-  val bar1Target by if (isPlaying) {
+  val bar1Target by if (animateBars) {
     infiniteTransition.animateFloat(
       initialValue = 0.2f,
       targetValue = 0.95f,
@@ -50,7 +52,7 @@ fun MiniAudioVisualizer(
     remember { mutableFloatStateOf(0.3f) }
   }
 
-  val bar2Target by if (isPlaying) {
+  val bar2Target by if (animateBars) {
     infiniteTransition.animateFloat(
       initialValue = 0.4f,
       targetValue = 1.0f,
@@ -64,7 +66,7 @@ fun MiniAudioVisualizer(
     remember { mutableFloatStateOf(0.65f) }
   }
 
-  val bar3Target by if (isPlaying) {
+  val bar3Target by if (animateBars) {
     infiniteTransition.animateFloat(
       initialValue = 0.2f,
       targetValue = 0.85f,
@@ -78,7 +80,7 @@ fun MiniAudioVisualizer(
     remember { mutableFloatStateOf(0.25f) }
   }
 
-  val bar4Target by if (isPlaying) {
+  val bar4Target by if (animateBars) {
     infiniteTransition.animateFloat(
       initialValue = 0.3f,
       targetValue = 0.75f,

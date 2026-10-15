@@ -119,7 +119,7 @@ object LuaScriptsScreen : Screen {
             }
 
           if (scriptFile != null) {
-            val cacheFile = File(context.cacheDir, scriptName)
+            val cacheFile = File(File(context.cacheDir, "shared").apply { mkdirs() }, scriptName)
             context.contentResolver.openInputStream(scriptFile.uri)?.use { input ->
               cacheFile.outputStream().use { output ->
                 input.copyTo(output)

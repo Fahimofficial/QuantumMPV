@@ -10,16 +10,31 @@
 package com.quantummpv.app.ui.theme
 
 import android.animation.ValueAnimator
+import android.database.ContentObserver
+import android.os.Handler
+import android.os.Looper
+import android.provider.Settings
+import androidx.compose.animation.core.Easing
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.FiniteAnimationSpec
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.SpringSpec
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
@@ -76,7 +91,7 @@ val LocalMotionPolicy = staticCompositionLocalOf { MotionPolicy() }
 @Composable
 fun rememberMotionPolicy(): MotionPolicy {
   val preferences = koinInject<AppearancePreferences>()
-  val systemReduceMotion = !ValueAnimator.areAnimatorsEnabled()
+  val systemReduceMotion = rememberSystemAnimationsDisabled()
   val motionStyle by preferences.motionStyle.collectAsState()
   val performanceMode by preferences.performanceMode.collectAsState()
 
@@ -85,6 +100,30 @@ fun rememberMotionPolicy(): MotionPolicy {
     motionStyle = motionStyle,
     performanceMode = performanceMode,
   )
+}
+
+/**
+ * Observes the system "Animator duration scale" developer/accessibility setting, so turning
+ * animations off (or "Remove animations") takes effect immediately instead of on next launch.
+ */
+@Composable
+fun rememberSystemAnimationsDisabled(): Boolean {
+  val context = LocalContext.current
+  var disabled by remember { mutableStateOf(!ValueAnimator.areAnimatorsEnabled()) }
+  DisposableEffect(context) {
+    val resolver = context.contentResolver
+    val observer =
+      object : ContentObserver(Handler(Looper.getMainLooper())) {
+        override fun onChange(selfChange: Boolean) {
+          val scale = Settings.Global.getFloat(resolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f)
+          disabled = scale == 0f
+        }
+      }
+    resolver.registerContentObserver(Settings.Global.getUriFor(Settings.Global.ANIMATOR_DURATION_SCALE), false, observer)
+    observer.onChange(false)
+    onDispose { resolver.unregisterContentObserver(observer) }
+  }
+  return disabled
 }
 
 /**
@@ -124,6 +163,55 @@ object AppMotion {
   /** Returns whether performance, system motion, and user motion settings allow dynamic effects. */
   @Composable
   fun shouldEnableDynamicEffects(): Boolean = policy().shouldEnableDynamicEffects
+
+  /** Duration tokens for the few tween-based transitions (springs remain the default). */
+  object Duration {
+    const val MICRO = 120
+    const val SHORT = 200
+    const val MEDIUM = 300
+    const val LONG = 400
+  }
+
+  /** A tween that snaps when motion is Off and shortens to [Duration.MICRO] when motion is reduced. */
+  @Composable
+  fun <T> tween(
+    durationMillis: Int,
+    easing: Easing = FastOutSlowInEasing,
+  ): FiniteAnimationSpec<T> {
+    val motionPolicy = policy()
+    return when {
+      motionPolicy.shouldDisableAnimations -> snap()
+      motionPolicy.shouldReduceAnimations ->
+        androidx.compose.animation.core.tween(minOf(durationMillis, Duration.MICRO), easing = easing)
+      else -> androidx.compose.animation.core.tween(durationMillis, easing = easing)
+    }
+  }
+
+  /**
+   * A gentle breathing alpha for idle states. Returns a constant [maxAlpha] under reduced or disabled
+   * motion so no infinite animation runs for users who asked for less movement.
+   */
+  @Composable
+  fun pulseAlpha(
+    label: String,
+    minAlpha: Float = 0.6f,
+    maxAlpha: Float = 1f,
+    durationMillis: Int = 2500,
+  ): Float {
+    if (shouldReduceMotion()) return maxAlpha
+    val transition = rememberInfiniteTransition(label = label)
+    val alpha by transition.animateFloat(
+      initialValue = minAlpha,
+      targetValue = maxAlpha,
+      animationSpec =
+        infiniteRepeatable(
+          animation = androidx.compose.animation.core.tween(durationMillis, easing = FastOutSlowInEasing),
+          repeatMode = RepeatMode.Reverse,
+        ),
+      label = label,
+    )
+    return alpha
+  }
 
   fun <T> noBounce(stiffness: Float): SpringSpec<T> =
     spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = stiffness)

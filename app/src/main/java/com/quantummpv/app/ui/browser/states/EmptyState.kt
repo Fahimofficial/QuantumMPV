@@ -9,12 +9,6 @@
 
 package com.quantummpv.app.ui.browser.states
 
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,7 +22,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -46,18 +39,8 @@ fun EmptyState(
   message: String,
   modifier: Modifier = Modifier,
 ) {
-  // Animated alpha for subtle pulsing effect
-  val infiniteTransition = rememberInfiniteTransition(label = "empty_state")
-  val alpha by infiniteTransition.animateFloat(
-    initialValue = 0.6f,
-    targetValue = 1f,
-    animationSpec =
-      infiniteRepeatable(
-        animation = tween(2500, easing = FastOutSlowInEasing),
-        repeatMode = RepeatMode.Reverse,
-      ),
-    label = "icon_alpha",
-  )
+  // Subtle pulse; constant under reduced/disabled motion.
+  val alpha = com.quantummpv.app.ui.theme.AppMotion.pulseAlpha(label = "empty_state")
 
   Box(
     modifier = modifier.fillMaxSize(),

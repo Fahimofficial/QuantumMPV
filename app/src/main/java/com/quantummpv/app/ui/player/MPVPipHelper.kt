@@ -25,6 +25,7 @@ import android.view.View
 import androidx.annotation.DrawableRes
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import com.quantummpv.app.R
 import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.utils.media.resolveSeekMode
@@ -167,13 +168,13 @@ class MPVPipHelper(
     val isPlaying = PlaybackSession.getPropertyBoolean("pause") == false
 
     return listOf(
-      createRemoteAction("rewind 10 seconds", Icons.Platform.Replay10, PIP_REWIND),
+      createRemoteAction(activity.getString(R.string.pip_action_rewind), Icons.Platform.Replay10, PIP_REWIND),
       if (isPlaying) {
-        createRemoteAction("pause", Icons.Platform.Pause, PIP_PAUSE)
+        createRemoteAction(activity.getString(R.string.pip_action_pause), Icons.Platform.Pause, PIP_PAUSE)
       } else {
-        createRemoteAction("play", Icons.Platform.Play, PIP_PLAY)
+        createRemoteAction(activity.getString(R.string.pip_action_play), Icons.Platform.Play, PIP_PLAY)
       },
-      createRemoteAction("forward 10 seconds", Icons.Platform.Forward10, PIP_FORWARD),
+      createRemoteAction(activity.getString(R.string.pip_action_forward), Icons.Platform.Forward10, PIP_FORWARD),
     )
   }
 

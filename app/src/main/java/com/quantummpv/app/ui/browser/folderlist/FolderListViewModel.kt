@@ -69,6 +69,10 @@ class FolderListViewModel(
 
   // Track if initial load has completed to prevent empty state flicker
   private val _hasCompletedInitialLoad = MutableStateFlow(false)
+
+  /** True when the last load threw before producing any folders, so the UI can offer a retry. */
+  private val _loadFailed = MutableStateFlow(false)
+  val loadFailed: StateFlow<Boolean> = _loadFailed.asStateFlow()
   val hasCompletedInitialLoad: StateFlow<Boolean> = _hasCompletedInitialLoad.asStateFlow()
 
   // Track if folders were deleted leaving list empty
@@ -379,6 +383,7 @@ class FolderListViewModel(
   /** Publishes MediaStore immediately, then merges indexed .nomedia folders in the background. */
   private fun loadVideoFolders(forceFileSystemCheck: Boolean = false) {
     currentScanJob?.cancel()
+    _loadFailed.value = false
 
     if (audioOnly) {
       currentScanJob =
@@ -396,6 +401,7 @@ class FolderListViewModel(
             _hasCompletedInitialLoad.value = true
           } catch (e: Exception) {
             Log.e(TAG, "Error loading audio folders", e)
+            _loadFailed.value = _allVideoFolders.value.isEmpty()
             _hasCompletedInitialLoad.value = true
           } finally {
             _isLoading.value = false
@@ -499,6 +505,7 @@ class FolderListViewModel(
           throw e
         } catch (e: Exception) {
           Log.e(TAG, "Error loading video folders", e)
+          _loadFailed.value = _allVideoFolders.value.isEmpty()
           _hasCompletedInitialLoad.value = true
         } finally {
           _isLoading.value = false

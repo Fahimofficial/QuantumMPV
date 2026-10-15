@@ -1064,18 +1064,22 @@ fun LoadingChip(
   isDark: Boolean = false,
   modifier: Modifier = Modifier,
 ) {
-  val infiniteTransition = rememberInfiniteTransition(label = "shimmer")
-  val shimmerTranslate =
-    infiniteTransition.animateFloat(
-      initialValue = 0f,
-      targetValue = 1000f,
-      animationSpec =
-        infiniteRepeatable(
-          animation = tween(durationMillis = 1200, easing = LinearEasing),
-          repeatMode = RepeatMode.Restart,
-        ),
-      label = "shimmer",
-    )
+  val shimmerTranslate: androidx.compose.runtime.State<Float> =
+    if (com.quantummpv.app.ui.theme.AppMotion.shouldReduceMotion()) {
+      androidx.compose.runtime.remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    } else {
+      val infiniteTransition = rememberInfiniteTransition(label = "shimmer")
+      infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1000f,
+        animationSpec =
+          infiniteRepeatable(
+            animation = tween(durationMillis = 1200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+          ),
+        label = "shimmer",
+      )
+    }
 
   val baseColor =
     if (isDark) {

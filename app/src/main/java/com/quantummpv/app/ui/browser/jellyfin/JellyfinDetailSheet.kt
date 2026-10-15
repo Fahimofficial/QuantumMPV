@@ -12,12 +12,7 @@ package com.quantummpv.app.ui.browser.jellyfin
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -1054,17 +1049,7 @@ fun JellyfinDetailSheet(
 /** Pulsing placeholder block used while sheet sections stream in. */
 @Composable
 private fun GhostBlock(modifier: Modifier = Modifier) {
-  val transition = rememberInfiniteTransition(label = "ghost_pulse")
-  val alpha by transition.animateFloat(
-    initialValue = 0.35f,
-    targetValue = 0.8f,
-    animationSpec =
-      infiniteRepeatable(
-        animation = tween(durationMillis = 650),
-        repeatMode = RepeatMode.Reverse,
-      ),
-    label = "ghost_alpha",
-  )
+  val alpha = com.quantummpv.app.ui.theme.AppMotion.pulseAlpha(label = "ghost_pulse", minAlpha = 0.35f, maxAlpha = 0.8f, durationMillis = 650)
   Box(
     modifier =
       modifier.background(

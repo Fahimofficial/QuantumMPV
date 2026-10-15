@@ -17,7 +17,7 @@ interface MediaIndexDao {
 
   @Query("""
     SELECT media_index.* FROM media_index 
-    JOIN media_index_fts ON media_index.uri = media_index_fts.rowid 
+    JOIN media_index_fts ON media_index.rowid = media_index_fts.rowid 
     WHERE media_index_fts MATCH :query 
     ORDER BY media_index.displayName ASC
   """)

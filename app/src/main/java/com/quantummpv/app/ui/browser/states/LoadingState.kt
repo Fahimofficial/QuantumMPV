@@ -9,12 +9,6 @@
 
 package com.quantummpv.app.ui.browser.states
 
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,13 +22,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.quantummpv.app.R
 import com.quantummpv.app.ui.icons.AppIcon
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
@@ -43,22 +38,12 @@ import com.quantummpv.app.ui.theme.AppShapeScale
 @Composable
 fun LoadingState(
   icon: AppIcon = Icons.RoundedFilled.FolderOpen,
-  title: String = "Scanning for videos...",
-  message: String = "Please wait while we search your device",
+  title: String = stringResource(R.string.loading_state_scanning_title),
+  message: String = stringResource(R.string.loading_state_scanning_message),
   modifier: Modifier = Modifier,
 ) {
-  // Animated alpha for subtle pulsing effect (same as EmptyState)
-  val infiniteTransition = rememberInfiniteTransition(label = "loading_state")
-  val alpha by infiniteTransition.animateFloat(
-    initialValue = 0.6f,
-    targetValue = 1f,
-    animationSpec =
-      infiniteRepeatable(
-        animation = tween(2500, easing = FastOutSlowInEasing),
-        repeatMode = RepeatMode.Reverse,
-      ),
-    label = "icon_alpha",
-  )
+  // Subtle pulse; constant under reduced/disabled motion.
+  val alpha = com.quantummpv.app.ui.theme.AppMotion.pulseAlpha(label = "loading_state")
 
   Box(
     modifier = modifier.fillMaxSize(),

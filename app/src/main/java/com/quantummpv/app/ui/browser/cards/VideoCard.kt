@@ -47,6 +47,8 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -249,7 +251,13 @@ fun VideoCard(
         .combinedClickable(
           onClick = onClick,
           onLongClick = onLongClick,
-        ),
+          onLongClickLabel =
+            if (onLongClick != null) {
+              androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.a11y_select_item)
+            } else {
+              null
+            },
+        ).semantics { selected = isSelected },
     shape = cardShape,
     colors = CardDefaults.cardColors(containerColor = cardContainerColor),
   ) {

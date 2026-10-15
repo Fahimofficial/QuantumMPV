@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 12+ backup and device-transfer rules.
+  Secure-folder media is never uploaded to cloud backup; regenerable thumbnails are skipped everywhere.
+  Saved secrets are encrypted with a Keystore key that is not backed up, so restored copies cannot be
+  decrypted and the app asks the user to sign in again.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="file" path="secure_media/" />
+        <exclude domain="file" path="thumbnails/" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="file" path="thumbnails/" />
+    </device-transfer>
+</data-extraction-rules>

@@ -9,5 +9,12 @@
     <cache-path
         name="compressed_videos"
         path="compressed_videos/" />
-    <external-cache-path name="external_cache" path="." />
+    <!-- Text exports such as Media Info and Lua scripts. -->
+    <cache-path
+        name="shared_files"
+        path="shared/" />
+    <!-- Only verified update APKs are shared from external cache (see UpdateManager). -->
+    <external-cache-path
+        name="updates"
+        path="updates/" />
 </paths>

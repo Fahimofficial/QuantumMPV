@@ -207,16 +207,23 @@ object AboutScreen : Screen {
       val cs = MaterialTheme.colorScheme
       val colorPrimary = cs.primaryContainer
       val colorTertiary = cs.tertiaryContainer
-      val transition = rememberInfiniteTransition()
-      val fraction by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec =
-          infiniteRepeatable(
-            animation = tween(durationMillis = 5000),
-            repeatMode = RepeatMode.Reverse,
-          ),
-      )
+      val fraction =
+        if (com.quantummpv.app.ui.theme.AppMotion.shouldReduceMotion()) {
+          0.5f
+        } else {
+          val transition = rememberInfiniteTransition(label = "about_gradient")
+          val animated by transition.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec =
+              infiniteRepeatable(
+                animation = tween(durationMillis = 5000),
+                repeatMode = RepeatMode.Reverse,
+              ),
+            label = "about_gradient_fraction",
+          )
+          animated
+        }
       val cornerRadius = 28.dp
 
       Column(

@@ -23,8 +23,7 @@ object MediaSearchEngine : KoinComponent {
     query: String,
     limit: Int = 50,
   ): List<Any> {
-    if (query.isBlank()) return emptyList()
-    val ftsQuery = "*$query*"
+    val ftsQuery = com.quantummpv.app.database.dao.MediaIndexFtsQuery.from(query) ?: return emptyList()
     val results = mediaIndexDao.searchMedia(ftsQuery).first()
     return results.take(limit).map { entity ->
       Video(

@@ -191,6 +191,7 @@ object FolderListScreen : Screen {
     val scanStatus by viewModel.scanStatus.collectAsState()
     val hasCompletedInitialLoad by viewModel.hasCompletedInitialLoad.collectAsState()
     val foldersWereDeleted by viewModel.foldersWereDeleted.collectAsState()
+    val loadFailed by viewModel.loadFailed.collectAsState()
 
     // Preferences
     val mediaLayoutMode by browserPreferences.folderViewFolderLayoutMode.collectAsState()
@@ -887,6 +888,7 @@ object FolderListScreen : Screen {
                   scanStatus = scanStatus,
                   hasCompletedInitialLoad = hasCompletedInitialLoad,
                   foldersWereDeleted = foldersWereDeleted,
+                  loadFailed = loadFailed,
                   mediaLayoutMode = mediaLayoutMode,
                   tapThumbnailToSelect = tapThumbnailToSelect,
                   navigationBarHeight = navigationBarHeight,
@@ -1224,8 +1226,10 @@ private fun FolderListContent(
   onTogglePin: (VideoFolder) -> Unit,
   selectedFolderBucketId: String? = null,
   audioOnly: Boolean = false,
+  loadFailed: Boolean = false,
 ) {
   val isGridMode = mediaLayoutMode == MediaLayoutMode.GRID
+  val retryScope = rememberCoroutineScope()
   val showLoading = isLoading && !hasCompletedInitialLoad
   val showEmpty = folders.isEmpty() && hasCompletedInitialLoad && !foldersWereDeleted
 
@@ -1254,14 +1258,24 @@ private fun FolderListContent(
         if (showLoading) {
           LoadingState(
             icon = Icons.RoundedFilled.Folder,
-            title = if (audioOnly) "Scanning for songs" else stringResource(R.string.ui_scanning_for_videos),
-            message = scanStatus ?: if (audioOnly) "Please wait while we search your device" else "Please wait while we search your device",
+            title = stringResource(if (audioOnly) R.string.ui_scanning_for_songs else R.string.ui_scanning_for_videos),
+            message = scanStatus ?: stringResource(R.string.loading_state_scanning_message),
+          )
+        } else if (showEmpty && loadFailed) {
+          // A failed scan must not masquerade as an empty library.
+          com.quantummpv.app.ui.browser.states.ErrorState(
+            title = stringResource(R.string.error_state_library_title),
+            message = stringResource(R.string.error_state_library_message),
+            onRetry = { retryScope.launch { onRefresh() } },
           )
         } else if (showEmpty) {
           EmptyState(
             icon = Icons.RoundedFilled.Folder,
-            title = if (audioOnly) "No song folders found" else stringResource(R.string.ui_no_video_folders_found),
-            message = if (audioOnly) "Add some audio files to your device to see them here" else "Add some video files to your device to see them here",
+            title = stringResource(if (audioOnly) R.string.ui_no_song_folders_found else R.string.ui_no_video_folders_found),
+            message =
+              stringResource(
+                if (audioOnly) R.string.ui_no_song_folders_message else R.string.ui_no_video_folders_message,
+              ),
           )
         }
       }

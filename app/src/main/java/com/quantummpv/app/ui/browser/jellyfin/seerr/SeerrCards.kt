@@ -235,7 +235,7 @@ fun SeerrStatusChip(
       text = stringResource(textRes),
       style = MaterialTheme.typography.labelSmall,
       fontWeight = FontWeight.Bold,
-      fontSize = 9.5.sp,
+      fontSize = 11.sp,
       modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.5.dp),
     )
   }

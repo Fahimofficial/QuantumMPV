@@ -349,7 +349,7 @@ internal object AudiobookPlayback {
       val token = PreparedPlaybackLaunchStore.stage(launch.items, launch.currentIndex)
       context.startActivity(Intent(context, PlayerActivity::class.java).setAction(Intent.ACTION_VIEW).setData(Uri.parse(current.originalUri))
         .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        .putExtra("internal_launch", true).putExtra("is_audio", true).putExtra("media_library_audio", true)
+        .putExtra("internal_launch", true).also { com.quantummpv.app.ui.player.InternalPlayerLaunch.mark(it) }.putExtra("is_audio", true).putExtra("media_library_audio", true)
         .putExtra("title", launch.items[launch.currentIndex].title)
         .putExtra(PlayerActivity.EXTRA_PREPARED_PLAYBACK_QUEUE, true).putExtra(PlayerActivity.EXTRA_PREPARED_PLAYBACK_TOKEN, token)
         .putExtra("playlist_index", launch.currentIndex).putExtra(EXTRA_BOOK_ID, bookId)
