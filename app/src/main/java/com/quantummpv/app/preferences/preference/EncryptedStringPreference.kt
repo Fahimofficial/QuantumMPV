@@ -13,14 +13,13 @@ import android.util.Log
 import com.quantummpv.app.data.network.credentials.AndroidNetworkCredentialKey
 import com.quantummpv.app.data.network.credentials.NetworkCredentialCipher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 
 /**
@@ -92,12 +91,16 @@ class EncryptedStringPreference(
 /** Wraps a string preference so its value is encrypted at rest. */
 fun Preference<String>.encrypted(): Preference<String> = EncryptedStringPreference(this)
 
-/** Emits the preference key whenever a secret could not be saved because encryption failed. */
+/**
+ * Delivers the preference key whenever a secret could not be saved because encryption failed.
+ * Failures are queued until a collector receives them, so a failure raised before the app's
+ * collector starts is still reported.
+ */
 object SecretStorageFailures {
-  private val events = MutableSharedFlow<String>(extraBufferCapacity = 4)
-  val failures: SharedFlow<String> = events.asSharedFlow()
+  private val events = Channel<String>(capacity = Channel.UNLIMITED)
+  val failures: Flow<String> = events.receiveAsFlow()
 
   fun report(key: String) {
-    events.tryEmit(key)
+    events.trySend(key)
   }
 }

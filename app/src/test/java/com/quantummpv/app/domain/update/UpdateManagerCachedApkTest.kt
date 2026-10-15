@@ -52,5 +52,6 @@ class UpdateManagerCachedApkTest {
   @Test
   fun rejectsCachedApkWhenNoHashIsPublished() {
     assertNull(runBlocking { UpdateManager(context).getApkFile(release(sha256 = null)) })
+    assertFalse("an unverifiable cache file is discarded", cached.exists())
   }
 }

@@ -13,6 +13,8 @@ import android.content.Context
 import android.os.Build
 import com.quantummpv.app.BuildConfig
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
@@ -254,6 +256,8 @@ class UpdateManager(
               while (true) {
                 val bytesRead = input.read(buffer)
                 if (bytesRead == -1) break
+                // emit() is skipped when the percentage is unchanged, so check cancellation here.
+                currentCoroutineContext().ensureActive()
                 output.write(buffer, 0, bytesRead)
                 digest.update(buffer, 0, bytesRead)
                 totalBytesRead += bytesRead
@@ -297,10 +301,15 @@ class UpdateManager(
     }
 
     val asset = selectBestApkAsset(release.assets) ?: return null
-    val expectedSha256 = UpdateIntegrity.expectedSha256(asset, release.body) ?: return null
+    val expectedSha256 = UpdateIntegrity.expectedSha256(asset, release.body)
     return withContext(Dispatchers.IO) {
       val file = File(updatesDirectory() ?: return@withContext null, asset.name)
       if (!file.isFile) return@withContext null
+      if (expectedSha256 == null) {
+        // Without a published hash the cached file can never be verified; discard it.
+        file.delete()
+        return@withContext null
+      }
       val valid =
         (asset.size <= 0 || file.length() == asset.size) &&
           runCatching { UpdateIntegrity.sha256Of(file) }.getOrNull() == expectedSha256

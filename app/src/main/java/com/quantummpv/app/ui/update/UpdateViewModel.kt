@@ -26,6 +26,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 class UpdateViewModel(
@@ -198,8 +199,11 @@ class UpdateViewModel(
       return
     }
 
-    viewModelScope.launch {
+    installCheckJob?.cancel()
+    installCheckJob = viewModelScope.launch {
       val file = updateManager.getApkFile(release)
+      // Dismissed while the hash was being checked: cancellation throws on resume, but stay explicit.
+      if (!isActive) return@launch
       if (file == null) {
         // The cached APK is gone or no longer matches its checksum; offer a fresh download.
         _updateState.value = UpdateState.Available(release)
@@ -226,7 +230,12 @@ class UpdateViewModel(
     context.startActivity(intent)
   }
 
+  private var installCheckJob: Job? = null
+
   fun dismiss() {
+    // A pending install check must not reopen the sheet or launch the installer after Cancel.
+    installCheckJob?.cancel()
+    installCheckJob = null
     // Clean up downloaded APK when user dismisses the dialog
     updateManager.clearCache()
     _updateState.value = UpdateState.Idle

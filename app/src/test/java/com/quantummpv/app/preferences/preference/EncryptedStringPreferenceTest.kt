@@ -2,6 +2,7 @@ package com.quantummpv.app.preferences.preference
 
 import android.content.Context
 import com.quantummpv.app.data.network.credentials.NetworkCredentialCipher
+import kotlinx.coroutines.flow.first
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
@@ -79,5 +80,12 @@ class EncryptedStringPreferenceTest {
 
     assertEquals("previous ciphertext is kept", stored, raw.get())
     assertEquals("first", pref.get())
+    // Reported even though nothing was collecting when the failure happened.
+    assertEquals(
+      "api_key",
+      kotlinx.coroutines.runBlocking {
+        kotlinx.coroutines.withTimeout(1_000) { SecretStorageFailures.failures.first() }
+      },
+    )
   }
 }
