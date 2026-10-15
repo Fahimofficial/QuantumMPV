@@ -34,8 +34,8 @@ class NavigationDockMeasureTest {
 
     assertTrue(measure.showLabels)
     assertTrue(measure.navWidth > 0.dp)
-    // 8 dp gap + the 56 dp search circle, which now matches the pill height.
-    assertEquals(measure.navWidth + 64.dp, measure.dockWidth)
+    // 8 dp gap + the 52 dp search circle, which matches the pill height.
+    assertEquals(measure.navWidth + 60.dp, measure.dockWidth)
   }
 
   @Test
@@ -43,15 +43,15 @@ class NavigationDockMeasureTest {
     val measure = measureNavigationDock(containerWidth = 180.dp, tabs = allTabs)
 
     assertFalse(measure.showLabels)
-    assertEquals(10.dp, measure.horizontalMargin)
+    assertEquals(12.dp, measure.horizontalMargin)
     assertEquals(96.dp, measure.navWidth)
-    assertEquals(160.dp, measure.dockWidth)
+    assertEquals(156.dp, measure.dockWidth)
     assertEquals(180.dp, measure.dockWidth + measure.horizontalMargin * 2)
   }
 
   @Test
   fun menuClearsPortraitOrStackedMiniPlayer() {
-    assertEquals(76.dp, menuPanelBottomPadding(miniPlayerAboveDock = false))
+    assertEquals(70.dp, menuPanelBottomPadding(miniPlayerAboveDock = false))
     assertEquals(172.dp, menuPanelBottomPadding(miniPlayerAboveDock = true))
   }
 

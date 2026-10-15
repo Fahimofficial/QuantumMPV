@@ -34,7 +34,7 @@ import com.quantummpv.app.ui.theme.GlassComponents
 private const val PRESSED_SCALE = 0.92f
 
 /** Matches the navigation pill height so the circle sits on the same baseline and centre line. */
-internal val FloatingSearchButtonSize = 56.dp
+internal val FloatingSearchButtonSize = 52.dp
 private val SearchIconSize = 24.dp
 
 /**

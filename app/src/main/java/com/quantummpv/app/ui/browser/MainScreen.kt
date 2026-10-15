@@ -125,12 +125,15 @@ import org.koin.compose.koinInject
 
 private val DockHorizontalMargin = 16.dp
 private val DockItemGap = 8.dp
-private val DockBottomPadding = 12.dp
-private val NavigationDockHeight = 56.dp
+private val DockBottomPadding = 10.dp
+
+// Compact pill: 48 dp tab targets keep their full touch size; the pill hugs them with a 2 dp inset
+// on every side so the selected indicator (radius 24) stays concentric with the pill (radius 26).
+private val NavigationDockHeight = 52.dp
 private val NavigationItemSize = 48.dp
 private val NavigationItemSpacing = 4.dp
-private val NavigationContentPadding = 4.dp
-private val NavigationVerticalPadding = 4.dp
+private val NavigationContentPadding = 2.dp
+private val NavigationVerticalPadding = 2.dp
 private val SideBySideMiniPlayerGap = 12.dp
 private val SideBySideMiniPlayerEndPadding = 12.dp
 private val PreferredMenuWidth = 208.dp
