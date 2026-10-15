@@ -97,18 +97,6 @@ private const val NON_VULKAN_NOTICE_SHOWN = "non_vulkan_notice_shown"
 private val MiniPlayerDockGap = 12.dp
 private val MiniPlayerEndPadding = 12.dp
 
-/** Returns true when a landscape/tablet mini player must stack above the dock to remain usable. */
-internal fun shouldStackMiniPlayerAboveDock(
-  isNavBarOnScreen: Boolean,
-  screenWidth: androidx.compose.ui.unit.Dp,
-  navBarLeft: androidx.compose.ui.unit.Dp,
-  navBarWidth: androidx.compose.ui.unit.Dp,
-): Boolean {
-  if (!isNavBarOnScreen) return false
-  val availableWidth = screenWidth - (navBarLeft + navBarWidth + MiniPlayerDockGap) - MiniPlayerEndPadding
-  return availableWidth < NavigationBarState.landscapeMiniPlayerMinimumWidth
-}
-
 /**
  * Main entry point for the application
  */
@@ -599,13 +587,8 @@ class MainActivity : AppCompatActivity() {
                   if (NavigationBarState.navbarWidth > 0.dp) NavigationBarState.navbarWidth else 320.dp
                 val startPadding = if (isNavBarOnScreen) navBarLeft + navBarWidth + MiniPlayerDockGap else MiniPlayerEndPadding
                 val endPadding = MiniPlayerEndPadding
-                val stackAboveDock =
-                  shouldStackMiniPlayerAboveDock(
-                    isNavBarOnScreen = isNavBarOnScreen,
-                    screenWidth = miniPlayerConfig.screenWidthDp.dp,
-                    navBarLeft = navBarLeft,
-                    navBarWidth = navBarWidth,
-                  )
+                // MainScreen decides this from the same width it measures the dock and menu in.
+                val stackAboveDock = isNavBarOnScreen && NavigationBarState.isMiniPlayerStackedAboveDock
                 val bottomPadding =
                   if (stackAboveDock) {
                     NavigationBarState.navigationBarClearance

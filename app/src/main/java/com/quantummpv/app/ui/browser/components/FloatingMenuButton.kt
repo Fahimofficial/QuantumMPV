@@ -31,8 +31,10 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -111,6 +113,8 @@ fun FloatingMenuButton(
 /**
  * In-window glass menu anchored above the dock. Keeping it in the main composition lets the shared
  * Haze backdrop produce real glass instead of the flat translucent surface used in preview 4.
+ * The caller bounds its height; when a short window leaves less room than both rows need, the rows
+ * scroll inside the panel instead of being clipped.
  */
 @Composable
 fun FloatingGlassMenuPanel(
@@ -158,7 +162,10 @@ fun FloatingGlassMenuPanel(
       modifier = Modifier.fillMaxWidth(),
     ) {
       Column(
-        modifier = Modifier.padding(DesignTokens.Spacing.sm),
+        modifier =
+          Modifier
+            .verticalScroll(rememberScrollState())
+            .padding(DesignTokens.Spacing.sm),
         verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.xs),
       ) {
         MenuRow(

@@ -1,6 +1,9 @@
 package com.quantummpv.app
 
 import androidx.compose.ui.unit.dp
+import com.quantummpv.app.ui.browser.MainScreen
+import com.quantummpv.app.ui.browser.measureNavigationDock
+import com.quantummpv.app.ui.browser.shouldStackMiniPlayerAboveDock
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -8,37 +11,28 @@ import org.junit.Test
 class MiniPlayerDockLayoutTest {
   @Test
   fun keepsSideBySideLayoutWhenThePlayerRetainsItsMinimumWidth() {
-    assertFalse(
-      shouldStackMiniPlayerAboveDock(
-        isNavBarOnScreen = true,
-        screenWidth = 600.dp,
-        navBarLeft = 16.dp,
-        navBarWidth = 293.dp,
-      ),
-    )
+    assertFalse(shouldStackMiniPlayerAboveDock(containerWidth = 600.dp))
+    assertFalse(shouldStackMiniPlayerAboveDock(containerWidth = 459.dp))
   }
 
   @Test
   fun stacksAboveDockWhenCompactLandscapeCannotFitControls() {
-    assertTrue(
-      shouldStackMiniPlayerAboveDock(
-        isNavBarOnScreen = true,
-        screenWidth = 360.dp,
-        navBarLeft = 16.dp,
-        navBarWidth = 328.dp,
-      ),
-    )
+    assertTrue(shouldStackMiniPlayerAboveDock(containerWidth = 360.dp))
+    assertTrue(shouldStackMiniPlayerAboveDock(containerWidth = 458.dp))
   }
 
   @Test
-  fun doesNotStackWhenThereIsNoNavigationDock() {
-    assertFalse(
-      shouldStackMiniPlayerAboveDock(
-        isNavBarOnScreen = false,
-        screenWidth = 360.dp,
-        navBarLeft = 16.dp,
-        navBarWidth = 328.dp,
-      ),
-    )
+  fun narrowestSideBySideWindowStillReservesTheLargestPlayerLayout() {
+    val containerWidth = 459.dp
+    val dock =
+      measureNavigationDock(
+        containerWidth = containerWidth,
+        tabs = MainScreen.MainTab.entries,
+        maximumDockWidth = containerWidth - 16.dp - 12.dp - 12.dp - 267.dp,
+      )
+
+    // A resting landscape dock starts at its margin; the player keeps a 12 dp gap and end padding.
+    val playerWidth = containerWidth - (dock.horizontalMargin + dock.dockWidth + 12.dp) - 12.dp
+    assertTrue(playerWidth >= 267.dp)
   }
 }

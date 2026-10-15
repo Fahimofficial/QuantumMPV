@@ -37,14 +37,19 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
@@ -252,6 +257,7 @@ object MainScreen : Screen {
     DisposableEffect(Unit) {
       onDispose {
         NavigationBarState.isNavBarVisible = false
+        NavigationBarState.isMiniPlayerStackedAboveDock = false
       }
     }
     SideEffect {
@@ -362,16 +368,6 @@ object MainScreen : Screen {
     val isTablet = configuration.smallestScreenWidthDp >= 600
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
-    // On portrait phones the edge-to-edge mini player sits above the pill nav bar,
-    // so screens/FABs must clear it.
-    val stackedLandscapeMiniPlayer =
-      isMiniPlayerVisible &&
-        (isLandscape || isTablet) &&
-        !isDualPaneFolderSelected &&
-        configuration.screenWidthDp.dp < MinimumSideBySideMiniPlayerWindowWidth
-    val miniPlayerNavClearance =
-      if (isMiniPlayerVisible && ((isPortrait && !isTablet) || stackedLandscapeMiniPlayer)) 96.dp else 0.dp
-    val contentBottomPadding = (if (visibleTabs.isEmpty()) 0.dp else 88.dp) + miniPlayerNavClearance
     val jellyfinViewModel: com.quantummpv.app.ui.browser.jellyfin.JellyfinViewModel =
       androidx.lifecycle.viewmodel.compose.viewModel(
         factory =
@@ -392,6 +388,22 @@ object MainScreen : Screen {
       modifier = Modifier.fillMaxSize(),
     ) { _ ->
       BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        // One width source decides whether the mini player sits beside or above the dock. The
+        // content clearance, overflow menu and MainActivity's mini player all reuse this result.
+        val containerWidth = maxWidth
+        val miniPlayerStacksAboveDock =
+          (isLandscape || isTablet) &&
+            !isDualPaneFolderSelected &&
+            shouldStackMiniPlayerAboveDock(containerWidth)
+        val stackedMiniPlayer = isMiniPlayerVisible && miniPlayerStacksAboveDock
+        val portraitMiniPlayerAboveDock = isMiniPlayerVisible && isPortrait && !isTablet
+        SideEffect {
+          NavigationBarState.isMiniPlayerStackedAboveDock = miniPlayerStacksAboveDock
+        }
+        // Portrait and stacked mini players sit above the pill nav bar, so screens/FABs must clear them.
+        val miniPlayerNavClearance = if (portraitMiniPlayerAboveDock || stackedMiniPlayer) 96.dp else 0.dp
+        val contentBottomPadding = (if (visibleTabs.isEmpty()) 0.dp else 88.dp) + miniPlayerNavClearance
+
         if (visibleTabs.isEmpty()) {
           CompositionLocalProvider(
             LocalNavigationBarHeight provides contentBottomPadding,
@@ -610,7 +622,6 @@ object MainScreen : Screen {
           }
         }
 
-        val containerWidth = maxWidth
         val sideBySideDockLimit =
           maxWidth -
             DockHorizontalMargin -
@@ -621,7 +632,7 @@ object MainScreen : Screen {
           isMiniPlayerVisible &&
             (isLandscape || isTablet) &&
             !isDualPaneFolderSelected &&
-            sideBySideDockLimit >= MinimumCompactDockWidth
+            !miniPlayerStacksAboveDock
         val dockMeasure =
           measureNavigationDock(
             containerWidth = maxWidth,
@@ -652,14 +663,6 @@ object MainScreen : Screen {
         val maximumStart = (containerWidth - dockWidth - horizontalMargin).coerceAtLeast(horizontalMargin)
         val dockStart =
           (containerWidth * centerFraction - dockWidth / 2).coerceIn(horizontalMargin, maximumStart)
-        val stackedMiniPlayer =
-          isMiniPlayerVisible &&
-            (isLandscape || isTablet) &&
-            !isDualPaneFolderSelected &&
-            containerWidth -
-              (dockStart + dockWidth + SideBySideMiniPlayerGap) -
-              SideBySideMiniPlayerEndPadding < NavigationBarState.landscapeMiniPlayerMinimumWidth
-        val portraitMiniPlayerAboveDock = isMiniPlayerVisible && isPortrait && !isTablet
         val menuNeedsMiniPlayerClearance = stackedMiniPlayer || portraitMiniPlayerAboveDock
         val menuPanelBottomPadding = menuPanelBottomPadding(menuNeedsMiniPlayerClearance)
         val menuMeasure =
@@ -707,9 +710,12 @@ object MainScreen : Screen {
             menuExpanded = false
             backStack.navigateTo(com.quantummpv.app.ui.browser.insights.LibraryInsightsScreen)
           },
+          // The top safe-area inset and bottom clearance bound the panel's height, so short windows
+          // shrink it to the space left above the dock or stacked mini player and its rows scroll.
           modifier =
             Modifier
               .align(Alignment.BottomStart)
+              .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))
               .navigationBarsPadding()
               .padding(bottom = menuPanelBottomPadding)
               .offset(x = menuMeasure.start)
@@ -1052,6 +1058,15 @@ internal fun measureNavigationDock(
   )
 }
 
+/**
+ * True when a landscape or tablet window is too narrow to keep the largest mini-player layout beside
+ * even the compact dock, so the mini player stacks above the dock instead. Wider windows cap the
+ * dock in [measureNavigationDock] so the side-by-side mini player keeps its full width.
+ */
+internal fun shouldStackMiniPlayerAboveDock(containerWidth: androidx.compose.ui.unit.Dp): Boolean =
+  containerWidth < MinimumSideBySideMiniPlayerWindowWidth
+
+/** Bottom offset that keeps the overflow menu above the dock and any mini player stacked over it. */
 internal fun menuPanelBottomPadding(miniPlayerAboveDock: Boolean): androidx.compose.ui.unit.Dp =
   if (miniPlayerAboveDock) {
     maxOf(

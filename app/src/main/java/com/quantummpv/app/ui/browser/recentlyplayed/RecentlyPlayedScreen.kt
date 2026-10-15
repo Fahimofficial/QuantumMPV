@@ -236,16 +236,22 @@ object RecentlyPlayedScreen : Screen {
       }
     }
 
-    // Search and FAB menus dismiss before selection or tab-level Back handling.
+    // Selection actions temporarily replace the search field; keep its query and filtered results.
+    LaunchedEffect(selectionManager.isInSelectionMode) {
+      if (selectionManager.isInSelectionMode && isSearching) keyboardController?.hide()
+    }
+
+    // Back dismisses the top-most layer first: FAB menu, selection actions, then search. Clearing a
+    // selection returns to the same search results instead of discarding the query.
     BackHandler(enabled = isSearching || selectionManager.isInSelectionMode || isFabExpanded.value) {
       when {
+        isFabExpanded.value -> isFabExpanded.value = false
+        selectionManager.isInSelectionMode -> selectionManager.clear()
         isSearching -> {
           keyboardController?.hide()
           isSearching = false
           searchQuery = ""
         }
-        isFabExpanded.value -> isFabExpanded.value = false
-        selectionManager.isInSelectionMode -> selectionManager.clear()
       }
     }
 
@@ -302,7 +308,9 @@ object RecentlyPlayedScreen : Screen {
 
     Scaffold(
       topBar = {
-        if (isSearching) {
+        // Recents has no bottom selection bar, so Delete, Select all and the count must stay visible
+        // while a search is active. The query keeps filtering the list until search is closed.
+        if (isSearching && !selectionManager.isInSelectionMode) {
           InlineSearchBar(
             query = searchQuery,
             onQueryChange = { searchQuery = it },

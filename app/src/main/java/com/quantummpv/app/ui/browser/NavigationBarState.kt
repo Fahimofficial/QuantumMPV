@@ -56,6 +56,11 @@ object NavigationBarState {
 
   var navbarWidth: Dp by mutableStateOf(320.dp)
 
+  // Published by MainScreen from the width it measures the dock in. MainActivity places the
+  // landscape/tablet mini player from this value, so the mini player, overflow menu and content
+  // clearance can never disagree about whether it sits beside or above the dock.
+  var isMiniPlayerStackedAboveDock: Boolean by mutableStateOf(false)
+
   // Shared portrait clearances for the floating browser layers.
   val navigationBarClearance: Dp = 88.dp
   val selectionBarClearance: Dp = 100.dp
