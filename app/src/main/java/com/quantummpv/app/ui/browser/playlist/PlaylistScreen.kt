@@ -99,6 +99,10 @@ object PlaylistScreen : Screen {
     // Search state
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var isSearching by rememberSaveable { mutableStateOf(false) }
+    val topBarSearchAction =
+      com.quantummpv.app.ui.browser.mainTabSearchAction(isSearching) {
+        isSearching = true
+      }
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusRequester = remember { FocusRequester() }
 
@@ -230,7 +234,7 @@ object PlaylistScreen : Screen {
             onBackClick = null,
             onCancelSelection = { selectionManager.clear() },
             isSingleSelection = selectionManager.isSingleSelection,
-            onSearchClick = { isSearching = true },
+            onSearchClick = topBarSearchAction,
             onSettingsClick = {
               backStack.navigateTo(com.quantummpv.app.ui.preferences.PreferencesScreen)
             },

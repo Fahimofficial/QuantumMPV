@@ -31,11 +31,13 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FloatingActionButtonMenu
 import androidx.compose.material3.FloatingActionButtonMenuItem
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Scaffold
@@ -62,9 +64,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -93,6 +98,7 @@ import com.quantummpv.app.ui.browser.playlist.PlaylistDetailScreen
 import com.quantummpv.app.ui.browser.selection.rememberSelectionManager
 import com.quantummpv.app.ui.browser.sheets.PlayLinkSheet
 import com.quantummpv.app.ui.browser.states.EmptyState
+import com.quantummpv.app.ui.components.InlineSearchBar
 import com.quantummpv.app.ui.components.themedSegmentedButtonColors
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
@@ -111,6 +117,31 @@ private fun isRecentlyPlayedItemAudio(item: RecentlyPlayedItem): Boolean =
   when (item) {
     is RecentlyPlayedItem.VideoItem -> item.video.isAudio
     is RecentlyPlayedItem.PlaylistItem -> item.playlist.isAudio
+  }
+
+/** Matches the current Recents tab without creating another search index or repository query. */
+internal fun RecentlyPlayedItem.matchesQuery(query: String): Boolean {
+  val normalized = query.trim()
+  return when (this) {
+    is RecentlyPlayedItem.VideoItem ->
+      video.displayName.contains(normalized, ignoreCase = true) ||
+        video.title.contains(normalized, ignoreCase = true) ||
+        video.path.contains(normalized, ignoreCase = true)
+
+    is RecentlyPlayedItem.PlaylistItem -> playlist.name.contains(normalized, ignoreCase = true)
+  }
+}
+
+/** Applies the same query to the selected Recents type and its pager page. */
+internal fun filterRecentlyPlayedItems(
+  items: List<RecentlyPlayedItem>,
+  isSearching: Boolean,
+  query: String,
+): List<RecentlyPlayedItem> =
+  if (!isSearching || query.isBlank()) {
+    items
+  } else {
+    items.filter { it.matchesQuery(query) }
   }
 
 @Serializable
@@ -134,7 +165,19 @@ object RecentlyPlayedScreen : Screen {
       remember(recentItems) {
         recentItems.filter(::isRecentlyPlayedItemAudio)
       }
-    val filteredRecentItems = if (recentlyPlayedFilter == MediaLibraryType.Audio) audioItems else videoItems
+    val activeRecentItems = if (recentlyPlayedFilter == MediaLibraryType.Audio) audioItems else videoItems
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+    var isSearching by rememberSaveable { mutableStateOf(false) }
+    val filteredRecentItems =
+      remember(activeRecentItems, isSearching, searchQuery) {
+        filterRecentlyPlayedItems(activeRecentItems, isSearching, searchQuery)
+      }
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val searchFocusRequester = remember { FocusRequester() }
+    val topBarSearchAction =
+      com.quantummpv.app.ui.browser.mainTabSearchAction(isSearching) {
+        isSearching = true
+      }
     val deleteDialogOpen = rememberSaveable { mutableStateOf(false) }
     val deleteFilesCheckbox = rememberSaveable { mutableStateOf(false) }
     val advancedPreferences = koinInject<AdvancedPreferences>()
@@ -183,14 +226,32 @@ object RecentlyPlayedScreen : Screen {
         onOperationComplete = { },
       )
 
-    // Handle back button during selection mode or FAB menu expanded
-    // Synchronize NavigationBarState when selection mode changes
+    // Synchronize the shared selection bar before handling local search/FAB Back presses.
     com.quantummpv.app.ui.browser.NavigationBarSelectionEffect(selectionManager.isInSelectionMode)
 
-    BackHandler(enabled = selectionManager.isInSelectionMode || isFabExpanded.value) {
+    LaunchedEffect(isSearching) {
+      if (isSearching) {
+        searchFocusRequester.requestFocus()
+        keyboardController?.show()
+      }
+    }
+
+    // Selection actions temporarily replace the search field; keep its query and filtered results.
+    LaunchedEffect(selectionManager.isInSelectionMode) {
+      if (selectionManager.isInSelectionMode && isSearching) keyboardController?.hide()
+    }
+
+    // Back dismisses the top-most layer first: FAB menu, selection actions, then search. Clearing a
+    // selection returns to the same search results instead of discarding the query.
+    BackHandler(enabled = isSearching || selectionManager.isInSelectionMode || isFabExpanded.value) {
       when {
         isFabExpanded.value -> isFabExpanded.value = false
         selectionManager.isInSelectionMode -> selectionManager.clear()
+        isSearching -> {
+          keyboardController?.hide()
+          isSearching = false
+          searchQuery = ""
+        }
       }
     }
 
@@ -247,26 +308,62 @@ object RecentlyPlayedScreen : Screen {
 
     Scaffold(
       topBar = {
-        BrowserTopBar(
-          title = stringResource(R.string.pref_advanced_enable_recently_played_title),
-          isInSelectionMode = selectionManager.isInSelectionMode,
-          selectedCount = selectionManager.selectedCount,
-          totalCount = filteredRecentItems.size,
-          onBackClick = null, // No back button for recently played screen
-          onCancelSelection = { selectionManager.clear() },
-          onSortClick = null, // No sorting in recently played
-          onSettingsClick = {
-            backStack.navigateTo(com.quantummpv.app.ui.preferences.PreferencesScreen)
-          },
-          isSingleSelection = selectionManager.isSingleSelection,
-          onInfoClick = null, // No info in recently played
-          onShareClick = null,
-          onPlayClick = null,
-          onSelectAll = { selectionManager.selectAll() },
-          onInvertSelection = { selectionManager.invertSelection() },
-          onDeselectAll = { selectionManager.clear() },
-          onDeleteClick = { deleteDialogOpen.value = true },
-        )
+        // Recents has no bottom selection bar, so Delete, Select all and the count must stay visible
+        // while a search is active. The query keeps filtering the list until search is closed.
+        if (isSearching && !selectionManager.isInSelectionMode) {
+          InlineSearchBar(
+            query = searchQuery,
+            onQueryChange = { searchQuery = it },
+            onSearch = { keyboardController?.hide() },
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            inputFieldModifier = Modifier.focusRequester(searchFocusRequester),
+            placeholder = {
+              Text(
+                stringResource(
+                  if (recentlyPlayedFilter == MediaLibraryType.Audio) R.string.ui_search_audio else R.string.ui_search_videos,
+                ),
+              )
+            },
+            leadingIcon = {
+              Icon(Icons.RoundedFilled.Search, contentDescription = stringResource(R.string.settings_search_title))
+            },
+            trailingIcon = {
+              IconButton(
+                onClick = {
+                  keyboardController?.hide()
+                  isSearching = false
+                  searchQuery = ""
+                },
+              ) {
+                Icon(Icons.RoundedFilled.Close, contentDescription = stringResource(R.string.generic_cancel))
+              }
+            },
+            shape = RoundedCornerShape(28.dp),
+            tonalElevation = 6.dp,
+          )
+        } else {
+          BrowserTopBar(
+            title = stringResource(R.string.pref_advanced_enable_recently_played_title),
+            isInSelectionMode = selectionManager.isInSelectionMode,
+            selectedCount = selectionManager.selectedCount,
+            totalCount = filteredRecentItems.size,
+            onBackClick = null,
+            onCancelSelection = { selectionManager.clear() },
+            onSortClick = null,
+            onSearchClick = topBarSearchAction,
+            onSettingsClick = {
+              backStack.navigateTo(com.quantummpv.app.ui.preferences.PreferencesScreen)
+            },
+            isSingleSelection = selectionManager.isSingleSelection,
+            onInfoClick = null,
+            onShareClick = null,
+            onPlayClick = null,
+            onSelectAll = { selectionManager.selectAll() },
+            onInvertSelection = { selectionManager.invertSelection() },
+            onDeselectAll = { selectionManager.clear() },
+            onDeleteClick = { deleteDialogOpen.value = true },
+          )
+        }
       },
       floatingActionButton = {
         val isFabShouldBeVisible =
@@ -485,7 +582,11 @@ object RecentlyPlayedScreen : Screen {
           ) { page ->
             val pageType = MediaLibraryType.entries.getOrNull(page) ?: MediaLibraryType.Video
             val pageIsAudio = pageType == MediaLibraryType.Audio
-            val pageItems = if (pageIsAudio) audioItems else videoItems
+            val pageSourceItems = if (pageIsAudio) audioItems else videoItems
+            val pageItems =
+              remember(pageSourceItems, isSearching, searchQuery) {
+                filterRecentlyPlayedItems(pageSourceItems, isSearching, searchQuery)
+              }
             val pageListState = if (pageIsAudio) audioListState else videoListState
             val pageGridState = if (pageIsAudio) audioGridState else videoGridState
 

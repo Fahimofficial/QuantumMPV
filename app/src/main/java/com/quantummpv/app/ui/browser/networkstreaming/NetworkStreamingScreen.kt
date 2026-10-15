@@ -222,7 +222,19 @@ object NetworkStreamingScreen : Screen {
 
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var isSearching by rememberSaveable { mutableStateOf(false) }
+    val topBarSearchAction =
+      com.quantummpv.app.ui.browser.mainTabSearchAction(isSearching) {
+        isSearching = true
+      }
     val focusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    LaunchedEffect(isSearching) {
+      if (isSearching) {
+        focusRequester.requestFocus()
+        keyboardController?.show()
+      }
+    }
 
     val filteredConnections =
       remember(connections, searchQuery) {
@@ -286,6 +298,7 @@ object NetworkStreamingScreen : Screen {
       }
 
     BackHandler(enabled = isSearching) {
+      keyboardController?.hide()
       isSearching = false
       searchQuery = ""
     }
@@ -326,6 +339,7 @@ object NetworkStreamingScreen : Screen {
               trailingIcon = {
                 IconButton(
                   onClick = {
+                    keyboardController?.hide()
                     isSearching = false
                     searchQuery = ""
                   },
@@ -349,7 +363,7 @@ object NetworkStreamingScreen : Screen {
                 onBackClick = null,
                 onCancelSelection = { },
                 onSortClick = null,
-                onSearchClick = null,
+                onSearchClick = topBarSearchAction,
                 onSettingsClick = {
                   backstack.navigateTo(com.quantummpv.app.ui.preferences.PreferencesScreen)
                 },

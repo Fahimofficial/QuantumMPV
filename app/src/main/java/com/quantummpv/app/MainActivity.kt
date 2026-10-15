@@ -94,6 +94,8 @@ import org.koin.android.ext.android.inject
 
 private const val RENDERER_NOTICE_PREFERENCES = "renderer_build_notice"
 private const val NON_VULKAN_NOTICE_SHOWN = "non_vulkan_notice_shown"
+private val MiniPlayerDockGap = 12.dp
+private val MiniPlayerEndPadding = 12.dp
 
 /**
  * Main entry point for the application
@@ -574,30 +576,42 @@ class MainActivity : AppCompatActivity() {
                         }),
                   )
 
-              // Landscape/tablet single-pane: sit on the right side of the nav bar,
-              // which slides left when the mini player appears.
+              // Landscape/tablet single-pane: keep the mini player beside the dock only while its
+              // fixed artwork and controls fit. Compact windows stack it above the dock instead of
+              // shrinking its actions into an unusable strip.
               else -> {
                 val isNavBarOnScreen = NavigationBarState.isNavBarVisible
                 val navBarLeft =
-                    if (NavigationBarState.navbarLeftOffset > 0.dp) NavigationBarState.navbarLeftOffset else 16.dp
+                  if (NavigationBarState.navbarLeftOffset > 0.dp) NavigationBarState.navbarLeftOffset else 16.dp
                 val navBarWidth =
-                    if (NavigationBarState.navbarWidth > 0.dp) NavigationBarState.navbarWidth else 320.dp
-                val startPadding = if (isNavBarOnScreen) (navBarLeft + navBarWidth + 12.dp) else 12.dp
-                val bottomPadding = if (NavigationBarState.isInSelectionMode) {
-                  NavigationBarState.selectionBarClearance
-                } else {
-                  12.dp
-                }
+                  if (NavigationBarState.navbarWidth > 0.dp) NavigationBarState.navbarWidth else 320.dp
+                val startPadding = if (isNavBarOnScreen) navBarLeft + navBarWidth + MiniPlayerDockGap else MiniPlayerEndPadding
+                val endPadding = MiniPlayerEndPadding
+                // MainScreen decides this from the same width it measures the dock and menu in.
+                val stackAboveDock = isNavBarOnScreen && NavigationBarState.isMiniPlayerStackedAboveDock
+                val bottomPadding =
+                  if (stackAboveDock) {
+                    NavigationBarState.navigationBarClearance
+                  } else if (NavigationBarState.isInSelectionMode) {
+                    NavigationBarState.selectionBarClearance
+                  } else {
+                    12.dp
+                  }
 
-                Modifier
-                  .align(Alignment.BottomStart)
-                  .padding(
-                    start = startPadding,
-                    end = 12.dp,
-                  )
-                  .fillMaxWidth()
-                  .windowInsetsPadding(WindowInsets.navigationBars)
-                  .padding(bottom = bottomPadding)
+                if (stackAboveDock) {
+                  Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .windowInsetsPadding(WindowInsets.navigationBars)
+                    .padding(start = 12.dp, end = 12.dp, bottom = bottomPadding)
+                } else {
+                  Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(start = startPadding, end = endPadding)
+                    .fillMaxWidth()
+                    .windowInsetsPadding(WindowInsets.navigationBars)
+                    .padding(bottom = bottomPadding)
+                }
               }
             }
 

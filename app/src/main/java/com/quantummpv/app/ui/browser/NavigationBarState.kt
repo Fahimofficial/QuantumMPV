@@ -56,6 +56,11 @@ object NavigationBarState {
 
   var navbarWidth: Dp by mutableStateOf(320.dp)
 
+  // Published by MainScreen from the width it measures the dock in. MainActivity places the
+  // landscape/tablet mini player from this value, so the mini player, overflow menu and content
+  // clearance can never disagree about whether it sits beside or above the dock.
+  var isMiniPlayerStackedAboveDock: Boolean by mutableStateOf(false)
+
   // Shared portrait clearances for the floating browser layers.
   val navigationBarClearance: Dp = 88.dp
   val selectionBarClearance: Dp = 100.dp
@@ -64,6 +69,12 @@ object NavigationBarState {
   // screens that sit below it without a nav bar (FABs/list content).
   val miniPlayerClearance: Dp
     get() = if (isMiniPlayerVisible) 96.dp else 0.dp
+
+  // Largest video layout: 163dp preview + 10dp spacer + 70dp controls + 24dp padding.
+  val landscapeMiniPlayerMinimumWidth: Dp = 267.dp
+
+  // The video mini-player is the tallest variant; menu overlays clear this value when stacked.
+  val stackedMiniPlayerMaximumHeight: Dp = 76.dp
 
   var shouldHideNavigationBar: Boolean by mutableStateOf(false)
     private set

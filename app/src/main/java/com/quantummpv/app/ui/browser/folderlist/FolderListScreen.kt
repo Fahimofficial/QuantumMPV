@@ -243,6 +243,13 @@ object FolderListScreen : Screen {
     var internalIsSearching by rememberSaveable { mutableStateOf(false) }
     val effectiveSearchQuery = if (embedded) searchQuery else searchQuery.ifBlank { internalSearchQuery }
     val effectiveIsSearching = if (embedded) searchQuery.isNotBlank() else (internalIsSearching || internalSearchQuery.isNotBlank())
+    val topBarSearchAction =
+      com.quantummpv.app.ui.browser.mainTabSearchAction(
+        isSearchActive = effectiveIsSearching,
+        enabled = !embedded,
+      ) {
+        internalIsSearching = true
+      }
     var searchResults by remember { mutableStateOf<List<FileSystemItem>>(emptyList()) }
     var isSearchLoading by remember { mutableStateOf(false) }
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -605,10 +612,7 @@ object FolderListScreen : Screen {
               onBackClick = null,
               onCancelSelection = { selectionManager.clear() },
               onSortClick = { sortDialogOpen.value = true },
-              onSearchClick = {
-                internalIsSearching = !internalIsSearching
-                if (!internalIsSearching) internalSearchQuery = ""
-              },
+              onSearchClick = topBarSearchAction,
               onSettingsClick = {
                 backstack.navigateTo(com.quantummpv.app.ui.preferences.PreferencesScreen)
               },

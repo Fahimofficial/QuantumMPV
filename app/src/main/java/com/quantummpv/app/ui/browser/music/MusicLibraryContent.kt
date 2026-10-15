@@ -227,6 +227,10 @@ fun MusicLibraryContent(
 
   val isRefreshing = remember { mutableStateOf(false) }
   var isSearchActive by remember { mutableStateOf(false) }
+  val topBarSearchAction =
+    com.quantummpv.app.ui.browser.mainTabSearchAction(isSearchActive) {
+      isSearchActive = true
+    }
   var isSortMenuExpanded by remember { mutableStateOf(false) }
   var showCreatePlaylistDialog by remember { mutableStateOf(false) }
 
@@ -486,7 +490,7 @@ fun MusicLibraryContent(
               onBackClick = null,
               onCancelSelection = { activeSelectionManager.clear() },
               onSortClick = { isSortMenuExpanded = true },
-              onSearchClick = { isSearchActive = true },
+              onSearchClick = topBarSearchAction,
               onSettingsClick = {
                 backStack.navigateTo(PreferencesScreen)
               },
@@ -2235,11 +2239,11 @@ private fun PlaylistArtCollage(
               )
             }
 
-            val L = itemSize + separation
-            val h = L * sqrt(3f) / 2f
+            val cellStep = itemSize + separation
+            val h = cellStep * sqrt(3f) / 2f
 
             val collageHeight = h + itemSize
-            val collageWidth = L + itemSize
+            val collageWidth = cellStep + itemSize
 
             val offsetX = ((constraints.maxWidth - collageWidth) / 2f).toInt()
             val offsetY = ((constraints.maxHeight - collageHeight) / 2f).toInt()
@@ -2254,7 +2258,7 @@ private fun PlaylistArtCollage(
                 y = (offsetY + h).toInt()
               )
               placeables.getOrNull(2)?.placeRelative(
-                x = (offsetX + L).toInt(),
+                x = (offsetX + cellStep).toInt(),
                 y = (offsetY + h).toInt()
               )
             }

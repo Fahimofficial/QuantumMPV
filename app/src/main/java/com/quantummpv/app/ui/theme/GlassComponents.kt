@@ -148,6 +148,27 @@ object GlassComponents {
     }
 
     @Composable
+    fun GlassFloatingMenuSurface(
+        modifier: Modifier = Modifier,
+        shape: Shape = MaterialTheme.shapes.extraLarge,
+        content: @Composable () -> Unit,
+    ) {
+        // The menu opens and closes frequently, so keep the lower-cost navigation optics while
+        // retaining real backdrop glass and an always-visible edge for contrast.
+        GlassContainer(
+            modifier = modifier,
+            shape = shape,
+            opacityBoost = 0.16f,
+            forceGlass = true,
+            lightweightNav = true,
+            alwaysBorder = true,
+            classicColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            classicShadowElevation = 12.dp,
+            content = content,
+        )
+    }
+
+    @Composable
     fun GlassNavigationPill(
         modifier: Modifier = Modifier,
         isSelected: Boolean = false,
@@ -184,6 +205,7 @@ private fun GlassContainer(
     selected: Boolean = false,
     forceGlass: Boolean = false,
     lightweightNav: Boolean = false,
+    alwaysBorder: Boolean = false,
     classicColor: Color = MaterialTheme.colorScheme.surface,
     classicTonalElevation: androidx.compose.ui.unit.Dp = 0.dp,
     classicShadowElevation: androidx.compose.ui.unit.Dp = 0.dp,
@@ -295,10 +317,14 @@ private fun GlassContainer(
             }
         }
     val borderColor =
-        when (effectiveEdgeHighlightMode) {
-            EdgeHighlightMode.OFF -> Color.Transparent
-            EdgeHighlightMode.SUBTLE -> colors.onSurface.copy(alpha = 0.14f)
-            EdgeHighlightMode.STRONG -> colors.onSurface.copy(alpha = 0.28f)
+        if (alwaysBorder) {
+            colors.outlineVariant.copy(alpha = 0.48f)
+        } else {
+            when (effectiveEdgeHighlightMode) {
+                EdgeHighlightMode.OFF -> Color.Transparent
+                EdgeHighlightMode.SUBTLE -> colors.onSurface.copy(alpha = 0.14f)
+                EdgeHighlightMode.STRONG -> colors.onSurface.copy(alpha = 0.28f)
+            }
         }
     val hazeModifier =
         if (hazeState != null) {
