@@ -87,7 +87,7 @@ fun AudioMiniPlayer(modifier: Modifier = Modifier) {
               action = MediaPlaybackService.ACTION_OPEN_PLAYER
               putExtra("is_audio", true)
               putExtra("media_library_audio", true)
-              putExtra("internal_launch", true)
+              putExtra("internal_launch", true).also { com.quantummpv.app.ui.player.InternalPlayerLaunch.mark(it) }
               putExtra("launch_source", "notification")
               flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
             }

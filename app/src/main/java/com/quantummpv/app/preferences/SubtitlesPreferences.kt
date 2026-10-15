@@ -12,6 +12,7 @@ package com.quantummpv.app.preferences
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import com.quantummpv.app.preferences.preference.PreferenceStore
+import com.quantummpv.app.preferences.preference.encrypted
 import com.quantummpv.app.preferences.preference.getEnum
 import com.quantummpv.app.repository.subtitle.OnlineSubtitleSearchMode
 import com.quantummpv.app.repository.subtitlehub.MpvRxSubtitleHubSources
@@ -66,18 +67,18 @@ class SubtitlesPreferences(
   val subtitleSearchLanguages = subdlLanguages
   val onlineSubtitleSearchMode = preferenceStore.getOnlineSubtitleSearchMode()
   val subtitleHubSources = preferenceStore.getStringSet("subtitle_hub_sources", MpvRxSubtitleHubSources.DEFAULT)
-  val betaSeriesApiKey = preferenceStore.getString("betaseries_api_key", "")
-  val jimakuApiKey = preferenceStore.getString("jimaku_api_key", "")
-  val subDlApiKey = preferenceStore.getString("subdl_api_key", "")
-  val subSourceApiKey = preferenceStore.getString("subsource_api_key", "")
-  val subsRoApiKey = preferenceStore.getString("subs_ro_api_key", "")
-  val subXApiKey = preferenceStore.getString("subx_api_key", "")
+  val betaSeriesApiKey = preferenceStore.getString("betaseries_api_key", "").encrypted()
+  val jimakuApiKey = preferenceStore.getString("jimaku_api_key", "").encrypted()
+  val subDlApiKey = preferenceStore.getString("subdl_api_key", "").encrypted()
+  val subSourceApiKey = preferenceStore.getString("subsource_api_key", "").encrypted()
+  val subsRoApiKey = preferenceStore.getString("subs_ro_api_key", "").encrypted()
+  val subXApiKey = preferenceStore.getString("subx_api_key", "").encrypted()
 
   val wyzieSources = preferenceStore.getStringSet("wyzie_sources", setOf("all"))
   val wyzieFormats = preferenceStore.getStringSet("wyzie_formats", setOf("srt", "ass"))
   val wyzieEncodings = preferenceStore.getStringSet("wyzie_encodings", setOf("utf-8"))
   val wyzieHearingImpaired = preferenceStore.getBoolean("wyzie_hi", false)
-  val wyzieApiKey = preferenceStore.getString("wyzie_api_key", "")
+  val wyzieApiKey = preferenceStore.getString("wyzie_api_key", "").encrypted()
   val wyzieCachedSourcesJson = preferenceStore.getString("wyzie_cached_sources_json", "")
   val wyzieRelease = preferenceStore.getString("wyzie_release", "")
   val wyzieFile = preferenceStore.getString("wyzie_file", "")

@@ -70,6 +70,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import java.io.ByteArrayOutputStream
@@ -94,6 +95,7 @@ class MediaPlaybackService :
     private const val NOTIFICATION_ID = 1
     private const val NOTIFICATION_CHANNEL_ID = "mpvrx_playback_channel"
     private const val PLAYBACK_STATE_SAVE_INTERVAL_MS = 5000L
+    private const val TASK_REMOVAL_SAVE_TIMEOUT_MS = 1_500L
     private const val PROGRESS_NOTIFICATION_UPDATE_INTERVAL_MS = 2000L
     private const val MEDIA_NOTIFICATION_UPDATE_INTERVAL_MS = 1000L
     private const val MILLIS_PER_SECOND = 1000L
@@ -1266,7 +1268,7 @@ class MediaPlaybackService :
             .toInt(),
         )
         putExtra("launch_source", "notification")
-        putExtra("internal_launch", true)
+        putExtra("internal_launch", true).also { com.quantummpv.app.ui.player.InternalPlayerLaunch.mark(it) }
         putExtra("is_audio", isAudio)
         putExtra("media_library_audio", isAudio)
         flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -1774,19 +1776,29 @@ class MediaPlaybackService :
     val snapshot = capturePlaybackStateSnapshot(identifier, oldState = null) ?: return
 
     val pendingSave = playbackStateSaveJob
-    runBlocking(Dispatchers.IO) {
-      pendingSave?.cancelAndJoin()
-      persistPlaybackState(identifier, snapshot)
+    // onTaskRemoved runs on the main thread. Keep the durable write, but never block long enough
+    // to risk an ANR; on timeout the write continues on the persistence scope.
+    val completed =
+      runBlocking(Dispatchers.IO) {
+        withTimeoutOrNull(TASK_REMOVAL_SAVE_TIMEOUT_MS) {
+          pendingSave?.cancelAndJoin()
+          persistPlaybackState(identifier, snapshot)
+        } ?: false
+      }
+    if (!completed) {
+      Log.w(TAG, "Task-removal save exceeded ${TASK_REMOVAL_SAVE_TIMEOUT_MS}ms; finishing asynchronously")
+      persistenceScope.launch { persistPlaybackState(identifier, snapshot) }
     }
   }
 
+  /** Returns true only when the snapshot was written; cancellation is propagated, never swallowed. */
   private suspend fun persistPlaybackState(
     identifier: String,
     capturedSnapshot: PlaybackStateSnapshot,
-  ) {
-    if (identifier.isBlank() || capturedSnapshot.mediaIdentifier != identifier) return
+  ): Boolean {
+    if (identifier.isBlank() || capturedSnapshot.mediaIdentifier != identifier) return false
 
-    playbackStateMutex.withLock {
+    return playbackStateMutex.withLock {
     runCatching {
       val oldState = playbackStateRepository.getVideoDataByTitle(identifier)
       val snapshot =
@@ -1806,8 +1818,9 @@ class MediaPlaybackService :
       PlaybackStateEvents.notifyChanged(identifier)
     }
     }.onFailure { error ->
+      if (error is kotlinx.coroutines.CancellationException) throw error
       Log.e(TAG, "Error saving playback state from service", error)
-    }
+    }.isSuccess
   }
 
   /*

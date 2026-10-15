@@ -439,6 +439,7 @@ class PlayerActivity :
   private var viewModelHostAttached = false
   private var torrentPickerHandoff = false
   private var savePlaybackStateJob: Job? = null // Track ongoing save job
+  private var periodicProgressSaveJob: Job? = null
   private var wasPlayingBeforePause = false // Track if video was playing before pause
   private var resumeAfterUnlockJob: Job? = null
   private var jellyfinSessionReporter: JellyfinSessionReporter? = null
@@ -617,6 +618,8 @@ class PlayerActivity :
     }
 
   override fun onCreate(savedInstanceState: Bundle?) {
+    // Must run before anything reads the launch intent: the player is exported.
+    intent = PlayerIntentSanitizer.sanitize(this, intent)
     applyInitialVideoOrientation(intent)
     enableEdgeToEdge()
     super.onCreate(savedInstanceState)
@@ -2279,7 +2282,7 @@ class PlayerActivity :
         if (sourceIntent.action == MediaPlaybackService.ACTION_OPEN_PLAYER) {
           putExtra("launch_source", "notification")
         }
-        putExtra("internal_launch", true)
+        putExtra("internal_launch", true).also { com.quantummpv.app.ui.player.InternalPlayerLaunch.mark(it) }
         val isAudio =
           sourceIntent.getBooleanExtra("is_audio", false) ||
             sourceIntent.getBooleanExtra("media_library_audio", false) ||
@@ -3917,6 +3920,7 @@ class PlayerActivity :
    * @param isPaused true if playback is paused, false if playing
    */
   private fun handlePauseStateChange(isPaused: Boolean) {
+    updatePeriodicProgressSave(isPlaying = !isPaused)
     if (isPaused) {
       // Only clear keep-screen-on if the preference is NOT enabled
       if (!playerPreferences.keepScreenOnWhenPaused.get()) {
@@ -4729,6 +4733,35 @@ class PlayerActivity :
     }
   }
 
+  /**
+   * Persists the resume position periodically while playing, so a crash or low-memory kill loses
+   * at most [PlaybackProgressSavePolicy.INTERVAL_MS] of progress instead of everything since the
+   * last pause. Saves are skipped while stopped because the background service saves then.
+   */
+  private fun updatePeriodicProgressSave(isPlaying: Boolean) {
+    if (!isPlaying) {
+      periodicProgressSaveJob?.cancel()
+      periodicProgressSaveJob = null
+      return
+    }
+    if (periodicProgressSaveJob?.isActive == true) return
+    periodicProgressSaveJob =
+      lifecycleScope.launch {
+        while (isActive) {
+          delay(PlaybackProgressSavePolicy.INTERVAL_MS)
+          val shouldSave =
+            PlaybackProgressSavePolicy.shouldSave(
+              mpvInitialized = mpvInitialized,
+              isExiting = player.isExiting || isFinishing,
+              ownsSession = ownsPlaybackSession(),
+              isForeground = lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED),
+              mediaTitle = fileName,
+            )
+          if (shouldSave) saveVideoPlaybackState(fileName, immediate = false)
+        }
+      }
+  }
+
   private fun startJellyfinProgressLoop() {
     jellyfinProgressJob?.cancel()
     jellyfinProgressJob =
@@ -5165,8 +5198,9 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
    * @param intent The new intent
    */
   override fun onNewIntent(intent: Intent) {
-    super.onNewIntent(intent)
-    handleNewIntent(intent)
+    val sanitized = PlayerIntentSanitizer.sanitize(this, intent)
+    super.onNewIntent(sanitized)
+    handleNewIntent(sanitized)
   }
 
   private fun handleNewIntent(sourceIntent: Intent) {
@@ -6535,7 +6569,7 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
         putExtra("title", targetTitle)
         putExtra("media_identifier", targetIdentifier)
         putExtra("launch_source", "media_session")
-        putExtra("internal_launch", true)
+        putExtra("internal_launch", true).also { com.quantummpv.app.ui.player.InternalPlayerLaunch.mark(it) }
         putExtra("is_audio", isAudio)
         putExtra("media_library_audio", isAudio)
         flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP

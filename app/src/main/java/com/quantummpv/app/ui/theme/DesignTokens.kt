@@ -36,6 +36,7 @@ object DesignTokens {
     // Spacing Tokens
     // ============================================================================
 
+    @Deprecated("Duplicate scale; use MaterialTheme.spacing so one token set drives the UI.")
     object Spacing {
         val xs = 4.dp
         val sm = 8.dp
@@ -50,6 +51,7 @@ object DesignTokens {
     // Radius Tokens
     // ============================================================================
 
+    @Deprecated("Duplicate scale; use AppShapeScale / MaterialTheme.shapes so one token set drives the UI.")
     object Radius {
         val compact = 4.dp
         val standard = 8.dp
@@ -64,6 +66,7 @@ object DesignTokens {
     // Typography Scale
     // ============================================================================
 
+    @Deprecated("Duplicate scale; use MaterialTheme.typography so one token set drives the UI.")
     object TypeScale {
         val displayLarge = 57.sp
         val displayMedium = 45.sp
@@ -86,6 +89,7 @@ object DesignTokens {
     // Shadow Elevation Tokens
     // ============================================================================
 
+    @Deprecated("Duplicate scale; use ElevationTokens so one token set drives the UI.")
     object Elevation {
         val level0 = 0.dp
         val level1 = 1.dp

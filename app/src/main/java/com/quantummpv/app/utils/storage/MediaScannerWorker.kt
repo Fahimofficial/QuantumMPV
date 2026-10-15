@@ -3,8 +3,10 @@ package com.quantummpv.app.utils.storage
 import android.content.Context
 import android.net.Uri
 import android.util.Log
+import androidx.room.withTransaction
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import com.quantummpv.app.database.MpvRxDatabase
 import com.quantummpv.app.database.dao.MediaIndexDao
 import com.quantummpv.app.database.entities.MediaIndexEntity
 import com.quantummpv.app.database.repository.VideoMetadataCacheRepository
@@ -16,10 +18,16 @@ import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import java.io.File
 
+/**
+ * Experimental full-library index (planned replacement for runtime folder scans). It is not scheduled by the app yet; the browser
+ * still uses MediaStore + FolderViewScanner. Each run replaces the whole index so files that were
+ * deleted or moved since the previous run do not linger in search results.
+ */
 class MediaScannerWorker(
   context: Context,
   params: WorkerParameters,
 ) : CoroutineWorker(context, params), KoinComponent {
+  private val database: MpvRxDatabase by inject()
   private val mediaIndexDao: MediaIndexDao by inject()
   private val foldersPreferences: FoldersPreferences by inject()
   private val browserPreferences: BrowserPreferences by inject()
@@ -38,7 +46,11 @@ class MediaScannerWorker(
     val mediaEntities = mutableListOf<MediaIndexEntity>()
 
     try {
-      rootDir.walkTopDown().onEnter { dir ->
+      var traversalFailed = false
+      rootDir.walkTopDown().onFail { dir, error ->
+        traversalFailed = true
+        Log.w("MediaScanner", "Could not read ${dir.path}", error)
+      }.onEnter { dir ->
         if (!includeNoMedia && File(dir, ".nomedia").exists()) return@onEnter false
         true
       }.forEach { file ->
@@ -72,9 +84,16 @@ class MediaScannerWorker(
         }
       }
 
-      // Batch upsert to DB
-      if (mediaEntities.isNotEmpty()) {
-        mediaIndexDao.upsert(mediaEntities)
+      // An incomplete walk would delete still-existing files from the index; keep the old one.
+      if (traversalFailed) {
+        Log.w("MediaScanner", "Scan incomplete; keeping the existing index")
+        return@withContext Result.retry()
+      }
+
+      // Replace atomically: readers never see a half-cleared index and stale rows are dropped.
+      database.withTransaction {
+        mediaIndexDao.clearAll()
+        if (mediaEntities.isNotEmpty()) mediaIndexDao.upsert(mediaEntities)
       }
 
       Log.d("MediaScanner", "Completed media scan. Indexed ${mediaEntities.size} items.")

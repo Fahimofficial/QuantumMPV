@@ -259,7 +259,7 @@ data class PlaylistDetailScreen(
         Intent(context, PlayerActivity::class.java).apply {
           action = Intent.ACTION_VIEW
           data = playUri
-          putExtra("internal_launch", true)
+          putExtra("internal_launch", true).also { com.quantummpv.app.ui.player.InternalPlayerLaunch.mark(it) }
           putExtra("local_media_path", item.video.path)
           putExtra("playlist_index", startIndex)
           putExtra("playlist_id", playlistId)

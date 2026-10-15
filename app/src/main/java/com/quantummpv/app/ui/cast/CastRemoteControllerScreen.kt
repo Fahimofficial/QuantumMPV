@@ -323,7 +323,7 @@ private fun CastOptionButton(
         tint = Color.White.copy(alpha = 0.8f),
         modifier = Modifier.size(24.dp),
       )
-      Text(label, color = Color.White.copy(alpha = 0.6f), fontSize = 9.sp)
+      Text(label, color = Color.White.copy(alpha = 0.6f), fontSize = 11.sp)
     }
   }
 }

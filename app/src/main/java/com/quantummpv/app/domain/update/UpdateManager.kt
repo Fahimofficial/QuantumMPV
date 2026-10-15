@@ -13,6 +13,8 @@ import android.content.Context
 import android.os.Build
 import com.quantummpv.app.BuildConfig
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
@@ -24,6 +26,7 @@ import okhttp3.Request
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import java.security.MessageDigest
 
 class UpdateManager(
   private val context: Context,
@@ -140,9 +143,16 @@ class UpdateManager(
       selectBestApkAsset(release.assets)
         ?: throw Exception("No compatible APK asset found")
 
-    val destination = File(context.externalCacheDir, asset.name)
-    return downloadApk(asset.downloadUrl, destination)
+    val expectedSha256 =
+      UpdateIntegrity.expectedSha256(asset, release.body)
+        ?: throw IOException("No published SHA-256 for ${asset.name}; refusing to download an unverifiable update")
+    val directory = updatesDirectory() ?: throw IOException("External cache is unavailable")
+    return downloadApk(asset, expectedSha256, File(directory, asset.name))
   }
+
+  /** Verified APKs live in their own directory, which is the only external-cache path shared via FileProvider. */
+  private fun updatesDirectory(): File? =
+    context.externalCacheDir?.let { File(it, UPDATES_DIRECTORY) }?.apply { mkdirs() }
 
   private fun selectBestApkAsset(assets: List<Asset>): Asset? {
     val deviceArch = getDeviceArchitecture()
@@ -216,53 +226,95 @@ class UpdateManager(
     }
   }
 
+  /**
+   * Streams into a `.part` file while hashing, then renames it into place only after the size and
+   * SHA-256 match the release metadata. This catches interrupted, truncated or corrupted downloads;
+   * it is not an authenticity check, because the hash comes from the same feed as the download URL.
+   * Authenticity still rests on HTTPS and Android's installer requiring the same signing certificate.
+   */
   private fun downloadApk(
-    url: String,
+    asset: Asset,
+    expectedSha256: String,
     destination: File,
   ): Flow<Float> =
     flow {
-      val request = Request.Builder().url(url).build()
-      val response = client.newCall(request).execute()
-      if (!response.isSuccessful) throw IOException("Unexpected code $response")
-
-      val body = response.body
-      val contentLength = body.contentLength()
-      val inputStream = body.byteStream()
-      val outputStream = FileOutputStream(destination)
-
+      val partial = File(destination.parentFile, destination.name + PARTIAL_SUFFIX)
+      partial.delete()
+      destination.delete()
       try {
-        val buffer = ByteArray(8 * 1024)
-        var bytesRead: Int
-        var totalBytesRead: Long = 0
-
-        while (inputStream.read(buffer).also { bytesRead = it } != -1) {
-          outputStream.write(buffer, 0, bytesRead)
-          totalBytesRead += bytesRead
-          val progress =
-            if (contentLength > 0) {
-              (totalBytesRead.toFloat() / contentLength.toFloat()) * 100
-            } else {
-              -1f
+        val request = Request.Builder().url(asset.downloadUrl).build()
+        val digest = MessageDigest.getInstance("SHA-256")
+        var totalBytesRead = 0L
+        var lastPercent = Int.MIN_VALUE
+        client.newCall(request).execute().use { response ->
+          if (!response.isSuccessful) throw IOException("Unexpected code $response")
+          val body = response.body
+          val contentLength = body.contentLength().takeIf { it > 0 } ?: asset.size
+          body.byteStream().use { input ->
+            FileOutputStream(partial).use { output ->
+              val buffer = ByteArray(64 * 1024)
+              while (true) {
+                val bytesRead = input.read(buffer)
+                if (bytesRead == -1) break
+                // emit() is skipped when the percentage is unchanged, so check cancellation here.
+                currentCoroutineContext().ensureActive()
+                output.write(buffer, 0, bytesRead)
+                digest.update(buffer, 0, bytesRead)
+                totalBytesRead += bytesRead
+                // Emit only when the whole percentage changes (or once for unknown length).
+                val percent = if (contentLength > 0) (totalBytesRead * 100 / contentLength).toInt() else -1
+                if (percent != lastPercent) {
+                  lastPercent = percent
+                  emit(percent.toFloat())
+                }
+              }
+              output.fd.sync()
             }
-          emit(progress)
+          }
         }
-        outputStream.flush()
+        if (asset.size > 0 && totalBytesRead != asset.size) {
+          throw IOException("Downloaded ${asset.name} is $totalBytesRead bytes, expected ${asset.size}")
+        }
+        val actualSha256 = digest.digest().joinToString("") { "%02x".format(it) }
+        if (!actualSha256.equals(expectedSha256, ignoreCase = true)) {
+          throw IOException("SHA-256 mismatch for ${asset.name}")
+        }
+        if (!partial.renameTo(destination)) throw IOException("Could not finalize ${asset.name}")
         emit(100f)
-      } finally {
-        inputStream.close()
-        outputStream.close()
+      } catch (error: Throwable) {
+        partial.delete()
+        destination.delete()
+        throw error
       }
     }.flowOn(Dispatchers.IO)
 
-  fun getApkFile(release: Release): File? {
+  /**
+   * Returns the cached APK only if it still matches the release's published size and SHA-256.
+   * The cache lives in external storage, so it is re-hashed (off the main thread) before every
+   * use; a missing hash, wrong size, hashing error or mismatch returns null and drops the file so
+   * the caller downloads it again.
+   */
+  suspend fun getApkFile(release: Release): File? {
     // Return null if update feature is disabled
     if (!BuildConfig.ENABLE_UPDATE_FEATURE) {
       return null
     }
 
     val asset = selectBestApkAsset(release.assets) ?: return null
-    val file = File(context.externalCacheDir, asset.name)
-    return if (file.exists()) file else null
+    val expectedSha256 = UpdateIntegrity.expectedSha256(asset, release.body)
+    return withContext(Dispatchers.IO) {
+      val file = File(updatesDirectory() ?: return@withContext null, asset.name)
+      if (!file.isFile) return@withContext null
+      if (expectedSha256 == null) {
+        // Without a published hash the cached file can never be verified; discard it.
+        file.delete()
+        return@withContext null
+      }
+      val valid =
+        (asset.size <= 0 || file.length() == asset.size) &&
+          runCatching { UpdateIntegrity.sha256Of(file) }.getOrNull() == expectedSha256
+      if (valid) file else null.also { file.delete() }
+    }
   }
 
   fun clearCache() {
@@ -271,8 +323,10 @@ class UpdateManager(
       return
     }
 
+    updatesDirectory()?.listFiles()?.forEach { it.delete() }
+    // Earlier builds downloaded straight into the external cache root.
     context.externalCacheDir?.listFiles()?.forEach {
-      if (it.name.endsWith(".apk")) it.delete()
+      if (it.isFile && it.name.endsWith(".apk")) it.delete()
     }
   }
 
@@ -280,6 +334,8 @@ class UpdateManager(
     const val STABLE_RELEASE_URL = "https://api.github.com/repos/Fahimofficial/QuantumMPV/releases/latest"
     const val PREVIEW_RELEASE_URL = "https://fahimofficial.github.io/QuantumMPV/latest.json"
     const val LEGACY_IGNORED_VERSION_KEY = "ignored_version"
+    const val UPDATES_DIRECTORY = "updates"
+    const val PARTIAL_SUFFIX = ".part"
     val PREVIEW_TAG_REGEX = Regex("""(?:preview-)?r(\d+)""", RegexOption.IGNORE_CASE)
     val SUPPORTED_ARCHITECTURES = setOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
   }

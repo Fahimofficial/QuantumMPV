@@ -11,6 +11,7 @@ package com.quantummpv.app.preferences
 
 import com.quantummpv.app.preferences.preference.Preference
 import com.quantummpv.app.preferences.preference.PreferenceStore
+import com.quantummpv.app.preferences.preference.encrypted
 import com.quantummpv.app.preferences.preference.getEnum
 
 enum class AiProvider(
@@ -31,12 +32,12 @@ class AiPreferences(
 
   val provider = preferenceStore.getEnum("ai_provider", AiProvider.OPENCODE)
 
-  val openCodeApiKey = preferenceStore.getString("ai_opencode_api_key", "")
-  val groqApiKey = preferenceStore.getString("ai_groq_api_key", "")
-  val openaiApiKey = preferenceStore.getString("ai_openai_api_key", "")
-  val anthropicApiKey = preferenceStore.getString("ai_anthropic_api_key", "")
-  val openrouterApiKey = preferenceStore.getString("ai_openrouter_api_key", "")
-  val togetherApiKey = preferenceStore.getString("ai_together_api_key", "")
+  val openCodeApiKey = preferenceStore.getString("ai_opencode_api_key", "").encrypted()
+  val groqApiKey = preferenceStore.getString("ai_groq_api_key", "").encrypted()
+  val openaiApiKey = preferenceStore.getString("ai_openai_api_key", "").encrypted()
+  val anthropicApiKey = preferenceStore.getString("ai_anthropic_api_key", "").encrypted()
+  val openrouterApiKey = preferenceStore.getString("ai_openrouter_api_key", "").encrypted()
+  val togetherApiKey = preferenceStore.getString("ai_together_api_key", "").encrypted()
 
   val selectedModel = preferenceStore.getString("ai_selected_model", "")
 

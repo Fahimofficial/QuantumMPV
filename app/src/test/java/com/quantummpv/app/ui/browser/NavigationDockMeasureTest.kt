@@ -34,7 +34,8 @@ class NavigationDockMeasureTest {
 
     assertTrue(measure.showLabels)
     assertTrue(measure.navWidth > 0.dp)
-    assertEquals(measure.navWidth + 56.dp, measure.dockWidth)
+    // 8 dp gap + the 56 dp search circle, which now matches the pill height.
+    assertEquals(measure.navWidth + 64.dp, measure.dockWidth)
   }
 
   @Test
@@ -42,9 +43,9 @@ class NavigationDockMeasureTest {
     val measure = measureNavigationDock(containerWidth = 180.dp, tabs = allTabs)
 
     assertFalse(measure.showLabels)
-    assertEquals(14.dp, measure.horizontalMargin)
+    assertEquals(10.dp, measure.horizontalMargin)
     assertEquals(96.dp, measure.navWidth)
-    assertEquals(152.dp, measure.dockWidth)
+    assertEquals(160.dp, measure.dockWidth)
     assertEquals(180.dp, measure.dockWidth + measure.horizontalMargin * 2)
   }
 

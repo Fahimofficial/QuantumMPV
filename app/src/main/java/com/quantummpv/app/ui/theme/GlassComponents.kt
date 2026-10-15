@@ -9,6 +9,7 @@
 
 package com.quantummpv.app.ui.theme
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -151,19 +152,23 @@ object GlassComponents {
     fun GlassFloatingMenuSurface(
         modifier: Modifier = Modifier,
         shape: Shape = MaterialTheme.shapes.extraLarge,
+        forceGlass: Boolean = false,
         content: @Composable () -> Unit,
     ) {
         // The menu opens and closes frequently, so keep the lower-cost navigation optics while
-        // retaining real backdrop glass and an always-visible edge for contrast.
+        // retaining real backdrop glass and an always-visible edge for contrast. Classic keeps the
+        // same solid, bordered container as the navigation dock it is anchored to.
         GlassContainer(
             modifier = modifier,
             shape = shape,
             opacityBoost = 0.16f,
-            forceGlass = true,
+            forceGlass = forceGlass,
             lightweightNav = true,
             alwaysBorder = true,
             classicColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            classicTonalElevation = 6.dp,
             classicShadowElevation = 12.dp,
+            classicBorder = navigationDockBorder(),
             content = content,
         )
     }
@@ -188,9 +193,15 @@ object GlassComponents {
             classicColor = MaterialTheme.colorScheme.surfaceContainerHigh,
             classicTonalElevation = 6.dp,
             classicShadowElevation = 8.dp,
+            classicBorder = navigationDockBorder(),
             content = content,
         )
     }
+
+    /** The hairline edge shared by every Classic dock surface: pill, search circle and menu. */
+    @Composable
+    fun navigationDockBorder(): BorderStroke =
+        BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.48f))
 }
 
 @OptIn(ExperimentalHazeApi::class)
@@ -209,6 +220,7 @@ private fun GlassContainer(
     classicColor: Color = MaterialTheme.colorScheme.surface,
     classicTonalElevation: androidx.compose.ui.unit.Dp = 0.dp,
     classicShadowElevation: androidx.compose.ui.unit.Dp = 0.dp,
+    classicBorder: BorderStroke? = null,
     content: @Composable () -> Unit,
 ) {
     val config = LocalGlassConfig.current
@@ -222,6 +234,7 @@ private fun GlassContainer(
             color = if (selected) colors.primaryContainer else classicColor,
             tonalElevation = classicTonalElevation,
             shadowElevation = classicShadowElevation,
+            border = classicBorder,
             content = content,
         )
         return
@@ -303,7 +316,9 @@ private fun GlassContainer(
             lightweightNav,
         ) {
             baseStyle.then {
-                backgroundColor(containerColor)
+                // Haze composites backgroundColor *behind* the captured backdrop, so over opaque app
+                // content it is invisible. The surface-opacity layer is drawn on top instead (below).
+                backgroundColor(Color.Transparent)
                 if (tint != null) tint(tint)
                 shape(glassShape)
                 optics(optics)
@@ -333,6 +348,8 @@ private fun GlassContainer(
                 style = glassStyle,
                 performanceMode = config.performanceMode.toHazePerformanceMode(),
             )
+                // Surface opacity (Appearance → Surface opacity) as a layer over the blurred backdrop.
+                .background(containerColor, shape)
         } else {
             Modifier
                 .background(containerColor, shape)

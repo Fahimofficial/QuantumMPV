@@ -346,7 +346,7 @@ fun MediaLibraryContent(forceAudio: Boolean = false) {
       android.content.Intent(android.content.Intent.ACTION_VIEW, video.uri).apply {
         setClass(context, PlayerActivity::class.java)
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        putExtra("internal_launch", true)
+        putExtra("internal_launch", true).also { com.quantummpv.app.ui.player.InternalPlayerLaunch.mark(it) }
         putExtra(PlayerActivity.EXTRA_PREPARED_PLAYBACK_QUEUE, true)
         putExtra(PlayerActivity.EXTRA_PREPARED_PLAYBACK_TOKEN, launchToken)
         putExtra("playlist_id", ALL_VIDEOS_PLAYLIST_ID)

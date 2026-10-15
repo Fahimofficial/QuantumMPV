@@ -62,7 +62,8 @@ object MediaFileRepository : KoinComponent {
   suspend fun searchMedia(query: String): List<Video> =
     withContext(Dispatchers.IO) {
       try {
-        mediaIndexDao.searchMedia("*$query*").first().map { it.toVideo() }
+        val ftsQuery = com.quantummpv.app.database.dao.MediaIndexFtsQuery.from(query) ?: return@withContext emptyList()
+        mediaIndexDao.searchMedia(ftsQuery).first().map { it.toVideo() }
       } catch (e: Exception) {
         Log.e(TAG, "Error searching media", e)
         emptyList()

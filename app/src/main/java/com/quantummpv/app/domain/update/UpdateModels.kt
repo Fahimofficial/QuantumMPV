@@ -56,4 +56,8 @@ data class Asset(
   @SerialName("name") val name: String,
   @SerialName("size") val size: Long,
   @SerialName("content_type") val contentType: String,
+  /** GitHub's asset digest, e.g. `sha256:<hex>`; present on stable GitHub releases. */
+  @SerialName("digest") val digest: String? = null,
+  /** Hex SHA-256 published by the preview feed (latest.json). */
+  @SerialName("sha256") val sha256: String? = null,
 )

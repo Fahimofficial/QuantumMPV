@@ -85,8 +85,10 @@ def main() -> int:
         main_screen,
         "new global style takes over after preserving the user's saved legacy navigation style",
     )
-    if len(re.findall(r'glass\s*=\s*glassBottomNavigation', main_screen)) != 2:
-        raise AssertionError("global/legacy surface style must reach both navigation renderers")
+    # Pill renderers (dock + legacy bar), the overflow menu and the search circle must all follow
+    # the same surface style so the floating dock never mixes solid and glass surfaces.
+    if len(re.findall(r'glass\s*=\s*glassBottomNavigation', main_screen)) != 4:
+        raise AssertionError("global/legacy surface style must reach every navigation dock renderer")
     require(r'anchorItemIndex = 5,[\s\S]{0,250}pref_tree_flatten_depth_title', searchable_preferences,
             "file-browser search results target the shifted card")
     require(r'anchorItemIndex = 7,[\s\S]{0,250}pref_appearance_thumbnail_position_title', searchable_preferences,

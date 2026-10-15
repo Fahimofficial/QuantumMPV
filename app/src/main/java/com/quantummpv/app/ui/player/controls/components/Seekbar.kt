@@ -1719,17 +1719,23 @@ fun SeekbarStyleLivePreview(
   useWavySeekbar: Boolean = true,
   modifier: Modifier = Modifier,
 ) {
-  val infiniteTransition = rememberInfiniteTransition(label = "seekbar_live_preview")
-  val animatedProgress by infiniteTransition.animateFloat(
-    initialValue = 0f,
-    targetValue = 1f,
-    animationSpec =
-      infiniteRepeatable(
-        animation = tween(4000, easing = LinearEasing),
-        repeatMode = RepeatMode.Reverse,
-      ),
-    label = "live_preview_progress",
-  )
+  val animatedProgress =
+    if (com.quantummpv.app.ui.theme.AppMotion.shouldReduceMotion()) {
+      0.6f
+    } else {
+      val infiniteTransition = rememberInfiniteTransition(label = "seekbar_live_preview")
+      val progress by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec =
+          infiniteRepeatable(
+            animation = tween(4000, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse,
+          ),
+        label = "live_preview_progress",
+      )
+      progress
+    }
 
   SeekbarStylePreview(
     style = style,

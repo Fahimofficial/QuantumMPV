@@ -60,6 +60,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -67,6 +69,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.quantummpv.app.R
 import com.quantummpv.app.data.network.ServerUrlUtils
 import com.quantummpv.app.ui.components.themedSegmentedButtonColors
 import com.quantummpv.app.ui.icons.Icon
@@ -174,7 +177,7 @@ fun SharedAddServerDialog(
       OutlinedTextField(
         value = serverUrl,
         onValueChange = onServerUrlChange,
-        label = { Text("Server Address") },
+        label = { Text(stringResource(R.string.server_dialog_address)) },
         placeholder = { Text(serverUrlPlaceholder) },
         leadingIcon = {
           Icon(
@@ -209,7 +212,7 @@ fun SharedAddServerDialog(
       OutlinedTextField(
         value = serverName,
         onValueChange = onServerNameChange,
-        label = { Text("Display Name (Optional)") },
+        label = { Text(stringResource(R.string.server_dialog_display_name)) },
         placeholder = { Text(serverNamePlaceholder) },
         leadingIcon = {
           Icon(
@@ -231,7 +234,7 @@ fun SharedAddServerDialog(
       // Authentication Method Selector
       Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
-          text = "Authentication Method",
+          text = stringResource(R.string.server_dialog_auth_method),
           style = MaterialTheme.typography.labelLarge,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -251,7 +254,7 @@ fun SharedAddServerDialog(
               )
             },
           ) {
-            Text("Credentials")
+            Text(stringResource(R.string.server_dialog_credentials))
           }
           SegmentedButton(
             selected = isTokenAuth,
@@ -266,7 +269,7 @@ fun SharedAddServerDialog(
               )
             },
           ) {
-            Text("API Token")
+            Text(stringResource(R.string.server_dialog_api_token))
           }
         }
       }
@@ -276,7 +279,7 @@ fun SharedAddServerDialog(
         OutlinedTextField(
           value = username,
           onValueChange = onUsernameChange,
-          label = { Text("Username") },
+          label = { Text(stringResource(R.string.server_dialog_username)) },
           leadingIcon = {
             Icon(
               imageVector = Icons.RoundedFilled.Person,
@@ -297,7 +300,7 @@ fun SharedAddServerDialog(
         OutlinedTextField(
           value = password,
           onValueChange = onPasswordChange,
-          label = { Text("Password") },
+          label = { Text(stringResource(R.string.server_dialog_password)) },
           leadingIcon = {
             Icon(
               imageVector = Icons.RoundedFilled.Lock,
@@ -329,7 +332,7 @@ fun SharedAddServerDialog(
           OutlinedTextField(
             value = username,
             onValueChange = onUsernameChange,
-            label = { Text("Username (Optional)") },
+            label = { Text(stringResource(R.string.server_dialog_username_optional)) },
             placeholder = { usernameInTokenModePlaceholder?.let { Text(it) } },
             leadingIcon = {
               Icon(
@@ -431,7 +434,7 @@ fun SharedAddServerDialog(
           )
           Spacer(modifier = Modifier.width(10.dp))
           Text(
-            text = "Connecting...",
+            text = stringResource(R.string.server_dialog_connecting),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
           )
@@ -443,7 +446,7 @@ fun SharedAddServerDialog(
           )
           Spacer(modifier = Modifier.width(8.dp))
           Text(
-            text = "Connect Server",
+            text = stringResource(R.string.server_dialog_connect),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
           )
@@ -510,13 +513,13 @@ fun <T> SharedManageServersDialog(
             color = MaterialTheme.colorScheme.onSurface,
           )
           Text(
-            text = "${servers.size} configured server${if (servers.size == 1) "" else "s"}",
+            text = pluralStringResource(R.plurals.server_dialog_configured_count, servers.size, servers.size),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
           )
         }
         TextButton(onClick = onDismiss) {
-          Text("Done")
+          Text(stringResource(R.string.server_dialog_done))
         }
       }
 
@@ -547,7 +550,7 @@ fun <T> SharedManageServersDialog(
                 modifier = Modifier.size(40.dp),
               )
               Text(
-                text = "No servers connected yet",
+                text = stringResource(R.string.server_dialog_no_servers),
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
               )
@@ -638,7 +641,7 @@ fun <T> SharedManageServersDialog(
                         modifier = Modifier.padding(2.dp),
                       ) {
                         Text(
-                          text = "Active",
+                          text = stringResource(R.string.server_dialog_active),
                           style = MaterialTheme.typography.labelSmall,
                           color = MaterialTheme.colorScheme.onPrimary,
                           modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
@@ -708,7 +711,7 @@ fun <T> SharedManageServersDialog(
           modifier = Modifier.size(18.dp),
         )
         Spacer(modifier = Modifier.width(8.dp))
-        Text("Add Another Server")
+        Text(stringResource(R.string.server_dialog_add_another))
       }
 
       Spacer(modifier = Modifier.height(12.dp))

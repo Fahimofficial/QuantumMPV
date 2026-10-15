@@ -690,7 +690,7 @@ fun TorrentPosterCard(
           ) {
             Text(
               text = groupTimestamp,
-              style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+              style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
               fontWeight = FontWeight.Medium,
               color = Color.White,
               modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),

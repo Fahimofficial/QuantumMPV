@@ -10,12 +10,13 @@
 package com.quantummpv.app.preferences
 
 import com.quantummpv.app.preferences.preference.PreferenceStore
+import com.quantummpv.app.preferences.preference.encrypted
 
 class SeerrPreferences(
   preferenceStore: PreferenceStore,
 ) {
   val serverUrl = preferenceStore.getString("seerr_server_url", "")
-  val apiKey = preferenceStore.getString("seerr_api_key", "")
+  val apiKey = preferenceStore.getString("seerr_api_key", "").encrypted()
   val useJellyfinAuth = preferenceStore.getBoolean("seerr_use_jellyfin_auth", true)
   val userEmail = preferenceStore.getString("seerr_user_email", "")
   val userDisplayName = preferenceStore.getString("seerr_user_display_name", "")

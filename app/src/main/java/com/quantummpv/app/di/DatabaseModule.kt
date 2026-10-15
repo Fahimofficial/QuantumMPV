@@ -867,6 +867,147 @@ val MIGRATION_23_24 =
     }
   }
 
+/**
+ * Brings every pre-25 database (v1.0/v1.1 shipped version 23, previews briefly shipped 24) to the
+ * version-25 schema. Each statement is idempotent so it is also safe for databases that already
+ * received some of these objects from an earlier preview build.
+ */
+val MIGRATION_24_25 =
+  object : Migration(24, 25) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+      if (!db.hasColumn("PlaybackStateEntity", "newLabelOverride")) {
+        db.execSQL("ALTER TABLE `PlaybackStateEntity` ADD COLUMN `newLabelOverride` INTEGER")
+      }
+
+      db.execSQL(
+        "CREATE TABLE IF NOT EXISTS `ytdlp_download_jobs` (`id` INTEGER NOT NULL, `url` TEXT NOT NULL, " +
+          "`title` TEXT NOT NULL, `directory` TEXT NOT NULL, `formatSelector` TEXT NOT NULL, " +
+          "`state` TEXT NOT NULL, `progressPercent` REAL NOT NULL, `detail` TEXT NOT NULL, `error` TEXT, " +
+          "`outputFile` TEXT, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+      )
+
+      db.execSQL(
+        "CREATE TABLE IF NOT EXISTS `media_index` (`uri` TEXT NOT NULL, `path` TEXT NOT NULL, " +
+          "`parentFolder` TEXT NOT NULL, `displayName` TEXT NOT NULL, `extension` TEXT NOT NULL, " +
+          "`mediaType` INTEGER NOT NULL, `size` INTEGER NOT NULL, `lastModified` INTEGER NOT NULL, " +
+          "`durationMs` INTEGER, `hasThumbnail` INTEGER NOT NULL, PRIMARY KEY(`uri`))",
+      )
+      db.execSQL("CREATE INDEX IF NOT EXISTS `index_media_index_parentFolder` ON `media_index` (`parentFolder`)")
+      db.execSQL("CREATE INDEX IF NOT EXISTS `index_media_index_mediaType` ON `media_index` (`mediaType`)")
+      // The 23→24 preview migration created the FTS table without Room's content-sync triggers.
+      // Recreate it with Room's definition, rebuild it from media_index, then install the triggers.
+      db.execSQL("DROP TABLE IF EXISTS `media_index_fts`")
+      db.execSQL(
+        "CREATE VIRTUAL TABLE IF NOT EXISTS `media_index_fts` USING FTS4(" +
+          "`displayName` TEXT NOT NULL, `path` TEXT NOT NULL, content=`media_index`)",
+      )
+      db.execSQL("INSERT INTO `media_index_fts`(`media_index_fts`) VALUES('rebuild')")
+      MEDIA_INDEX_FTS_TRIGGERS.forEach(db::execSQL)
+
+      db.execSQL(
+        "CREATE TABLE IF NOT EXISTS `audiobooks` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+          "`sourceKey` TEXT NOT NULL, `title` TEXT NOT NULL, `subtitle` TEXT NOT NULL, `author` TEXT NOT NULL, " +
+          "`narrator` TEXT NOT NULL, `series` TEXT NOT NULL, `seriesPart` TEXT NOT NULL, " +
+          "`description` TEXT NOT NULL, `genre` TEXT NOT NULL, `language` TEXT NOT NULL, " +
+          "`publisher` TEXT NOT NULL, `publishedYear` TEXT NOT NULL, `isbn` TEXT NOT NULL, `asin` TEXT NOT NULL, " +
+          "`abridged` INTEGER, `coverUri` TEXT, `addedAt` INTEGER NOT NULL, `lastPlayedAt` INTEGER NOT NULL, " +
+          "`currentTrackId` INTEGER, `positionMs` INTEGER NOT NULL, `progressMs` INTEGER NOT NULL, " +
+          "`finished` INTEGER NOT NULL, `playbackSpeed` REAL NOT NULL, `rewindSeconds` INTEGER NOT NULL)",
+      )
+      db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_audiobooks_sourceKey` ON `audiobooks` (`sourceKey`)")
+
+      db.execSQL(
+        "CREATE TABLE IF NOT EXISTS `audiobook_tracks` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+          "`bookId` INTEGER NOT NULL, `uri` TEXT NOT NULL, `fileName` TEXT NOT NULL, `title` TEXT NOT NULL, " +
+          "`position` INTEGER NOT NULL, `durationMs` INTEGER NOT NULL, `size` INTEGER NOT NULL, " +
+          "FOREIGN KEY(`bookId`) REFERENCES `audiobooks`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+      )
+      db.execSQL("CREATE INDEX IF NOT EXISTS `index_audiobook_tracks_bookId` ON `audiobook_tracks` (`bookId`)")
+      db.execSQL(
+        "CREATE UNIQUE INDEX IF NOT EXISTS `index_audiobook_tracks_bookId_uri` ON `audiobook_tracks` (`bookId`, `uri`)",
+      )
+
+      db.execSQL(
+        "CREATE TABLE IF NOT EXISTS `audiobook_chapters` (`trackId` INTEGER NOT NULL, `startMs` INTEGER NOT NULL, " +
+          "`endMs` INTEGER NOT NULL, `title` TEXT NOT NULL, PRIMARY KEY(`trackId`, `startMs`), " +
+          "FOREIGN KEY(`trackId`) REFERENCES `audiobook_tracks`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+      )
+
+      db.execSQL(
+        "CREATE TABLE IF NOT EXISTS `audiobookshelf_servers` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+          "`name` TEXT NOT NULL, `serverUrl` TEXT NOT NULL, `username` TEXT NOT NULL, `token` TEXT NOT NULL, " +
+          "`userId` TEXT NOT NULL, `activeLibraryId` TEXT, `lastConnected` INTEGER NOT NULL)",
+      )
+
+      db.execSQL(
+        "CREATE TABLE IF NOT EXISTS `playback_bookmarks` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+          "`mediaId` TEXT NOT NULL, `positionMs` INTEGER NOT NULL, `title` TEXT NOT NULL, " +
+          "`createdAt` INTEGER NOT NULL, `bookTrackId` INTEGER, " +
+          "FOREIGN KEY(`bookTrackId`) REFERENCES `audiobook_tracks`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+      )
+      db.execSQL("CREATE INDEX IF NOT EXISTS `index_playback_bookmarks_mediaId` ON `playback_bookmarks` (`mediaId`)")
+      db.execSQL(
+        "CREATE INDEX IF NOT EXISTS `index_playback_bookmarks_bookTrackId` ON `playback_bookmarks` (`bookTrackId`)",
+      )
+    }
+  }
+
+private val MEDIA_INDEX_FTS_TRIGGERS =
+  listOf(
+    "CREATE TRIGGER IF NOT EXISTS room_fts_content_sync_media_index_fts_BEFORE_UPDATE BEFORE UPDATE ON " +
+      "`media_index` BEGIN DELETE FROM `media_index_fts` WHERE `docid`=OLD.`rowid`; END",
+    "CREATE TRIGGER IF NOT EXISTS room_fts_content_sync_media_index_fts_BEFORE_DELETE BEFORE DELETE ON " +
+      "`media_index` BEGIN DELETE FROM `media_index_fts` WHERE `docid`=OLD.`rowid`; END",
+    "CREATE TRIGGER IF NOT EXISTS room_fts_content_sync_media_index_fts_AFTER_UPDATE AFTER UPDATE ON " +
+      "`media_index` BEGIN INSERT INTO `media_index_fts`(`docid`, `displayName`, `path`) " +
+      "VALUES (NEW.`rowid`, NEW.`displayName`, NEW.`path`); END",
+    "CREATE TRIGGER IF NOT EXISTS room_fts_content_sync_media_index_fts_AFTER_INSERT AFTER INSERT ON " +
+      "`media_index` BEGIN INSERT INTO `media_index_fts`(`docid`, `displayName`, `path`) " +
+      "VALUES (NEW.`rowid`, NEW.`displayName`, NEW.`path`); END",
+  )
+
+private fun SupportSQLiteDatabase.hasColumn(
+  table: String,
+  column: String,
+): Boolean =
+  query("PRAGMA table_info(`$table`)").use { cursor ->
+    val nameIndex = cursor.getColumnIndex("name")
+    while (cursor.moveToNext()) {
+      if (cursor.getString(nameIndex) == column) return@use true
+    }
+    false
+  }
+
+/** Every migration registered with Room, in registration order. Shared with the migration tests. */
+val DATABASE_MIGRATIONS: Array<Migration> =
+  arrayOf(
+    MIGRATION_1_2,
+    MIGRATION_2_3,
+    MIGRATION_3_4,
+    MIGRATION_4_5,
+    MIGRATION_5_6,
+    MIGRATION_6_7,
+    MIGRATION_7_8,
+    MIGRATION_8_9,
+    MIGRATION_9_10,
+    MIGRATION_10_11,
+    MIGRATION_11_12,
+    MIGRATION_12_13,
+    MIGRATION_13_14,
+    MIGRATION_14_15,
+    MIGRATION_15_16,
+    MIGRATION_16_17,
+    MIGRATION_17_18,
+    MIGRATION_18_19,
+    MIGRATION_19_20,
+    MIGRATION_20_21,
+    MIGRATION_19_21,
+    MIGRATION_21_22,
+    MIGRATION_22_23,
+    MIGRATION_23_24,
+    MIGRATION_24_25,
+  )
+
 val DatabaseModule =
   module {
     single<Json> {
@@ -881,33 +1022,11 @@ val DatabaseModule =
       Room
         .databaseBuilder(context, MpvRxDatabase::class.java, "mpvrx.db")
         .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
-        .addMigrations(
-          MIGRATION_1_2,
-          MIGRATION_2_3,
-          MIGRATION_3_4,
-          MIGRATION_4_5,
-          MIGRATION_5_6,
-          MIGRATION_6_7,
-          MIGRATION_7_8,
-          MIGRATION_8_9,
-          MIGRATION_9_10,
-          MIGRATION_10_11,
-          MIGRATION_11_12,
-          MIGRATION_12_13,
-          MIGRATION_13_14,
-          MIGRATION_14_15,
-          MIGRATION_15_16,
-          MIGRATION_16_17,
-          MIGRATION_17_18,
-          MIGRATION_18_19,
-          MIGRATION_19_20,
-          MIGRATION_20_21,
-          MIGRATION_19_21,
-          MIGRATION_21_22,
-          MIGRATION_22_23,
-          MIGRATION_23_24,
-        ).build()
+        .addMigrations(*DATABASE_MIGRATIONS)
+        .build()
     }
+
+    single { get<MpvRxDatabase>().mediaIndexDao() }
 
     singleOf(::PlaybackStateRepositoryImpl).bind(PlaybackStateRepository::class)
 

@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -31,16 +32,21 @@ import com.quantummpv.app.ui.theme.AppMotion
 import com.quantummpv.app.ui.theme.GlassComponents
 
 private const val PRESSED_SCALE = 0.92f
-internal val FloatingSearchButtonSize = 48.dp
+
+/** Matches the navigation pill height so the circle sits on the same baseline and centre line. */
+internal val FloatingSearchButtonSize = 56.dp
+private val SearchIconSize = 24.dp
 
 /**
- * The dedicated circular Search action beside the main navigation pill.
- * Its caller owns visibility so the pill and button animate as one dock.
+ * The dedicated circular Search action beside the main navigation pill. It uses exactly the same
+ * container as the pill — solid and bordered in Classic, backdrop glass in glass mode — so the
+ * two read as one floating dock. Its caller owns visibility so they animate together.
  */
 @Composable
 fun FloatingSearchButton(
   onSearchClick: () -> Unit,
   modifier: Modifier = Modifier,
+  glass: Boolean = false,
 ) {
   val interactionSource = remember { MutableInteractionSource() }
   val isPressed by interactionSource.collectIsPressedAsState()
@@ -51,10 +57,10 @@ fun FloatingSearchButton(
     label = "floating_search_press",
   )
 
-  GlassComponents.GlassNavigationPill(
-    forceGlass = true,
+  NavigationDockSurface(
+    glass = glass,
     shape = CircleShape,
-    modifier = modifier,
+    modifier = modifier.size(FloatingSearchButtonSize),
   ) {
     IconButton(
       onClick = onSearchClick,
@@ -71,9 +77,40 @@ fun FloatingSearchButton(
       Icon(
         Icons.RoundedFilled.Search,
         contentDescription = stringResource(R.string.settings_search_title),
-        modifier = Modifier.size(26.dp),
+        modifier = Modifier.size(SearchIconSize),
         tint = MaterialTheme.colorScheme.onSurface,
       )
     }
+  }
+}
+
+/**
+ * The container shared by every floating-dock element. Glass mode uses the lightweight navigation
+ * glass; Classic uses the solid tonal surface with a hairline border and soft shadow.
+ */
+@Composable
+internal fun NavigationDockSurface(
+  glass: Boolean,
+  shape: androidx.compose.ui.graphics.Shape,
+  modifier: Modifier = Modifier,
+  content: @Composable () -> Unit,
+) {
+  if (glass) {
+    GlassComponents.GlassNavigationPill(
+      modifier = modifier,
+      shape = shape,
+      forceGlass = true,
+      content = content,
+    )
+  } else {
+    Surface(
+      modifier = modifier,
+      shape = shape,
+      color = MaterialTheme.colorScheme.surfaceContainerHigh,
+      tonalElevation = 6.dp,
+      shadowElevation = 8.dp,
+      border = GlassComponents.navigationDockBorder(),
+      content = content,
+    )
   }
 }

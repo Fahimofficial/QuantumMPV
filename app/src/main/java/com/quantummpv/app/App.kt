@@ -126,6 +126,17 @@ class App :
 
     startIdleMpvCoreReaper()
 
+    // Encrypted settings refuse to fall back to plaintext; tell the user their key was not saved.
+    applicationScope.launch {
+      com.quantummpv.app.preferences.preference.SecretStorageFailures.failures.collect {
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+          android.widget.Toast
+            .makeText(this@App, R.string.secret_storage_save_failed, android.widget.Toast.LENGTH_LONG)
+            .show()
+        }
+      }
+    }
+
     applicationScope.launch {
       runCatching {
         val preferences: PlayerPreferences = getKoin().get()
