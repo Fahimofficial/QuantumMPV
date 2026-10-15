@@ -82,7 +82,7 @@ class GlassConfigTest {
   }
 
   @Test
-  fun retiredCinemaSuppressesImportedTintAndHighlightsUntilMigration() {
+  fun retainedSurfaceStylesUseFixedTintAndHighlightTreatments() {
     assertEquals(
       DynamicTintMode.OFF,
       SurfaceStyle.CINEMA.effectiveDynamicTint(DynamicTintMode.THEME),
@@ -93,11 +93,19 @@ class GlassConfigTest {
     )
     assertEquals(
       DynamicTintMode.THEME,
-      SurfaceStyle.FROSTED_GLASS.effectiveDynamicTint(DynamicTintMode.THEME),
+      SurfaceStyle.FROSTED_GLASS.effectiveDynamicTint(DynamicTintMode.OFF),
     )
     assertEquals(
-      EdgeHighlightMode.STRONG,
-      SurfaceStyle.FROSTED_GLASS.effectiveEdgeHighlight(EdgeHighlightMode.STRONG),
+      EdgeHighlightMode.SUBTLE,
+      SurfaceStyle.FROSTED_GLASS.effectiveEdgeHighlight(EdgeHighlightMode.OFF),
+    )
+    assertEquals(
+      DynamicTintMode.THEME,
+      SurfaceStyle.CLEAR_GLASS.effectiveDynamicTint(DynamicTintMode.OFF),
+    )
+    assertEquals(
+      EdgeHighlightMode.SUBTLE,
+      SurfaceStyle.CLEAR_GLASS.effectiveEdgeHighlight(EdgeHighlightMode.STRONG),
     )
   }
 

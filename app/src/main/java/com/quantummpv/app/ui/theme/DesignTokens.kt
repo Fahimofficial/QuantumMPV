@@ -201,20 +201,15 @@ object DesignTokens {
             get() = canonicalStyle
 
         /**
-         * Returns [DynamicTintMode.OFF] for [CINEMA]; otherwise preserves Off or Theme tint
-         * and maps Media or Adaptive tint to Off.
+         * Uses one predictable tint treatment per retained surface style. The stored preference
+         * remains readable for backwards-compatible imports, but is no longer user-configurable.
          */
-        fun effectiveDynamicTint(mode: DynamicTintMode): DynamicTintMode =
-            if (this == CINEMA) {
-                DynamicTintMode.OFF
-            } else {
-                mode.takeIf { it == DynamicTintMode.OFF || it == DynamicTintMode.THEME }
-                    ?: DynamicTintMode.OFF
-            }
+        fun effectiveDynamicTint(@Suppress("UNUSED_PARAMETER") mode: DynamicTintMode): DynamicTintMode =
+            if (selectableStyle == CLEAR_GLASS) DynamicTintMode.THEME else DynamicTintMode.OFF
 
-        /** Resolves highlights from stored settings without restoring the retired Cinema preset's suppressed effect. */
-        fun effectiveEdgeHighlight(mode: EdgeHighlightMode): EdgeHighlightMode =
-            if (this == CINEMA) EdgeHighlightMode.OFF else mode
+        /** Uses a subtle edge highlight for Clear Glass and no highlight for solid surfaces. */
+        fun effectiveEdgeHighlight(@Suppress("UNUSED_PARAMETER") mode: EdgeHighlightMode): EdgeHighlightMode =
+            if (selectableStyle == CLEAR_GLASS) EdgeHighlightMode.SUBTLE else EdgeHighlightMode.OFF
 
         companion object {
             /** The two surface presets offered in the picker; Classic is the default. */

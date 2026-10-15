@@ -53,24 +53,10 @@ def main() -> int:
         "preference-based glass config suppresses legacy Cinema effects before migration",
     )
     require(
-        r'fun effectiveDynamicTint\(mode: DynamicTintMode\): DynamicTintMode =\s*'
-        r'if \(this == CINEMA\) \{\s*DynamicTintMode\.OFF\s*\} else \{\s*'
-        r'mode\.takeIf \{ it == DynamicTintMode\.OFF \|\| it == DynamicTintMode\.THEME \}\s*'
-        r'\?: DynamicTintMode\.OFF\s*\}',
-        design_tokens,
-        "Cinema and unsupported tint modes remain suppressed before migration",
-    )
-    require(
-        r'fun effectiveEdgeHighlight\(mode: EdgeHighlightMode\): EdgeHighlightMode =\s*'
-        r'if \(this == CINEMA\) EdgeHighlightMode\.OFF else mode',
-        design_tokens,
-        "Cinema suppresses restored edge highlights before migration",
-    )
-    require(
         r'dynamicTint = style\.effectiveDynamicTint\(dynamicTint\),\s*'
         r'edgeHighlight = style\.effectiveEdgeHighlight\(edgeHighlight\)',
         design_tokens,
-        "Compose glass configuration applies the Cinema-aware effect filters",
+        "Compose glass configuration applies the fixed style effect filters",
     )
     require(r'legacyGlassBottomNavigation = preferenceStore\.getBoolean\("glass_bottom_navigation",\s*false\)',
             appearance_model, "persisted legacy navigation appearance compatibility")
@@ -80,6 +66,11 @@ def main() -> int:
         appearance_screen,
         "surface-style preference shown in Appearance settings",
     )
+    if re.search(r'pref_dynamic_tint_mode_title|pref_edge_highlight_mode_title|dynamicTintMode by|edgeHighlightMode by', appearance_screen):
+        raise AssertionError("tint and edge-highlight controls should stay out of the minimalist Appearance screen")
+    for removed_title in ("pref_dynamic_tint_mode_title", "pref_edge_highlight_mode_title"):
+        if removed_title in searchable_preferences or removed_title in search_navigation:
+            raise AssertionError(f"removed Appearance control remains searchable or has a stale anchor: {removed_title}")
     require(
         r'val surfaceStyle = LocalGlassConfig\.current\.style\s+val glassBottomNavigation =\s*if \(appearancePreferences\.hasLegacyGlassBottomNavigation && !appearancePreferences\.hasStoredSurfaceStyle\) \{\s*legacyGlassBottomNavigation\s*\} else \{\s*surfaceStyle != SurfaceStyle\.CLASSIC && surfaceStyle != SurfaceStyle\.MINIMAL\s*\}',
         main_screen,
@@ -103,10 +94,16 @@ def main() -> int:
             "thumbnail fallback anchors use the current list index")
     require(r'titleRes = R\.string\.pref_glass_intensity_title,\s*keywords', searchable_preferences,
             "glass opacity search avoids a formatted summary without arguments")
-    require(r'LaunchedEffect\(dynamicTintMode\) \{\s*if \(dynamicTintMode != supportedDynamicTintMode\) \{\s*preferences\.dynamicTintMode\.set\(supportedDynamicTintMode\)',
-            appearance_screen, "late-imported tint modes are normalized in the Appearance selector")
-    require(r'value = supportedDynamicTintMode,[\s\S]{0,100}values = listOf\(DynamicTintMode\.OFF, DynamicTintMode\.THEME\)', appearance_screen,
-            "the tint selector only exposes implemented, normalized tint modes")
+    require(
+        r'if \(selectableStyle == CLEAR_GLASS\) DynamicTintMode\.THEME else DynamicTintMode\.OFF',
+        design_tokens,
+        "surface style selects the fixed tint treatment",
+    )
+    require(
+        r'if \(selectableStyle == CLEAR_GLASS\) EdgeHighlightMode\.SUBTLE else EdgeHighlightMode\.OFF',
+        design_tokens,
+        "surface style selects the fixed edge-highlight treatment",
+    )
     require(r'<string name="pref_glass_surface_style_title">Surface style</string>', strings,
             "visible surface-style settings label")
     print("PASS: global surface appearance remains visible and connected to navigation.")

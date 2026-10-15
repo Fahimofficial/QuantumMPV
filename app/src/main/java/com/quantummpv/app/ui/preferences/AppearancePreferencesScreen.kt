@@ -71,8 +71,6 @@ import com.quantummpv.app.ui.preferences.components.SwitchPreference
 import com.quantummpv.app.ui.preferences.components.ThemePicker
 import com.quantummpv.app.ui.theme.CustomThemeDefinition
 import com.quantummpv.app.ui.theme.DarkMode
-import com.quantummpv.app.ui.theme.DesignTokens.DynamicTintMode
-import com.quantummpv.app.ui.theme.DesignTokens.EdgeHighlightMode
 import com.quantummpv.app.ui.theme.DesignTokens.MotionStyle
 import com.quantummpv.app.ui.theme.DesignTokens.SurfaceStyle
 import com.quantummpv.app.ui.theme.LocalThemeTransitionState
@@ -551,52 +549,6 @@ object AppearancePreferencesScreen : Screen {
                 },
                 onSliderValueChange = { preferences.glassIntensity.set(it) },
                 sliderValue = glassIntensity,
-              )
-
-              PreferenceDivider()
-
-              val dynamicTintMode by preferences.dynamicTintMode.collectAsState()
-              val supportedDynamicTintMode =
-                dynamicTintMode.takeIf { it == DynamicTintMode.OFF || it == DynamicTintMode.THEME }
-                  ?: DynamicTintMode.OFF
-              LaunchedEffect(dynamicTintMode) {
-                if (dynamicTintMode != supportedDynamicTintMode) {
-                  preferences.dynamicTintMode.set(supportedDynamicTintMode)
-                }
-              }
-              ListPreference(
-                modifier = Modifier.settingsSearchTarget(R.string.pref_dynamic_tint_mode_title),
-                value = supportedDynamicTintMode,
-                onValueChange = preferences.dynamicTintMode::set,
-                values = listOf(DynamicTintMode.OFF, DynamicTintMode.THEME),
-                valueToText = { AnnotatedString(stringResource(id = it.titleRes)) },
-                title = { Text(stringResource(R.string.pref_dynamic_tint_mode_title)) },
-                enabled = surfaceStyle.supportsDynamicTint,
-                summary = {
-                  Text(
-                    stringResource(id = supportedDynamicTintMode.summaryRes),
-                    color = MaterialTheme.colorScheme.outline,
-                  )
-                },
-              )
-
-              PreferenceDivider()
-
-              val edgeHighlightMode by preferences.edgeHighlightMode.collectAsState()
-              ListPreference(
-                modifier = Modifier.settingsSearchTarget(R.string.pref_edge_highlight_mode_title),
-                value = edgeHighlightMode,
-                onValueChange = preferences.edgeHighlightMode::set,
-                values = EdgeHighlightMode.entries,
-                valueToText = { AnnotatedString(stringResource(id = it.titleRes)) },
-                title = { Text(stringResource(R.string.pref_edge_highlight_mode_title)) },
-                enabled = surfaceStyle.supportsEdgeHighlight,
-                summary = {
-                  Text(
-                    stringResource(id = edgeHighlightMode.summaryRes),
-                    color = MaterialTheme.colorScheme.outline,
-                  )
-                },
               )
             }
           }
