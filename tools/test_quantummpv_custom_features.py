@@ -68,6 +68,9 @@ def main() -> int:
     )
     if re.search(r'pref_dynamic_tint_mode_title|pref_edge_highlight_mode_title|dynamicTintMode by|edgeHighlightMode by', appearance_screen):
         raise AssertionError("tint and edge-highlight controls should stay out of the minimalist Appearance screen")
+    for removed_title in ("pref_dynamic_tint_mode_title", "pref_edge_highlight_mode_title"):
+        if removed_title in searchable_preferences or removed_title in search_navigation:
+            raise AssertionError(f"removed Appearance control remains searchable or has a stale anchor: {removed_title}")
     require(
         r'val surfaceStyle = LocalGlassConfig\.current\.style\s+val glassBottomNavigation =\s*if \(appearancePreferences\.hasLegacyGlassBottomNavigation && !appearancePreferences\.hasStoredSurfaceStyle\) \{\s*legacyGlassBottomNavigation\s*\} else \{\s*surfaceStyle != SurfaceStyle\.CLASSIC && surfaceStyle != SurfaceStyle\.MINIMAL\s*\}',
         main_screen,

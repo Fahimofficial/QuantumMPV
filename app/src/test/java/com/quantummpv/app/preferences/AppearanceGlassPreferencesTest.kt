@@ -230,7 +230,12 @@ class AppearanceGlassPreferencesTest {
     var expected = defaultConfig
 
     preferences.surfaceStyle.set(SurfaceStyle.CLEAR_GLASS)
-    expected = expected.copy(style = SurfaceStyle.CLEAR_GLASS)
+    expected =
+      expected.copy(
+        style = SurfaceStyle.CLEAR_GLASS,
+        dynamicTint = SurfaceStyle.CLEAR_GLASS.effectiveDynamicTint(expected.dynamicTint),
+        edgeHighlight = SurfaceStyle.CLEAR_GLASS.effectiveEdgeHighlight(expected.edgeHighlight),
+      )
     assertEquals(expected, preferences.glassConfig)
     preferences.glassIntensity.set(0f)
     expected = expected.copy(intensity = 0f)
@@ -283,10 +288,18 @@ class AppearanceGlassPreferencesTest {
     preferences.glassBlurLevel.set(BlurLevel.HIGH)
     for (style in SurfaceStyle.selectableStyles) {
       preferences.surfaceStyle.set(style)
+      val expected =
+        defaultConfig.copy(
+          style = style,
+          intensity = 0.37f,
+          blurLevel = BlurLevel.HIGH,
+          dynamicTint = style.effectiveDynamicTint(defaultConfig.dynamicTint),
+          edgeHighlight = style.effectiveEdgeHighlight(defaultConfig.edgeHighlight),
+        )
 
       assertEquals(
         "Persisting $style must retain separately stored glass settings",
-        defaultConfig.copy(style = style, intensity = 0.37f, blurLevel = BlurLevel.HIGH),
+        expected,
         newPreferences().glassConfig,
       )
     }
@@ -313,8 +326,8 @@ class AppearanceGlassPreferencesTest {
       style = SurfaceStyle.CLASSIC,
       intensity = SurfaceStyle.CLASSIC.defaultIntensity,
       blurLevel = SurfaceStyle.CLASSIC.defaultBlurLevel,
-      dynamicTint = DynamicTintMode.THEME,
-      edgeHighlight = EdgeHighlightMode.SUBTLE,
+      dynamicTint = DynamicTintMode.OFF,
+      edgeHighlight = EdgeHighlightMode.OFF,
       refraction = RefractionMode.SUBTLE,
     )
   private val customConfig = GlassConfig(
@@ -322,7 +335,7 @@ class AppearanceGlassPreferencesTest {
     intensity = 0.42f,
     blurLevel = BlurLevel.HIGH,
     dynamicTint = DynamicTintMode.THEME,
-    edgeHighlight = EdgeHighlightMode.STRONG,
+    edgeHighlight = EdgeHighlightMode.SUBTLE,
     refraction = RefractionMode.EXPERIMENTAL,
     motionStyle = MotionStyle.OFF,
     performanceMode = PerformanceMode.BATTERY_SAVER,

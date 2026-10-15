@@ -119,24 +119,6 @@ object SearchablePreferences {
       )
       add(
         SearchablePreference(
-          titleRes = R.string.pref_dynamic_tint_mode_title,
-          keywords = listOf("glass", "tint", "theme color", "surface", "appearance"),
-          category = "Appearance",
-          screen = AppearancePreferencesScreen,
-          anchorItemIndex = 3,
-        ),
-      )
-      add(
-        SearchablePreference(
-          titleRes = R.string.pref_edge_highlight_mode_title,
-          keywords = listOf("glass", "edge", "highlight", "border", "surface", "appearance"),
-          category = "Appearance",
-          screen = AppearancePreferencesScreen,
-          anchorItemIndex = 3,
-        ),
-      )
-      add(
-        SearchablePreference(
           titleRes = R.string.pref_appearance_osd_font_title,
           summaryRes = R.string.pref_appearance_osd_font_summary,
           keywords = listOf("font", "osd", "player", "mpv", "system", "google sans", "appearance"),

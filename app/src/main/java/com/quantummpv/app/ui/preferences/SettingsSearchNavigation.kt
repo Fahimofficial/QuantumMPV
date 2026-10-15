@@ -62,8 +62,6 @@ private val settingsSearchListAnchors: Map<Screen, List<SettingsSearchListAnchor
         SettingsSearchListAnchor(titleRes = R.string.pref_appearance_system_font_title, itemIndex = 1),
         SettingsSearchListAnchor(titleRes = R.string.pref_glass_surface_style_title, itemIndex = 3),
         SettingsSearchListAnchor(titleRes = R.string.pref_glass_intensity_title, itemIndex = 3),
-        SettingsSearchListAnchor(titleRes = R.string.pref_dynamic_tint_mode_title, itemIndex = 3),
-        SettingsSearchListAnchor(titleRes = R.string.pref_edge_highlight_mode_title, itemIndex = 3),
         SettingsSearchListAnchor(titleRes = R.string.pref_appearance_osd_font_title, itemIndex = 1),
         SettingsSearchListAnchor(titleRes = R.string.pref_appearance_unlimited_name_lines_title, itemIndex = 5),
         SettingsSearchListAnchor(titleRes = R.string.pref_appearance_show_unplayed_old_video_label_title, itemIndex = 5),

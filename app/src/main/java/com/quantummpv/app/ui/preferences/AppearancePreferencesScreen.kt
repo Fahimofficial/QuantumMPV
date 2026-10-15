@@ -550,7 +550,6 @@ object AppearancePreferencesScreen : Screen {
                 onSliderValueChange = { preferences.glassIntensity.set(it) },
                 sliderValue = glassIntensity,
               )
-
             }
           }
 
