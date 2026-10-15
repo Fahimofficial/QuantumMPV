@@ -89,7 +89,8 @@ class FileSystemBrowserViewModel(
   val watchedVideoIds: StateFlow<Set<Long>> = _watchedVideoIds.asStateFlow()
 
   // Loading state - similar to Fossify's showProgressBar/hideProgressBar
-  private val _isLoading = MutableStateFlow(false)
+  // Cold starts must show the same loading state as Folders before asynchronous root discovery.
+  private val _isLoading = MutableStateFlow(true)
   val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
   // Error state for displaying error messages
