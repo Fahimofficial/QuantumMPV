@@ -45,4 +45,18 @@ internal object UpdateIntegrity {
       val name = parts[1].trim().removePrefix("*").substringAfterLast('/')
       parts[0].lowercase().takeIf { name == fileName }
     }
+
+  /** Streams [file] through SHA-256 and returns the lowercase hex digest. */
+  fun sha256Of(file: java.io.File): String {
+    val digest = java.security.MessageDigest.getInstance("SHA-256")
+    file.inputStream().use { input ->
+      val buffer = ByteArray(64 * 1024)
+      while (true) {
+        val read = input.read(buffer)
+        if (read == -1) break
+        digest.update(buffer, 0, read)
+      }
+    }
+    return digest.digest().joinToString("") { "%02x".format(it) }
+  }
 }

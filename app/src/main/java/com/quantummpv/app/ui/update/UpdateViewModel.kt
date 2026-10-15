@@ -198,7 +198,18 @@ class UpdateViewModel(
       return
     }
 
-    val file = updateManager.getApkFile(release) ?: return
+    viewModelScope.launch {
+      val file = updateManager.getApkFile(release)
+      if (file == null) {
+        // The cached APK is gone or no longer matches its checksum; offer a fresh download.
+        _updateState.value = UpdateState.Available(release)
+        return@launch
+      }
+      launchInstaller(file)
+    }
+  }
+
+  private fun launchInstaller(file: java.io.File) {
     val context = getApplication<Application>()
     val uri =
       FileProvider.getUriForFile(

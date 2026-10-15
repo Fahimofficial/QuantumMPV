@@ -243,6 +243,7 @@ class UpdateManager(
         val request = Request.Builder().url(asset.downloadUrl).build()
         val digest = MessageDigest.getInstance("SHA-256")
         var totalBytesRead = 0L
+        var lastPercent = Int.MIN_VALUE
         client.newCall(request).execute().use { response ->
           if (!response.isSuccessful) throw IOException("Unexpected code $response")
           val body = response.body
@@ -256,7 +257,12 @@ class UpdateManager(
                 output.write(buffer, 0, bytesRead)
                 digest.update(buffer, 0, bytesRead)
                 totalBytesRead += bytesRead
-                emit(if (contentLength > 0) (totalBytesRead.toFloat() / contentLength) * 100 else -1f)
+                // Emit only when the whole percentage changes (or once for unknown length).
+                val percent = if (contentLength > 0) (totalBytesRead * 100 / contentLength).toInt() else -1
+                if (percent != lastPercent) {
+                  lastPercent = percent
+                  emit(percent.toFloat())
+                }
               }
               output.fd.sync()
             }
@@ -278,17 +284,28 @@ class UpdateManager(
       }
     }.flowOn(Dispatchers.IO)
 
-  fun getApkFile(release: Release): File? {
+  /**
+   * Returns the cached APK only if it still matches the release's published size and SHA-256.
+   * The cache lives in external storage, so it is re-hashed (off the main thread) before every
+   * use; a missing hash, wrong size, hashing error or mismatch returns null and drops the file so
+   * the caller downloads it again.
+   */
+  suspend fun getApkFile(release: Release): File? {
     // Return null if update feature is disabled
     if (!BuildConfig.ENABLE_UPDATE_FEATURE) {
       return null
     }
 
     val asset = selectBestApkAsset(release.assets) ?: return null
-    val file = File(updatesDirectory() ?: return null, asset.name)
-    // Only verified downloads are ever renamed to the final name; the size check also rejects
-    // anything a pre-fix build may have left behind.
-    return if (file.isFile && (asset.size <= 0 || file.length() == asset.size)) file else null
+    val expectedSha256 = UpdateIntegrity.expectedSha256(asset, release.body) ?: return null
+    return withContext(Dispatchers.IO) {
+      val file = File(updatesDirectory() ?: return@withContext null, asset.name)
+      if (!file.isFile) return@withContext null
+      val valid =
+        (asset.size <= 0 || file.length() == asset.size) &&
+          runCatching { UpdateIntegrity.sha256Of(file) }.getOrNull() == expectedSha256
+      if (valid) file else null.also { file.delete() }
+    }
   }
 
   fun clearCache() {
