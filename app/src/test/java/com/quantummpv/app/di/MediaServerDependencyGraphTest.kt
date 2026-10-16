@@ -123,6 +123,7 @@ class MediaServerDependencyGraphTest {
     probe("VideoMetadataCacheRepository") { koin.get<com.quantummpv.app.database.repository.VideoMetadataCacheRepository>() }
     probe("WyzieSearchRepository") { koin.get<com.quantummpv.app.repository.wyzie.WyzieSearchRepository>() }
     probe("YtdlpDownloadEngine") { koin.get<com.quantummpv.app.domain.download.YtdlpDownloadEngine>() }
+    probe("YtdlpDownloadJobDao") { koin.get<com.quantummpv.app.database.dao.YtdlpDownloadJobDao>() }
     probe("YtdlPreferences") { koin.get<com.quantummpv.app.preferences.YtdlPreferences>() }
     org.junit.Assert.assertTrue("Koin resolution failures: $failures", failures.isEmpty())
   }

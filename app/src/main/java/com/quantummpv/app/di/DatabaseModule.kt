@@ -1027,6 +1027,7 @@ val DatabaseModule =
     }
 
     single { get<MpvRxDatabase>().mediaIndexDao() }
+    single { get<MpvRxDatabase>().ytdlpDownloadJobDao() }
 
     // Audiobooks and Audiobookshelf. These definitions were lost when the v2.6.0 port resolved
     // DatabaseModule conflicts, so every screen creating AudiobookshelfViewModel (Media servers,
