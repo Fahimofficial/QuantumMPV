@@ -12,18 +12,18 @@ class MiniPlayerDockLayoutTest {
   @Test
   fun keepsSideBySideLayoutWhenThePlayerRetainsItsMinimumWidth() {
     assertFalse(shouldStackMiniPlayerAboveDock(containerWidth = 600.dp))
-    assertFalse(shouldStackMiniPlayerAboveDock(containerWidth = 467.dp))
+    assertFalse(shouldStackMiniPlayerAboveDock(containerWidth = 463.dp))
   }
 
   @Test
   fun stacksAboveDockWhenCompactLandscapeCannotFitControls() {
     assertTrue(shouldStackMiniPlayerAboveDock(containerWidth = 360.dp))
-    assertTrue(shouldStackMiniPlayerAboveDock(containerWidth = 466.dp))
+    assertTrue(shouldStackMiniPlayerAboveDock(containerWidth = 462.dp))
   }
 
   @Test
   fun narrowestSideBySideWindowStillReservesTheLargestPlayerLayout() {
-    val containerWidth = 467.dp
+    val containerWidth = 463.dp
     val dock =
       measureNavigationDock(
         containerWidth = containerWidth,
