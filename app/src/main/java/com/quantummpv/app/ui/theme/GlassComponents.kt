@@ -153,6 +153,8 @@ object GlassComponents {
         modifier: Modifier = Modifier,
         shape: Shape = MaterialTheme.shapes.extraLarge,
         forceGlass: Boolean = false,
+        // Callers that animate the panel pass 0 and cast the shadow from their own animated layer.
+        classicShadowElevation: androidx.compose.ui.unit.Dp = 12.dp,
         content: @Composable () -> Unit,
     ) {
         // The menu opens and closes frequently, so keep the lower-cost navigation optics while
@@ -167,7 +169,7 @@ object GlassComponents {
             alwaysBorder = true,
             classicColor = MaterialTheme.colorScheme.surfaceContainerHigh,
             classicTonalElevation = 6.dp,
-            classicShadowElevation = 12.dp,
+            classicShadowElevation = classicShadowElevation,
             classicBorder = navigationDockBorder(),
             content = content,
         )

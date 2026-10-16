@@ -1028,6 +1028,26 @@ val DatabaseModule =
 
     single { get<MpvRxDatabase>().mediaIndexDao() }
 
+    // Audiobooks and Audiobookshelf. These definitions were lost when the v2.6.0 port resolved
+    // DatabaseModule conflicts, so every screen creating AudiobookshelfViewModel (Media servers,
+    // Audiobooks) crashed with NoDefinitionFoundException on first injection.
+    single { get<MpvRxDatabase>().audiobookDao() }
+    single { get<MpvRxDatabase>().playbackBookmarkDao() }
+    single { get<MpvRxDatabase>().audiobookshelfServerDao() }
+    single {
+      com.quantummpv.app.data.audiobookshelf.AudiobookshelfClient(
+        httpClient = get(),
+        json = get(),
+      )
+    }
+    single {
+      com.quantummpv.app.repository.AudiobookshelfRepository(
+        dao = get(),
+        client = get(),
+        credentialCipher = get(),
+      )
+    }
+
     singleOf(::PlaybackStateRepositoryImpl).bind(PlaybackStateRepository::class)
 
     single<RecentlyPlayedRepository> {

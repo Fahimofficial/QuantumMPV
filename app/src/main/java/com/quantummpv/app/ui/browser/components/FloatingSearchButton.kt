@@ -21,7 +21,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.R
@@ -47,6 +50,9 @@ fun FloatingSearchButton(
   onSearchClick: () -> Unit,
   modifier: Modifier = Modifier,
   glass: Boolean = false,
+  // True while the launch transition's travelling copy of this icon is on screen.
+  hideIcon: Boolean = false,
+  onIconPositioned: (Offset) -> Unit = {},
 ) {
   val interactionSource = remember { MutableInteractionSource() }
   val isPressed by interactionSource.collectIsPressedAsState()
@@ -77,7 +83,11 @@ fun FloatingSearchButton(
       Icon(
         Icons.RoundedFilled.Search,
         contentDescription = stringResource(R.string.settings_search_title),
-        modifier = Modifier.size(SearchIconSize),
+        modifier =
+          Modifier
+            .size(SearchIconSize)
+            .onGloballyPositioned { onIconPositioned(it.boundsInRoot().center) }
+            .graphicsLayer { alpha = if (hideIcon) 0f else 1f },
         tint = MaterialTheme.colorScheme.onSurface,
       )
     }
