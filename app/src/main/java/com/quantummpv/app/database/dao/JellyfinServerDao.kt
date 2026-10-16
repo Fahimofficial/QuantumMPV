@@ -37,4 +37,12 @@ interface JellyfinServerDao {
 
   @Query("DELETE FROM jellyfin_servers WHERE id = :id")
   suspend fun deleteById(id: Long)
+
+  /** Replaces only the token, and only if it still holds [expectedToken]; returns rows changed. */
+  @Query("UPDATE jellyfin_servers SET accessToken = :newToken WHERE id = :id AND accessToken = :expectedToken")
+  suspend fun replaceAccessToken(
+    id: Long,
+    expectedToken: String,
+    newToken: String,
+  ): Int
 }

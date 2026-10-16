@@ -9,11 +9,11 @@
 
 package com.quantummpv.app.repository
 
+import android.util.Log
 import com.quantummpv.app.data.jellyfin.JellyfinClient
 import com.quantummpv.app.data.network.credentials.AndroidNetworkCredentialKey
 import com.quantummpv.app.data.network.credentials.NetworkCredentialCipher
 import com.quantummpv.app.data.network.credentials.NetworkCredentialStorageException
-import com.quantummpv.app.data.network.credentials.NetworkCredentialUnavailableException
 import com.quantummpv.app.database.dao.JellyfinServerDao
 import com.quantummpv.app.database.entities.JellyfinServerEntity
 import com.quantummpv.app.domain.jellyfin.JellyfinAuthResult
@@ -120,13 +120,21 @@ class JellyfinRepository(
   suspend fun createPlaylist(server: JellyfinServer, name: String, itemIds: List<String> = emptyList()): Result<String> = client.createPlaylist(serverUrl = server.serverUrl, userId = server.userId, token = server.accessToken, name = name, itemIds = itemIds)
   suspend fun addToPlaylist(server: JellyfinServer, playlistId: String, itemIds: List<String>): Result<Unit> = client.addToPlaylist(serverUrl = server.serverUrl, userId = server.userId, token = server.accessToken, playlistId = playlistId, itemIds = itemIds)
 
+  /**
+   * Never throws: this runs inside [allServers], which JellyfinViewModel collects without a catch.
+   * A token whose Keystore key is gone (e.g. a backup restored on another device) reads as empty so
+   * the server stays listed as signed out; a failed legacy re-encryption keeps the readable token.
+   */
   private suspend fun decryptAndMigrate(entity: JellyfinServerEntity): JellyfinServer {
     if (entity.accessToken.isEmpty()) return entity.toDomain()
     val token = if (credentialCipher.isEncrypted(entity.accessToken)) {
-      try { credentialCipher.decrypt(entity.accessToken) } catch (e: Exception) { throw NetworkCredentialUnavailableException(e) }
+      runCatching { credentialCipher.decrypt(entity.accessToken) }
+        .onFailure { Log.w(TAG, "Jellyfin token can no longer be decrypted; treating server as signed out", it) }
+        .getOrDefault("")
     } else {
-      val encrypted = encryptForStorage(entity.accessToken)
-      dao.update(entity.copy(accessToken = encrypted))
+      runCatching {
+        dao.replaceAccessToken(entity.id, expectedToken = entity.accessToken, newToken = encryptForStorage(entity.accessToken))
+      }.onFailure { Log.w(TAG, "Could not encrypt legacy Jellyfin token; keeping it for now", it) }
       entity.accessToken
     }
     return entity.toDomain().copy(accessToken = token)
@@ -141,4 +149,8 @@ class JellyfinRepository(
     } catch (e: Exception) {
       throw NetworkCredentialStorageException(e)
     }
+
+  private companion object {
+    const val TAG = "JellyfinRepository"
+  }
 }

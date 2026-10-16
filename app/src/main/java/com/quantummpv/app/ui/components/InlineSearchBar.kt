@@ -9,6 +9,7 @@
 
 package com.quantummpv.app.ui.components
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -18,6 +19,9 @@ import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -46,6 +50,21 @@ fun InlineSearchBar(
   windowInsets: WindowInsets = SearchBarDefaults.windowInsets,
 ) {
   val keyboardController = LocalSoftwareKeyboardController.current
+  val anchor = LocalSearchFieldIconAnchor.current
+  // Wraps the caller's icon only when a launch transition can target this bar.
+  val anchoredLeadingIcon: (@Composable () -> Unit)? =
+    if (anchor == null || leadingIcon == null) {
+      leadingIcon
+    } else {
+      {
+        Box(
+          modifier =
+            Modifier
+              .onGloballyPositioned { anchor.onLeadingIconPositioned(it.boundsInRoot().center) }
+              .graphicsLayer { alpha = if (anchor.hidesLeadingIcon) 0f else 1f },
+        ) { leadingIcon() }
+      }
+    }
 
   SearchBar(
     inputField = {
@@ -60,7 +79,7 @@ fun InlineSearchBar(
         onExpandedChange = {},
         modifier = inputFieldModifier.fillMaxWidth(),
         placeholder = placeholder,
-        leadingIcon = leadingIcon,
+        leadingIcon = anchoredLeadingIcon,
         trailingIcon = trailingIcon,
       )
     },
@@ -71,6 +90,7 @@ fun InlineSearchBar(
     modifier =
       Modifier
         .windowInsetsPadding(windowInsets)
+        .then(if (anchor == null) Modifier else Modifier.graphicsLayer { alpha = anchor.fieldAlpha() })
         .then(modifier),
     shape = shape,
     tonalElevation = tonalElevation,

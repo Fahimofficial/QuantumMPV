@@ -37,4 +37,17 @@ interface NavidromeServerDao {
 
   @Query("DELETE FROM navidrome_servers WHERE id = :id")
   suspend fun deleteById(id: Long)
+
+  /** Replaces only the credentials, and only if they are unchanged since they were read. */
+  @Query(
+    "UPDATE navidrome_servers SET password = :newPassword, token = :newToken " +
+      "WHERE id = :id AND password = :expectedPassword AND token = :expectedToken",
+  )
+  suspend fun replaceCredentials(
+    id: Long,
+    expectedPassword: String,
+    expectedToken: String,
+    newPassword: String,
+    newToken: String,
+  ): Int
 }

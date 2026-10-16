@@ -81,6 +81,7 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -209,6 +210,10 @@ object MainScreen : Screen {
     val animSpeed by playerPreferences.animationSpeed.collectAsState()
     val duration = navigationDurationMillis(animSpeed)
     val mainSearchController = remember { MainSearchActionController() }
+    val searchFlight = remember { com.quantummpv.app.ui.browser.components.SearchLaunchTransition<MainTab>() }
+    var searchButtonCenter by remember { mutableStateOf<androidx.compose.ui.geometry.Offset?>(null) }
+    var menuButtonCenter by remember { mutableStateOf<androidx.compose.ui.geometry.Offset?>(null) }
+    var screenCenter by remember { mutableStateOf<androidx.compose.ui.geometry.Offset?>(null) }
     var menuExpanded by rememberSaveable { mutableStateOf(false) }
     var persistentSelectedTab by rememberSaveable { mutableStateOf(MainTab.HOME) }
     val mediaServerPreferences = koinInject<MediaServerPreferences>()
@@ -388,7 +393,12 @@ object MainScreen : Screen {
     Scaffold(
       modifier = Modifier.fillMaxSize(),
     ) { _ ->
-      BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+      BoxWithConstraints(
+        modifier =
+          Modifier
+            .fillMaxSize()
+            .onGloballyPositioned { screenCenter = it.boundsInRoot().center },
+      ) {
         // One width source decides whether the mini player sits beside or above the dock. The
         // content clearance, overflow menu and MainActivity's mini player all reuse this result.
         val containerWidth = maxWidth
@@ -412,6 +422,7 @@ object MainScreen : Screen {
             LocalMainSearchActionController provides mainSearchController,
             LocalMainSearchDockVisible provides showDock,
             LocalMainSearchTab provides MainTab.HOME,
+            com.quantummpv.app.ui.components.LocalSearchFieldIconAnchor provides searchFlight.anchorFor(MainTab.HOME),
           ) {
             FolderListScreen.Content()
           }
@@ -430,7 +441,10 @@ object MainScreen : Screen {
               userScrollEnabled = !isPermissionDenied,
             ) { page ->
               val tab = visibleTabs.getOrNull(page) ?: return@NavigationPager
-              CompositionLocalProvider(LocalMainSearchTab provides tab) {
+              CompositionLocalProvider(
+                LocalMainSearchTab provides tab,
+                com.quantummpv.app.ui.components.LocalSearchFieldIconAnchor provides searchFlight.anchorFor(tab),
+              ) {
                 when (tab) {
                 MainTab.HOME -> FolderListScreen.Content()
                 MainTab.MUSIC -> {
@@ -678,8 +692,25 @@ object MainScreen : Screen {
 
         LaunchedEffect(selectedTab, showDock) {
           menuExpanded = false
+          searchFlight.cancel()
         }
         BackHandler(enabled = menuExpanded && showDock) { menuExpanded = false }
+        // Back while the icon is still travelling (search not opened yet) simply calls it off.
+        BackHandler(enabled = searchFlight.phase == com.quantummpv.app.ui.browser.components.SearchFlightPhase.ToCenter) {
+          searchFlight.cancel()
+        }
+        val searchMotionEnabled = !com.quantummpv.app.ui.theme.AppMotion.shouldReduceMotion()
+        // When the active tab closes its search (Back, Cancel), the icon travels home to the button.
+        LaunchedEffect(selectedTab, showDock, searchMotionEnabled) {
+          var wasActive = mainSearchController.isSearchActive(selectedTab)
+          snapshotFlow { mainSearchController.isSearchActive(selectedTab) }.collect { active ->
+            val target = searchButtonCenter
+            if (wasActive && !active && showDock && searchMotionEnabled && target != null) {
+              searchFlight.returnTo(coroutineScope, selectedTab, target)
+            }
+            wasActive = active
+          }
+        }
 
         // Dismissal/scrim is below the dock and its in-window menu, so menu rows remain tappable.
         AnimatedVisibility(
@@ -712,6 +743,7 @@ object MainScreen : Screen {
             backStack.navigateTo(com.quantummpv.app.ui.browser.insights.LibraryInsightsScreen)
           },
           glass = glassBottomNavigation,
+          anchorCenterInRoot = { menuButtonCenter },
           // The top safe-area inset and bottom clearance bound the panel's height, so short windows
           // shrink it to the space left above the dock or stacked mini player and its rows scroll.
           modifier =
@@ -766,6 +798,7 @@ object MainScreen : Screen {
                   showLabels = showNavLabels,
                   menuExpanded = menuExpanded,
                   onMenuExpandedChange = { menuExpanded = it },
+                  onMenuButtonPositioned = { menuButtonCenter = it },
                   modifier = Modifier.width(navWidth),
                 )
                 Box(
@@ -775,15 +808,29 @@ object MainScreen : Screen {
                   ContextualSearchSlot(
                     visible = showContextualSearch,
                     glass = glassBottomNavigation,
+                    hideIcon = searchFlight.hidesButtonIcon,
+                    onButtonPositioned = { searchButtonCenter = it },
                     onSearchClick = {
                       menuExpanded = false
-                      mainSearchController.request(selectedTab)
+                      val from = searchButtonCenter
+                      val center = screenCenter
+                      val tab = selectedTab
+                      if (searchFlight.isRunning) {
+                        // Ignore repeated taps; the running flight already opens this search.
+                      } else if (searchMotionEnabled && from != null && center != null) {
+                        searchFlight.launch(coroutineScope, tab, from, center) { mainSearchController.request(tab) }
+                      } else {
+                        mainSearchController.request(tab)
+                      }
                     },
                   )
                 }
               }
             }
         }
+
+        // Topmost: the single travelling magnifier of the Search launch transition.
+        com.quantummpv.app.ui.browser.components.SearchFlightOverlay(searchFlight)
       }
     }
   }
@@ -802,6 +849,7 @@ private fun ExpressivePillNavigationBar(
   showLabels: Boolean = true,
   menuExpanded: Boolean = false,
   onMenuExpandedChange: (Boolean) -> Unit = { },
+  onMenuButtonPositioned: (androidx.compose.ui.geometry.Offset) -> Unit = { },
   modifier: Modifier = Modifier,
   pagerState: PagerState? = null,
   glass: Boolean = false,
@@ -993,6 +1041,7 @@ private fun ExpressivePillNavigationBar(
         com.quantummpv.app.ui.browser.components.FloatingMenuButton(
           expanded = menuExpanded,
           onExpandedChange = onMenuExpandedChange,
+          onCenterPositioned = onMenuButtonPositioned,
         )
       }
     }
@@ -1166,6 +1215,8 @@ private fun navigationDockExit(
 private fun ContextualSearchSlot(
   visible: Boolean,
   glass: Boolean,
+  hideIcon: Boolean,
+  onButtonPositioned: (androidx.compose.ui.geometry.Offset) -> Unit,
   onSearchClick: () -> Unit,
 ) {
   AnimatedVisibility(
@@ -1173,7 +1224,12 @@ private fun ContextualSearchSlot(
     enter = contextualSearchEnter(),
     exit = contextualSearchExit(),
   ) {
-    com.quantummpv.app.ui.browser.components.FloatingSearchButton(onSearchClick = onSearchClick, glass = glass)
+    com.quantummpv.app.ui.browser.components.FloatingSearchButton(
+      onSearchClick = onSearchClick,
+      glass = glass,
+      hideIcon = hideIcon,
+      onIconPositioned = onButtonPositioned,
+    )
   }
 }
 
