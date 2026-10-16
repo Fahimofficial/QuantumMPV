@@ -469,7 +469,11 @@ class MainActivity : AppCompatActivity() {
       navigationBarStyle = synchronizedBarStyle,
     )
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-      window.isNavigationBarContrastEnforced = false
+      // In three-button navigation Android applies a contrast scrim behind the
+      // system buttons. Gesture navigation remains transparent where supported.
+      // Disabling enforcement unconditionally makes three-button controls hard
+      // to see against arbitrary artwork, wallpapers and expressive surfaces.
+      window.isNavigationBarContrastEnforced = true
     }
     appliedEdgeToEdgeDarkMode = isDarkMode
   }
