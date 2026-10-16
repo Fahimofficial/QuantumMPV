@@ -7,7 +7,6 @@ import com.quantummpv.app.database.dao.JellyfinServerDao
 import com.quantummpv.app.database.dao.NavidromeServerDao
 import com.quantummpv.app.database.entities.JellyfinServerEntity
 import com.quantummpv.app.database.entities.NavidromeServerEntity
-import io.mockk.any
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
