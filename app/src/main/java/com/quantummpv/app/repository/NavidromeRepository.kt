@@ -81,11 +81,13 @@ class NavidromeRepository(
   fun getSongCoverArtUrl(server: NavidromeServer, song: NavidromeSong, size: Int = 500): String? = client.getSongCoverArtUrl(server, song, size)
 
   private suspend fun decryptAndMigrate(entity: NavidromeServerEntity): NavidromeServer {
-    val password = decryptCredential(entity.password)
-    val token = decryptCredential(entity.token)
+    val passwordCredential = decryptCredential(entity.password)
+    val tokenCredential = decryptCredential(entity.token)
+    val password = passwordCredential.value
+    val token = tokenCredential.value
     val passwordWasPlaintext = entity.password.isNotEmpty() && !credentialCipher.isEncrypted(entity.password)
     val tokenWasPlaintext = entity.token.isNotEmpty() && !credentialCipher.isEncrypted(entity.token)
-    if (passwordWasPlaintext || tokenWasPlaintext) {
+    if ((passwordWasPlaintext || tokenWasPlaintext) && passwordCredential.isReadable && tokenCredential.isReadable) {
       runCatching {
         dao.replaceCredentials(
           id = entity.id,
@@ -99,12 +101,19 @@ class NavidromeRepository(
     return entity.toDomain().copy(password = password, token = token)
   }
 
-  private fun decryptCredential(storedValue: String): String {
-    if (storedValue.isEmpty() || !credentialCipher.isEncrypted(storedValue)) return storedValue
+  private data class DecryptedCredential(val value: String, val isReadable: Boolean)
+
+  private fun decryptCredential(storedValue: String): DecryptedCredential {
+    if (storedValue.isEmpty() || !credentialCipher.isEncrypted(storedValue)) {
+      return DecryptedCredential(storedValue, isReadable = true)
+    }
     // Never throws inside allServers: an unreadable credential means "signed out", not a crash.
     return runCatching { credentialCipher.decrypt(storedValue) }
       .onFailure { Log.w(TAG, "Navidrome credential can no longer be decrypted; treating server as signed out", it) }
-      .getOrDefault("")
+      .fold(
+        onSuccess = { DecryptedCredential(it, isReadable = true) },
+        onFailure = { DecryptedCredential("", isReadable = false) },
+      )
   }
 
   private fun NavidromeServer.toStorageEntity(): NavidromeServerEntity {

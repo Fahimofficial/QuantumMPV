@@ -86,6 +86,7 @@ internal class SearchLaunchTransition<K : Any> {
   private val fieldIcons = mutableStateMapOf<K, Offset>()
   private val anchors = HashMap<K, SearchFieldIconAnchor>()
   private var flightJob: Job? = null
+  private var flightGeneration = 0L
 
   /** True while a flight runs; a second Search tap during it is ignored. */
   val isRunning: Boolean get() = phase != SearchFlightPhase.Idle
@@ -125,6 +126,7 @@ internal class SearchLaunchTransition<K : Any> {
     activeKey = key
     phase = SearchFlightPhase.ToCenter
     fieldIcons.remove(key)
+    val generation = ++flightGeneration
     flightJob =
       scope.launch {
         try {
@@ -150,7 +152,7 @@ internal class SearchLaunchTransition<K : Any> {
             }
           }
         } finally {
-          finish()
+          finish(generation)
         }
       }
     return true
@@ -162,8 +164,12 @@ internal class SearchLaunchTransition<K : Any> {
     key: K,
     to: Offset,
   ): Boolean {
-    if (isRunning) return false
-    val from = fieldIcons[key] ?: return false
+    val fieldPosition = fieldIcons[key] ?: return false
+    val reversingFieldFlight = phase == SearchFlightPhase.ToField && activeKey == key
+    if (isRunning && !reversingFieldFlight) return false
+    val from = if (reversingFieldFlight) Offset(x.value, y.value) else fieldPosition
+    flightJob?.cancel()
+    val generation = ++flightGeneration
     activeKey = key
     phase = SearchFlightPhase.Returning
     flightJob =
@@ -174,7 +180,7 @@ internal class SearchLaunchTransition<K : Any> {
           scale.snapTo(1f)
           flyTo(to, 1f, RETURN_MS)
         } finally {
-          finish()
+          finish(generation)
         }
       }
     return true
@@ -182,8 +188,10 @@ internal class SearchLaunchTransition<K : Any> {
 
   /** Stops any flight immediately and restores every icon (tab switch, Back, leaving the screen). */
   fun cancel() {
+    flightGeneration++
     flightJob?.cancel()
-    finish()
+    flightJob = null
+    phase = SearchFlightPhase.Idle
   }
 
   private suspend fun flyTo(
@@ -196,7 +204,8 @@ internal class SearchLaunchTransition<K : Any> {
     launch { scale.animateTo(targetScale, tween(durationMs, easing = FastOutSlowInEasing)) }
   }
 
-  private fun finish() {
+  private fun finish(generation: Long) {
+    if (generation != flightGeneration) return
     flightJob = null
     phase = SearchFlightPhase.Idle
   }

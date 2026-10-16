@@ -66,14 +66,14 @@ class MediaServerDependencyGraphTest {
   @Test
   fun everyInjectedTypeIsDefined() {
     val koin = GlobalContext.get()
-    val missing = mutableListOf<String>()
+    val failures = mutableListOf<String>()
 
     fun probe(
       name: String,
       resolve: () -> Any,
     ) {
       runCatching(resolve).onFailure { error ->
-        if (error is org.koin.core.error.NoDefinitionFoundException) missing += name
+        failures += "$name: $error"
       }
     }
     probe("AdvancedPreferences") { koin.get<com.quantummpv.app.preferences.AdvancedPreferences>() }
@@ -124,6 +124,6 @@ class MediaServerDependencyGraphTest {
     probe("WyzieSearchRepository") { koin.get<com.quantummpv.app.repository.wyzie.WyzieSearchRepository>() }
     probe("YtdlpDownloadEngine") { koin.get<com.quantummpv.app.domain.download.YtdlpDownloadEngine>() }
     probe("YtdlPreferences") { koin.get<com.quantummpv.app.preferences.YtdlPreferences>() }
-    org.junit.Assert.assertTrue("Missing Koin definitions: $missing", missing.isEmpty())
+    org.junit.Assert.assertTrue("Koin resolution failures: $failures", failures.isEmpty())
   }
 }

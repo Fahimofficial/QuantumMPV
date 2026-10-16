@@ -67,9 +67,34 @@ class SearchLaunchTransitionTest {
     runFlight { scope, flight ->
       var opened = false
       flight.launch(scope, "network", button, center) { opened = true }
+      while (flight.phase != SearchFlightPhase.ToField) yield()
+      assertFalse("return requires a known field icon position", flight.returnTo(scope, "network", button))
       while (flight.isRunning) yield()
       assertTrue(opened)
       assertEquals(SearchFlightPhase.Idle, flight.phase)
+    }
+
+  @Test
+  fun returnDuringFieldFlightReversesFromTheCurrentIconPosition() =
+    runFlight { scope, flight ->
+      flight.launch(scope, "home", button, center) {
+        flight.anchorFor("home").onLeadingIconPositioned(field)
+      }
+      while (flight.phase != SearchFlightPhase.ToField) yield()
+      repeat(3) { yield() }
+      val positionBeforeReturn = Offset(flight.x.value, flight.y.value)
+
+      assertTrue(flight.returnTo(scope, "home", button))
+      assertEquals(SearchFlightPhase.Returning, flight.phase)
+      assertEquals(positionBeforeReturn.x, flight.x.value, 0.01f)
+      assertEquals(positionBeforeReturn.y, flight.y.value, 0.01f)
+      repeat(3) {
+        yield()
+        assertEquals(SearchFlightPhase.Returning, flight.phase)
+      }
+      while (flight.isRunning) yield()
+      assertEquals(button.x, flight.x.value, 0.01f)
+      assertEquals(button.y, flight.y.value, 0.01f)
     }
 
   @Test

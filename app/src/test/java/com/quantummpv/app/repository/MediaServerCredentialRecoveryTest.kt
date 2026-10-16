@@ -7,6 +7,7 @@ import com.quantummpv.app.database.dao.JellyfinServerDao
 import com.quantummpv.app.database.dao.NavidromeServerDao
 import com.quantummpv.app.database.entities.JellyfinServerEntity
 import com.quantummpv.app.database.entities.NavidromeServerEntity
+import io.mockk.any
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
@@ -79,5 +80,30 @@ class MediaServerCredentialRecoveryTest {
     assertEquals(1, servers.size)
     assertEquals("", servers.single().password)
     assertEquals("", servers.single().token)
+  }
+
+  @Test
+  fun navidromeLegacyMigrationDoesNotOverwriteUnreadableEncryptedCredential() {
+    val unreadableToken = oldDeviceCipher.encrypt("token")
+    val entity =
+      NavidromeServerEntity(
+        id = 4,
+        name = "Music",
+        serverUrl = "https://nd.example",
+        username = "me",
+        password = "plain-password",
+        token = unreadableToken,
+      )
+    val dao = mockk<NavidromeServerDao>(relaxed = true)
+    every { dao.getAllServers() } returns flowOf(listOf(entity))
+
+    val server =
+      runBlocking {
+        NavidromeRepository(dao, mockk<NavidromeClient>(), currentCipher).allServers.first().single()
+      }
+
+    assertEquals("plain-password", server.password)
+    assertEquals("", server.token)
+    coVerify(exactly = 0) { dao.replaceCredentials(any(), any(), any(), any(), any()) }
   }
 }
