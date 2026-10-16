@@ -168,6 +168,7 @@ internal class SearchLaunchTransition<K : Any> {
     val reversingFieldFlight = phase == SearchFlightPhase.ToField && activeKey == key
     if (isRunning && !reversingFieldFlight) return false
     val from = if (reversingFieldFlight) Offset(x.value, y.value) else fieldPosition
+    val startScale = if (reversingFieldFlight) scale.value else 1f
     flightJob?.cancel()
     val generation = ++flightGeneration
     activeKey = key
@@ -177,7 +178,7 @@ internal class SearchLaunchTransition<K : Any> {
         try {
           x.snapTo(from.x)
           y.snapTo(from.y)
-          scale.snapTo(1f)
+          scale.snapTo(startScale)
           flyTo(to, 1f, RETURN_MS)
         } finally {
           finish(generation)

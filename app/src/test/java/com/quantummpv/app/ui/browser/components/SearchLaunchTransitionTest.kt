@@ -83,18 +83,23 @@ class SearchLaunchTransitionTest {
       while (flight.phase != SearchFlightPhase.ToField) yield()
       repeat(3) { yield() }
       val positionBeforeReturn = Offset(flight.x.value, flight.y.value)
+      val scaleBeforeReturn = flight.scale.value
+      assertTrue("icon is still enlarged during the field leg", scaleBeforeReturn > 1f)
 
       assertTrue(flight.returnTo(scope, "home", button))
       assertEquals(SearchFlightPhase.Returning, flight.phase)
       assertEquals(positionBeforeReturn.x, flight.x.value, 0.01f)
       assertEquals(positionBeforeReturn.y, flight.y.value, 0.01f)
+      assertEquals(scaleBeforeReturn, flight.scale.value, 0.001f)
       repeat(3) {
         yield()
         assertEquals(SearchFlightPhase.Returning, flight.phase)
       }
+      assertTrue("return animates from the current scale", flight.scale.value > 1f)
       while (flight.isRunning) yield()
       assertEquals(button.x, flight.x.value, 0.01f)
       assertEquals(button.y, flight.y.value, 0.01f)
+      assertEquals(1f, flight.scale.value, 0.001f)
     }
 
   @Test
