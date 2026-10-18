@@ -10,21 +10,26 @@
 package com.quantummpv.app.ui.player.controls.components
 
 import android.graphics.Typeface
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.updateTransition
+import androidx.compose.animation.graphics.res.animatedVectorResource
+import androidx.compose.animation.graphics.res.rememberAnimatedVectorPainter
+import androidx.compose.animation.graphics.vector.AnimatedImageVector
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathOperation
@@ -32,146 +37,52 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
+import com.quantummpv.app.R
 import com.quantummpv.app.ui.theme.AppMotion
 import android.graphics.Paint as AndroidPaint
 
+/**
+ * Play/Pause glyph that morphs between the two shapes with [R.drawable.avd_play_to_pause] and
+ * [R.drawable.avd_pause_to_play].
+ *
+ * Each direction plays its own AVD from the start: [key] gives every [isPlaying] value a fresh
+ * painter, which starts at the AVD's first frame and then runs to its end. The first composition
+ * starts at the end instead, so opening a screen shows the current glyph without animating.
+ */
 @Composable
 fun AnimatedPlayPauseIcon(
   isPlaying: Boolean,
   modifier: Modifier = Modifier,
   tint: Color = LocalContentColor.current,
+  contentDescription: String? = null,
 ) {
-  val transition = updateTransition(targetState = isPlaying, label = "play_pause_icon")
-  val playAlpha =
-    transition.animateFloat(
-      transitionSpec = {
-        spring(
-          dampingRatio = AppMotion.Spatial.Expressive.dampingRatio,
-          stiffness = AppMotion.Spatial.Expressive.stiffness,
-        )
-      },
-      label = "play_alpha",
-    ) { playing -> if (playing) 0f else 1f }
-  val playScale =
-    transition.animateFloat(
-      transitionSpec = {
-        spring(
-          dampingRatio = AppMotion.Spatial.Expressive.dampingRatio,
-          stiffness = AppMotion.Spatial.Expressive.stiffness,
-        )
-      },
-      label = "play_scale",
-    ) { playing -> if (playing) 0.82f else 1f }
-  val playRotation =
-    transition.animateFloat(
-      transitionSpec = {
-        spring(
-          dampingRatio = AppMotion.Spatial.Expressive.dampingRatio,
-          stiffness = AppMotion.Spatial.Expressive.stiffness,
-        )
-      },
-      label = "play_rotation",
-    ) { playing -> if (playing) -12f else 0f }
-
-  val pauseAlpha =
-    transition.animateFloat(
-      transitionSpec = {
-        spring(
-          dampingRatio = AppMotion.Spatial.Expressive.dampingRatio,
-          stiffness = AppMotion.Spatial.Expressive.stiffness,
-        )
-      },
-      label = "pause_alpha",
-    ) { playing -> if (playing) 1f else 0f }
-  val pauseScale =
-    transition.animateFloat(
-      transitionSpec = {
-        spring(
-          dampingRatio = AppMotion.Spatial.Expressive.dampingRatio,
-          stiffness = AppMotion.Spatial.Expressive.stiffness,
-        )
-      },
-      label = "pause_scale",
-    ) { playing -> if (playing) 1f else 0.82f }
-  val barSpread =
-    transition.animateFloat(
-      transitionSpec = {
-        spring(
-          dampingRatio = AppMotion.Spatial.Expressive.dampingRatio,
-          stiffness = AppMotion.Spatial.Expressive.stiffness,
-        )
-      },
-      label = "pause_spread",
-    ) { playing -> if (playing) 1f else 0f }
-
-  Box(
-    modifier = modifier,
-    contentAlignment = Alignment.Center,
-  ) {
-    Canvas(
-      modifier =
-        Modifier
-          .fillMaxSize()
-          .graphicsLayer(
-            alpha = playAlpha.value,
-            scaleX = playScale.value,
-            scaleY = playScale.value,
-            rotationZ = playRotation.value,
-          ),
-    ) {
-      val triangle =
-        Path().apply {
-          moveTo(size.width * 0.34f, size.height * 0.20f)
-          quadraticTo(size.width * 0.30f, size.height * 0.24f, size.width * 0.30f, size.height * 0.31f)
-          lineTo(size.width * 0.30f, size.height * 0.69f)
-          quadraticTo(size.width * 0.30f, size.height * 0.76f, size.width * 0.34f, size.height * 0.80f)
-          lineTo(size.width * 0.76f, size.height * 0.56f)
-          quadraticTo(size.width * 0.83f, size.height * 0.52f, size.width * 0.83f, size.height * 0.50f)
-          quadraticTo(size.width * 0.83f, size.height * 0.48f, size.width * 0.76f, size.height * 0.44f)
-          close()
-        }
-      drawPath(
-        path = triangle,
-        color = tint,
+  val animateChanges = remember { AnimateAfterFirstFrame() }
+  val disableMotion = AppMotion.shouldDisableAnimations()
+  key(isPlaying) {
+    val image =
+      AnimatedImageVector.animatedVectorResource(
+        if (isPlaying) R.drawable.avd_play_to_pause else R.drawable.avd_pause_to_play,
       )
+    var atEnd by remember { mutableStateOf(!animateChanges.enabled || disableMotion) }
+    LaunchedEffect(Unit) {
+      atEnd = true
+      animateChanges.enabled = true
     }
-
-    Canvas(
-      modifier =
-        Modifier
-          .fillMaxSize()
-          .graphicsLayer(
-            alpha = pauseAlpha.value,
-            scaleX = pauseScale.value,
-            scaleY = pauseScale.value,
-          ),
-    ) {
-      val barWidth = size.width * 0.18f
-      val barHeight = size.height * 0.58f
-      val top = (size.height - barHeight) / 2f
-      val spread = size.width * (0.015f + (0.11f * barSpread.value))
-      val leftX = (size.width / 2f) - spread - barWidth / 2f
-      val rightX = (size.width / 2f) + spread - barWidth / 2f
-      val radius = CornerRadius(barWidth * 0.7f, barWidth * 0.7f)
-
-      drawRoundRect(
-        color = tint,
-        topLeft = Offset(leftX, top),
-        size = Size(barWidth, barHeight),
-        cornerRadius = radius,
-      )
-      drawRoundRect(
-        color = tint,
-        topLeft = Offset(rightX, top),
-        size = Size(barWidth, barHeight),
-        cornerRadius = radius,
-      )
-    }
+    Icon(
+      painter = rememberAnimatedVectorPainter(image, atEnd),
+      contentDescription = contentDescription,
+      modifier = modifier,
+      tint = tint,
+    )
   }
+}
+
+/** Plain holder: flipping it must not trigger a recomposition. */
+private class AnimateAfterFirstFrame {
+  var enabled: Boolean = false
 }
 
 @Composable

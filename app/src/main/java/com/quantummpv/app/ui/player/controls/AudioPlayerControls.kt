@@ -146,6 +146,7 @@ import com.quantummpv.app.ui.player.PlayerViewModel
 import com.quantummpv.app.ui.player.RepeatMode
 import com.quantummpv.app.ui.player.Sheets
 import com.quantummpv.app.ui.player.controls.components.AbLoopIcon
+import com.quantummpv.app.ui.player.controls.components.AnimatedPlayPauseIcon
 import com.quantummpv.app.ui.player.controls.components.MiniAudioVisualizer
 import com.quantummpv.app.ui.player.controls.components.SeekbarWithTimers
 import com.quantummpv.app.ui.player.controls.components.sheets.PlaylistItem
@@ -1666,9 +1667,10 @@ fun AudioPlayerControls(
           shadowElevation = 8.dp,
         ) {
           Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-            Icon(
-              imageVector = if (isPlaying) Icons.RoundedFilled.Pause else Icons.RoundedFilled.PlayArrow,
-              contentDescription = null,
+            AnimatedPlayPauseIcon(
+              isPlaying = isPlaying,
+              contentDescription =
+                stringResource(if (isPlaying) R.string.pip_action_pause else R.string.pip_action_play),
               tint = MaterialTheme.colorScheme.onPrimary,
               modifier = Modifier.size(if (isPortrait) 44.dp else 36.dp),
             )

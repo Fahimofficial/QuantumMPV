@@ -6,8 +6,12 @@
 - **Responsive floating dock**: The overflow control is pinned inside the navigation pill and the separate circular Search action sits immediately beside it. On narrow screens, tab labels collapse and the 48 dp tab targets scroll inside the pill instead of colliding with Search or hiding destinations.
 - **Contextual Search**: The floating Search action now opens the active tab’s existing search and keyboard for Home, Music, Recents, Playlists, Network, and Jellyfin. The top-bar Search action is suppressed only while the floating dock owns it, avoiding duplicates; nested screens retain their normal action.
 - **Glass menu**: The Settings and Library Insights panel now renders in-window through the shared lightweight Haze glass treatment, expands above its overflow trigger, dismisses on outside tap or Back, and follows Off/Reduced motion settings.
+- **Library search screen**: Home (album view) search is now its own screen. The dock's Search circle morphs into the search bar, and the dock, mini player and quick-play FAB step aside so results and the keyboard get the full height. Recent searches are kept on the device and shown while the field is empty.
+- **Morphing play/pause**: Player, audio player and mini-player play/pause buttons now morph between the triangle and the two bars.
+- **Dock and menu motion**: The selected-tab pill slides to the new tab on a spring, including jumps across several tabs, and overflow menu tiles shrink slightly on press.
 
 ### Fixes
+- **Search**: Searching videos finds them again: matching is case-insensitive on file name and path and reads the library directly instead of a media index that was never filled. An empty search box no longer shows "No results found".
 - **Upgrade crash**: Upgrading from v1.0/v1.1 (database version 23) or a preview build (version 24) no longer fails to open the library database. The new migration creates every table and column added since, and is covered by upgrade-path tests.
 - **Secure folder**: Other apps can no longer ask the player to open files in QuantumMPV's private storage, which previously allowed hidden secure-folder videos to play without the PIN.
 - **Updates**: Update APKs download to a temporary file and are installed only after their size and published SHA-256 match. An interrupted download is no longer offered as ready to install.

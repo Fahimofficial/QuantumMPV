@@ -16,3 +16,6 @@ interface Screen : NavKey {
   @Composable
   fun Content()
 }
+
+/** Marks screens that need the full window height (e.g. search with the keyboard up). */
+interface HidesMiniPlayer

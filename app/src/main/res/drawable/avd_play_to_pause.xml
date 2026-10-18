@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Play triangle (M 8 5 L 19 12 L 8 19 Z) morphing into two pause bars.
+
+  pathData can only be interpolated between paths with identical command lists, so the triangle is
+  drawn as two quads split at x = 13.5 (the right quad's tip is a zero-length edge at 19,12). It
+  renders exactly like the single triangle and lines up point-for-point with the pause bars
+  M 6 5 L 10 5 L 10 19 L 6 19 Z M 14 5 L 18 5 L 18 19 L 14 19 Z.
+-->
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt">
+    <aapt:attr name="android:drawable">
+        <vector
+            android:name="play_pause"
+            android:width="24dp"
+            android:height="24dp"
+            android:viewportWidth="24"
+            android:viewportHeight="24">
+            <path
+                android:name="glyph"
+                android:fillColor="#FFFFFFFF"
+                android:pathData="M 8 5 L 13.5 8.5 L 13.5 15.5 L 8 19 Z M 13.5 8.5 L 19 12 L 19 12 L 13.5 15.5 Z" />
+        </vector>
+    </aapt:attr>
+    <target android:name="glyph">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="300"
+                android:interpolator="@android:interpolator/fast_out_slow_in"
+                android:propertyName="pathData"
+                android:valueFrom="M 8 5 L 13.5 8.5 L 13.5 15.5 L 8 19 Z M 13.5 8.5 L 19 12 L 19 12 L 13.5 15.5 Z"
+                android:valueTo="M 6 5 L 10 5 L 10 19 L 6 19 Z M 14 5 L 18 5 L 18 19 L 14 19 Z"
+                android:valueType="pathType" />
+        </aapt:attr>
+    </target>
+</animated-vector>

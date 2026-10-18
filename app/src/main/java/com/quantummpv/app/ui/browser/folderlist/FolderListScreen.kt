@@ -11,7 +11,6 @@
 
 package com.quantummpv.app.ui.browser.folderlist
 
-import android.content.Context
 import android.content.Intent
 import android.util.Log
 import android.widget.Toast
@@ -26,24 +25,20 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FloatingActionButtonMenu
 import androidx.compose.material3.FloatingActionButtonMenuItem
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Scaffold
@@ -72,22 +67,18 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.PermissionStatus
 import com.quantummpv.app.BuildConfig
 import com.quantummpv.app.R
-import com.quantummpv.app.domain.browser.FileSystemItem
-import com.quantummpv.app.domain.media.model.Video
 import com.quantummpv.app.domain.media.model.VideoFolder
 import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.BrowserPreferences
@@ -100,8 +91,6 @@ import com.quantummpv.app.presentation.Screen
 import com.quantummpv.app.presentation.components.pullrefresh.PullRefreshBox
 import com.quantummpv.app.ui.browser.LocalNavigationBarHeight
 import com.quantummpv.app.ui.browser.cards.FolderCard
-import com.quantummpv.app.ui.browser.cards.VideoCard
-import com.quantummpv.app.ui.browser.cards.VideoCardUiConfig
 import com.quantummpv.app.ui.browser.components.BrowserBottomBar
 import com.quantummpv.app.ui.browser.components.BrowserTopBar
 import com.quantummpv.app.ui.browser.components.ExpressiveScrollBar
@@ -114,29 +103,27 @@ import com.quantummpv.app.ui.browser.dialogs.RenameDialog
 import com.quantummpv.app.ui.browser.fab.FabScrollHelper
 import com.quantummpv.app.ui.browser.filesystem.FileSystemBrowserRootScreen
 import com.quantummpv.app.ui.browser.medialibrary.MediaLibraryContent
+import com.quantummpv.app.ui.browser.search.MediaSearchBody
+import com.quantummpv.app.ui.browser.search.MediaSearchScreen
+import com.quantummpv.app.ui.browser.search.rememberMediaSearchViewModel
 import com.quantummpv.app.ui.browser.selection.rememberSelectionManager
 import com.quantummpv.app.ui.browser.sheets.PlayLinkSheet
 import com.quantummpv.app.ui.browser.states.EmptyState
 import com.quantummpv.app.ui.browser.states.LoadingState
 import com.quantummpv.app.ui.browser.states.PermissionDeniedState
 import com.quantummpv.app.ui.browser.videolist.VideoListScreen
-import com.quantummpv.app.ui.components.InlineSearchBar
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.securefolder.SecureFolderGateScreen
 import com.quantummpv.app.ui.utils.LocalBackStack
-import com.quantummpv.app.ui.utils.calculateResponsiveGridSpans
 import com.quantummpv.app.ui.utils.navigateTo
 import com.quantummpv.app.utils.history.RecentlyPlayedOps
 import com.quantummpv.app.utils.media.CopyPasteOps
-import com.quantummpv.app.utils.media.MediaSearchEngine
 import com.quantummpv.app.utils.media.MediaUtils
 import com.quantummpv.app.utils.media.OpenDocumentTreeContract
 import com.quantummpv.app.utils.permission.PermissionUtils
 import com.quantummpv.app.utils.sort.SortUtils
 import com.quantummpv.app.utils.storage.FileTypeUtils
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import org.koin.compose.koinInject
@@ -239,88 +226,27 @@ object FolderListScreen : Screen {
     val moveToSecureProgressOpen = rememberSaveable { mutableStateOf(false) }
     val secureFolderProgress by secureFolderRepository.progress.collectAsState()
 
-    // Search state
-    var internalSearchQuery by rememberSaveable { mutableStateOf("") }
-    var internalIsSearching by rememberSaveable { mutableStateOf(false) }
-    val effectiveSearchQuery = if (embedded) searchQuery else searchQuery.ifBlank { internalSearchQuery }
-    val effectiveIsSearching = if (embedded) searchQuery.isNotBlank() else (internalIsSearching || internalSearchQuery.isNotBlank())
+    // Search. Standalone, the dock's Search button opens the dedicated MediaSearchScreen. Embedded
+    // (Music tab), the host owns the query and results render in place through the same pipeline.
     val topBarSearchAction =
       com.quantummpv.app.ui.browser.mainTabSearchAction(
-        isSearchActive = effectiveIsSearching,
+        isSearchActive = false,
         enabled = !embedded,
+        opensScreen = true,
       ) {
-        internalIsSearching = true
+        backstack.navigateTo(MediaSearchScreen(audioOnly = audioOnly))
       }
-    var searchResults by remember { mutableStateOf<List<FileSystemItem>>(emptyList()) }
-    var isSearchLoading by remember { mutableStateOf(false) }
-    val keyboardController = LocalSoftwareKeyboardController.current
-    val focusRequester = remember { FocusRequester() }
-    var searchIndexJob by remember { mutableStateOf<Job?>(null) }
-    val foldersBlacklistedMessage = stringResource(com.quantummpv.app.R.string.pref_folders_blacklisted)
-
-    LaunchedEffect(internalIsSearching) {
-      if (internalIsSearching) focusRequester.requestFocus()
-    }
-
-    // Rebuilds when folders change so incrementally discovered hidden folders become searchable;
-    // chained on the previous job because buildIndex resets the shared index maps.
-    LaunchedEffect(effectiveIsSearching, videoFolders, audioOnly) {
-      if (audioOnly || !effectiveIsSearching) return@LaunchedEffect
-      val previous = searchIndexJob
-      searchIndexJob =
-        coroutineScope.launch {
-          previous?.join()
-          buildSearchIndex(context, videoFolders, audioOnly)
-        }
-    }
-
-    // Search logic
-    LaunchedEffect(effectiveSearchQuery, effectiveIsSearching, audioOnly, videoFolders) {
-      if (effectiveIsSearching && effectiveSearchQuery.isNotBlank()) {
-        delay(250)
-        isSearchLoading = true
-        try {
-          searchResults =
-            if (audioOnly) {
-              val q = effectiveSearchQuery.trim().lowercase()
-              val matchingFolders = videoFolders.filter { folder ->
-                folder.name.lowercase().contains(q) || folder.path.lowercase().contains(q)
-              }.map { folder ->
-                FileSystemItem.Folder(
-                  name = folder.name,
-                  path = folder.path,
-                  lastModified = folder.lastModified,
-                  videoCount = folder.videoCount,
-                  totalSize = folder.totalSize,
-                  totalDuration = folder.totalDuration,
-                )
-              }
-              val matchingAudioFiles = com.quantummpv.app.repository.MediaFileRepository
-                .searchAudio(context, effectiveSearchQuery)
-                .map { audio ->
-                  FileSystemItem.VideoFile(
-                    name = audio.displayName,
-                    path = audio.path,
-                    lastModified = audio.dateModified,
-                    video = audio,
-                  )
-                }
-              matchingFolders + matchingAudioFiles
-            } else {
-              searchIndexJob?.join()
-              searchFoldersAndVideos(context, effectiveSearchQuery)
-            }
-        } catch (e: Exception) {
-          Log.e("FolderListScreen", "Error during search", e)
-          searchResults = emptyList()
-        } finally {
-          isSearchLoading = false
-        }
+    val isEmbeddedSearching = embedded && searchQuery.isNotBlank()
+    val embeddedSearchViewModel =
+      if (embedded) {
+        rememberMediaSearchViewModel(audioOnly, key = "EmbeddedMediaSearchViewModel:${if (audioOnly) "music" else "home"}")
       } else {
-        searchResults = emptyList()
-        isSearchLoading = false
+        null
       }
+    LaunchedEffect(embeddedSearchViewModel, searchQuery) {
+      embeddedSearchViewModel?.onQueryChange(searchQuery)
     }
+    val foldersBlacklistedMessage = stringResource(com.quantummpv.app.R.string.pref_folders_blacklisted)
 
     // FAB state
     val isFabVisible = remember { mutableStateOf(true) }
@@ -526,17 +452,12 @@ object FolderListScreen : Screen {
     // Optimized back handler for immediate response
     val shouldHandleBack =
       selectionManager.isInSelectionMode ||
-        (!embedded && internalIsSearching) ||
         isFabExpanded.value ||
         (isDualPaneActive && selectedFolderBucketId != null)
     com.quantummpv.app.ui.utils.NavigationBackHandler(enabled = shouldHandleBack) {
       when {
         isFabExpanded.value -> isFabExpanded.value = false
         selectionManager.isInSelectionMode -> selectionManager.clear()
-        !embedded && internalIsSearching -> {
-          internalIsSearching = false
-          internalSearchQuery = ""
-        }
         isDualPaneActive && selectedFolderBucketId != null -> {
           selectedFolderBucketId = null
           selectedFolderName = null
@@ -560,50 +481,6 @@ object FolderListScreen : Screen {
         topBar = {
           if (embedded) {
             // Embedded inside another screen (e.g. Music tab) which already renders its own top bar.
-          } else if (internalIsSearching) {
-            InlineSearchBar(
-              query = internalSearchQuery,
-              onQueryChange = { internalSearchQuery = it },
-              onSearch = { },
-              modifier =
-                Modifier
-                  .fillMaxWidth()
-                  .padding(horizontal = 16.dp),
-              inputFieldModifier = Modifier.focusRequester(focusRequester),
-              placeholder = {
-                Text(
-                  androidx.compose.ui.res
-                    .stringResource(com.quantummpv.app.R.string.ui_search_folders_and_videos),
-                )
-              },
-              leadingIcon = {
-                Icon(
-                  imageVector = Icons.RoundedFilled.Search,
-                  contentDescription =
-                    androidx.compose.ui.res.stringResource(
-                      com.quantummpv.app.R.string.settings_search_title,
-                    ),
-                )
-              },
-              trailingIcon = {
-                IconButton(
-                  onClick = {
-                    internalIsSearching = false
-                    internalSearchQuery = ""
-                  },
-                ) {
-                  Icon(
-                    imageVector = Icons.RoundedFilled.Close,
-                    contentDescription =
-                      androidx.compose.ui.res.stringResource(
-                        com.quantummpv.app.R.string.generic_cancel,
-                      ),
-                  )
-                }
-              },
-              shape = RoundedCornerShape(28.dp),
-              tonalElevation = 6.dp,
-            )
           } else {
             BrowserTopBar(
               title = stringResource(com.quantummpv.app.R.string.app_name),
@@ -832,52 +709,24 @@ object FolderListScreen : Screen {
       ) { padding ->
         Box(modifier = Modifier.padding(padding)) {
           if (isPermissionSetupCompleted && permissionState.status == PermissionStatus.Granted) {
-              if (effectiveIsSearching) {
-                // Show search results
-                Box(modifier = Modifier.fillMaxSize()) {
-                  if (isSearchLoading) {
-                    // Loading state
-                    Box(
-                      modifier = Modifier.fillMaxSize(),
-                      contentAlignment = Alignment.Center,
-                    ) {
-                      CircularProgressIndicator()
+              if (isEmbeddedSearching && embeddedSearchViewModel != null) {
+                val searchUiState by embeddedSearchViewModel.uiState.collectAsStateWithLifecycle()
+                MediaSearchBody(
+                  query = searchQuery,
+                  uiState = searchUiState,
+                  audioOnly = audioOnly,
+                  mediaLayoutMode = mediaLayoutMode,
+                  bottomPadding = navigationBarHeight,
+                  onFolderClick = { folder ->
+                    if (isDualPaneActive) {
+                      selectedFolderBucketId = folder.bucketId
+                      selectedFolderName = folder.name
+                    } else {
+                      backstack.navigateTo(VideoListScreen(folder.bucketId, folder.name, isAudio = audioOnly))
                     }
-                  } else if (searchResults.isEmpty()) {
-                    // No results
-                    EmptyState(
-                      icon = Icons.RoundedFilled.Search,
-                      title = stringResource(R.string.ui_no_results_found),
-                      message = if (audioOnly) "No audio folders or songs match your search query" else "No folders or videos match your search query",
-                      modifier = Modifier.fillMaxSize(),
-                    )
-                  } else {
-                    // Show search results
-                    SearchResultsContent(
-                      searchResults = searchResults,
-                      navigationBarHeight = navigationBarHeight,
-                      onFolderClick = { folder ->
-                        if (isDualPaneActive) {
-                          selectedFolderBucketId = folder.bucketId
-                          selectedFolderName = folder.name
-                          if (!embedded) {
-                            internalIsSearching = false
-                            internalSearchQuery = ""
-                          }
-                        } else {
-                          backstack.navigateTo(
-                            com.quantummpv.app.ui.browser.videolist
-                              .VideoListScreen(folder.bucketId, folder.name, isAudio = audioOnly),
-                          )
-                        }
-                      },
-                      onVideoClick = { video ->
-                        MediaUtils.playFile(video, context)
-                      },
-                      mediaLayoutMode = mediaLayoutMode,
-                    )
-                  }
-                }
+                  },
+                  onMediaClick = { video -> MediaUtils.playFile(video, context) },
+                )
               } else {
                 FolderListContent(
                   folders = filteredFolders,
@@ -1542,268 +1391,4 @@ private fun ListContent(
       )
     }
   }
-}
-
-/**
- * Displays search results based on the user's layout preference (grid or list)
- */
-@Composable
-private fun SearchResultsContent(
-  searchResults: List<FileSystemItem>,
-  navigationBarHeight: androidx.compose.ui.unit.Dp,
-  onFolderClick: (com.quantummpv.app.domain.media.model.VideoFolder) -> Unit,
-  onVideoClick: (com.quantummpv.app.domain.media.model.Video) -> Unit,
-  mediaLayoutMode: com.quantummpv.app.preferences.MediaLayoutMode,
-) {
-  val folders =
-    searchResults.filterIsInstance<FileSystemItem.Folder>().map { folder ->
-      com.quantummpv.app.domain.media.model.VideoFolder(
-        bucketId = folder.path, // Use path as bucketId since FileSystemItem.Folder doesn't have bucketId
-        name = folder.name,
-        path = folder.path,
-        videoCount = folder.videoCount,
-        totalSize = folder.totalSize,
-        totalDuration = folder.totalDuration,
-        lastModified = folder.lastModified,
-      )
-    }
-  val videos = searchResults.filterIsInstance<FileSystemItem.VideoFile>().map { it.video }
-  val browserPreferences = koinInject<BrowserPreferences>()
-  val appearancePreferences = koinInject<AppearancePreferences>()
-  val showVideoThumbnails by browserPreferences.showVideoThumbnails.collectAsState()
-  val showSizeChip by browserPreferences.showSizeChip.collectAsState()
-  val showResolutionChip by browserPreferences.showResolutionChip.collectAsState()
-  val showFramerateInResolution by browserPreferences.showFramerateInResolution.collectAsState()
-  val showProgressBar by browserPreferences.showProgressBar.collectAsState()
-  val showDateChip by browserPreferences.showDateChip.collectAsState()
-  val showCodecSupportIndicator by browserPreferences.showCodecSupportIndicator.collectAsState()
-  val showSubtitleIndicator by browserPreferences.showSubtitleIndicator.collectAsState()
-  val unlimitedNameLines by appearancePreferences.unlimitedNameLines.collectAsState()
-  val showUnplayedOldVideoLabel by appearancePreferences.showUnplayedOldVideoLabel.collectAsState()
-  val unplayedOldVideoDays by appearancePreferences.unplayedOldVideoDays.collectAsState()
-  val showExtensionField by browserPreferences.showExtensionField.collectAsState()
-  val showDurationField by browserPreferences.showDurationField.collectAsState()
-  val centerGridTitles by browserPreferences.centerGridTitles.collectAsState()
-  val thumbnailQuality by browserPreferences.thumbnailQuality.collectAsState()
-  val videoCardUiConfig =
-    remember(
-      unlimitedNameLines,
-      showVideoThumbnails,
-      showSizeChip,
-      showResolutionChip,
-      showFramerateInResolution,
-      showCodecSupportIndicator,
-      showProgressBar,
-      showDateChip,
-      showUnplayedOldVideoLabel,
-      unplayedOldVideoDays,
-      showExtensionField,
-      showDurationField,
-      centerGridTitles,
-      thumbnailQuality,
-    ) {
-      VideoCardUiConfig(
-        unlimitedNameLines = unlimitedNameLines,
-        showThumbnails = showVideoThumbnails,
-        showSizeChip = showSizeChip,
-        showResolutionChip = showResolutionChip,
-        showFramerateInResolution = showFramerateInResolution,
-        showCodecSupportIndicator = showCodecSupportIndicator,
-        showProgressBar = showProgressBar,
-        showDateChip = showDateChip,
-        showUnplayedOldVideoLabel = showUnplayedOldVideoLabel,
-        unplayedOldVideoDays = unplayedOldVideoDays,
-        showExtensionField = showExtensionField,
-        showDurationField = showDurationField,
-        centerGridTitles = centerGridTitles,
-        thumbnailQuality = thumbnailQuality,
-      )
-    }
-
-  val isGridMode = mediaLayoutMode == com.quantummpv.app.preferences.MediaLayoutMode.GRID
-
-  Box(modifier = Modifier.fillMaxSize()) {
-    if (isGridMode) {
-      BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        val spansInfo =
-          calculateResponsiveGridSpans(
-            maxWidth = maxWidth,
-            isGridMode = true,
-          )
-        LazyVerticalGrid(
-          columns = GridCells.Fixed(spansInfo.spans),
-          modifier = Modifier.fillMaxSize(),
-          contentPadding =
-            PaddingValues(
-              start = 8.dp,
-              end = 8.dp,
-              top = 8.dp,
-              bottom = navigationBarHeight + 8.dp,
-            ),
-          horizontalArrangement = Arrangement.spacedBy(4.dp),
-          verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-          items(
-            count = folders.size,
-            key = { index -> folders[index].bucketId },
-            contentType = { "folder_item" },
-            span = { GridItemSpan(spansInfo.folderSpan) },
-          ) { index ->
-            val folder = folders[index]
-            FolderCard(
-              folder = folder,
-              isSelected = false,
-              isRecentlyPlayed = false,
-              onClick = { onFolderClick(folder) },
-              onLongClick = {},
-              onThumbClick = { onFolderClick(folder) },
-              newVideoCount = 0,
-              isGridMode = true,
-            )
-          }
-
-          items(
-            count = videos.size,
-            key = { index -> videos[index].id },
-            contentType = { "video_item" },
-            span = { GridItemSpan(spansInfo.videoSpan) },
-          ) { index ->
-            val video = videos[index]
-            VideoCard(
-              video = video,
-              isSelected = false,
-              onClick = { onVideoClick(video) },
-              onLongClick = {},
-              onThumbClick = { onVideoClick(video) },
-              isGridMode = true,
-              showSubtitleIndicator = showSubtitleIndicator,
-              uiConfig = videoCardUiConfig,
-            )
-          }
-        }
-      }
-    } else {
-      LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding =
-          PaddingValues(
-            start = 8.dp,
-            end = 8.dp,
-            top = 8.dp,
-            bottom = navigationBarHeight + 8.dp,
-          ),
-      ) {
-        items(
-          count = folders.size,
-          key = { index -> folders[index].bucketId },
-          contentType = { "folder_item" },
-        ) { index ->
-          val folder = folders[index]
-          FolderCard(
-            folder = folder,
-            isSelected = false,
-            isRecentlyPlayed = false,
-            onClick = { onFolderClick(folder) },
-            onLongClick = {},
-            onThumbClick = { onFolderClick(folder) },
-            newVideoCount = 0,
-            isGridMode = false,
-          )
-        }
-
-        items(
-          count = videos.size,
-          key = { index -> videos[index].id },
-          contentType = { "video_item" },
-        ) { index ->
-          val video = videos[index]
-          VideoCard(
-            video = video,
-            isSelected = false,
-            onClick = { onVideoClick(video) },
-            onLongClick = {},
-            onThumbClick = { onVideoClick(video) },
-            isGridMode = false,
-            showSubtitleIndicator = showSubtitleIndicator,
-            uiConfig = videoCardUiConfig,
-          )
-        }
-      }
-    }
-  }
-}
-
-/**
- * Searches for folders and videos matching the query
- * Returns FileSystemItem results containing matching folders and videos
- */
-
-object SearchManager {
-  val engine = MediaSearchEngine
-}
-
-/** Indexes the folders already on screen, so hidden (dot/.nomedia) folders stay searchable. */
-private suspend fun buildSearchIndex(
-  context: Context,
-  folders: List<VideoFolder>,
-  audioOnly: Boolean,
-) {
-  val videosByFolder =
-    folders.associate { folder ->
-      folder.bucketId to
-        com.quantummpv.app.repository.MediaFileRepository
-          .getVideosInFolder(
-            context,
-            folder.bucketId,
-            includeAudioOverride = if (audioOnly) true else null,
-          )
-    }
-  // SearchManager.engine.buildIndex(folders, videosByFolder) is no longer needed with FTS4
-}
-
-private suspend fun searchFoldersAndVideos(
-  context: Context,
-  query: String,
-): List<FileSystemItem> {
-  val results = mutableListOf<FileSystemItem>()
-  try {
-    Log.d("FolderListScreen", "Searching for: $query")
-
-    // Get all search matches from the optimized engine
-    val matches = SearchManager.engine.search(query, limit = 50)
-
-    for (item in matches) {
-      when (item) {
-        // Kotlin smart-casts 'item' to your domain model VideoFolder
-        is VideoFolder -> {
-          results.add(
-            FileSystemItem.Folder(
-              name = item.name,
-              path = item.path,
-              lastModified = item.lastModified,
-              videoCount = item.videoCount,
-              totalSize = item.totalSize,
-              totalDuration = item.totalDuration,
-            ),
-          )
-        }
-        // Kotlin smart-casts 'item' to your domain model Video
-        is Video -> {
-          results.add(
-            FileSystemItem.VideoFile(
-              name = item.displayName,
-              path = item.path,
-              lastModified = item.dateModified,
-              video = item,
-            ),
-          )
-        }
-      }
-    }
-
-    Log.d("FolderListScreen", "Found ${results.size} results for: $query")
-  } catch (e: Exception) {
-    Log.e("FolderListScreen", "Error searching folders and videos", e)
-  }
-  return results
 }

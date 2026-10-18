@@ -17,13 +17,11 @@ import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.view.SurfaceHolder
 import android.view.SurfaceView
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
@@ -73,6 +71,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
@@ -83,6 +82,7 @@ import com.quantummpv.app.R
 import com.quantummpv.app.domain.thumbnail.EmbeddedArtworkResolver
 import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.preferences.preference.collectAsState
+import com.quantummpv.app.presentation.HidesMiniPlayer
 import com.quantummpv.app.ui.browser.NavigationBarState
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
@@ -92,6 +92,7 @@ import com.quantummpv.app.ui.player.PlaybackPhase
 import com.quantummpv.app.ui.player.PlaybackSession
 import com.quantummpv.app.ui.player.PlayerActivity
 import com.quantummpv.app.ui.player.TrackNode
+import com.quantummpv.app.ui.player.controls.components.AnimatedPlayPauseIcon
 import com.quantummpv.app.ui.player.declaredMediaKind
 import com.quantummpv.app.ui.player.toObject
 import com.quantummpv.app.ui.utils.LocalBackStack
@@ -116,6 +117,8 @@ fun MiniPlayer(modifier: Modifier = Modifier) {
   val isSettingsScreen = currentScreen != null &&
     (currentScreen.javaClass.name.startsWith("com.quantummpv.app.ui.preferences") ||
      currentScreen.javaClass.name.startsWith("com.quantummpv.app.ui.editor"))
+  // Search and similar screens give the keyboard and results the whole window.
+  val screenHidesMiniPlayer = currentScreen is HidesMiniPlayer
 
   val currentItem = sessionState.currentItem
   val trackListNode by PlaybackSession.propNode["track-list"].collectAsStateWithLifecycle()
@@ -136,6 +139,7 @@ fun MiniPlayer(modifier: Modifier = Modifier) {
 
   val isMediaActive = isServiceRunning && currentItem != null &&
     !isSettingsScreen &&
+    !screenHidesMiniPlayer &&
     isMiniPlayerAllowed &&
     sessionState.phase != PlaybackPhase.IDLE &&
     sessionState.phase != PlaybackPhase.STOPPING &&
@@ -390,18 +394,13 @@ private fun MiniPlayerContent(
             },
             modifier = Modifier.size(36.dp),
           ) {
-            AnimatedContent(
-              targetState = isPlaying,
-              transitionSpec = { fadeIn() togetherWith fadeOut() },
-              label = "mini_video_play_pause",
-            ) { playing ->
-              Icon(
-                imageVector = if (playing) Icons.RoundedFilled.Pause else Icons.RoundedFilled.PlayArrow,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.size(26.dp),
-              )
-            }
+            AnimatedPlayPauseIcon(
+              isPlaying = isPlaying,
+              contentDescription =
+                stringResource(if (isPlaying) R.string.pip_action_pause else R.string.pip_action_play),
+              tint = MaterialTheme.colorScheme.onSurface,
+              modifier = Modifier.size(26.dp),
+            )
           }
 
           IconButton(
@@ -511,18 +510,13 @@ private fun MiniPlayerContent(
           },
           modifier = Modifier.size(36.dp),
         ) {
-          AnimatedContent(
-            targetState = isPlaying,
-            transitionSpec = { fadeIn() togetherWith fadeOut() },
-            label = "mini_play_pause",
-          ) { playing ->
-            Icon(
-              imageVector = if (playing) Icons.RoundedFilled.Pause else Icons.RoundedFilled.PlayArrow,
-              contentDescription = null,
-              tint = MaterialTheme.colorScheme.onSurface,
-              modifier = Modifier.size(26.dp),
-            )
-          }
+          AnimatedPlayPauseIcon(
+            isPlaying = isPlaying,
+            contentDescription =
+              stringResource(if (isPlaying) R.string.pip_action_pause else R.string.pip_action_play),
+            tint = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.size(26.dp),
+          )
         }
 
         // Next Track Action Button
