@@ -1,5 +1,5 @@
 # Changelog
-## Unreleased
+## 1.4.0
 ### What's New
 - **Two surface styles**: The surface picker now offers Classic and Clear Glass, and Classic is the default for new installs and for anyone who never chose a style. Saved legacy styles are mapped automatically: Soft, Frosted, Liquid and AMOLED Glass become Clear Glass, while Minimal and Cinema become Classic. Cinema keeps its no-tint/no-highlight behavior until it is migrated.
 - **Library Insights**: A new screen, opened from the new floating menu, summarizes what you have played using only data already stored on this device: videos played, completed, unfinished, played in the last 7 days, plus "Continue watching" and "Recently played" lists. Videos that no longer exist are ignored, and the screen follows the Recently Played setting, showing nothing when it is off. Total watch time is not shown because it is not tracked yet.
