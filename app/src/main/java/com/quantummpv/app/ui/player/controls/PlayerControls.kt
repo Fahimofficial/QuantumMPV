@@ -1620,6 +1620,8 @@ is PlayerUpdates.FrameInfo -> {
                         .fillMaxSize()
                         .padding(MaterialTheme.spacing.medium),
                     tint = LocalContentColor.current,
+                    contentDescription =
+                      stringResource(if (paused == false) R.string.pip_action_pause else R.string.pip_action_play),
                   )
                 }
 
@@ -1725,6 +1727,8 @@ is PlayerUpdates.FrameInfo -> {
                       .fillMaxSize()
                       .padding(MaterialTheme.spacing.medium),
                   tint = LocalContentColor.current,
+                  contentDescription =
+                    stringResource(if (paused == false) R.string.pip_action_pause else R.string.pip_action_play),
                 )
               }
             }

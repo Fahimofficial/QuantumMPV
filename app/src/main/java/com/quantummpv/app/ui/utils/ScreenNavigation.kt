@@ -8,6 +8,7 @@ import androidx.activity.BackEventCompat
 import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -41,11 +42,16 @@ import kotlin.math.roundToInt
 internal fun navigationDurationMillis(speed: Float, baseMillis: Int = 300): Int =
   (baseMillis * (speed.takeIf { it.isFinite() } ?: 1f).coerceIn(0.25f, 2.5f)).roundToInt()
 
-/** One host for full screens and nested panes, including system/predictive Back and saved state. */
+/**
+ * One host for full screens and nested panes, including system/predictive Back and saved state.
+ * Pass [sharedTransitionScope] (the root host does) to let entries share elements across
+ * destinations; each entry reads its own scope from `LocalNavAnimatedContentScope`.
+ */
 @Composable
 internal fun ScreenNavDisplay(
   backStack: NavBackStack<Screen>,
   modifier: Modifier = Modifier,
+  sharedTransitionScope: SharedTransitionScope? = null,
   onBack: () -> Unit = { backStack.popSafely() },
   content: @Composable (Screen) -> Unit = { it.Content() },
 ) {
@@ -59,6 +65,7 @@ internal fun ScreenNavDisplay(
     backStack = backStack,
     modifier = modifier.clipToBounds().background(MaterialTheme.colorScheme.background),
     onBack = onBack,
+    sharedTransitionScope = sharedTransitionScope,
     sizeTransform = null,
     transitionSpec = { screenNavTransition(true, style, speed, direction) },
     popTransitionSpec = { screenNavTransition(false, style, speed, direction) },

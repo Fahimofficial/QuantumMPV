@@ -10,10 +10,6 @@
 package com.quantummpv.app.ui.browser.components
 
 import android.content.Intent
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
@@ -42,15 +38,18 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.quantummpv.app.R
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.MediaPlaybackService
 import com.quantummpv.app.ui.player.PlaybackSession
 import com.quantummpv.app.ui.player.PlayerActivity
+import com.quantummpv.app.ui.player.controls.components.AnimatedPlayPauseIcon
 import com.quantummpv.app.ui.player.controls.components.MiniAudioVisualizer
 import com.quantummpv.app.ui.theme.DesignTokens.LocalGlassConfig
 import com.quantummpv.app.ui.theme.DesignTokens.SurfaceStyle
@@ -198,18 +197,13 @@ fun AudioMiniPlayer(modifier: Modifier = Modifier) {
         },
         modifier = Modifier.size(36.dp),
       ) {
-        AnimatedContent(
-          targetState = isPlaying,
-          transitionSpec = { fadeIn() togetherWith fadeOut() },
-          label = "mini_play_pause",
-        ) { playing ->
-          Icon(
-            imageVector = if (playing) Icons.RoundedFilled.Pause else Icons.RoundedFilled.PlayArrow,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.size(26.dp),
-          )
-        }
+        AnimatedPlayPauseIcon(
+          isPlaying = isPlaying,
+          contentDescription =
+            stringResource(if (isPlaying) R.string.pip_action_pause else R.string.pip_action_play),
+          tint = MaterialTheme.colorScheme.onSurface,
+          modifier = Modifier.size(26.dp),
+        )
       }
 
       // Next Track Action Button

@@ -13,11 +13,16 @@ import android.annotation.SuppressLint
 import android.content.res.Configuration
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -30,6 +35,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -93,6 +99,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation3.ui.LocalNavAnimatedContentScope
 import com.quantummpv.app.R
 import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.MediaServerPreferences
@@ -115,9 +122,12 @@ import com.quantummpv.app.ui.player.controls.components.tvInitialFocus
 import com.quantummpv.app.ui.theme.DesignTokens.LocalGlassConfig
 import com.quantummpv.app.ui.theme.DesignTokens.SurfaceStyle
 import com.quantummpv.app.ui.utils.LocalBackStack
+import com.quantummpv.app.ui.utils.LocalSharedTransitionScope
 import com.quantummpv.app.ui.utils.NavigationPager
 import com.quantummpv.app.ui.utils.navigateTo
 import com.quantummpv.app.ui.utils.navigationDurationMillis
+import com.quantummpv.app.ui.utils.rememberMorphingCornerShape
+import com.quantummpv.app.ui.utils.rememberSearchMorphModifier
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
@@ -203,6 +213,9 @@ object MainScreen : Screen {
   @Composable
   override fun Content() {
     val backStack = LocalBackStack.current
+    // Shared-element scopes for the Search button → Search bar morph.
+    val sharedTransitionScope = LocalSharedTransitionScope.current
+    val animatedVisibilityScope = LocalNavAnimatedContentScope.current
     val appearancePreferences = koinInject<AppearancePreferences>()
     val context = androidx.compose.ui.platform.LocalContext.current
     val playerPreferences = koinInject<PlayerPreferences>()
@@ -809,6 +822,8 @@ object MainScreen : Screen {
                     visible = showContextualSearch,
                     glass = glassBottomNavigation,
                     hideIcon = searchFlight.hidesButtonIcon,
+                    sharedTransitionScope = sharedTransitionScope,
+                    animatedVisibilityScope = animatedVisibilityScope,
                     onButtonPositioned = { searchButtonCenter = it },
                     onSearchClick = {
                       menuExpanded = false
@@ -817,6 +832,9 @@ object MainScreen : Screen {
                       val tab = selectedTab
                       if (searchFlight.isRunning) {
                         // Ignore repeated taps; the running flight already opens this search.
+                      } else if (mainSearchController.opensScreen(tab)) {
+                        // A Search destination: the button itself morphs into its bar (shared element).
+                        mainSearchController.request(tab)
                       } else if (searchMotionEnabled && from != null && center != null) {
                         searchFlight.launch(coroutineScope, tab, from, center) { mainSearchController.request(tab) }
                       } else {
@@ -880,32 +898,94 @@ private fun ExpressivePillNavigationBar(
     } else {
       visibleTabs.indexOf(selectedTab).coerceAtLeast(0).toFloat()
     }
-  val tabWidths =
+  val selectedTabIndex = visibleTabs.indexOf(selectedTab).coerceAtLeast(0)
+
+  // While the finger drags the pager the dock tracks it 1:1. Otherwise (tap, programmatic jump,
+  // fling settle) the pill and the tab sizes spring to the selected tab, so non-adjacent jumps
+  // slide instead of snapping.
+  val pagerInteractions = pagerState?.interactionSource ?: remember { MutableInteractionSource() }
+  val isDraggingPager by pagerInteractions.collectIsDraggedAsState()
+  val followPager = isDraggingPager || disableMotion
+  val pillSpringDp =
+    com.quantummpv.app.ui.theme.AppMotion.spatial(
+      spring<androidx.compose.ui.unit.Dp>(
+        dampingRatio = Spring.DampingRatioLowBouncy,
+        stiffness = Spring.StiffnessMediumLow,
+      ),
+      com.quantummpv.app.ui.theme.AppMotion.ReducedDp,
+    )
+  val pillSpringFloat =
+    com.quantummpv.app.ui.theme.AppMotion.spatial(
+      spring<Float>(
+        dampingRatio = Spring.DampingRatioLowBouncy,
+        stiffness = Spring.StiffnessMediumLow,
+      ),
+      com.quantummpv.app.ui.theme.AppMotion.ReducedAlpha,
+    )
+
+  // 0 = collapsed icon-only tab, 1 = fully expanded selected tab. Same spring as the pill, so the
+  // tab under the pill always ends up exactly where the pill lands.
+  val activeFractions =
     visibleTabs.mapIndexed { index, tab ->
-      if (showLabels) {
-        val fraction = (1f - kotlin.math.abs(position - index)).coerceIn(0f, 1f)
-        androidx.compose.ui.unit.lerp(NavigationItemSize, activeTabWidth(tab), fraction)
-      } else {
-        NavigationItemSize
+      key(tab) {
+        val pagerFraction = (1f - kotlin.math.abs(position - index)).coerceIn(0f, 1f)
+        val animatedFraction by animateFloatAsState(
+          targetValue = if (followPager) pagerFraction else if (index == selectedTabIndex) 1f else 0f,
+          animationSpec = if (followPager) snap() else pillSpringFloat,
+          label = "nav_tab_active_fraction",
+        )
+        if (followPager) pagerFraction else animatedFraction
       }
     }
-  val tabOffsets =
+  fun widthFor(
+    tab: MainScreen.MainTab,
+    fraction: Float,
+  ) = if (showLabels) androidx.compose.ui.unit.lerp(NavigationItemSize, activeTabWidth(tab), fraction) else NavigationItemSize
+  fun offsetsFor(widths: List<androidx.compose.ui.unit.Dp>) =
     buildList {
       var offset = NavigationContentPadding
-      tabWidths.forEach { width ->
+      widths.forEach { width ->
         add(offset)
         offset += width + NavigationItemSpacing
       }
     }
+  val tabWidths = visibleTabs.mapIndexed { index, tab -> widthFor(tab, activeFractions[index]) }
+  val tabOffsets = offsetsFor(tabWidths)
+  // Where everything settles once the selected tab is fully expanded.
+  val settledTabWidths = visibleTabs.mapIndexed { index, tab -> widthFor(tab, if (index == selectedTabIndex) 1f else 0f) }
+  val settledTabOffsets = offsetsFor(settledTabWidths)
   val tabsContentWidth =
     tabWidths.fold(0.dp) { total, width -> total + width } +
       NavigationItemSpacing * (visibleTabs.size - 1).coerceAtLeast(0) +
       NavigationContentPadding * 2
+
   val pageFloor = position.toInt().coerceIn(visibleTabs.indices)
   val pageCeil = (pageFloor + 1).coerceIn(visibleTabs.indices)
   val pageFraction = (position - pageFloor).coerceIn(0f, 1f)
-  val indicatorLeft = androidx.compose.ui.unit.lerp(tabOffsets[pageFloor], tabOffsets[pageCeil], pageFraction)
-  val indicatorWidth = androidx.compose.ui.unit.lerp(tabWidths[pageFloor], tabWidths[pageCeil], pageFraction)
+  val indicatorTargetOffset =
+    if (followPager) {
+      androidx.compose.ui.unit.lerp(tabOffsets[pageFloor], tabOffsets[pageCeil], pageFraction)
+    } else {
+      settledTabOffsets[selectedTabIndex]
+    }
+  val indicatorTargetWidth =
+    if (followPager) {
+      androidx.compose.ui.unit.lerp(tabWidths[pageFloor], tabWidths[pageCeil], pageFraction)
+    } else {
+      settledTabWidths[selectedTabIndex]
+    }
+  val animatedIndicatorOffset by animateDpAsState(
+    targetValue = indicatorTargetOffset,
+    animationSpec = if (followPager) snap() else pillSpringDp,
+    label = "nav_pill_spring",
+  )
+  val animatedIndicatorWidth by animateDpAsState(
+    targetValue = indicatorTargetWidth,
+    animationSpec = if (followPager) snap() else pillSpringDp,
+    label = "nav_pill_width_spring",
+  )
+  val indicatorOffset = if (followPager) indicatorTargetOffset else animatedIndicatorOffset
+  val indicatorWidth = if (followPager) indicatorTargetWidth else animatedIndicatorWidth
 
   val navigationContainer: @Composable (@Composable () -> Unit) -> Unit = { content ->
     com.quantummpv.app.ui.browser.components.NavigationDockSurface(
@@ -926,7 +1006,7 @@ private fun ExpressivePillNavigationBar(
 
       LaunchedEffect(settledPage, showLabels, maxScroll, tabViewportWidth) {
         val index = settledPage.coerceIn(visibleTabs.indices)
-        val selectedCenter = tabOffsets[index] + tabWidths[index] / 2
+        val selectedCenter = settledTabOffsets[index] + settledTabWidths[index] / 2
         val target =
           with(density) {
             (selectedCenter - tabViewportWidth / 2).roundToPx().coerceIn(0, maxScroll)
@@ -943,10 +1023,11 @@ private fun ExpressivePillNavigationBar(
               .horizontalScroll(scrollState),
         ) {
           Box(modifier = Modifier.width(tabsContentWidth).height(NavigationDockHeight)) {
+            // Sliding active pill, drawn under the tab row.
             Box(
               modifier =
                 Modifier
-                  .offset(x = indicatorLeft, y = NavigationVerticalPadding)
+                  .offset(x = indicatorOffset, y = NavigationVerticalPadding)
                   .width(indicatorWidth)
                   .height(NavigationItemSize)
                   .clip(CircleShape)
@@ -969,7 +1050,7 @@ private fun ExpressivePillNavigationBar(
             ) {
               visibleTabs.forEachIndexed { index, tab ->
                 key(tab) {
-                  val activeFraction = (1f - kotlin.math.abs(position - index)).coerceIn(0f, 1f)
+                  val activeFraction = activeFractions[index].coerceIn(0f, 1f)
                   val selected = tab == selectedTab
                   val navBounceScale by animateFloatAsState(
                     targetValue = if (reduceMotion || !selected) 1f else 1.03f,
@@ -1216,6 +1297,8 @@ private fun ContextualSearchSlot(
   visible: Boolean,
   glass: Boolean,
   hideIcon: Boolean,
+  sharedTransitionScope: SharedTransitionScope?,
+  animatedVisibilityScope: AnimatedVisibilityScope,
   onButtonPositioned: (androidx.compose.ui.geometry.Offset) -> Unit,
   onSearchClick: () -> Unit,
 ) {
@@ -1226,6 +1309,14 @@ private fun ContextualSearchSlot(
   ) {
     com.quantummpv.app.ui.browser.components.FloatingSearchButton(
       onSearchClick = onSearchClick,
+      // Shares SEARCH_MORPH_KEY with MediaSearchScreen's bar. Its outline goes from the bar's 24 dp
+      // corners back to a full circle (half of the 52 dp button) as Search closes.
+      modifier = rememberSearchMorphModifier(sharedTransitionScope, animatedVisibilityScope),
+      shape =
+        animatedVisibilityScope.rememberMorphingCornerShape(
+          visible = FloatingSearchButtonSize / 2,
+          hidden = 24.dp,
+        ),
       glass = glass,
       hideIcon = hideIcon,
       onIconPositioned = onButtonPositioned,

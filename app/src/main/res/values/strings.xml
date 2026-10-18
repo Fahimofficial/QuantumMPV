@@ -1590,6 +1590,15 @@
   <string name="ui_mpv_documentation">mpv Documentation</string>
   <string name="ui_search_commands_options_properties">Search commands, options, properties...</string>
   <string name="ui_no_results_found">No results found</string>
+  <string name="ui_search_no_matching_videos">No folders or videos match your search query</string>
+  <string name="ui_search_no_matching_audio">No audio folders or songs match your search query</string>
+  <string name="ui_search_folders_and_songs">Search folders and songs…</string>
+  <string name="ui_search_library_title">Search your library</string>
+  <string name="ui_search_library_videos_message">Find folders and videos by name or path</string>
+  <string name="ui_search_library_audio_message">Find folders and songs by name or path</string>
+  <string name="ui_search_clear_query">Clear search</string>
+  <string name="ui_search_close">Close search</string>
+  <string name="ui_search_remove_recent">Remove from search history</string>
   <string name="ui_no_android">No Android</string>
   <string name="ui_script_runtime">Script runtime</string>
   <string name="ui_newly_enabled_scripts_can_load_during_playback_scripts_you_turn">Newly enabled scripts can load during playback. Scripts you turn off may need the video to be reopened before they fully stop running.</string>

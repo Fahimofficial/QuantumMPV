@@ -14,8 +14,10 @@ import androidx.compose.animation.EnterExitState
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -68,6 +70,7 @@ import com.quantummpv.app.ui.theme.GlassComponents
 import com.quantummpv.app.ui.theme.spacing
 
 private const val PRESSED_SCALE = 0.92f
+private const val TILE_PRESSED_SCALE = 0.95f
 private const val OPEN_ROTATION_DEGREES = 90f
 
 // The panel grows out of the overflow button: it starts small, scaled around the button's centre,
@@ -244,7 +247,10 @@ fun FloatingGlassMenuPanel(
   }
 }
 
-/** A focused, pressed and touch-accessible menu row. */
+/**
+ * A focused, pressed and touch-accessible menu tile. Pressing springs the whole tile down to
+ * [TILE_PRESSED_SCALE] and back; that scale replaces the ripple as the touch feedback.
+ */
 @Composable
 private fun MenuRow(
   icon: AppIcon,
@@ -253,16 +259,38 @@ private fun MenuRow(
   onClick: () -> Unit,
 ) {
   val shape = TileShape
+  val interactionSource = remember { MutableInteractionSource() }
+  val isPressed by interactionSource.collectIsPressedAsState()
+  val reduceMotion = AppMotion.shouldReduceMotion()
+  val scale by animateFloatAsState(
+    targetValue = if (isPressed && !reduceMotion) TILE_PRESSED_SCALE else 1f,
+    animationSpec =
+      spring(
+        dampingRatio = Spring.DampingRatioMediumBouncy,
+        stiffness = Spring.StiffnessMedium,
+      ),
+    label = "tile_scale",
+  )
   Row(
     modifier =
       Modifier
         .fillMaxWidth()
         .heightIn(min = MinRowHeight)
-        .tvFocusHighlight(shape, focusedScale = 1.02f)
+        // Read in the layer phase only, so the spring never recomposes the tile.
+        .graphicsLayer {
+          scaleX = scale
+          scaleY = scale
+        }.tvFocusHighlight(shape, focusedScale = 1.02f)
         .clip(shape)
         // Subtle tonal tile so the rounded tile shape reads at rest, not only under the ripple.
         .background(MaterialTheme.colorScheme.onSurface.copy(alpha = TILE_TINT_ALPHA))
-        .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+        .clickable(
+          interactionSource = interactionSource,
+          indication = null,
+          enabled = enabled,
+          role = Role.Button,
+          onClick = onClick,
+        )
         .padding(horizontal = MaterialTheme.spacing.small, vertical = MaterialTheme.spacing.smaller),
     verticalAlignment = Alignment.CenterVertically,
   ) {

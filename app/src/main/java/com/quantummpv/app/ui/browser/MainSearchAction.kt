@@ -26,6 +26,7 @@ internal class MainSearchActionController {
   private data class Registration(
     val owner: Any,
     val isSearchActive: Boolean,
+    val opensScreen: Boolean,
     val action: () -> Unit,
   )
 
@@ -36,6 +37,12 @@ internal class MainSearchActionController {
 
   /** True when [tab]'s inline search field is already visible. */
   fun isSearchActive(tab: MainScreen.MainTab): Boolean = registrations[tab]?.isSearchActive == true
+
+  /**
+   * True when [tab]'s search is a separate destination. The dock button then morphs into that
+   * screen's search bar through a shared element instead of flying its icon into an inline field.
+   */
+  fun opensScreen(tab: MainScreen.MainTab): Boolean = registrations[tab]?.opensScreen == true
 
   /** Invokes [tab]'s current search action, returning false if the tab has no registered search. */
   fun request(tab: MainScreen.MainTab): Boolean = registrations[tab]?.action?.let {
@@ -48,9 +55,10 @@ internal class MainSearchActionController {
     tab: MainScreen.MainTab,
     owner: Any,
     isSearchActive: Boolean,
+    opensScreen: Boolean = false,
     action: () -> Unit,
   ) {
-    registrations[tab] = Registration(owner, isSearchActive, action)
+    registrations[tab] = Registration(owner, isSearchActive, opensScreen, action)
   }
 
   /** Removes [tab]'s action only when it still belongs to [owner]. */
@@ -75,12 +83,14 @@ internal val LocalMainSearchDockVisible = staticCompositionLocalOf { false }
  * Registers [onSearch] with the floating Search button when this screen is inside [MainScreen].
  * [isSearchActive] hides that button while the screen's own search field is visible. Returns null
  * inside MainScreen so the top bar does not show a duplicate Search action; outside MainScreen the
- * original action is returned unchanged.
+ * original action is returned unchanged. Set [opensScreen] when [onSearch] navigates to a search
+ * destination rather than revealing an inline field.
  */
 @Composable
 internal fun mainTabSearchAction(
   isSearchActive: Boolean,
   enabled: Boolean = true,
+  opensScreen: Boolean = false,
   onSearch: () -> Unit,
 ): (() -> Unit)? {
   val controller = LocalMainSearchActionController.current
@@ -90,9 +100,9 @@ internal fun mainTabSearchAction(
   val owner = remember { Any() }
   val dockOwnsSearch = controller != null && tab != null && dockVisible && enabled
 
-  DisposableEffect(controller, tab, owner, isSearchActive, dockOwnsSearch) {
+  DisposableEffect(controller, tab, owner, isSearchActive, opensScreen, dockOwnsSearch) {
     if (controller != null && tab != null && dockVisible && enabled) {
-      controller.register(tab, owner, isSearchActive) { latestAction.value() }
+      controller.register(tab, owner, isSearchActive, opensScreen) { latestAction.value() }
     }
     onDispose {
       if (controller != null && tab != null) controller.unregister(tab, owner)

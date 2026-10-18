@@ -22,6 +22,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -49,6 +50,8 @@ private val SearchIconSize = 24.dp
 fun FloatingSearchButton(
   onSearchClick: () -> Unit,
   modifier: Modifier = Modifier,
+  // Container outline; animated by the caller while the button morphs into the Search bar.
+  shape: Shape = CircleShape,
   glass: Boolean = false,
   // True while the launch transition's travelling copy of this icon is on screen.
   hideIcon: Boolean = false,
@@ -65,7 +68,7 @@ fun FloatingSearchButton(
 
   NavigationDockSurface(
     glass = glass,
-    shape = CircleShape,
+    shape = shape,
     modifier = modifier.size(FloatingSearchButtonSize),
   ) {
     IconButton(

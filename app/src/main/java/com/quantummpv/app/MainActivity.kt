@@ -24,6 +24,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
@@ -79,6 +80,7 @@ import com.quantummpv.app.ui.theme.rememberThemeTransitionState
 import com.quantummpv.app.ui.update.UpdateSheet
 import com.quantummpv.app.ui.update.UpdateViewModel
 import com.quantummpv.app.ui.utils.LocalBackStack
+import com.quantummpv.app.ui.utils.LocalSharedTransitionScope
 import com.quantummpv.app.ui.utils.ScreenNavDisplay
 import com.quantummpv.app.ui.utils.popSafely
 import com.quantummpv.app.utils.device.DeviceFormFactor
@@ -528,15 +530,22 @@ class MainActivity : AppCompatActivity() {
 
       if (hasNavEntries) {
         Box(modifier = Modifier.fillMaxSize()) {
-          ScreenNavDisplay(
-            modifier = Modifier.fillMaxSize(),
-            backStack = typedBackstack,
-            onBack = {
-              if (typedBackstack.size <= 1 || !typedBackstack.popSafely()) {
-                this@MainActivity.finish()
-              }
-            },
-          )
+          // Destinations share elements (e.g. the dock's Search button morphing into the Search
+          // bar) through this scope; each entry gets its own AnimatedVisibilityScope from NavDisplay.
+          SharedTransitionLayout(modifier = Modifier.fillMaxSize()) {
+            CompositionLocalProvider(LocalSharedTransitionScope provides this) {
+              ScreenNavDisplay(
+                modifier = Modifier.fillMaxSize(),
+                backStack = typedBackstack,
+                sharedTransitionScope = this,
+                onBack = {
+                  if (typedBackstack.size <= 1 || !typedBackstack.popSafely()) {
+                    this@MainActivity.finish()
+                  }
+                },
+              )
+            }
+          }
 
           val miniPlayerConfig = LocalConfiguration.current
           val isPortrait = miniPlayerConfig.orientation == Configuration.ORIENTATION_PORTRAIT
