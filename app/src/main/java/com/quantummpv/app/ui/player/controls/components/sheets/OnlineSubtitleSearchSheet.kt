@@ -253,7 +253,7 @@ fun OnlineSubtitleSearchSheet(
                     searchQuery = ""
                     onClearMediaSelection()
                   }) {
-                    Icon(Icons.RoundedFilled.Close, null)
+                    Icon(Icons.RoundedFilled.Close, androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.ui_close))
                   }
                 }
                 if (aiPreferences.enabled.get() && aiPreferences.subtitleFormatWithAi.get()) {
@@ -980,7 +980,7 @@ private fun SeriesSelectionControls(
       onClick = onClose,
       modifier = Modifier.size(40.dp),
     ) {
-      Icon(Icons.RoundedFilled.Close, null, modifier = Modifier.size(18.dp))
+      Icon(Icons.RoundedFilled.Close, androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.ui_close), modifier = Modifier.size(18.dp))
     }
   }
 }

@@ -109,7 +109,7 @@ fun PlaybackSpeedSheet(
           enabled = speedControlEnabled,
           modifier = Modifier.size(40.dp),
         ) {
-          Icon(Icons.RoundedFilled.Remove, null, modifier = Modifier.size(24.dp))
+          Icon(Icons.RoundedFilled.Remove, androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.player_speed_decrease), modifier = Modifier.size(24.dp))
         }
 
         Slider(
@@ -132,7 +132,7 @@ fun PlaybackSpeedSheet(
           enabled = speedControlEnabled,
           modifier = Modifier.size(40.dp),
         ) {
-          Icon(Icons.RoundedFilled.Add, null, modifier = Modifier.size(24.dp))
+          Icon(Icons.RoundedFilled.Add, androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.player_speed_increase), modifier = Modifier.size(24.dp))
         }
       }
 

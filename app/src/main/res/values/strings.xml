@@ -1590,6 +1590,11 @@
   <string name="ui_mpv_documentation">mpv Documentation</string>
   <string name="ui_search_commands_options_properties">Search commands, options, properties...</string>
   <string name="ui_no_results_found">No results found</string>
+  <string name="player_seek_backward_action">Seek backward</string>
+  <string name="player_seek_forward_action">Seek forward</string>
+  <string name="player_speed_decrease">Decrease speed</string>
+  <string name="player_speed_increase">Increase speed</string>
+  <string name="mini_player_close">Close player</string>
   <string name="ui_search_no_matching_videos">No folders or videos match your search query</string>
   <string name="ui_search_no_matching_audio">No audio folders or songs match your search query</string>
   <string name="ui_search_folders_and_songs">Search folders and songs…</string>

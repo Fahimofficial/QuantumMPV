@@ -1638,7 +1638,7 @@ fun AudioPlayerControls(
         ReactiveIconButton(onClick = { viewModel.playPrevious() }, enabled = playlistModeEnabled) {
           Icon(
             imageVector = Icons.RoundedFilled.SkipPrevious,
-            contentDescription = null,
+            contentDescription = androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.pref_gesture_media_previous),
             tint =
               if (playlistModeEnabled) {
                 MaterialTheme.colorScheme.onSurface
@@ -1654,7 +1654,7 @@ fun AudioPlayerControls(
         ReactiveIconButton(onClick = { viewModel.seekBy(-audioSeekDuration) }) {
           Icon(
             imageVector = Icons.RoundedFilled.FastRewind,
-            contentDescription = null,
+            contentDescription = androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.player_seek_backward_action),
             tint = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.size(34.dp),
           )
@@ -1679,7 +1679,7 @@ fun AudioPlayerControls(
         ReactiveIconButton(onClick = { viewModel.seekBy(audioSeekDuration) }) {
           Icon(
             imageVector = Icons.RoundedFilled.FastForward,
-            contentDescription = null,
+            contentDescription = androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.player_seek_forward_action),
             tint = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.size(34.dp),
           )
@@ -1687,7 +1687,7 @@ fun AudioPlayerControls(
         ReactiveIconButton(onClick = { viewModel.playNext() }, enabled = playlistModeEnabled) {
           Icon(
             imageVector = Icons.RoundedFilled.SkipNext,
-            contentDescription = null,
+            contentDescription = androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.pref_gesture_media_next),
             tint =
               if (playlistModeEnabled) {
                 MaterialTheme.colorScheme.onSurface
