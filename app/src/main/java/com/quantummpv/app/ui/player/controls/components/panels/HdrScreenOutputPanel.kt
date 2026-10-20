@@ -16,13 +16,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
@@ -56,26 +54,7 @@ fun HdrScreenOutputPanel(
   DraggablePanel(
     modifier = modifier,
     header = {
-      Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-        modifier =
-          Modifier
-            .fillMaxWidth()
-            .padding(horizontal = MaterialTheme.spacing.medium)
-            .padding(top = MaterialTheme.spacing.small),
-      ) {
-        Text(
-          text =
-            androidx.compose.ui.res
-              .stringResource(com.quantummpv.app.R.string.ui_hdr_output),
-          style = MaterialTheme.typography.titleLarge,
-        )
-        Spacer(Modifier.weight(1f))
-        IconButton(onClick = onDismissRequest) {
-          Icon(Icons.RoundedFilled.Close, androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.ui_close), modifier = Modifier.size(32.dp))
-        }
-      }
+      PlayerPanelHeader(title = androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.ui_hdr_output), onClose = onDismissRequest)
     },
   ) {
     Column(
