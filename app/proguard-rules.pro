@@ -82,3 +82,10 @@
     java.lang.Object writeReplace();
     java.lang.Object readResolve();
 }
+
+# Release builds drop verbose/debug logging. Several call sites log stream URLs, file paths and
+# per-item scan details at these levels; error/warn logs are kept for diagnostics.
+-assumenosideeffects class android.util.Log {
+    public static int v(...);
+    public static int d(...);
+}

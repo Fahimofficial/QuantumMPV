@@ -193,7 +193,8 @@ class NavidromeClient(
       } catch (e: CancellationException) {
         throw e
       } catch (e: Exception) {
-        Log.e(TAG, "Request failed: $url", e)
+        // The query carries the Subsonic auth token and salt; never log it.
+        Log.e(TAG, "Request failed: ${Uri.parse(url).let { "${it.host}${it.path}" }}", e)
         Result.failure(e)
       }
     }
