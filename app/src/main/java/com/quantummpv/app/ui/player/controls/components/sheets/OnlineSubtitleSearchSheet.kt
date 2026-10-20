@@ -253,7 +253,7 @@ fun OnlineSubtitleSearchSheet(
                     searchQuery = ""
                     onClearMediaSelection()
                   }) {
-                    Icon(Icons.RoundedFilled.Close, androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.ui_close))
+                    Icon(Icons.RoundedFilled.Close, androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.ui_search_clear_query))
                   }
                 }
                 if (aiPreferences.enabled.get() && aiPreferences.subtitleFormatWithAi.get()) {

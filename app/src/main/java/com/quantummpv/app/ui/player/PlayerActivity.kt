@@ -6103,6 +6103,9 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
   }
 
   private fun applyInitialVideoOrientation(sourceIntent: Intent) {
+    // Every new media intent invalidates a pending probe, including intents that return early below
+    // (network URIs, audio, TV), so a probe for the previous file can never re-orient this one.
+    val generation = ++orientationProbeGeneration
     if (isTelevision) {
       requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
       return
@@ -6120,7 +6123,6 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
         ?: return
     // MediaMetadataRetriever.setDataSource goes through the content provider and parses the
     // container; on SAF/cloud providers or large files that takes long enough to ANR on Main.
-    val generation = ++orientationProbeGeneration
     val orientationBeforeProbe = requestedOrientation
     lifecycleScope.launch(Dispatchers.IO) {
       val probed =

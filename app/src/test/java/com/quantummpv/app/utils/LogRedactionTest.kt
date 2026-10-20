@@ -18,6 +18,13 @@ class LogRedactionTest {
   }
 
   @Test
+  fun `query or fragment characters inside user info do not leak credentials`() {
+    assertEquals("https://host/path", redactUriForLog("https://user:pa?ss@host/path?api_key=x"))
+    assertEquals("https://host/path", redactUriForLog("https://user:pa#ss@host/path"))
+    assertEquals("https://host", redactUriForLog("https://user:pa?ss@host"))
+  }
+
+  @Test
   fun `keeps plain paths and handles empty input`() {
     assertEquals("/storage/emulated/0/Movies/a.mkv", redactUriForLog("/storage/emulated/0/Movies/a.mkv"))
     assertEquals("https://host", redactUriForLog("https://u:p@host?x=1"))

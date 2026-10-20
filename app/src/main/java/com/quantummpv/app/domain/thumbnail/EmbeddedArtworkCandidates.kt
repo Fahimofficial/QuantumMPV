@@ -66,15 +66,36 @@ internal object EmbeddedArtworkResolver {
    */
   private const val MAX_ARTWORK_DECODE_SIZE = 1024
 
-  /** Runs [decode] once for bounds, then again with an [BitmapFactory.Options.inSampleSize]. */
+  /** Largest remote artwork body buffered before decoding; covers are rarely above a few MB. */
+  private const val MAX_REMOTE_ARTWORK_BYTES = 16L * 1024 * 1024
+
+  /**
+   * Runs [decode] once for bounds, then again with an [BitmapFactory.Options.inSampleSize]. Returns
+   * null when the bounds pass can't read a size, rather than falling back to an unsampled decode.
+   */
   private inline fun decodeBounded(decode: (BitmapFactory.Options) -> Bitmap?): Bitmap? {
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
     decode(bounds)
-    val options = BitmapFactory.Options()
-    if (bounds.outWidth > 0 && bounds.outHeight > 0) {
-      options.inSampleSize = calculateThumbnailSampleSize(bounds.outWidth, bounds.outHeight, MAX_ARTWORK_DECODE_SIZE)
-    }
+    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+    val options =
+      BitmapFactory.Options().apply {
+        inSampleSize = calculateThumbnailSampleSize(bounds.outWidth, bounds.outHeight, MAX_ARTWORK_DECODE_SIZE)
+      }
     return decode(options)
+  }
+
+  /** Reads at most [MAX_REMOTE_ARTWORK_BYTES], or null if the body is larger. */
+  private fun java.io.InputStream.readBoundedBytes(): ByteArray? {
+    val out = java.io.ByteArrayOutputStream()
+    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+    var total = 0L
+    while (true) {
+      val read = read(buffer)
+      if (read < 0) return out.toByteArray()
+      total += read
+      if (total > MAX_REMOTE_ARTWORK_BYTES) return null
+      out.write(buffer, 0, read)
+    }
   }
 
   fun decodeArtworkUri(
@@ -101,8 +122,12 @@ internal object EmbeddedArtworkResolver {
               instanceFollowRedirects = true
               setRequestProperty("User-Agent", "Mozilla/5.0 (Android) QuantumMPV")
             }
-            val bytes = connection.inputStream.use { input -> input.readBytes() }
-            decodeBounded { options -> BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options) }
+            // Reject an oversized declared length up front; an unknown length is capped while reading.
+            val bytes =
+              connection.inputStream.use { input ->
+                if (connection.contentLengthLong > MAX_REMOTE_ARTWORK_BYTES) null else input.readBoundedBytes()
+              }
+            bytes?.let { body -> decodeBounded { options -> BitmapFactory.decodeByteArray(body, 0, body.size, options) } }
           }
           else -> null
         }

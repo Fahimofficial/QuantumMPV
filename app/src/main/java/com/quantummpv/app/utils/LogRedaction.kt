@@ -10,12 +10,17 @@ package com.quantummpv.app.utils
  */
 fun redactUriForLog(uri: String?): String {
   if (uri.isNullOrBlank()) return "<none>"
-  val withoutQuery = uri.substringBefore('#').substringBefore('?')
-  val schemeEnd = withoutQuery.indexOf("://")
-  if (schemeEnd < 0) return withoutQuery
+  val schemeEnd = uri.indexOf("://")
+  if (schemeEnd < 0) return uri.stripQueryAndFragment()
+  // Find the authority on the original string first: a malformed password may contain '?' or '#',
+  // and stripping those first would leave part of the user info looking like the host.
   val authorityStart = schemeEnd + 3
-  val authorityEnd = withoutQuery.indexOf('/', authorityStart).let { if (it < 0) withoutQuery.length else it }
-  val authority = withoutQuery.substring(authorityStart, authorityEnd)
-  val host = authority.substringAfterLast('@')
-  return withoutQuery.substring(0, authorityStart) + host + withoutQuery.substring(authorityEnd)
+  val pathStart = uri.indexOf('/', authorityStart).let { if (it < 0) uri.length else it }
+  val userInfoEnd = uri.lastIndexOf('@', pathStart - 1)
+  val hostStart = if (userInfoEnd >= authorityStart) userInfoEnd + 1 else authorityStart
+  val host = uri.substring(hostStart, pathStart).stripQueryAndFragment()
+  val path = if (host.length < pathStart - hostStart) "" else uri.substring(pathStart).stripQueryAndFragment()
+  return uri.substring(0, authorityStart) + host + path
 }
+
+private fun String.stripQueryAndFragment(): String = substringBefore('#').substringBefore('?')
