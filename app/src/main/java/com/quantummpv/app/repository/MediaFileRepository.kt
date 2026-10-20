@@ -14,11 +14,7 @@ import android.net.Uri
 import android.os.Environment
 import android.provider.MediaStore
 import android.util.Log
-import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.WorkManager
 import com.quantummpv.app.database.MpvRxDatabase
-import com.quantummpv.app.database.dao.MediaIndexDao
-import com.quantummpv.app.database.entities.MediaIndexEntity
 import com.quantummpv.app.domain.browser.FileSystemItem
 import com.quantummpv.app.domain.browser.PathComponent
 import com.quantummpv.app.domain.media.model.Video
@@ -32,14 +28,12 @@ import com.quantummpv.app.utils.media.MediaInfoOps
 import com.quantummpv.app.utils.storage.FileTypeUtils
 import com.quantummpv.app.utils.storage.FolderViewScanner
 import com.quantummpv.app.utils.storage.MediaScanOptions
-import com.quantummpv.app.utils.storage.MediaScannerWorker
 import com.quantummpv.app.utils.storage.StorageVolumeUtils
 import com.quantummpv.app.utils.storage.TreeViewScanner
 import com.quantummpv.app.utils.storage.VideoScanUtils
 import com.quantummpv.app.utils.storage.mediaPathKey
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
@@ -59,53 +53,12 @@ import java.util.Locale
  * - Storage volume detection
  */
 object MediaFileRepository : KoinComponent {
-  suspend fun searchMedia(query: String): List<Video> =
-    withContext(Dispatchers.IO) {
-      try {
-        val ftsQuery = com.quantummpv.app.database.dao.MediaIndexFtsQuery.from(query) ?: return@withContext emptyList()
-        mediaIndexDao.searchMedia(ftsQuery).first().map { it.toVideo() }
-      } catch (e: Exception) {
-        Log.e(TAG, "Error searching media", e)
-        emptyList()
-      }
-    }
-
-  fun triggerMediaScan(context: Context) {
-    val request = OneTimeWorkRequestBuilder<MediaScannerWorker>().build()
-    WorkManager.getInstance(context).enqueue(request)
-  }
-
-  private fun MediaIndexEntity.toVideo(): Video {
-    return Video(
-      id = this.uri.hashCode().toLong(),
-      title = this.displayName.substringBeforeLast("."),
-      displayName = this.displayName,
-      path = this.path,
-      uri = Uri.parse(this.uri),
-      duration = this.durationMs ?: 0L,
-      durationFormatted = FormatUtils.formatDuration(this.durationMs ?: 0L),
-      size = this.size,
-      sizeFormatted = FormatUtils.formatFileSize(this.size),
-      dateModified = this.lastModified,
-      dateAdded = this.lastModified,
-      mimeType = FileTypeUtils.getMimeTypeFromExtension(this.extension),
-      bucketId = this.parentFolder,
-      bucketDisplayName = this.parentFolder.substringAfterLast('/'),
-      width = 0,
-      height = 0,
-      fps = 0f,
-      resolution = "",
-      isAudio = this.mediaType == 1
-    )
-  }
-
   private const val TAG = "MediaFileRepository"
   private val foldersPreferences: FoldersPreferences by inject()
   private val appearancePreferences: AppearancePreferences by inject()
   private val browserPreferences: BrowserPreferences by inject()
   private val playbackStateRepository: PlaybackStateRepository by inject()
   private val database: MpvRxDatabase by inject()
-  private val mediaIndexDao: MediaIndexDao by inject()
 
   private fun currentScanOptions(includeAudioOverride: Boolean? = null): MediaScanOptions =
     MediaScanOptions(

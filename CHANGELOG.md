@@ -1,4 +1,12 @@
 # Changelog
+## Unreleased
+### Fixes
+- **Opening videos**: The player no longer reads the file's metadata on the main thread to pick the initial orientation, which could freeze or ANR when opening large files or files from cloud/SAF providers.
+- **Saved subtitles**: Subtitles found in the subtitle save folder are now auto-selected reliably; the auto-select no longer races the tracks being added.
+- **Privacy**: Release builds no longer write debug logs, and Navidrome/stream URL error logs no longer include login tokens or API keys.
+- **Memory**: Large embedded and remote cover art is decoded at a reduced size instead of full resolution.
+- **Accessibility**: Audio-player skip/seek buttons, player panel close buttons, speed steppers and the mini-player close button now have TalkBack labels.
+
 ## 1.4.0
 ### What's New
 - **Two surface styles**: The surface picker now offers Classic and Clear Glass, and Classic is the default for new installs and for anyone who never chose a style. Saved legacy styles are mapped automatically: Soft, Frosted, Liquid and AMOLED Glass become Clear Glass, while Minimal and Cinema become Classic. Cinema keeps its no-tint/no-highlight behavior until it is migrated.

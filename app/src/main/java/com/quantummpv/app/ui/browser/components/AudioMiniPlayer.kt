@@ -238,7 +238,7 @@ fun AudioMiniPlayer(modifier: Modifier = Modifier) {
       ) {
         Icon(
           imageVector = Icons.RoundedFilled.Close,
-          contentDescription = null,
+          contentDescription = stringResource(R.string.mini_player_close),
           tint = MaterialTheme.colorScheme.onSurfaceVariant,
           modifier = Modifier.size(18.dp),
         )

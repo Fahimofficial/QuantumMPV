@@ -75,7 +75,9 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -174,6 +176,7 @@ import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
 import org.koin.compose.koinInject
@@ -247,7 +250,6 @@ fun PlayerControls(
   val preciseDuration by viewModel.preciseDuration.collectAsState()
   val scopeAudioTracks by viewModel.audioTracks.collectAsState(persistentListOf())
   val mediaScopesState by viewModel.mediaScopesUiState.collectAsState()
-  val demuxerCacheTime by PlaybackSession.propDouble["demuxer-cache-time"].collectAsState()
   val playbackSpeed by PlaybackSession.propFloat["speed"].collectAsState()
   val seekbarDuration = if (preciseDuration > 0) preciseDuration else duration?.toFloat() ?: 0f
   val seekState by viewModel.seekState.collectAsState()
@@ -291,18 +293,25 @@ fun PlayerControls(
     bufferingState.visible &&
       (controlsShown || playbackSessionState.phase == PlaybackPhase.LOADING) &&
       !isPlayerSeeking
+  // demuxer-cache-time changes continuously while buffering. It is collected here, outside
+  // composition, so only the seekbar (the one reader of stableDemuxerCacheTime) recomposes.
   var stableDemuxerCacheTime by remember { mutableFloatStateOf(0f) }
-  val currentDemuxerCacheTime =
-    demuxerCacheTime
-      ?.toFloat()
-      ?.takeIf { it > 0f && !it.isNaN() && !it.isInfinite() && seekbarDuration > 0f }
-      ?.coerceIn(0f, seekbarDuration)
-
-  LaunchedEffect(showBufferedRange, seekbarDuration, currentDemuxerCacheTime, isPlayerSeeking) {
-    when {
-      !showBufferedRange || seekbarDuration <= 0f -> stableDemuxerCacheTime = 0f
-      currentDemuxerCacheTime != null -> stableDemuxerCacheTime = currentDemuxerCacheTime
-      !isPlayerSeeking -> stableDemuxerCacheTime = 0f
+  val bufferRangeInputs by rememberUpdatedState(Triple(showBufferedRange, seekbarDuration, isPlayerSeeking))
+  LaunchedEffect(Unit) {
+    combine(PlaybackSession.propDouble["demuxer-cache-time"], snapshotFlow { bufferRangeInputs }) { cacheTime, inputs ->
+      cacheTime to inputs
+    }.collect { (cacheTime, inputs) ->
+      val (show, duration, seeking) = inputs
+      val current =
+        cacheTime
+          ?.toFloat()
+          ?.takeIf { it > 0f && !it.isNaN() && !it.isInfinite() && duration > 0f }
+          ?.coerceIn(0f, duration)
+      when {
+        !show || duration <= 0f -> stableDemuxerCacheTime = 0f
+        current != null -> stableDemuxerCacheTime = current
+        !seeking -> stableDemuxerCacheTime = 0f
+      }
     }
   }
   var resetControlsTimestamp by remember { mutableStateOf(0L) }
@@ -744,14 +753,7 @@ fun PlayerControls(
                   height = Dimension.wrapContent
                 }.fillMaxWidth()
                 .height(120.dp)
-                .background(
-                  Brush.verticalGradient(
-                    colors = listOf(
-                      Color.Black.copy(alpha = 0.55f),
-                      Color.Transparent
-                    )
-                  )
-                )
+                .background(TopHudScrim)
                 .alpha((transparentOverlay / 0.8f).coerceIn(0f, 1f))
           )
 
@@ -766,14 +768,7 @@ fun PlayerControls(
                   height = Dimension.wrapContent
                 }.fillMaxWidth()
                 .height(120.dp)
-                .background(
-                  Brush.verticalGradient(
-                    colors = listOf(
-                      Color.Transparent,
-                      Color.Black.copy(alpha = 0.55f)
-                    )
-                  )
-                )
+                .background(BottomHudScrim)
                 .alpha((transparentOverlay / 0.8f).coerceIn(0f, 1f))
           )
 
@@ -2702,3 +2697,7 @@ private fun OutlinedLabeled(
     )
   }
 }
+
+// Constant HUD scrims, allocated once instead of on every PlayerControls recomposition.
+private val TopHudScrim = Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.55f), Color.Transparent))
+private val BottomHudScrim = Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.55f)))

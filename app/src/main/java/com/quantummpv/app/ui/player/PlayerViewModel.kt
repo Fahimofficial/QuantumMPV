@@ -2840,6 +2840,8 @@ val isBrightnessSliderShown = MutableStateFlow(false)
           }
         }
       }.onFailure {
+        // Cancellation (screen closed, file changed) is not a load failure: stop the caller's loop.
+        if (it is kotlin.coroutines.cancellation.CancellationException) throw it
         if (!silent) {
           withContext(Dispatchers.Main) {
             showToast("Failed to load subtitle")
@@ -3351,8 +3353,9 @@ val isBrightnessSliderShown = MutableStateFlow(false)
                 if (!PlaybackSession.isCurrentGeneration(generation)) return@launch
                 val uriStr = file.uri.toString()
                 if (file.isFile && isValidSubtitleFile(file.name ?: "") && seenUris.add(uriStr)) {
-                  // Don't auto-select during scan, just make available.
-                  addSubtitle(
+                  // Don't auto-select during scan, just make available. Awaited (not launched) so the
+                  // auto-select below sees every track instead of racing the sub-add commands.
+                  addSubtitleSuspend(
                     file.uri,
                     select = false,
                     silent = true,
@@ -3364,13 +3367,15 @@ val isBrightnessSliderShown = MutableStateFlow(false)
             }
           }
         }
+      } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+        throw e
       } catch (e: Exception) {
         android.util.Log.e("PlayerViewModel", "Error scanning local subtitles: ${e.message}", e)
       }
 
       // Auto-select the first external subtitle if the video has no embedded subtitle track active
       if (addedCount > 0) {
-        // Give MPV time to register the sub-add commands
+        // The adds have completed; give the track-list observer a moment to publish them.
         kotlinx.coroutines.delay(300)
         if (!PlaybackSession.isCurrentGeneration(generation)) return@launch
         withContext(Dispatchers.Main) {

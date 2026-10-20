@@ -3819,7 +3819,7 @@ class PlayerActivity :
 
     val uri = parsePathFromIntent(intent)
     if (uri == null) {
-      Log.e(TAG, "Unable to resolve playable media URI: ${extractUriFromIntent(intent)}")
+      Log.e(TAG, "Unable to resolve playable media URI: ${com.quantummpv.app.utils.redactUriForLog(extractUriFromIntent(intent)?.toString())}")
       viewModel.onVideoLoadCompleted()
       viewModel.showToast(getString(R.string.toast_playback_load_failed))
       return null
@@ -4721,6 +4721,8 @@ class PlayerActivity :
         playbackStateRepository.upsert(playbackState)
         PlaybackStateEvents.notifyChanged(snapshot.mediaIdentifier)
       }.onFailure { e ->
+        // A newer save cancels this one through savePlaybackStateJob; that is not an error.
+        if (e is CancellationException) throw e
         Log.e(TAG, "Error saving playback state", e)
       }
     }
@@ -4894,6 +4896,8 @@ class PlayerActivity :
 
       state != null || positionRestoreOverride != null
     }.onFailure { e ->
+      // Propagate cancellation instead of reporting "no saved state" to the caller.
+      if (e is CancellationException) throw e
       Log.e(TAG, "Error loading playback state", e)
     }.getOrDefault(false)
   }
@@ -6099,58 +6103,78 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
   }
 
   private fun applyInitialVideoOrientation(sourceIntent: Intent) {
+    // Every new media intent invalidates a pending probe, including intents that return early below
+    // (network URIs, audio, TV), so a probe for the previous file can never re-orient this one.
+    val generation = ++orientationProbeGeneration
     if (isTelevision) {
       requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
       return
     }
     if (playerPreferences.orientation.get() != PlayerOrientation.Video || isKnownAudioLaunch(sourceIntent)) return
 
-    var width = sourceIntent.getIntExtra(EXTRA_VIDEO_WIDTH, 0)
-    var height = sourceIntent.getIntExtra(EXTRA_VIDEO_HEIGHT, 0)
-    var rotation = 0
+    val extraWidth = sourceIntent.getIntExtra(EXTRA_VIDEO_WIDTH, 0)
+    val extraHeight = sourceIntent.getIntExtra(EXTRA_VIDEO_HEIGHT, 0)
+    // Dimensions supplied by the launcher apply at once, before the first frame.
+    applyVideoOrientation(extraWidth, extraHeight, rotation = 0)
 
-    extractUriFromIntent(sourceIntent)
-      ?.takeIf { uri -> uri.scheme.equals("content", true) || uri.scheme.equals("file", true) }
-      ?.let { uri ->
+    val uri =
+      extractUriFromIntent(sourceIntent)
+        ?.takeIf { it.scheme.equals("content", true) || it.scheme.equals("file", true) }
+        ?: return
+    // MediaMetadataRetriever.setDataSource goes through the content provider and parses the
+    // container; on SAF/cloud providers or large files that takes long enough to ANR on Main.
+    val orientationBeforeProbe = requestedOrientation
+    lifecycleScope.launch(Dispatchers.IO) {
+      val probed =
         runCatching {
           val retriever = android.media.MediaMetadataRetriever()
           try {
-            retriever.setDataSource(this, uri)
-            if (width <= 0) {
-              width =
-                retriever
-                  .extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)
-                  ?.toIntOrNull()
-                  ?: 0
-            }
-            if (height <= 0) {
-              height =
-                retriever
-                  .extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)
-                  ?.toIntOrNull()
-                  ?: 0
-            }
-            rotation =
-              retriever
-                .extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)
-                ?.toIntOrNull()
-                ?: 0
+            retriever.setDataSource(this@PlayerActivity, uri)
+            fun meta(key: Int) = retriever.extractMetadata(key)?.toIntOrNull() ?: 0
+            Triple(
+              extraWidth.takeIf { it > 0 } ?: meta(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH),
+              extraHeight.takeIf { it > 0 } ?: meta(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT),
+              meta(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION),
+            )
           } finally {
             retriever.release()
           }
-        }
+        }.getOrNull() ?: return@launch
+      withContext(Dispatchers.Main) {
+        // Skip a stale probe: a newer file was opened, or something else (video-params, the user)
+        // already changed the orientation while this one was running.
+        if (generation != orientationProbeGeneration || isFinishing || isDestroyed) return@withContext
+        val expected = if (extraWidth > 0 && extraHeight > 0) orientationFor(extraWidth, extraHeight, 0) else orientationBeforeProbe
+        if (requestedOrientation != expected) return@withContext
+        applyVideoOrientation(probed.first, probed.second, probed.third)
       }
-    if (width <= 0 || height <= 0) return
+    }
+  }
 
+  /** Bumped per [applyInitialVideoOrientation] call so late probes for an older file are ignored. */
+  private var orientationProbeGeneration = 0
+
+  private fun orientationFor(
+    width: Int,
+    height: Int,
+    rotation: Int,
+  ): Int {
     val normalizedRotation = ((rotation % 360) + 360) % 360
     val swapsDimensions = normalizedRotation == 90 || normalizedRotation == 270
-    val initialOrientation =
-      if ((width > height) != swapsDimensions) {
-        ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-      } else {
-        ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
-      }
+    return if ((width > height) != swapsDimensions) {
+      ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+    } else {
+      ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+    }
+  }
 
+  private fun applyVideoOrientation(
+    width: Int,
+    height: Int,
+    rotation: Int,
+  ) {
+    if (width <= 0 || height <= 0) return
+    val initialOrientation = orientationFor(width, height, rotation)
     if (requestedOrientation != initialOrientation) requestedOrientation = initialOrientation
   }
 
@@ -7310,14 +7334,17 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
                     else -> return@runCatching null
                   }
                 val retriever = android.media.MediaMetadataRetriever()
-                if (cleanPath != null) {
-                  retriever.setDataSource(cleanPath)
-                } else {
-                  retriever.setDataSource(this@PlayerActivity, parsedUri)
+                // Released even when setDataSource/decoding throws, so the native handle and fd don't leak.
+                try {
+                  if (cleanPath != null) {
+                    retriever.setDataSource(cleanPath)
+                  } else {
+                    retriever.setDataSource(this@PlayerActivity, parsedUri)
+                  }
+                  com.quantummpv.app.domain.thumbnail.EmbeddedArtworkResolver.decodeEmbeddedArtwork(cleanPath, retriever)
+                } finally {
+                  retriever.release()
                 }
-                val art = com.quantummpv.app.domain.thumbnail.EmbeddedArtworkResolver.decodeEmbeddedArtwork(cleanPath, retriever)
-                retriever.release()
-                art
               } else {
                 null
               }

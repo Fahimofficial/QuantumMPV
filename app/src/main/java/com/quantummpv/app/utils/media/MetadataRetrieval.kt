@@ -149,9 +149,11 @@ object MetadataRetrieval {
       // Filter videos that need metadata extraction
       // MediaStore provides width, height, duration but NOT FPS or subtitle info
       // So we need to extract metadata if FPS or subtitle info is missing
+      // Read once per pass rather than once per video.
+      val showCodecSupport = browserPreferences.showCodecSupportIndicator.get()
       val videosNeedingMetadata =
         videos.filter { video ->
-          val needsVideoCodec = browserPreferences.showCodecSupportIndicator.get() && !video.isAudio
+          val needsVideoCodec = showCodecSupport && !video.isAudio
           video.width == 0 ||
             video.height == 0 ||
             video.duration == 0L ||
@@ -179,7 +181,7 @@ object MetadataRetrieval {
 
       // Batch extract metadata
       val videoCodecPaths =
-        if (browserPreferences.showCodecSupportIndicator.get()) {
+        if (showCodecSupport) {
           videosNeedingMetadata.filterNot { it.isAudio }.mapTo(mutableSetOf()) { it.path }
         } else {
           emptySet()

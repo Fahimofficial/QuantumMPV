@@ -113,7 +113,7 @@ fun YtdlpPanel(
           fontWeight = FontWeight.Bold,
         )
         IconButton(onClick = onDismissRequest) {
-          Icon(Icons.RoundedFilled.Close, null, modifier = Modifier.size(24.dp))
+          Icon(Icons.RoundedFilled.Close, androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.ui_close), modifier = Modifier.size(24.dp))
         }
       }
     },

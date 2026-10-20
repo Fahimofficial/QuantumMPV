@@ -266,7 +266,7 @@ fun SubtitleDelayTitle(
     )
     Spacer(Modifier.weight(1f))
     IconButton(onClick = onClose) {
-      Icon(Icons.RoundedFilled.Close, null, modifier = Modifier.size(32.dp))
+      Icon(Icons.RoundedFilled.Close, androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.ui_close), modifier = Modifier.size(32.dp))
     }
   }
 }

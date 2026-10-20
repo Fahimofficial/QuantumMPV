@@ -60,6 +60,44 @@ object EmbeddedArtworkCandidates {
 }
 
 internal object EmbeddedArtworkResolver {
+  /**
+   * Artwork is shown at most about screen-width; decoding a 3000 px cover at full size costs ~36 MB
+   * and churns the shared image cache. Sampling keeps the longest edge at or above this size.
+   */
+  private const val MAX_ARTWORK_DECODE_SIZE = 1024
+
+  /** Largest remote artwork body buffered before decoding; covers are rarely above a few MB. */
+  private const val MAX_REMOTE_ARTWORK_BYTES = 16L * 1024 * 1024
+
+  /**
+   * Runs [decode] once for bounds, then again with an [BitmapFactory.Options.inSampleSize]. Returns
+   * null when the bounds pass can't read a size, rather than falling back to an unsampled decode.
+   */
+  private inline fun decodeBounded(decode: (BitmapFactory.Options) -> Bitmap?): Bitmap? {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    decode(bounds)
+    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+    val options =
+      BitmapFactory.Options().apply {
+        inSampleSize = calculateThumbnailSampleSize(bounds.outWidth, bounds.outHeight, MAX_ARTWORK_DECODE_SIZE)
+      }
+    return decode(options)
+  }
+
+  /** Reads at most [MAX_REMOTE_ARTWORK_BYTES], or null if the body is larger. */
+  private fun java.io.InputStream.readBoundedBytes(): ByteArray? {
+    val out = java.io.ByteArrayOutputStream()
+    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+    var total = 0L
+    while (true) {
+      val read = read(buffer)
+      if (read < 0) return out.toByteArray()
+      total += read
+      if (total > MAX_REMOTE_ARTWORK_BYTES) return null
+      out.write(buffer, 0, read)
+    }
+  }
+
   fun decodeArtworkUri(
     context: Context,
     artworkUri: String?,
@@ -70,10 +108,13 @@ internal object EmbeddedArtworkResolver {
     return runCatching {
       val decoded =
         when (uri.scheme?.lowercase()) {
-          null, "" -> BitmapFactory.decodeFile(artworkUri)
-          "file" -> BitmapFactory.decodeFile(uri.path)
+          null, "" -> decodeBounded { options -> BitmapFactory.decodeFile(artworkUri, options) }
+          "file" -> decodeBounded { options -> BitmapFactory.decodeFile(uri.path, options) }
           "content", "android.resource" ->
-            context.contentResolver.openInputStream(uri)?.use { input -> BitmapFactory.decodeStream(input) }
+            // Opened once for the bounds pass and once for the sampled decode.
+            decodeBounded { options ->
+              context.contentResolver.openInputStream(uri)?.use { input -> BitmapFactory.decodeStream(input, null, options) }
+            }
           "http", "https" -> {
             val connection = (java.net.URL(artworkUri).openConnection() as java.net.HttpURLConnection).apply {
               connectTimeout = 8000
@@ -81,9 +122,12 @@ internal object EmbeddedArtworkResolver {
               instanceFollowRedirects = true
               setRequestProperty("User-Agent", "Mozilla/5.0 (Android) QuantumMPV")
             }
-            connection.inputStream.use { input ->
-              BitmapFactory.decodeStream(input)
-            }
+            // Reject an oversized declared length up front; an unknown length is capped while reading.
+            val bytes =
+              connection.inputStream.use { input ->
+                if (connection.contentLengthLong > MAX_REMOTE_ARTWORK_BYTES) null else input.readBoundedBytes()
+              }
+            bytes?.let { body -> decodeBounded { options -> BitmapFactory.decodeByteArray(body, 0, body.size, options) } }
           }
           else -> null
         }
@@ -109,13 +153,13 @@ internal object EmbeddedArtworkResolver {
       ?.firstNotNullOfOrNull { candidate ->
         candidate
           .takeIf { it.isFile && it.canRead() }
-          ?.let { BitmapFactory.decodeFile(it.path) }
+          ?.let { file -> decodeBounded { options -> BitmapFactory.decodeFile(file.path, options) } }
       }
 
   fun decodeRetrieverArtwork(retriever: MediaMetadataRetriever): Bitmap? {
     retriever.embeddedPicture
       ?.takeIf { it.isNotEmpty() }
-      ?.let { bytes -> BitmapFactory.decodeByteArray(bytes, 0, bytes.size) }
+      ?.let { bytes -> decodeBounded { options -> BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options) } }
       ?.let { return it }
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
