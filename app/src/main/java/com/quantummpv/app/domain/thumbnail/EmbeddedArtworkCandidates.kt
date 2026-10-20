@@ -60,6 +60,23 @@ object EmbeddedArtworkCandidates {
 }
 
 internal object EmbeddedArtworkResolver {
+  /**
+   * Artwork is shown at most about screen-width; decoding a 3000 px cover at full size costs ~36 MB
+   * and churns the shared image cache. Sampling keeps the longest edge at or above this size.
+   */
+  private const val MAX_ARTWORK_DECODE_SIZE = 1024
+
+  /** Runs [decode] once for bounds, then again with an [BitmapFactory.Options.inSampleSize]. */
+  private inline fun decodeBounded(decode: (BitmapFactory.Options) -> Bitmap?): Bitmap? {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    decode(bounds)
+    val options = BitmapFactory.Options()
+    if (bounds.outWidth > 0 && bounds.outHeight > 0) {
+      options.inSampleSize = calculateThumbnailSampleSize(bounds.outWidth, bounds.outHeight, MAX_ARTWORK_DECODE_SIZE)
+    }
+    return decode(options)
+  }
+
   fun decodeArtworkUri(
     context: Context,
     artworkUri: String?,
@@ -70,10 +87,13 @@ internal object EmbeddedArtworkResolver {
     return runCatching {
       val decoded =
         when (uri.scheme?.lowercase()) {
-          null, "" -> BitmapFactory.decodeFile(artworkUri)
-          "file" -> BitmapFactory.decodeFile(uri.path)
+          null, "" -> decodeBounded { options -> BitmapFactory.decodeFile(artworkUri, options) }
+          "file" -> decodeBounded { options -> BitmapFactory.decodeFile(uri.path, options) }
           "content", "android.resource" ->
-            context.contentResolver.openInputStream(uri)?.use { input -> BitmapFactory.decodeStream(input) }
+            // Opened once for the bounds pass and once for the sampled decode.
+            decodeBounded { options ->
+              context.contentResolver.openInputStream(uri)?.use { input -> BitmapFactory.decodeStream(input, null, options) }
+            }
           "http", "https" -> {
             val connection = (java.net.URL(artworkUri).openConnection() as java.net.HttpURLConnection).apply {
               connectTimeout = 8000
@@ -81,9 +101,8 @@ internal object EmbeddedArtworkResolver {
               instanceFollowRedirects = true
               setRequestProperty("User-Agent", "Mozilla/5.0 (Android) QuantumMPV")
             }
-            connection.inputStream.use { input ->
-              BitmapFactory.decodeStream(input)
-            }
+            val bytes = connection.inputStream.use { input -> input.readBytes() }
+            decodeBounded { options -> BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options) }
           }
           else -> null
         }
@@ -109,13 +128,13 @@ internal object EmbeddedArtworkResolver {
       ?.firstNotNullOfOrNull { candidate ->
         candidate
           .takeIf { it.isFile && it.canRead() }
-          ?.let { BitmapFactory.decodeFile(it.path) }
+          ?.let { file -> decodeBounded { options -> BitmapFactory.decodeFile(file.path, options) } }
       }
 
   fun decodeRetrieverArtwork(retriever: MediaMetadataRetriever): Bitmap? {
     retriever.embeddedPicture
       ?.takeIf { it.isNotEmpty() }
-      ?.let { bytes -> BitmapFactory.decodeByteArray(bytes, 0, bytes.size) }
+      ?.let { bytes -> decodeBounded { options -> BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options) } }
       ?.let { return it }
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
