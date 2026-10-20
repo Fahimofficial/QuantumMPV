@@ -56,8 +56,18 @@ internal fun ScreenNavDisplay(
   content: @Composable (Screen) -> Unit = { it.Content() },
 ) {
   val preferences = koinInject<PlayerPreferences>()
-  val style by preferences.appNavStyle.collectAsState()
+  val selectedStyle by preferences.appNavStyle.collectAsState()
   val speed by preferences.animationSpeed.collectAsState()
+  // Off motion removes transitions; Reduced motion (system "Remove animations" or the app setting)
+  // swaps slides, scales and depth for a plain cross-fade so screens never travel across the display.
+  val disableMotion = com.quantummpv.app.ui.theme.AppMotion.shouldDisableAnimations()
+  val reduceMotion = com.quantummpv.app.ui.theme.AppMotion.shouldReduceMotion()
+  val style =
+    when {
+      disableMotion -> NavigationAnimStyle.None
+      reduceMotion && selectedStyle != NavigationAnimStyle.None -> NavigationAnimStyle.Minimal
+      else -> selectedStyle
+    }
   val layoutDirection = LocalLayoutDirection.current
   val direction = if (layoutDirection == LayoutDirection.Ltr) 1 else -1
 

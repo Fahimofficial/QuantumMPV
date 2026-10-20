@@ -12,28 +12,18 @@ package com.quantummpv.app.ui.player.controls.components.panels
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import com.quantummpv.app.R
 import com.quantummpv.app.preferences.AdvancedPreferences
 import com.quantummpv.app.preferences.preference.collectAsState
-import com.quantummpv.app.ui.icons.Icon
-import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.lua.LuaRuntimeStatusCard
 import com.quantummpv.app.ui.lua.LuaScriptToggleCard
 import com.quantummpv.app.ui.lua.LuaScriptsEmptyState
@@ -82,26 +72,7 @@ fun LuaScriptsPanel(
   DraggablePanel(
     modifier = modifier,
     header = {
-      Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-        modifier =
-          Modifier
-            .fillMaxWidth()
-            .padding(horizontal = MaterialTheme.spacing.medium)
-            .padding(top = MaterialTheme.spacing.small),
-      ) {
-        Text(
-          text =
-            androidx.compose.ui.res
-              .stringResource(com.quantummpv.app.R.string.pref_section_scripts),
-          style = MaterialTheme.typography.titleLarge,
-        )
-        Spacer(Modifier.weight(1f))
-        IconButton(onClick = onDismissRequest) {
-          Icon(Icons.RoundedFilled.Close, contentDescription = null, modifier = Modifier.size(32.dp))
-        }
-      }
+      PlayerPanelHeader(title = androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.pref_section_scripts), onClose = onDismissRequest)
     },
   ) {
     Column(

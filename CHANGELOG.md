@@ -1,6 +1,11 @@
 # Changelog
 ## Unreleased
+### What's New
+- **Design system**: QuantumMPV now follows a documented visual language ("Quiet Geometry", see docs/design). Player panels share one header with a standard-size, labelled close button; player sheets show a drag handle for their swipe-to-dismiss; player buttons give the same press feedback as the dock.
+- **Reduced motion**: Screen transitions now cross-fade under Reduced motion and are removed when motion is Off.
+
 ### Fixes
+- **Touch targets**: The More sheet's info button and the mini-player close button are easier to hit.
 - **Opening videos**: The player no longer reads the file's metadata on the main thread to pick the initial orientation, which could freeze or ANR when opening large files or files from cloud/SAF providers.
 - **Saved subtitles**: Subtitles found in the subtitle save folder are now auto-selected reliably; the auto-select no longer races the tracks being added.
 - **Privacy**: Release builds no longer write debug logs, and Navidrome/stream URL error logs no longer include login tokens or API keys.

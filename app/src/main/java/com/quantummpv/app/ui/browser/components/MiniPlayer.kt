@@ -405,7 +405,8 @@ private fun MiniPlayerContent(
 
           IconButton(
             onClick = { dismissPlayer() },
-            modifier = Modifier.size(32.dp),
+            // M3 default 40 dp (was 32): fits the row, and Compose extends the hit area toward 48 dp.
+            modifier = Modifier.size(40.dp),
           ) {
             Icon(
               imageVector = Icons.RoundedFilled.Close,
@@ -541,7 +542,8 @@ private fun MiniPlayerContent(
         // Close Action Button
         IconButton(
           onClick = { dismissPlayer() },
-          modifier = Modifier.size(32.dp),
+          // M3 default 40 dp (was 32): fits the row, and Compose extends the hit area toward 48 dp.
+          modifier = Modifier.size(40.dp),
         ) {
           Icon(
             imageVector = Icons.RoundedFilled.Close,

@@ -85,7 +85,7 @@ fun MultiCardPanel(
           },
           navigationIcon = {
             IconButton(onClick = onDismissRequest) {
-              Icon(imageVector = Icons.RoundedFilled.ArrowBack, contentDescription = null)
+              Icon(imageVector = Icons.RoundedFilled.ArrowBack, contentDescription = stringResource(com.quantummpv.app.R.string.back))
             }
           },
           colors = TopAppBarDefaults.topAppBarColors().copy(containerColor = Color.Transparent),
@@ -126,7 +126,7 @@ fun MultiCardPanel(
               ),
           )
           IconButton(onDismissRequest) {
-            Icon(imageVector = Icons.RoundedFilled.Close, contentDescription = null)
+            Icon(imageVector = Icons.RoundedFilled.Close, contentDescription = stringResource(com.quantummpv.app.R.string.ui_close))
           }
         }
         repeat(cardCount) { cards(it, Modifier) }

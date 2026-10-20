@@ -96,26 +96,7 @@ fun YtdlpPanel(
   DraggablePanel(
     modifier = modifier,
     header = {
-      Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-        modifier =
-          Modifier
-            .fillMaxWidth()
-            .padding(horizontal = MaterialTheme.spacing.medium)
-            .padding(top = MaterialTheme.spacing.small, bottom = MaterialTheme.spacing.extraSmall),
-      ) {
-        Text(
-          text =
-            androidx.compose.ui.res
-              .stringResource(com.quantummpv.app.R.string.ui_yt_dlp_manager),
-          style = MaterialTheme.typography.titleLarge,
-          fontWeight = FontWeight.Bold,
-        )
-        IconButton(onClick = onDismissRequest) {
-          Icon(Icons.RoundedFilled.Close, androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.ui_close), modifier = Modifier.size(24.dp))
-        }
-      }
+      PlayerPanelHeader(title = androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.ui_yt_dlp_manager), onClose = onDismissRequest)
     },
   ) {
     Column(
