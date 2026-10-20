@@ -9,10 +9,12 @@
 
 package com.quantummpv.app.ui.player.controls.components
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -24,23 +26,28 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.ui.icons.AppIcon
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.controls.LocalPlayerButtonsClickEvent
+import com.quantummpv.app.ui.theme.AppMotion
 import com.quantummpv.app.ui.theme.DesignTokens.LocalGlassConfig
 import com.quantummpv.app.ui.theme.DesignTokens.SurfaceStyle
 import com.quantummpv.app.ui.theme.GlassComponents
 import com.quantummpv.app.ui.theme.LocalDarkAppColorScheme
 import com.quantummpv.app.ui.theme.spacing
+
+private const val PRESSED_SCALE = 0.92f
 
 @Suppress("CompositionLocalAllowlist")
 internal val LocalForceDarkPlayerButtonsBackground = staticCompositionLocalOf { false }
@@ -85,10 +92,22 @@ fun ControlsButton(
   val resolvedColor = color ?: playerButtonContentColor()
 
   val clickEvent = LocalPlayerButtonsClickEvent.current
+  // Same press language as the dock and menu tiles: a short spring down to 0.92, read in the layer
+  // phase so it never recomposes the HUD. Off under Reduced motion.
+  val isPressed by interactionSource.collectIsPressedAsState()
+  val reduceMotion = AppMotion.shouldReduceMotion()
+  val pressScale by animateFloatAsState(
+    targetValue = if (isPressed && enabled && !reduceMotion) PRESSED_SCALE else 1f,
+    animationSpec = AppMotion.spatial(AppMotion.Spatial.Snappy, AppMotion.ReducedAlpha),
+    label = "controls_button_press",
+  )
   Surface(
     modifier =
       modifier
-        .tvFocusHighlight(CircleShape, enabled)
+        .graphicsLayer {
+          scaleX = pressScale
+          scaleY = pressScale
+        }.tvFocusHighlight(CircleShape, enabled)
         .clip(CircleShape)
         .combinedClickable(
           enabled = enabled,

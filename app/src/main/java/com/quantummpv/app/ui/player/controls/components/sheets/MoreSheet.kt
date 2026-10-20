@@ -451,7 +451,8 @@ fun SectionHeaderWithInfo(
       color = MaterialTheme.colorScheme.primary,
     )
     Spacer(modifier = Modifier.width(8.dp))
-    IconButton(onClick = onInfoClick, modifier = Modifier.size(24.dp)) {
+    // Full 48 dp target; the 16 dp glyph keeps it visually light next to the title.
+    IconButton(onClick = onInfoClick) {
       Icon(
         imageVector = Icons.RoundedFilled.Info,
         contentDescription =
