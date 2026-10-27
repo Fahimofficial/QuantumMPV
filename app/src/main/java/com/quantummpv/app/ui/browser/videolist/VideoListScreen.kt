@@ -32,7 +32,6 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -105,6 +104,7 @@ import com.quantummpv.app.ui.browser.fab.FabScrollHelper
 import com.quantummpv.app.ui.browser.selection.SelectionManager
 import com.quantummpv.app.ui.browser.selection.rememberSelectionManager
 import com.quantummpv.app.ui.browser.states.EmptyState
+import com.quantummpv.app.ui.browser.states.LoadingState
 import com.quantummpv.app.ui.components.InlineSearchBar
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
@@ -943,19 +943,13 @@ internal fun VideoListContent(
 
   when {
     isLoading && videosWithInfo.isEmpty() -> {
-      Box(
-        modifier =
-          modifier
-            .fillMaxSize()
-            .padding(bottom = 80.dp),
-        // Account for bottom navigation bar
-        contentAlignment = Alignment.Center,
-      ) {
-        CircularProgressIndicator(
-          modifier = Modifier.size(48.dp),
-          color = MaterialTheme.colorScheme.primary,
-        )
-      }
+      LoadingState(
+        icon = Icons.RoundedFilled.VideoLibrary,
+        title = stringResource(R.string.ui_scanning_for_videos),
+        message = stringResource(R.string.loading_state_scanning_message),
+        // LoadingState already keeps its content clear of the bottom navigation, as on Folders.
+        modifier = modifier.fillMaxSize(),
+      )
     }
 
     videosWithInfo.isEmpty() && !isLoading && videosWereDeletedOrMoved -> {

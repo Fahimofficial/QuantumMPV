@@ -181,7 +181,8 @@ private val GLSL_VIDEO_PROLOGUE =
 private val GLSL_AMBIENT_EPILOGUE =
   """
     float vig_r = length(uv - 0.5) * 2.0;
-    ambient_rgb *= mix(1.0, smoothstep(1.3, 0.1, vig_r), VIGNETTE_STR);
+    // smoothstep with edge0 > edge1 is undefined in GLSL and differs between GPU drivers.
+    ambient_rgb *= mix(1.0, 1.0 - smoothstep(0.1, 1.3, vig_r), VIGNETTE_STR);
 
     vec4 ambient_out = vec4(ambient_rgb * OPACITY, 1.0);
 

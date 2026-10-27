@@ -70,4 +70,17 @@ class NetworkPlaylistVideoTest {
       isDirectory = false,
     ).toPlaylistVideo(connectionId = 0L)
   }
+
+  @Test
+  fun `decomposed unicode filenames keep their exact bytes in the playback uri`() {
+    // "Café" as macOS writes it: plain e followed by a combining acute accent (NFD).
+    val decomposed = "/Music/Cafe\u0301.mkv"
+    val composed = java.text.Normalizer.normalize(decomposed, java.text.Normalizer.Form.NFC)
+
+    val uri = NetworkPlaybackUri.create(connectionId = 3L, path = decomposed)
+
+    assertTrue(uri.contains("e%CC%81"))
+    assertEquals(decomposed, NetworkPlaybackUri.parse(uri)?.path?.value)
+    assertFalse(NetworkPlaybackUri.parse(uri)?.path?.value == composed)
+  }
 }

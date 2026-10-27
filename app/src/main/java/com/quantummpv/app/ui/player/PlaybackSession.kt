@@ -1016,7 +1016,16 @@ object PlaybackSession : MPVLib.EventObserver {
     value: String,
   ): Int {
     if (MpvConfigOverridePolicy.isOwnedByMpvConf(name)) return 0
-    return withCore(-1, allowInitializing = true) { MPVLib.setOptionString(name, value) }
+    return withCore(-1, allowInitializing = true) {
+      // mpv_set_option_string is a pre-init API and is not reliable for runtime updates.
+      // After MPVLib.init(), write the corresponding runtime property instead.
+      if (nativeCoreReady) {
+        MPVLib.setPropertyString(name, value)
+        0
+      } else {
+        MPVLib.setOptionString(name, value)
+      }
+    }
   }
 
   /**
