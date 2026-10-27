@@ -1763,13 +1763,13 @@ is PlayerUpdates.FrameInfo -> {
                   end.linkTo(parent.end, spacing.large)
                 },
           ) {
-            val position by PlaybackSession.propInt["time-pos"].collectAsStateWithLifecycle()
-            val precisePosition by viewModel.precisePosition.collectAsStateWithLifecycle()
+            // Held as State objects and read only inside the providers below, so position ticks do not
+            // recompose this scope.
+            val precisePosition = viewModel.precisePosition.collectAsStateWithLifecycle()
             val invertDuration by playerPreferences.invertDuration.collectAsState()
-            val remaining by PlaybackSession.propFloat["playtime-remaining"].collectAsState()
+            val remaining = PlaybackSession.propFloat["playtime-remaining"].collectAsState()
             val seekbarStyle by appearancePreferences.seekbarStyle.collectAsState()
             val useWavySeekbar by playerPreferences.useWavySeekbar.collectAsState()
-            val displayedSeekbarPosition = precisePosition
             // Memoize the immutable copies so they are not reallocated on every position
             // tick (this scope recomposes ~20x/sec while scrubbing).
             val seekbarChapters =
@@ -1779,10 +1779,10 @@ is PlayerUpdates.FrameInfo -> {
             val skipSegmentsImmutable = remember(skipSegments) { skipSegments.toImmutableList() }
 
             SeekbarWithTimers(
-              position = displayedSeekbarPosition,
-              committedPosition = precisePosition,
+              position = { precisePosition.value },
+              committedPosition = { precisePosition.value },
               duration = if (preciseDuration > 0) preciseDuration else duration?.toFloat() ?: 0f,
-              remaining = remaining ?: 0f,
+              remaining = { remaining.value ?: 0f },
               onValueChange = {
                 isSeeking = true
                 resetControlsTimestamp = System.currentTimeMillis()

@@ -43,12 +43,16 @@ import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -72,10 +76,15 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.quantummpv.app.R
 import com.quantummpv.app.preferences.SeekbarStyle
 import com.quantummpv.app.ui.player.SkipSegment
 import com.quantummpv.app.ui.player.clip.ClipEditorUiState
@@ -94,6 +103,7 @@ import `is`.xyz.mpv.Utils
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
@@ -276,10 +286,12 @@ private fun normalizeSeekerSegments(
 
 @Composable
 internal fun SeekbarWithTimers(
-  position: Float,
+  // Providers, not values: the position changes many times a second and is read only where it is
+  // drawn, so the seekbar and timers do not recompose on every tick.
+  position: () -> Float,
   duration: Float,
-  remaining: Float,
-  committedPosition: Float = position,
+  remaining: () -> Float,
+  committedPosition: () -> Float = position,
   onValueChange: (Float) -> Unit,
   onValueChangeFinished: (Float) -> Unit,
   timersInverted: Pair<Boolean, Boolean>,
@@ -303,29 +315,38 @@ internal fun SeekbarWithTimers(
   modifier: Modifier = Modifier,
 ) {
   val clickEvent = LocalPlayerButtonsClickEvent.current
+  val currentPosition by rememberUpdatedState(position)
+  val currentRemaining by rememberUpdatedState(remaining)
   var isUserInteracting by remember { mutableStateOf(false) }
-  var userPosition by remember { mutableFloatStateOf(position) }
+  var userPosition by remember { mutableFloatStateOf(Snapshot.withoutReadObservation { position() }) }
 
   // Animated position for smooth transitions
-  val animatedPosition = remember { Animatable(position) }
+  val animatedPosition = remember { Animatable(Snapshot.withoutReadObservation { position() }) }
   val scope = rememberCoroutineScope()
 
-  LaunchedEffect(position, isUserInteracting) {
-    if (!isUserInteracting && position != animatedPosition.value) {
-      // Run the animation directly in this LaunchedEffect body (not via scope.launch).
-      // When `position` changes on the next poll, the effect is cancelled and relaunched,
-      // which retargets the same Animatable smoothly instead of stacking independent
-      // spring coroutines that fight each other and leak work every ~50ms.
-      animatedPosition.animateTo(
-        targetValue = position,
-        animationSpec =
-          spring(
-            dampingRatio = AppMotion.Spatial.Standard.dampingRatio,
-            stiffness = AppMotion.Spatial.Standard.stiffness,
-          ),
-      )
+  LaunchedEffect(isUserInteracting) {
+    if (isUserInteracting) return@LaunchedEffect
+    // collectLatest retargets the same Animatable when the next poll arrives instead of stacking
+    // independent spring coroutines that fight each other.
+    snapshotFlow { currentPosition() }.collectLatest { target ->
+      if (target != animatedPosition.value) {
+        animatedPosition.animateTo(
+          targetValue = target,
+          animationSpec =
+            spring(
+              dampingRatio = AppMotion.Spatial.Standard.dampingRatio,
+              stiffness = AppMotion.Spatial.Standard.stiffness,
+            ),
+        )
+      }
     }
   }
+
+  // Timers show whole seconds, so they recompose once a second rather than on every poll.
+  val shownPositionSeconds by remember {
+    derivedStateOf { (if (isUserInteracting) userPosition else currentPosition()).wholeSeconds() }
+  }
+  val remainingSeconds by remember { derivedStateOf { currentRemaining().wholeSeconds() } }
 
   if (isPortrait) {
     Column(
@@ -368,7 +389,7 @@ internal fun SeekbarWithTimers(
         verticalAlignment = Alignment.CenterVertically,
       ) {
         VideoTimer(
-          value = if (isUserInteracting) userPosition else position,
+          value = shownPositionSeconds.toFloat(),
           isInverted = timersInverted.first,
           textColor = timerTextColor,
           onClick = {
@@ -378,7 +399,7 @@ internal fun SeekbarWithTimers(
         )
 
         VideoTimer(
-          value = if (timersInverted.second) -remaining else duration,
+          value = if (timersInverted.second) -remainingSeconds.toFloat() else duration,
           isInverted = timersInverted.second,
           textColor = timerTextColor,
           onClick = {
@@ -395,7 +416,7 @@ internal fun SeekbarWithTimers(
       horizontalArrangement = Arrangement.spacedBy(2.dp),
     ) {
       VideoTimer(
-        value = if (isUserInteracting) userPosition else position,
+        value = shownPositionSeconds.toFloat(),
         isInverted = timersInverted.first,
         textColor = timerTextColor,
         onClick = {
@@ -433,7 +454,7 @@ internal fun SeekbarWithTimers(
       )
 
       VideoTimer(
-        value = if (timersInverted.second) -remaining else duration,
+        value = if (timersInverted.second) -remainingSeconds.toFloat() else duration,
         isInverted = timersInverted.second,
         textColor = timerTextColor,
         onClick = {
@@ -449,7 +470,7 @@ internal fun SeekbarWithTimers(
 @Composable
 private fun SeekbarContent(
   positionProvider: () -> Float,
-  committedPosition: Float,
+  committedPosition: () -> Float,
   duration: Float,
   chapters: ImmutableList<Segment>,
   skipSegments: ImmutableList<SkipSegment>,
@@ -482,12 +503,17 @@ private fun SeekbarContent(
   val clipRange by ClipEditorUiState.state.collectAsState()
   val safeDuration = duration.takeIf { it.isFinite() && it > 0f } ?: 0f
   val seekerRange = 0f..safeDuration.coerceAtLeast(0.1f)
+  val currentPositionProvider by rememberUpdatedState(positionProvider)
+  val currentCommittedProvider by rememberUpdatedState(committedPosition)
+  // The invisible Seeker only needs second precision for accessibility and its press target; the visible
+  // track reads the precise position while drawing.
+  val committedSeconds by remember { derivedStateOf { currentCommittedProvider().wholeSeconds() } }
+  val positionSeconds by remember { derivedStateOf { currentPositionProvider().wholeSeconds() } }
   val safeCommittedPosition =
-    committedPosition
-      .takeIf { it.isFinite() }
-      ?.coerceIn(seekerRange)
-      ?: seekerRange.start
-  val currentPos = positionProvider()
+    committedSeconds
+      .toFloat()
+      .coerceIn(seekerRange)
+  val currentPos = if (isUserInteracting) positionProvider() else positionSeconds.toFloat()
   val safeThumbPosition =
     currentPos
       .takeIf { it.isFinite() }
@@ -549,6 +575,14 @@ private fun SeekbarContent(
       }
     }
   }
+
+  val seekbarDescription = stringResource(R.string.player_seekbar_description)
+  val seekbarState =
+    stringResource(
+      R.string.player_seekbar_state,
+      Utils.prettyTime(safeCommittedPosition.toInt()),
+      Utils.prettyTime(safeDuration.toInt()),
+    )
 
   val isTelevision = DeviceFormFactor.isTelevision(LocalContext.current)
   // The visual track uses a touch-oriented seeker; make it keyboard-accessible on Android TV.
@@ -807,10 +841,17 @@ private fun SeekbarContent(
         Modifier
           .fillMaxWidth()
           .height(touchAreaHeight)
-          .graphicsLayer(alpha = 0f),
+          .graphicsLayer(alpha = 0f)
+          .semantics {
+            contentDescription = seekbarDescription
+            stateDescription = seekbarState
+          },
     )
   }
 }
+
+/** Whole seconds of a media time, treating NaN and infinity as zero. */
+private fun Float.wholeSeconds(): Int = if (isFinite()) toInt() else 0
 
 @Composable
 private fun ClipRangeSelection(
@@ -1955,9 +1996,9 @@ fun StandardSeekbar(
 @Composable
 private fun PreviewSeekBarWavy() {
   SeekbarWithTimers(
-    position = 30f,
+    position = { 30f },
     duration = 180f,
-    remaining = 150f,
+    remaining = { 150f },
     onValueChange = {},
     onValueChangeFinished = {},
     timersInverted = Pair(false, true),
@@ -1974,9 +2015,9 @@ private fun PreviewSeekBarWavy() {
 @Composable
 private fun PreviewSeekBarSlim() {
   SeekbarWithTimers(
-    position = 30f,
+    position = { 30f },
     duration = 180f,
-    remaining = 150f,
+    remaining = { 150f },
     onValueChange = {},
     onValueChangeFinished = {},
     timersInverted = Pair(false, true),
@@ -1993,9 +2034,9 @@ private fun PreviewSeekBarSlim() {
 @Composable
 private fun PreviewSeekBarSlimScrubbing() {
   SeekbarWithTimers(
-    position = 30f,
+    position = { 30f },
     duration = 180f,
-    remaining = 150f,
+    remaining = { 150f },
     onValueChange = {},
     onValueChangeFinished = {},
     timersInverted = Pair(false, true),
