@@ -353,41 +353,25 @@ class IntroDbRepository(
           return urlBuilder.build()
         }
 
-        val requestV2 =
+        // v4 is TheIntroDB's only maintained API: v1 is gone and v2/v3 are frozen and being removed.
+        // It still accepts tmdb_id and imdb_id lookups; responses are keyed by tvdb_id, which the
+        // segment parser ignores.
+        val request =
           Request
             .Builder()
-            .url(buildUrl(THEINTRODB_MEDIA_V2_URL))
+            .url(buildUrl(THEINTRODB_MEDIA_URL))
             .header("User-Agent", MARKER_PROVIDER_USER_AGENT)
             .header("Accept", "application/json")
             .get()
             .build()
 
         var responseBody = ""
-        client.newCall(requestV2).execute().use { response ->
-          if (response.isSuccessful) {
-            responseBody = response.body.string()
-          } else if (response.code == 404) {
-            // Fall back to v1 endpoint
-            val requestV1 =
-              Request
-                .Builder()
-                .url(buildUrl(THEINTRODB_MEDIA_V1_URL))
-                .header("User-Agent", MARKER_PROVIDER_USER_AGENT)
-                .header("Accept", "application/json")
-                .get()
-                .build()
-
-            client.newCall(requestV1).execute().use { v1Response ->
-              if (v1Response.isSuccessful) {
-                responseBody = v1Response.body.string()
-              } else if (v1Response.code == 404) {
-                return@use
-              } else {
-                error("TheIntroDB v1 request failed with HTTP ${v1Response.code}")
-              }
-            }
-          } else {
-            error("TheIntroDB request failed with HTTP ${response.code}")
+        client.newCall(request).execute().use { response ->
+          when {
+            response.isSuccessful -> responseBody = response.body.string()
+            // No timestamps for this media.
+            response.code == 404 -> Unit
+            else -> error("TheIntroDB request failed with HTTP ${response.code}")
           }
         }
 
@@ -1254,8 +1238,7 @@ class IntroDbRepository(
 
   companion object {
     private const val TAG = "IntroDbRepository"
-    private const val THEINTRODB_MEDIA_V2_URL = "https://api.theintrodb.org/v2/media"
-    private const val THEINTRODB_MEDIA_V1_URL = "https://api.theintrodb.org/v1/media"
+    private const val THEINTRODB_MEDIA_URL = "https://api.theintrodb.org/v4/media"
     private const val ANISKIP_SKIP_TIMES_URL = "https://api.aniskip.com/v1/skip-times"
     private const val JIKAN_SEARCH_URL = "https://api.jikan.moe/v4/anime"
     private const val MARKER_PROVIDER_USER_AGENT =
