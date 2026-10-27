@@ -18,16 +18,24 @@ import fi.iki.elonen.NanoHTTPD
 import java.io.FilterInputStream
 import java.io.InputStream
 import java.net.Inet4Address
-import java.util.UUID
+import java.security.SecureRandom
 
-/** Serves one Android-local media item to the selected Cast receiver. */
+/**
+ * Serves one Android-local media item to the selected Cast receiver.
+ *
+ * The server listens only on the Wi-Fi/Ethernet address it advertises to the receiver (never on
+ * mobile data, VPN or hotspot interfaces), and every request must carry the random 128-bit path
+ * token. CORS stays open because the Default Media Receiver is a web app that may fetch media
+ * cross-origin; the token, not the origin, is the access control.
+ */
 internal class CastMediaServer private constructor(
   private val appContext: Context,
   private val source: Uri,
   private val mimeType: String,
   private val contentLength: Long,
   private val token: String,
-) : NanoHTTPD("0.0.0.0", 0) {
+  bindAddress: String,
+) : NanoHTTPD(bindAddress, 0) {
   override fun serve(session: IHTTPSession): Response {
     if (session.uri != "/$token") return textResponse(Response.Status.NOT_FOUND, "Not found")
     if (session.method == Method.OPTIONS) {
@@ -169,7 +177,7 @@ internal class CastMediaServer private constructor(
     ): String? {
       stop()
       val host = runCatching { findLanAddress(context) }.getOrNull() ?: return null
-      val token = UUID.randomUUID().toString().replace("-", "")
+      val token = ByteArray(16).also { SecureRandom().nextBytes(it) }.joinToString("") { "%02x".format(it) }
       val server =
         CastMediaServer(
           appContext = context.applicationContext,
@@ -177,6 +185,7 @@ internal class CastMediaServer private constructor(
           mimeType = mimeType,
           contentLength = runCatching { queryLength(context, source) }.getOrDefault(-1L),
           token = token,
+          bindAddress = host,
         )
       return runCatching {
         server.start(SOCKET_READ_TIMEOUT, false)
