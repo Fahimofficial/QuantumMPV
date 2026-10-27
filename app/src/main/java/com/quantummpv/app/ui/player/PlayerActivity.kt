@@ -451,7 +451,6 @@ class PlayerActivity :
   private var deferredMpvAssetSyncJob: Job? = null
   private var systemBarsAutoHideJob: Job? = null
   private var videoParamRefreshJob: Job? = null
-  private var intentSubtitleJob: Job? = null
   private var mediaLoadJob: Job? = null
   private var playbackLoadRetryJob: Job? = null
   private var playbackLoadWatchdogJob: Job? = null
@@ -1570,7 +1569,6 @@ class PlayerActivity :
     player.isExiting = true
     mpvInitialized = false
     player.onSurfaceReady = null
-    intentSubtitleJob?.cancel()
     videoParamRefreshJob?.cancel()
     backgroundServiceSyncJob?.cancel()
     backgroundHandoffJob?.cancel()
@@ -3318,7 +3316,6 @@ class PlayerActivity :
       PlaybackSession.setPropertyInt("time-pos", it / MILLISECONDS_TO_SECONDS)
     }
 
-    addSubtitlesFromExtras(extras)
     setHttpHeadersFromExtras(extras)
   }
 
@@ -3331,7 +3328,10 @@ class PlayerActivity :
    *
    * @param extras Bundle containing subtitle URIs
    */
-  private fun addSubtitlesFromExtras(extras: Bundle) {
+  private suspend fun addSubtitlesFromExtras(
+    extras: Bundle,
+    generation: Long,
+  ) {
     if (!extras.containsKey("subs") && !extras.containsKey("subs.enable")) return
 
     val subList = extractSubtitleUriList(extras, "subs")
@@ -3346,67 +3346,23 @@ class PlayerActivity :
         hasEnabledSubtitleExtra = hasSubsToEnable,
       )
 
-    intentSubtitleJob?.cancel()
-    intentSubtitleJob =
-      lifecycleScope.launch(Dispatchers.IO) {
-        for (entry in subtitleEntries) {
-          if (!isActive || !canIssueMpvCommands()) break
-          val suburi = entry.value
-          val subfile = suburi.resolveUri(this@PlayerActivity) ?: continue
-          val flag = if (entry.select) "select" else "auto"
-          val title =
-            if (entry.metadataIndex >= 0) {
-              subtitleTitles
-                .getOrNull(entry.metadataIndex)
-                ?.trim()
-                .orEmpty()
-                .ifBlank { null }
-            } else {
-              null
-            }
-          val language =
-            if (entry.metadataIndex >= 0) {
-              subtitleLanguages
-                .getOrNull(entry.metadataIndex)
-                ?.trim()
-                .orEmpty()
-                .ifBlank { null }
-            } else {
-              null
-            }
-          val displayTitle = title ?: language
-
-          withContext(Dispatchers.Main.immediate) {
-            if (!canIssueMpvCommands()) return@withContext
-
-            Log.v(TAG, "Adding subtitles from intent extras: $subfile")
-            val trackCountBefore = PlaybackSession.getPropertyInt("track-list/count") ?: 0
-            runCatching {
-              when {
-                displayTitle != null -> PlaybackSession.command("sub-add", subfile, flag, displayTitle)
-                else -> PlaybackSession.command("sub-add", subfile, flag)
-              }
-            }.onSuccess {
-              val trackCountAfter = PlaybackSession.getPropertyInt("track-list/count") ?: 0
-              if (trackCountAfter > trackCountBefore) {
-                val newTrackIndex = trackCountAfter - 1
-                if (displayTitle != null) {
-                  runCatching {
-                    PlaybackSession.setPropertyString("track-list/$newTrackIndex/title", displayTitle)
-                  }
-                }
-                if (language != null) {
-                  runCatching {
-                    PlaybackSession.setPropertyString("track-list/$newTrackIndex/lang", language)
-                  }
-                }
-              }
-            }.onFailure { error ->
-              Log.w(TAG, "Failed to add subtitle from intent extras: $subfile", error)
-            }
-          }
-        }
-      }
+    for (entry in subtitleEntries) {
+      if (!canIssueMpvCommands() || !PlaybackSession.isCurrentGeneration(generation)) break
+      fun metadata(values: Array<String>): String? =
+        entry.metadataIndex
+          .takeIf { it >= 0 }
+          ?.let { values.getOrNull(it) }
+          ?.trim()
+          ?.ifBlank { null }
+      Log.v(TAG, "Adding subtitle from intent extras")
+      viewModel.addIntentSubtitle(
+        uri = entry.value,
+        select = entry.select,
+        title = metadata(subtitleTitles),
+        language = metadata(subtitleLanguages),
+        generation = generation,
+      )
+    }
   }
 
   private fun extractSubtitleUriList(extras: Bundle, key: String): List<Uri> {
@@ -4300,8 +4256,14 @@ class PlayerActivity :
 
     setIntentExtras(intent.extras)
 
+    val launchExtras = intent.extras
     lifecycleScope.launch(Dispatchers.IO) {
       try {
+        // Subtitles handed over by the launching app are added first, in order, so the saved
+        // state below is restored against the final, deterministic track list.
+        launchExtras?.let { addSubtitlesFromExtras(it, loadGeneration) }
+        if (!PlaybackSession.isCurrentGeneration(loadGeneration)) return@launch
+
         // Load playback state (will skip track restoration if preferred language configured)
         val hasState =
           loadVideoPlaybackState(
@@ -4812,7 +4774,25 @@ class PlayerActivity :
       aid = player.aid,
       audioDelayMs = ((PlaybackSession.getPropertyDouble("audio-delay") ?: 0.0) * MILLISECONDS_TO_SECONDS).toInt(),
       externalSubtitles = viewModel.externalSubtitles.joinToString("|"),
+      subVisibility = SubtitleVisibility.userValue(),
+      sidKey = TrackKeys.currentKey("sub", viewModel::subtitleSourceFor),
+      secondarySidKey = TrackKeys.currentKey("sub2", viewModel::subtitleSourceFor),
+      aidKey = TrackKeys.currentKey("audio"),
+      mediaLocation = verifiedLocalLocation(saveIdentifier),
     )
+  }
+
+  /**
+   * The local file path behind [identifier], recorded so state of deleted files can be swept.
+   * Only returned when the path provably produces [identifier]; during a queue transition the
+   * candidates may still describe the previous item.
+   */
+  private fun verifiedLocalLocation(identifier: String): String? {
+    val item = PlaybackSession.state.value.currentItem
+    return sequenceOf(intent?.getStringExtra("local_media_path"), item?.originalUri, item?.playableUri)
+      .filterNotNull()
+      .map { candidate -> if (candidate.startsWith("file://")) Uri.parse(candidate).path.orEmpty() else candidate }
+      .firstOrNull { path -> path.startsWith("/") && PlaybackIdentity.forLocalPath(path) == identifier }
   }
 
   private fun readMpvIntSeconds(
@@ -4929,31 +4909,23 @@ class PlayerActivity :
       }
     }
 
-    // Always restore subtitle and audio tracks from saved state
-    // Manual selection has highest priority, but respect auto-enable preference
+    // Restore the user's last subtitle choice for this file. Tracks are matched by their stable key
+    // (external source / container stream), so re-numbered tracks never select the wrong
+    // language; rows saved before keys existed fall back to the raw id. A restored choice is
+    // protected from automatic selection but never forces subtitles visible on its own.
     val generation = PlaybackSession.state.value.generation
-    val autoEnableSubs = subtitlesPreferences.autoEnableSubtitles.get()
-    val src = if (autoEnableSubs) SubtitleSelectionSource.USER else SubtitleSelectionSource.INTERNAL
-    if (state.sid > 0) {
-      setTrackSelectionId(
-        "sid",
-        state.sid,
-        restoreSubtitleVisibility = true,
-        source = src,
-        generation = generation,
-      )
-      Log.d(TAG, "Restored primary subtitle track: ${state.sid} (autoEnableSubs=$autoEnableSubs)")
+    val subtitleTracks = TrackKeys.tracks("sub", viewModel::subtitleSourceFor)
+    restoredTrackId(state.sidKey, state.sid, subtitleTracks)?.let { sid ->
+      setTrackSelectionId("sid", sid, source = SubtitleSelectionSource.RESTORED, generation = generation)
+      Log.d(TAG, "Restored primary subtitle track: $sid (keyed=${state.sidKey != null})")
     }
-
-    if (state.secondarySid > 0) {
-      setTrackSelectionId(
-        "secondary-sid",
-        state.secondarySid,
-        restoreSubtitleVisibility = true,
-        source = src,
-        generation = generation,
-      )
-      Log.d(TAG, "Restored secondary subtitle track: ${state.secondarySid} (autoEnableSubs=$autoEnableSubs)")
+    restoredTrackId(state.secondarySidKey, state.secondarySid, subtitleTracks)?.let { sid ->
+      setTrackSelectionId("secondary-sid", sid, source = SubtitleSelectionSource.RESTORED, generation = generation)
+      Log.d(TAG, "Restored secondary subtitle track: $sid (keyed=${state.secondarySidKey != null})")
+    }
+    state.subVisibility?.let { visible ->
+      SubtitleVisibility.applyUserValue(visible)
+      SubtitleSelectionGuard.markVisibilityRestored(generation)
     }
 
     applySubtitleLayout(
@@ -4963,9 +4935,11 @@ class PlayerActivity :
       screenHeight = player.height.takeIf { it > 0 }?.toFloat(),
     )
 
-    if (restoreAudioTrack && state.aid > 0) {
-      player.aid = state.aid
-      Log.d(TAG, "Restored audio track: ${state.aid} (user selection)")
+    if (restoreAudioTrack) {
+      restoredTrackId(state.aidKey, state.aid, TrackKeys.tracks("audio"))?.let { aid ->
+        player.aid = aid
+        Log.d(TAG, "Restored audio track: $aid (keyed=${state.aidKey != null})")
+      }
     }
 
     PlaybackSession.setPropertyDouble("sub-delay", subDelay)
@@ -4979,6 +4953,18 @@ class PlayerActivity :
     PlaybackSession.setPropertyDouble("video-zoom", state.videoZoom.toDouble())
     viewModel.setVideoZoom(state.videoZoom)
   }
+
+  /** Saved track to restore: by stable key when one was saved, else (older rows) by raw id. */
+  private fun restoredTrackId(
+    key: String?,
+    savedId: Int,
+    tracks: List<TrackKeys.Descriptor>,
+  ): Int? =
+    if (key != null) {
+      TrackKeys.resolve(key, tracks.firstOrNull()?.type ?: return null, tracks)
+    } else {
+      savedId.takeIf { id -> id > 0 && tracks.any { it.id == id } }
+    }
 
 private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
   if (state == null || viewModel.isAudioOnly.value || isCurrentMediaKnownAudio()) return

@@ -30,6 +30,13 @@ internal data class PlaybackStateSnapshot(
   val audioDelayMs: Int,
   val externalSubtitles: String,
   val isPositionRestorePending: Boolean = false,
+  /** Current `sub-visibility` as chosen by the user; null when unknown (keep the saved value). */
+  val subVisibility: Boolean? = null,
+  /** Stable track keys ([TrackKeys]); null keeps the saved key when the raw id is unchanged. */
+  val sidKey: String? = null,
+  val secondarySidKey: String? = null,
+  val aidKey: String? = null,
+  val mediaLocation: String? = null,
 )
 
 internal object PlaybackStatePersistence {
@@ -63,6 +70,12 @@ internal object PlaybackStatePersistence {
       audioDelay = snapshot.audioDelayMs,
       timeRemaining = timeRemaining,
       externalSubtitles = snapshot.externalSubtitles,
+      subVisibility = snapshot.subVisibility ?: oldState?.subVisibility,
+      sidKey = snapshot.sidKey ?: oldState?.sidKey?.takeIf { oldState.sid == snapshot.sid },
+      secondarySidKey =
+        snapshot.secondarySidKey ?: oldState?.secondarySidKey?.takeIf { oldState.secondarySid == snapshot.secondarySid },
+      aidKey = snapshot.aidKey ?: oldState?.aidKey?.takeIf { oldState.aid == snapshot.aid },
+      mediaLocation = snapshot.mediaLocation ?: oldState?.mediaLocation,
       hasBeenWatched =
         isWatched(
           oldState = oldState,
