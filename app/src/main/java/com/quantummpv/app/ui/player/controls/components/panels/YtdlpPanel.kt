@@ -15,6 +15,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -30,6 +34,7 @@ import com.quantummpv.app.ui.player.controls.panelCardsColors
 import com.quantummpv.app.ui.player.ytdlp.YtdlCodecPreference
 import com.quantummpv.app.ui.player.ytdlp.YtdlpInstallationStatus
 import com.quantummpv.app.ui.player.ytdlp.YtdlpManager
+import com.quantummpv.app.ui.player.ytdlp.YtdlpNightlyConfirmDialog
 import com.quantummpv.app.ui.player.ytdlp.YtdlpOptionSettings
 import com.quantummpv.app.ui.player.ytdlp.YtdlpOptionsBuilder
 import com.quantummpv.app.ui.player.ytdlp.YtdlpReleaseChannel
@@ -83,6 +88,16 @@ fun YtdlpPanel(
         stringResource(com.quantummpv.app.R.string.ui_update_stable)
       else -> stringResource(com.quantummpv.app.R.string.ui_switch_to_stable)
     }
+  var confirmNightly by remember { mutableStateOf(false) }
+  if (confirmNightly) {
+    YtdlpNightlyConfirmDialog(
+      onConfirm = {
+        confirmNightly = false
+        runOperation { YtdlpManager.runUpdateToNightly(context) {} }
+      },
+      onDismiss = { confirmNightly = false },
+    )
+  }
   val nightlyActionLabel =
     if (installationInfo?.channel == YtdlpReleaseChannel.NIGHTLY) {
       stringResource(com.quantummpv.app.R.string.ui_update_nightly)
@@ -144,7 +159,11 @@ fun YtdlpPanel(
 
         OutlinedButton(
           onClick = {
+            if (installationInfo?.channel == YtdlpReleaseChannel.NIGHTLY) {
             runOperation { YtdlpManager.runUpdateToNightly(context) {} }
+          } else {
+            confirmNightly = true
+          }
           },
           enabled = !isRunning && hasYtdlp,
           shape = RoundedCornerShape(16.dp),

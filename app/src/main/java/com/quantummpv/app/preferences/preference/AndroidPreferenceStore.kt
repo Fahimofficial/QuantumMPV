@@ -26,12 +26,21 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.shareIn
+import java.util.concurrent.ConcurrentHashMap
 
 class AndroidPreferenceStore(
   context: Context,
   private val sharedPreferences: SharedPreferences = PreferenceManager.getDefaultSharedPreferences(context),
 ) : PreferenceStore {
   private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+  private val declared = ConcurrentHashMap<String, PreferenceValueType>()
+
+  private fun declare(
+    key: String,
+    type: PreferenceValueType,
+  ) {
+    declared[key] = type
+  }
 
   // Collectors are numerous — a single browser grid observes a dozen preferences per card — and the
   // upstream callbackFlow is cold, so without sharing each collection would register its own
@@ -46,40 +55,59 @@ class AndroidPreferenceStore(
   override fun getString(
     key: String,
     defaultValue: String,
-  ): Preference<String> = StringPrimitive(sharedPreferences, keyFlow, key, defaultValue)
+  ): Preference<String> {
+    declare(key, PreferenceValueType.STRING)
+    return StringPrimitive(sharedPreferences, keyFlow, key, defaultValue)
+  }
 
   override fun getLong(
     key: String,
     defaultValue: Long,
-  ): Preference<Long> = LongPrimitive(sharedPreferences, keyFlow, key, defaultValue)
+  ): Preference<Long> {
+    declare(key, PreferenceValueType.LONG)
+    return LongPrimitive(sharedPreferences, keyFlow, key, defaultValue)
+  }
 
   override fun getInt(
     key: String,
     defaultValue: Int,
-  ): Preference<Int> = IntPrimitive(sharedPreferences, keyFlow, key, defaultValue)
+  ): Preference<Int> {
+    declare(key, PreferenceValueType.INT)
+    return IntPrimitive(sharedPreferences, keyFlow, key, defaultValue)
+  }
 
   override fun getFloat(
     key: String,
     defaultValue: Float,
-  ): Preference<Float> = FloatPrimitive(sharedPreferences, keyFlow, key, defaultValue)
+  ): Preference<Float> {
+    declare(key, PreferenceValueType.FLOAT)
+    return FloatPrimitive(sharedPreferences, keyFlow, key, defaultValue)
+  }
 
   override fun getBoolean(
     key: String,
     defaultValue: Boolean,
-  ): Preference<Boolean> = BooleanPrimitive(sharedPreferences, keyFlow, key, defaultValue)
+  ): Preference<Boolean> {
+    declare(key, PreferenceValueType.BOOLEAN)
+    return BooleanPrimitive(sharedPreferences, keyFlow, key, defaultValue)
+  }
 
   override fun getStringSet(
     key: String,
     defaultValue: Set<String>,
-  ): Preference<Set<String>> = StringSetPrimitive(sharedPreferences, keyFlow, key, defaultValue)
+  ): Preference<Set<String>> {
+    declare(key, PreferenceValueType.STRING_SET)
+    return StringSetPrimitive(sharedPreferences, keyFlow, key, defaultValue)
+  }
 
   override fun <T> getObject(
     key: String,
     defaultValue: T,
     serializer: (T) -> String,
     deserializer: (String) -> T,
-  ): Preference<T> =
-    Object(
+  ): Preference<T> {
+    declare(key, PreferenceValueType.STRING)
+    return Object(
       preferences = sharedPreferences,
       keyFlow = keyFlow,
       key = key,
@@ -87,8 +115,11 @@ class AndroidPreferenceStore(
       serializer = serializer,
       deserializer = deserializer,
     )
+  }
 
   override fun getAll(): Map<String, *> = sharedPreferences.all ?: emptyMap<String, Any>()
+
+  override fun declaredTypes(): Map<String, PreferenceValueType> = HashMap(declared)
 }
 
 private val SharedPreferences.keyFlow

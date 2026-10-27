@@ -677,7 +677,7 @@ object CopyPasteOps {
       val newPath = movedPaths.getOrNull(index)
       if (newPath != null) {
         RecentlyPlayedOps.onVideoRenamed(video.path, newPath)
-        PlaybackStateOps.onVideoRenamed(video.path, newPath)
+        PlaybackStateOps.onVideoRenamed(video.path, newPath, video.uri.toString())
       }
     }
 

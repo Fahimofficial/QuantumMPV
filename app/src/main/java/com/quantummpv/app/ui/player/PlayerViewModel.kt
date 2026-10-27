@@ -151,6 +151,13 @@ class PlayerViewModel : ViewModel(),
   private val host: PlayerHost
     get() = checkNotNull(hostReference.get()) { "Player host is not attached" }
 
+  /**
+   * The host for work that can outlive it (coroutines, Syncplay and focus callbacks). After
+   * [detachHost] these calls become no-ops instead of crashing the process.
+   */
+  private val hostOrNull: PlayerHost?
+    get() = hostReference.get()
+
   fun attachHost(host: PlayerHost) {
     hostReference = WeakReference(host)
   }
@@ -1739,12 +1746,12 @@ val isBrightnessSliderShown = MutableStateFlow(false)
         val currentlyPaused = PlaybackSession.getPropertyBoolean("pause") ?: false
         if (currentlyPaused != shouldPause) {
           if (!shouldPause) {
-            val focusGranted = withContext(Dispatchers.Main) { host.requestAudioFocus() }
+            val focusGranted = withContext(Dispatchers.Main) { hostOrNull?.requestAudioFocus() ?: false }
             if (!focusGranted) return@launch
           }
           PlaybackSession.setPropertyBoolean("pause", shouldPause)
           if (shouldPause) {
-            withContext(Dispatchers.Main) { host.abandonAudioFocus() }
+            withContext(Dispatchers.Main) { hostOrNull?.abandonAudioFocus() }
           }
         }
       }
@@ -2119,7 +2126,21 @@ val isBrightnessSliderShown = MutableStateFlow(false)
     )
   }
 
+  private val _playbackError = MutableStateFlow<PlaybackErrorUi?>(null)
+
+  /** Non-null while the in-player error card is shown. */
+  val playbackError: StateFlow<PlaybackErrorUi?> = _playbackError.asStateFlow()
+
+  fun reportPlaybackError(error: PlaybackErrorUi) {
+    _playbackError.value = error
+  }
+
+  fun clearPlaybackError() {
+    _playbackError.value = null
+  }
+
   fun onVideoLoadStarted() {
+    _playbackError.value = null
     stopRealtimeSubtitles(showToastMessage = false)
     introLookupJob?.cancel()
     cancelAutoCropAnalysis()
@@ -2742,6 +2763,55 @@ val isBrightnessSliderShown = MutableStateFlow(false)
     }
   }
 
+  /**
+   * Adds a subtitle another app passed with the launch intent. Runs under the same lock as every
+   * other subtitle add, so tracks are numbered deterministically and the saved-state restore that
+   * follows sees the final track list. Intent subtitles are not persisted with the file's state.
+   *
+   * @return the mpv track id of the added subtitle, or null if it could not be added.
+   */
+  suspend fun addIntentSubtitle(
+    uri: Uri,
+    select: Boolean,
+    title: String?,
+    language: String?,
+    generation: Long,
+  ): Int? =
+    subtitleAddMutex.withLock {
+      if (!PlaybackSession.isCurrentGeneration(generation)) return@withLock null
+      val mpvPath = uri.resolveUri(appContext) ?: return@withLock null
+      val issued =
+        withContext(Dispatchers.Main.immediate) {
+          if (!PlaybackSession.isCurrentGeneration(generation)) return@withContext false
+          runCatching {
+            val displayTitle = title ?: language
+            when {
+              displayTitle != null && language != null ->
+                PlaybackSession.command("sub-add", mpvPath, "auto", displayTitle, language)
+              displayTitle != null -> PlaybackSession.command("sub-add", mpvPath, "auto", displayTitle)
+              else -> PlaybackSession.command("sub-add", mpvPath, "auto")
+            }
+          }.onFailure { android.util.Log.w("PlayerViewModel", "Failed to add intent subtitle", it) }.isSuccess
+        }
+      if (!issued) return@withLock null
+      mpvPathToUriMap[mpvPath] = uri.toString()
+
+      var trackId: Int? = null
+      repeat(20) {
+        if (!PlaybackSession.isCurrentGeneration(generation)) return@withLock null
+        trackId = TrackKeys.tracks("sub").lastOrNull { it.external && it.externalFilename == mpvPath }?.id
+        if (trackId != null) return@repeat
+        delay(50)
+      }
+      val id = trackId ?: return@withLock null
+      if (select) {
+        withContext(Dispatchers.Main.immediate) {
+          setTrackSelectionId("sid", id, restoreSubtitleVisibility = true, source = SubtitleSelectionSource.USER, generation = generation)
+        }
+      }
+      id
+    }
+
   suspend fun addSubtitleSuspend(
     uri: Uri,
     select: Boolean = true,
@@ -2850,6 +2920,12 @@ val isBrightnessSliderShown = MutableStateFlow(false)
       }
     }
   }
+
+  /**
+   * The URI an external subtitle was loaded from, for a path handed to mpv (which may be a one-shot
+   * `fd://`). Used to give external tracks a stable identity across sessions.
+   */
+  fun subtitleSourceFor(mpvPath: String): String? = mpvPathToUriMap[mpvPath]
 
   private suspend fun confirmAddedSubtitleSelection(
     mpvPath: String,
@@ -4134,7 +4210,10 @@ val isBrightnessSliderShown = MutableStateFlow(false)
       viewModelScope.launch {
         _isSearchingSub.value = true
         val cleanSubHubTitle = MediaInfoParser.parse(query).title.ifBlank { query.trim() }
-        val lookupHints = host.currentPlayerLookupHints()
+        val lookupHints = hostOrNull?.currentPlayerLookupHints() ?: run {
+          _isSearchingSub.value = false
+          return@launch
+        }
         val lookupTitle = lookupHints.canonicalTitle ?: currentMediaTitle
         val cleanLookupTitle = MediaInfoParser.parse(lookupTitle).title.ifBlank { lookupTitle.trim() }
         val matchesCurrentLookup =
@@ -4336,7 +4415,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
 
   fun unpause() {
     viewModelScope.launch(playbackStateDispatcher) {
-      val focusGranted = withContext(Dispatchers.Main) { host.requestAudioFocus() }
+      val focusGranted = withContext(Dispatchers.Main) { hostOrNull?.requestAudioFocus() ?: false }
       if (!focusGranted) return@launch
       PlaybackSession.setPropertyBoolean("pause", false)
       syncplayManager.updatePlayerState(precisePosition.value.toDouble(), false, doSeek = false)
@@ -5593,7 +5672,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
         pendingSeekOffset = 0
         if (PlaybackSession.getPropertyBoolean("pause") != true) {
           PlaybackSession.setPropertyBoolean("pause", true)
-          withContext(Dispatchers.Main) { host.abandonAudioFocus() }
+          withContext(Dispatchers.Main) { hostOrNull?.abandonAudioFocus() }
         }
 
         var refinedPosition = targetPosition

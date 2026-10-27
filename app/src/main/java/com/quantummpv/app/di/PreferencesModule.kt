@@ -49,8 +49,45 @@ val PreferencesModule =
     singleOf(::NetworkBookmarkPreferences)
     singleOf(::AiPreferences)
     singleOf(::YtdlPreferences)
-    singleOf(::SettingsManager)
-    singleOf(::SecureFolderPreferences)
+    single {
+      SettingsManager(
+        context = androidContext(),
+        preferenceStore = get(),
+        database = get(),
+        loadPreferenceDeclarations = {
+          // Resolving each holder registers its keys and types with the store, which is what
+          // settings import validates against.
+          get<AppearancePreferences>()
+          get<PlayerPreferences>()
+          get<GesturePreferences>()
+          get<DecoderPreferences>()
+          get<SubtitlesPreferences>()
+          get<AudioPreferences>()
+          get<AdvancedPreferences>()
+          get<BrowserPreferences>()
+          get<FoldersPreferences>()
+          get<NetworkBookmarkPreferences>()
+          get<AiPreferences>()
+          get<YtdlPreferences>()
+          get<SecureFolderPreferences>()
+          get<SeerrPreferences>()
+          get<MediaServerPreferences>()
+          get<DownloadPreferences>()
+        },
+      )
+    }
+    single {
+      // A separate file keeps the PIN state out of backups and out of reach of settings import.
+      val context = androidContext()
+      SecureFolderPreferences(
+        preferenceStore =
+          AndroidPreferenceStore(
+            context,
+            context.getSharedPreferences(SecureFolderPreferences.FILE_NAME, android.content.Context.MODE_PRIVATE),
+          ),
+        legacyStore = get(),
+      )
+    }
     singleOf(::SeerrPreferences)
     singleOf(::MediaServerPreferences)
     singleOf(::DownloadPreferences)

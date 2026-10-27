@@ -67,8 +67,10 @@ fun TorrentSelectionScreen(
   onBack: () -> Unit,
   onRetry: () -> Unit,
   onSelect: (Int) -> Unit,
+  onConfirmConsent: () -> Unit = {},
 ) {
   when (state) {
+    is TorrentSelectionUiState.AwaitingConsent -> TorrentConsentScreen(state.displayName, onBack, onConfirmConsent)
     TorrentSelectionUiState.Loading -> TorrentLoadingScreen(onBack)
     is TorrentSelectionUiState.Error -> TorrentErrorScreen(state.message, onBack, onRetry)
     is TorrentSelectionUiState.Ready -> TorrentReadyScreen(state, onBack, onSelect)
@@ -617,6 +619,57 @@ private fun TorrentLoadingScreen(onBack: () -> Unit) {
       Spacer(modifier = Modifier.height(24.dp))
       TextButton(onClick = onBack) {
         Text(stringResource(android.R.string.cancel))
+      }
+    }
+  }
+}
+
+@Composable
+private fun TorrentConsentScreen(
+  displayName: String,
+  onBack: () -> Unit,
+  onConfirm: () -> Unit,
+) {
+  BackHandler { onBack() }
+  Surface(
+    modifier = Modifier.fillMaxSize(),
+    color = MaterialTheme.colorScheme.surface,
+  ) {
+    Column(
+      modifier =
+        Modifier
+          .fillMaxSize()
+          .statusBarsPadding()
+          .padding(24.dp),
+      horizontalAlignment = Alignment.CenterHorizontally,
+      verticalArrangement = Arrangement.Center,
+    ) {
+      Text(
+        text = stringResource(R.string.torrent_consent_title),
+        style = MaterialTheme.typography.titleLarge,
+        fontWeight = FontWeight.Bold,
+      )
+      Spacer(modifier = Modifier.height(8.dp))
+      Text(
+        text = displayName,
+        style = MaterialTheme.typography.bodyLarge,
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis,
+      )
+      Spacer(modifier = Modifier.height(16.dp))
+      Text(
+        text = stringResource(R.string.torrent_consent_message),
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+      Spacer(modifier = Modifier.height(24.dp))
+      Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        TextButton(onClick = onBack) {
+          Text(stringResource(android.R.string.cancel))
+        }
+        TextButton(onClick = onConfirm) {
+          Text(stringResource(R.string.torrent_consent_connect))
+        }
       }
     }
   }

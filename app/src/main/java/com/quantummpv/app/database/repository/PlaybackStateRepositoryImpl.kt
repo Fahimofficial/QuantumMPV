@@ -9,6 +9,7 @@
 
 package com.quantummpv.app.database.repository
 
+import androidx.room.withTransaction
 import com.quantummpv.app.database.MpvRxDatabase
 import com.quantummpv.app.database.entities.PlaybackStateEntity
 import com.quantummpv.app.domain.playbackstate.repository.PlaybackStateRepository
@@ -62,6 +63,33 @@ class PlaybackStateRepositoryImpl(
   override suspend fun deleteByTitle(mediaTitle: String) {
     database.videoDataDao().deleteByTitle(mediaTitle)
     stateCache.remove(mediaTitle)
+  }
+
+  override suspend fun deleteStates(identifiers: Collection<String>) {
+    val keys = identifiers.distinct()
+    if (keys.isEmpty()) return
+    database.videoDataDao().deleteByTitles(keys)
+    keys.forEach(stateCache::remove)
+  }
+
+  override suspend fun moveState(
+    fromIdentifiers: Collection<String>,
+    toIdentifier: String,
+  ): PlaybackStateEntity? {
+    val sources = fromIdentifiers.distinct()
+    val moved =
+      database.withTransaction {
+        val dao = database.videoDataDao()
+        val source = sources.firstNotNullOfOrNull { dao.getVideoDataByTitle(it) } ?: return@withTransaction null
+        val stale = sources.filter { it != toIdentifier }
+        if (stale.isNotEmpty()) dao.deleteByTitles(stale)
+        source.copy(mediaTitle = toIdentifier).also { dao.upsert(it) }
+      }
+    if (moved != null) {
+      sources.forEach(stateCache::remove)
+      stateCache[toIdentifier] = moved
+    }
+    return moved
   }
 
   override suspend fun updateMediaTitle(

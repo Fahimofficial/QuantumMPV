@@ -79,6 +79,7 @@ fun MoreSheet(
   equalizerEnabled: Boolean = true,
   anime4KEnabled: Boolean = true,
   modifier: Modifier = Modifier,
+  controls: (@Composable () -> Unit)? = null,
 ) {
   val advancedPreferences = koinInject<AdvancedPreferences>()
   val statisticsPage by advancedPreferences.enabledStatisticsPage.collectAsState()
@@ -210,6 +211,14 @@ fun MoreSheet(
             }
           }
         }
+      }
+      if (controls != null) {
+        Text(
+          text = stringResource(R.string.player_more_controls_title),
+          style = MaterialTheme.typography.titleMedium,
+          color = MaterialTheme.colorScheme.primary,
+        )
+        controls()
       }
       Text(
         text = stringResource(R.string.player_sheets_stats_page_title),

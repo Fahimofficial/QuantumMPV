@@ -28,6 +28,9 @@ interface PlaybackStateDao {
   @Query("DELETE FROM PlaybackStateEntity WHERE mediaTitle = :mediaTitle")
   suspend fun deleteByTitle(mediaTitle: String)
 
+  @Query("DELETE FROM PlaybackStateEntity WHERE mediaTitle IN (:mediaTitles)")
+  suspend fun deleteByTitles(mediaTitles: List<String>)
+
   @Query(
     """
     UPDATE PlaybackStateEntity 

@@ -106,6 +106,12 @@ class App :
 
     configureDebugStrictMode()
 
+    // Before anything reads a preference: existing installs keep the defaults they started with.
+    com.quantummpv.app.preferences.PreferenceDefaultsGeneration.apply(
+      androidx.preference.PreferenceManager.getDefaultSharedPreferences(this),
+      hasOtherAppData = getDatabasePath("mpvrx.db").exists(),
+    )
+
     // Initialize Koin
     startKoin {
       androidContext(this@App)
@@ -350,9 +356,8 @@ class App :
             latest.currentItem == null &&
             !latest.surfaceAttached &&
             PlaybackSession.isInitialized
-        if (stillFullyIdle) {
-          Log.d(TAG, "Destroying libmpv after idle grace period")
-          PlaybackSession.destroy()
+        if (stillFullyIdle && PlaybackSession.destroyIfIdle()) {
+          Log.d(TAG, "Destroyed libmpv after idle grace period")
         }
       }
     }

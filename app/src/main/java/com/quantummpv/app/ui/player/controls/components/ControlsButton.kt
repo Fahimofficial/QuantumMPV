@@ -24,6 +24,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -34,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.ui.icons.AppIcon
@@ -54,6 +56,10 @@ internal val LocalForceDarkPlayerButtonsBackground = staticCompositionLocalOf { 
 
 @Suppress("CompositionLocalAllowlist")
 internal val LocalHidePlayerButtonsBackground = staticCompositionLocalOf { false }
+
+/** Spoken name for a player button whose caller did not pass a title. */
+@Suppress("CompositionLocalAllowlist")
+internal val LocalPlayerButtonLabel = staticCompositionLocalOf<String?> { null }
 
 @Composable
 private fun playerButtonColorScheme(
@@ -90,6 +96,7 @@ fun ControlsButton(
   val surfaceStyle = LocalGlassConfig.current.style
   val useGlassSurface = surfaceStyle != SurfaceStyle.CLASSIC && surfaceStyle != SurfaceStyle.MINIMAL
   val resolvedColor = color ?: playerButtonContentColor()
+  val label = title ?: LocalPlayerButtonLabel.current
 
   val clickEvent = LocalPlayerButtonsClickEvent.current
   // Same press language as the dock and menu tiles: a short spring down to 0.92, read in the layer
@@ -101,9 +108,12 @@ fun ControlsButton(
     animationSpec = AppMotion.spatial(AppMotion.Spatial.Snappy, AppMotion.ReducedAlpha),
     label = "controls_button_press",
   )
+  // At least 48 dp to touch and to accessibility services, whatever size the HUD draws it at.
   Surface(
     modifier =
-      modifier
+      Modifier
+        .minimumInteractiveComponentSize()
+        .then(modifier)
         .graphicsLayer {
           scaleX = pressScale
           scaleY = pressScale
@@ -121,6 +131,7 @@ fun ControlsButton(
           },
           interactionSource = interactionSource,
           indication = ripple(),
+          role = Role.Button,
         ),
     shape = CircleShape,
     color = if (hideBackground || useGlassSurface) Color.Transparent else playerButtonContainerColor(),
@@ -147,7 +158,7 @@ fun ControlsButton(
       }
       Icon(
         imageVector = icon,
-        contentDescription = title,
+        contentDescription = label,
         tint = if (enabled) resolvedColor else resolvedColor.copy(alpha = 0.38f),
         modifier =
           Modifier

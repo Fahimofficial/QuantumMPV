@@ -24,7 +24,9 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface PlaylistDao {
   // Playlist operations
-  @Insert(onConflict = OnConflictStrategy.REPLACE)
+  // ABORT, never REPLACE: replacing a parent row deletes it first, and the CASCADE foreign key
+  // would silently drop every item (and favorite flag) of the playlist being "replaced".
+  @Insert(onConflict = OnConflictStrategy.ABORT)
   suspend fun insertPlaylist(playlist: PlaylistEntity): Long
 
   @Update

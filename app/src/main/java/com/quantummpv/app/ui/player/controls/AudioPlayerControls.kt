@@ -1597,17 +1597,17 @@ fun AudioPlayerControls(
     }
 
     val seekbarView = @Composable {
-      val position by PlaybackSession.propInt["time-pos"].collectAsStateWithLifecycle()
-      val remaining by PlaybackSession.propFloat["playtime-remaining"].collectAsState()
-      val precisePosition by viewModel.precisePosition.collectAsStateWithLifecycle()
-      val currentPosSec = if (precisePosition > 0f) precisePosition else position?.toFloat() ?: 0f
+      val position = PlaybackSession.propInt["time-pos"].collectAsStateWithLifecycle()
+      val remaining = PlaybackSession.propFloat["playtime-remaining"].collectAsState()
+      val precisePosition = viewModel.precisePosition.collectAsStateWithLifecycle()
+      val currentPosSec = { precisePosition.value.takeIf { it > 0f } ?: position.value?.toFloat() ?: 0f }
       val isPaused = paused ?: false
 
       SeekbarWithTimers(
         position = currentPosSec,
         committedPosition = currentPosSec,
         duration = currentDurSec.coerceAtLeast(1f),
-        remaining = remaining ?: 0f,
+        remaining = { remaining.value ?: 0f },
         onValueChange = { value -> viewModel.seekPreviewTo(value) },
         onValueChangeFinished = { targetPosition -> viewModel.seekTo(targetPosition.toInt(), fast = false) },
         timersInverted = Pair(false, invertDuration),

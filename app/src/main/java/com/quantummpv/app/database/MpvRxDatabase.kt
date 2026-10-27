@@ -63,7 +63,7 @@ import com.quantummpv.app.domain.network.NetworkConnection
     com.quantummpv.app.database.entities.AudiobookshelfServerEntity::class,
     com.quantummpv.app.database.entities.PlaybackBookmarkEntity::class,
   ],
-  version = 25,
+  version = 26,
   exportSchema = true,
 )
 @TypeConverters(NetworkProtocolConverter::class, NetworkStreamEntryTypeConverter::class)

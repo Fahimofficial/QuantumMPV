@@ -40,6 +40,7 @@ import org.libtorrent4j.alerts.AddTorrentAlert
 import org.libtorrent4j.alerts.Alert
 import org.libtorrent4j.alerts.AlertType
 import org.libtorrent4j.alerts.TorrentErrorAlert
+import org.libtorrent4j.swig.settings_pack
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileInputStream
@@ -334,6 +335,10 @@ class TorrentStreamingEngine(
           setMaxMetadataSize(MAX_METADATA_BYTES.toInt())
           setEnableDht(true)
           setEnableLsd(true)
+          // Streaming only needs outgoing connections. Never ask the router to open an inbound
+          // port on the user's behalf.
+          setBoolean(settings_pack.bool_types.enable_upnp.swigValue(), false)
+          setBoolean(settings_pack.bool_types.enable_natpmp.swigValue(), false)
         }
       startedSession.start(SessionParams(settings))
       ensureCurrent(startGeneration)

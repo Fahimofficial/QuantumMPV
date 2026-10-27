@@ -10,19 +10,18 @@
 package com.quantummpv.app.utils.media
 
 import android.util.Log
-import com.quantummpv.app.database.MpvRxDatabase
 import com.quantummpv.app.database.entities.PlaybackStateEntity
 import com.quantummpv.app.domain.media.model.Video
 import com.quantummpv.app.domain.playbackstate.repository.PlaybackStateRepository
 import com.quantummpv.app.ui.browser.videolist.videoPlaybackIdentifiers
 import com.quantummpv.app.ui.player.PlaybackIdentity
 import com.quantummpv.app.utils.history.RecentlyPlayedOps
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import org.koin.java.KoinJavaComponent.inject
-import java.io.File
 
 /**
  * Utility for managing playback state when files are renamed or deleted.
@@ -30,7 +29,7 @@ import java.io.File
 object PlaybackStateOps {
   private const val TAG = "PlaybackStateOps"
   private val repository: PlaybackStateRepository by inject(PlaybackStateRepository::class.java)
-  private val database: MpvRxDatabase by inject(MpvRxDatabase::class.java)
+  private val reconciler by lazy { PlaybackStateReconciler(repository) }
 
   suspend fun setWatched(video: Video, watched: Boolean) = setWatched(listOf(video), watched)
 
@@ -119,45 +118,46 @@ object PlaybackStateOps {
   }
 
   /**
-   * Called when a video file is renamed
-   * Updates the playback state entry to use the new filename
+   * Called after the app renamed or moved a media file. Carries the saved resume position, watched
+   * flag and track choices over to the new location's playback identity.
    *
-   * @param oldPath The original file path
-   * @param newPath The new file path after renaming
+   * @param oldPath The original file path (or URI)
+   * @param newPath The new file path (or URI) after the rename/move
+   * @param oldContentUri The MediaStore/SAF URI the file had before the operation, when known
    */
   suspend fun onVideoRenamed(
     oldPath: String,
     newPath: String,
+    oldContentUri: String? = null,
   ) {
     if (oldPath.isBlank() || newPath.isBlank()) return
-
     try {
-      val oldFileName = File(oldPath).name
-      val newFileName = File(newPath).name
-
-      // Only update if the filename actually changed
-      if (oldFileName != newFileName) {
-        repository.updateMediaTitle(oldFileName, newFileName)
-        Log.d(TAG, "✓ Updated playback state: $oldFileName -> $newFileName")
+      if (reconciler.onRenamedOrMoved(oldPath, newPath, oldContentUri)) {
+        PlaybackStateEvents.notifyChanged(PlaybackStateReconciler.primaryIdentifier(newPath))
       }
+    } catch (e: CancellationException) {
+      throw e
     } catch (e: Exception) {
-      Log.w(TAG, "Failed to update playback state: ${e.message}")
+      Log.w(TAG, "Failed to move playback state: ${e.message}")
     }
   }
 
   /**
-   * Called when a video file is deleted
-   * Removes its playback state entry
+   * Called after the app deleted a media file. Removes every playback-state row that belongs to it.
    *
-   * @param filePath The path of the deleted file
+   * @param filePath The path (or URI) of the deleted file
+   * @param contentUri The MediaStore/SAF URI the file had, when known
    */
-  suspend fun onVideoDeleted(filePath: String) {
+  suspend fun onVideoDeleted(
+    filePath: String,
+    contentUri: String? = null,
+  ) {
     if (filePath.isBlank()) return
-
     try {
-      val fileName = File(filePath).name
-      repository.deleteByTitle(fileName)
-      Log.d(TAG, "✓ Deleted playback state for: $fileName")
+      reconciler.onDeleted(filePath, contentUri)
+      PlaybackStateEvents.notifyChanged("")
+    } catch (e: CancellationException) {
+      throw e
     } catch (e: Exception) {
       Log.w(TAG, "Failed to delete playback state: ${e.message}")
     }

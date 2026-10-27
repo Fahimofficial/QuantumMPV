@@ -3,6 +3,7 @@
   <string name="generic_reset">Reset</string>
   <string name="generic_share">Share</string>
   <string name="generic_confirm">Confirm</string>
+  <string name="generic_close">Close</string>
   <string name="generic_cancel">Cancel</string>
   <string name="generic_install">Install</string>
   <string name="generic_configure">Configure</string>
@@ -82,6 +83,23 @@
   <string name="player_video_quality_summary">Choose an available quality for this stream.</string>
   <string name="player_video_quality_button">Video quality</string>
   <string name="ytdl_audio_quality_reload_summary">Used for the next link or when the current link is reloaded.</string>
+  <string name="playback_error_file_title">File not available</string>
+  <string name="playback_error_file_body">The file was moved, deleted, or QuantumMPV can no longer read it. Check that the storage is connected and the app still has access.</string>
+  <string name="playback_error_network_title">Couldn\'t load the stream</string>
+  <string name="playback_error_network_body">The server could not be reached or the connection dropped. Check your connection and try again.</string>
+  <string name="playback_error_format_title">Format not supported</string>
+  <string name="playback_error_format_body">This build cannot play this file\'s container or codec. Another player may be able to.</string>
+  <string name="playback_error_decoder_title">Couldn\'t decode this video</string>
+  <string name="playback_error_decoder_body">The device\'s hardware decoder failed on this file. Software decoding is slower but usually works.</string>
+  <string name="playback_error_timeout_title">Opening took too long</string>
+  <string name="playback_error_timeout_body">The media did not start in time. Slow storage or a busy device can cause this.</string>
+  <string name="playback_error_unknown_title">Playback failed</string>
+  <string name="playback_error_unknown_body">mpv could not play this media. The details below may help when reporting the problem.</string>
+  <string name="playback_error_retry">Retry</string>
+  <string name="playback_error_software_decoding">Use software decoding</string>
+  <string name="playback_error_open_with">Open with…</string>
+  <string name="playback_error_open_with_unavailable">No other app can open this media.</string>
+  <string name="playback_error_details">Details</string>
   <string name="toast_playback_load_failed">Could not load this link</string>
   <string name="video_label_new">NEW</string>
   <string name="video_label_watched">Watched</string>
@@ -179,6 +197,18 @@
   <string name="pref_layout_title">Player Layout</string>
   <string name="pref_layout_summary">Customize player button layout</string>
   <string name="pref_layout_reset_default">Reset to default</string>
+  <string name="pref_layout_reset_recommended">Use recommended layout</string>
+  <string name="pref_layout_reset_recommended_hint">Fewer buttons on screen. Everything else stays in More.</string>
+  <string name="pref_layout_reset_recommended_title">Use the recommended layout?</string>
+  <string name="pref_layout_reset_recommended_summary">Every control region will be replaced with the recommended buttons. Controls that are no longer on screen are listed in More.</string>
+  <string name="player_more_controls_title">Controls</string>
+  <string name="player_seekbar_description">Seek bar</string>
+  <string name="player_seekbar_state">%1$s of %2$s</string>
+  <string name="player_video_surface_description">Video</string>
+  <string name="player_show_controls">Show controls</string>
+  <string name="player_hide_controls">Hide controls</string>
+  <string name="player_brightness_label">Brightness</string>
+  <string name="player_volume_label">Volume</string>
   <string name="pref_layout_top_right_controls">Top Right Controls</string>
   <string name="pref_layout_bottom_right_controls">Bottom Right Controls</string>
   <string name="pref_layout_bottom_left_controls">Bottom Left Controls</string>
@@ -255,6 +285,8 @@
   <string name="pref_gesture_double_tap_right_title">Double tap (right)</string>
   <string name="pref_gesture_use_single_tap_for_center_title">Use single tap for center gesture</string>
   <string name="pref_gesture_use_single_tap_for_center_summary">Use a single tap in the center for gestures (like play/pause) instead of a double tap.</string>
+  <string name="pref_gesture_wait_for_double_tap_title">Classic tap timing</string>
+  <string name="pref_gesture_wait_for_double_tap_summary">Every tap waits briefly for a possible double tap, even where double tap does nothing</string>
   <string name="pref_gesture_center_vertical_subtitle_position_title">Hold and drag moves subtitles</string>
   <string name="pref_gesture_center_vertical_subtitle_position_summary">Hold in the center, then drag up or down to move subtitle position</string>
   <string name="pref_gesture_view_title">View</string>
@@ -886,6 +918,10 @@
   <string name="pref_export_complete_text">Successfully exported %1$d items!</string>
   <string name="pref_import_complete_title">Import Complete</string>
   <string name="pref_import_complete_text">Successfully imported: %1$s\nFailed: %2$s\nVersion: %3$s\n\nPlease restart the app for all changes to take effect.</string>
+  <plurals name="pref_import_skipped_settings">
+    <item quantity="one">%1$d setting was skipped because it is protected, unknown to this version, or invalid.</item>
+    <item quantity="other">%1$d settings were skipped because they are protected, unknown to this version, or invalid.</item>
+  </plurals>
   <string name="pref_section_storage_root">Storage Root</string>
   <string name="pref_base_storage_folder_summary">Tap to select - creates Subtitles/, Fonts/, scripts/, script-modules/ subdirs</string>
   <string name="pref_clear_storage_root_title">Clear Storage Root</string>
@@ -916,6 +952,9 @@
   </plurals>
   <string name="torrent_picker_finding_details">Finding artwork and details…</string>
   <string name="torrent_picker_play_file">Play %1$s</string>
+  <string name="torrent_consent_title">Open this torrent?</string>
+  <string name="torrent_consent_message">Streaming a torrent connects to the BitTorrent network (DHT, trackers and other peers). Everyone in the swarm can see your IP address and what you are downloading. Only continue if you trust the link and the content is legal where you live.</string>
+  <string name="torrent_consent_connect">Connect</string>
   <string name="torrent_picker_preparing_title">Reading torrent</string>
   <string name="torrent_picker_preparing_description">Connecting to peers and finding playable files…</string>
   <string name="torrent_picker_error_title">Couldn\'t open torrent</string>
@@ -1501,6 +1540,14 @@
   <string name="ui_play_recently_played_or_first_video">Play recently played or first video</string>
   <string name="ui_videos">Videos</string>
   <string name="ui_audio_tab">Audio</string>
+  <string name="sftp_host_key_new_title">Trust this SFTP server?</string>
+  <string name="sftp_host_key_new_message">This is the first connection to “%1$s” (%2$s). Compare the fingerprint below with the one shown by the server (for example `ssh-keygen -lf` on the host) before trusting it.</string>
+  <string name="sftp_host_key_changed_title">Server key has changed</string>
+  <string name="sftp_host_key_changed_message">The server for “%1$s” (%2$s) presented a different key than before. This can mean the server was reinstalled, or that someone is intercepting the connection. Your password was not sent.</string>
+  <string name="sftp_host_key_previous">Trusted fingerprint</string>
+  <string name="sftp_host_key_presented">Presented fingerprint</string>
+  <string name="sftp_host_key_trust">Trust and connect</string>
+  <string name="sftp_host_key_replace">Replace trusted key</string>
   <string name="ui_add_connection">Add Connection</string>
   <string name="ui_local_network">Local Network</string>
   <string name="ui_jellyfin">Jellyfin</string>
@@ -1792,6 +1839,8 @@
   <string name="ui_update_stable">Update Stable</string>
   <string name="ui_switch_to_stable">Switch to Stable</string>
   <string name="ui_update_nightly">Update Nightly</string>
+  <string name="ytdlp_nightly_confirm_title">Switch to nightly yt-dlp?</string>
+  <string name="ytdlp_nightly_confirm_message">Nightly builds are automatic snapshots of yt-dlp\'s development branch. They can fix broken sites sooner but are not release-tested, and they run with this app\'s access to your media. Stable releases are recommended.</string>
   <string name="ui_switch_to_nightly">Switch to Nightly</string>
   <string name="ui_playback_defaults">Playback Defaults</string>
   <string name="ui_maximum_quality">Maximum Quality</string>
@@ -2023,6 +2072,24 @@
   <string name="secure_folder_move_failed">Failed to move files to Secure Folder</string>
 
   <!-- Errors & Operation Results -->
+  <plurals name="secure_folder_attempts_left">
+    <item quantity="one">%1$d attempt left before a temporary lock.</item>
+    <item quantity="other">%1$d attempts left before a temporary lock.</item>
+  </plurals>
+  <plurals name="secure_folder_locked_seconds">
+    <item quantity="one">Too many attempts. Try again in %1$d second.</item>
+    <item quantity="other">Too many attempts. Try again in %1$d seconds.</item>
+  </plurals>
+  <plurals name="secure_folder_locked_minutes">
+    <item quantity="one">Too many attempts. Try again in %1$d minute.</item>
+    <item quantity="other">Too many attempts. Try again in %1$d minutes.</item>
+  </plurals>
+  <string name="secure_folder_recover_with_screen_lock">Use screen lock</string>
+  <string name="secure_folder_recover_with_screen_lock_subtitle">Confirm it\'s you to choose a new Secure Folder PIN</string>
+  <string name="secure_folder_recovery_screen_lock_only">No recovery question was set. Confirm your device screen lock to choose a new PIN.</string>
+  <string name="secure_folder_answer_optional">Answer (optional)</string>
+  <string name="secure_folder_answer_optional_hint">Leave empty to recover a forgotten PIN with your device screen lock only.</string>
+  <string name="secure_folder_not_backed_up">Hidden files and this PIN stay on this device. They are not included in backups or phone-to-phone transfers, and uninstalling the app deletes them.</string>
   <string name="secure_folder_error_incorrect_pin">Incorrect PIN</string>
   <string name="secure_folder_error_pin_min_digits">PIN must be 4 digits</string>
   <string name="secure_folder_error_pins_dont_match">PINs don\'t match</string>

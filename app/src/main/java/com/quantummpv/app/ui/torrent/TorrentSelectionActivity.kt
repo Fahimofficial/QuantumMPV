@@ -18,6 +18,7 @@ import androidx.compose.runtime.getValue
 import com.quantummpv.app.database.repository.NetworkStreamEntryRepository
 import com.quantummpv.app.domain.torrent.TorrentStreamingEngine
 import com.quantummpv.app.repository.wyzie.WyzieSearchRepository
+import com.quantummpv.app.ui.player.InternalPlayerLaunch
 import com.quantummpv.app.ui.player.PlayerActivity
 import com.quantummpv.app.ui.theme.MpvrxTheme
 import com.quantummpv.app.utils.media.MediaUtils
@@ -53,7 +54,12 @@ class TorrentSelectionActivity : AppCompatActivity() {
       },
     )
 
+    // Links from browsers and other apps only connect after the user agrees; picks made inside the
+    // app (Network tab, saved media) carry the in-process launch token and open right away.
+    val requireConsent = !InternalPlayerLaunch.isInternal(intent)
     viewModel.initialize(
+      requireConsent = requireConsent,
+      value =
       TorrentSelectionInput(
         source = source,
         title =
@@ -86,6 +92,7 @@ class TorrentSelectionActivity : AppCompatActivity() {
           onBack = ::closePicker,
           onRetry = viewModel::retry,
           onSelect = viewModel::select,
+          onConfirmConsent = viewModel::confirmConsent,
         )
       }
     }
@@ -94,11 +101,34 @@ class TorrentSelectionActivity : AppCompatActivity() {
   private fun openPlayer(request: TorrentSelectionLaunch) {
     if (playerLaunched || isFinishing) return
     playerLaunched = true
+    // A fresh intent: only the fields the player needs, marked as an in-process launch so the
+    // prepared torrent id survives the player's external-intent sanitizer. Extras from the
+    // original (possibly external) intent are deliberately not forwarded under that token.
     val playbackIntent =
-      Intent(intent).apply {
+      Intent().apply {
         action = Intent.ACTION_VIEW
         data = Uri.parse(request.source)
         setClass(this@TorrentSelectionActivity, PlayerActivity::class.java)
+        putExtra("internal_launch", true)
+        InternalPlayerLaunch.mark(this)
+        listOf(
+          MediaUtils.EXTRA_MEDIA_DESCRIPTION,
+          MediaUtils.EXTRA_MEDIA_POSTER_URL,
+          MediaUtils.EXTRA_MEDIA_BACKDROP_URL,
+          "introdb_title",
+          "introdb_tmdb_id",
+          "introdb_imdb_id",
+          "introdb_season",
+          "introdb_episode",
+          "introdb_media_type",
+        ).forEach { key ->
+          @Suppress("DEPRECATION")
+          when (val value = intent.extras?.get(key)) {
+            is String -> putExtra(key, value)
+            is Int -> putExtra(key, value)
+            is Long -> putExtra(key, value)
+          }
+        }
         addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_GRANT_READ_URI_PERMISSION)
         putExtra("title", request.file.name)
         putExtra(MediaUtils.EXTRA_MEDIA_TITLE, request.file.name)

@@ -91,6 +91,7 @@ import com.quantummpv.app.ui.player.MediaPlaybackService
 import com.quantummpv.app.ui.player.PlaybackPhase
 import com.quantummpv.app.ui.player.PlaybackSession
 import com.quantummpv.app.ui.player.PlayerActivity
+import com.quantummpv.app.ui.player.SubtitleVisibility
 import com.quantummpv.app.ui.player.TrackNode
 import com.quantummpv.app.ui.player.controls.components.AnimatedPlayPauseIcon
 import com.quantummpv.app.ui.player.declaredMediaKind
@@ -196,12 +197,12 @@ private fun MiniPlayerContent(
 
   val isVideoMode = detachedPlaybackActive && hasRealVideo && !isAudioOnlyItem && enableVideoMiniPlayer
 
+  // Subtitles are unreadable at mini-player size. Hide them temporarily and give the user's own
+  // setting back afterwards (never force them on).
   DisposableEffect(isVideoMode) {
-    if (isVideoMode) {
-      PlaybackSession.setPropertyBoolean("sub-visibility", false)
-    }
+    if (isVideoMode) SubtitleVisibility.suppress()
     onDispose {
-      PlaybackSession.setPropertyBoolean("sub-visibility", true)
+      if (isVideoMode) SubtitleVisibility.release()
     }
   }
 
@@ -323,13 +324,13 @@ private fun MiniPlayerContent(
                 setZOrderMediaOverlay(true)
                 holder.addCallback(object : SurfaceHolder.Callback {
                   override fun surfaceCreated(holder: SurfaceHolder) {
-                    val attached =
-                      PlaybackSession.bindSurface(
-                        surface = holder.surface,
-                        owner = this@apply,
-                        ownerIsActive = { MediaPlaybackService.isForegroundActive() },
-                      )
-                    if (attached) PlaybackSession.setPropertyBoolean("sub-visibility", false)
+                    PlaybackSession.bindSurface(
+                      surface = holder.surface,
+                      owner = this@apply,
+                      ownerIsActive = { MediaPlaybackService.isForegroundActive() },
+                    )
+                    // Visibility is suppressed by the DisposableEffect above for as long as the
+                    // video mini player is shown.
                   }
 
                   override fun surfaceChanged(
@@ -344,9 +345,7 @@ private fun MiniPlayerContent(
                   }
 
                   override fun surfaceDestroyed(holder: SurfaceHolder) {
-                    if (PlaybackSession.unbindSurface(this@apply)) {
-                      PlaybackSession.setPropertyBoolean("sub-visibility", true)
-                    }
+                    PlaybackSession.unbindSurface(this@apply)
                   }
                 })
               }
@@ -392,7 +391,7 @@ private fun MiniPlayerContent(
                 ),
               )
             },
-            modifier = Modifier.size(36.dp),
+            modifier = Modifier.size(48.dp),
           ) {
             AnimatedPlayPauseIcon(
               isPlaying = isPlaying,
@@ -405,8 +404,7 @@ private fun MiniPlayerContent(
 
           IconButton(
             onClick = { dismissPlayer() },
-            // M3 default 40 dp (was 32): fits the row, and Compose extends the hit area toward 48 dp.
-            modifier = Modifier.size(40.dp),
+            modifier = Modifier.size(48.dp),
           ) {
             Icon(
               imageVector = Icons.RoundedFilled.Close,
@@ -509,7 +507,7 @@ private fun MiniPlayerContent(
               ),
             )
           },
-          modifier = Modifier.size(36.dp),
+          modifier = Modifier.size(48.dp),
         ) {
           AnimatedPlayPauseIcon(
             isPlaying = isPlaying,
@@ -529,7 +527,7 @@ private fun MiniPlayerContent(
               ),
             )
           },
-          modifier = Modifier.size(36.dp),
+          modifier = Modifier.size(48.dp),
         ) {
           Icon(
             imageVector = Icons.RoundedFilled.SkipNext,
@@ -542,8 +540,7 @@ private fun MiniPlayerContent(
         // Close Action Button
         IconButton(
           onClick = { dismissPlayer() },
-          // M3 default 40 dp (was 32): fits the row, and Compose extends the hit area toward 48 dp.
-          modifier = Modifier.size(40.dp),
+          modifier = Modifier.size(48.dp),
         ) {
           Icon(
             imageVector = Icons.RoundedFilled.Close,

@@ -95,6 +95,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInParent
+import androidx.compose.ui.platform.LocalAccessibilityManager
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -128,6 +129,7 @@ import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.preferences.preference.deleteAndGet
 import com.quantummpv.app.preferences.preference.minusAssign
 import com.quantummpv.app.preferences.preference.plusAssign
+import com.quantummpv.app.ui.cast.rememberCastDevicesAvailable
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.ControlsAnimationStyle
@@ -326,6 +328,7 @@ fun PlayerControls(
     abs((playbackSpeed ?: 1f) - 1f) > 0.001f
   }
   val playerTimeToDisappear by playerPreferences.playerTimeToDisappear.collectAsState()
+  val accessibilityManager = LocalAccessibilityManager.current
   val chapters by viewModel.chapters.collectAsState(persistentListOf())
   val skipSegments by viewModel.skipSegments.collectAsState(persistentListOf())
   val currentSkippableSegment by viewModel.currentSkippableSegment.collectAsState()
@@ -500,12 +503,14 @@ fun PlayerControls(
     }
   val portraitHasConfiguredQualityButton = PlayerButton.VIDEO_QUALITY in portraitBottomButtons
   val hasPlaylistSupport = viewModel.hasPlaylistSupport()
-    val playerDrawerButtons =
+  val castDevicesAvailable = rememberCastDevicesAvailable()
+  val playerDrawerButtons =
     remember(
       showVideoQualitySelector,
       chapters,
       isAudioOnly,
       hasPlaylistSupport,
+      castDevicesAvailable,
     ) {
       allPlayerButtons.filter { button ->
         when (button) {
@@ -515,6 +520,7 @@ fun PlayerControls(
           PlayerButton.PICTURE_IN_PICTURE -> !isAudioOnly
           PlayerButton.VIDEO_QUALITY -> showVideoQualitySelector
           PlayerButton.SHUFFLE -> hasPlaylistSupport
+          PlayerButton.CAST -> castDevicesAvailable
           else -> true
         }
       }
@@ -559,7 +565,17 @@ fun PlayerControls(
       !(showControlsDrawer && isPlayerDrawerShown)
     ) {
       // Use 2 second delay when controls are locked, otherwise use user preference
-      val delayTime = if (areControlsLocked) 2000L else playerTimeToDisappear.toLong()
+      val baseDelay = if (areControlsLocked) 2000L else playerTimeToDisappear.toLong()
+      // Honours the system "time to take action" setting, and never hides controls while TalkBack's
+      // touch exploration is on (the recommended timeout is then Long.MAX_VALUE).
+      val delayTime =
+        accessibilityManager?.calculateRecommendedTimeoutMillis(
+          baseDelay,
+          containsIcons = true,
+          containsText = true,
+          containsControls = true,
+        ) ?: baseDelay
+      if (delayTime == Long.MAX_VALUE) return@LaunchedEffect
       delay(delayTime)
       viewModel.hideControls()
     }
@@ -1759,13 +1775,13 @@ is PlayerUpdates.FrameInfo -> {
                   end.linkTo(parent.end, spacing.large)
                 },
           ) {
-            val position by PlaybackSession.propInt["time-pos"].collectAsStateWithLifecycle()
-            val precisePosition by viewModel.precisePosition.collectAsStateWithLifecycle()
+            // Held as State objects and read only inside the providers below, so position ticks do not
+            // recompose this scope.
+            val precisePosition = viewModel.precisePosition.collectAsStateWithLifecycle()
             val invertDuration by playerPreferences.invertDuration.collectAsState()
-            val remaining by PlaybackSession.propFloat["playtime-remaining"].collectAsState()
+            val remaining = PlaybackSession.propFloat["playtime-remaining"].collectAsState()
             val seekbarStyle by appearancePreferences.seekbarStyle.collectAsState()
             val useWavySeekbar by playerPreferences.useWavySeekbar.collectAsState()
-            val displayedSeekbarPosition = precisePosition
             // Memoize the immutable copies so they are not reallocated on every position
             // tick (this scope recomposes ~20x/sec while scrubbing).
             val seekbarChapters =
@@ -1775,10 +1791,10 @@ is PlayerUpdates.FrameInfo -> {
             val skipSegmentsImmutable = remember(skipSegments) { skipSegments.toImmutableList() }
 
             SeekbarWithTimers(
-              position = displayedSeekbarPosition,
-              committedPosition = precisePosition,
+              position = { precisePosition.value },
+              committedPosition = { precisePosition.value },
               duration = if (preciseDuration > 0) preciseDuration else duration?.toFloat() ?: 0f,
-              remaining = remaining ?: 0f,
+              remaining = { remaining.value ?: 0f },
               onValueChange = {
                 isSeeking = true
                 resetControlsTimestamp = System.currentTimeMillis()
@@ -2038,6 +2054,93 @@ is PlayerUpdates.FrameInfo -> {
       }
     }
 
+    val activePlayerDrawerButtons =
+      remember(
+        isSpeedNonOne,
+        currentZoom,
+        repeatMode,
+        shuffleEnabled,
+        transformState,
+        abLoopA,
+        abLoopB,
+        isHdrOutputEnabled,
+        isAmbientEnabled,
+        backgroundPlaybackEnabled,
+        statisticsPage,
+        mediaScopesState.overlayVisible,
+      ) {
+        buildSet {
+          if (isSpeedNonOne) add(PlayerButton.PLAYBACK_SPEED)
+          if (kotlin.math.abs(currentZoom) >= 0.005f) add(PlayerButton.VIDEO_ZOOM)
+          if (repeatMode != com.quantummpv.app.ui.player.RepeatMode.OFF) add(PlayerButton.REPEAT_MODE)
+          if (shuffleEnabled) add(PlayerButton.SHUFFLE)
+          if (transformState.isMirrored) add(PlayerButton.MIRROR)
+          if (transformState.isVerticalFlipped) add(PlayerButton.VERTICAL_FLIP)
+          if (abLoopA != null || abLoopB != null) add(PlayerButton.AB_LOOP)
+          if (isHdrOutputEnabled) add(PlayerButton.HDR_MODE)
+          if (isAmbientEnabled) add(PlayerButton.AMBIENT_MODE)
+          if (backgroundPlaybackEnabled) add(PlayerButton.BACKGROUND_PLAYBACK)
+          if (statisticsPage == 6) add(PlayerButton.TIME_NETWORK)
+          if (mediaScopesState.overlayVisible) add(PlayerButton.SCOPES)
+        }
+      }
+
+    // Without the drawer, More lists every control that is not already on the HUD.
+    val hudButtons =
+      remember(isPortrait, portraitBottomButtons, topRightButtons, bottomRightButtons, bottomLeftButtons) {
+        if (isPortrait) {
+          portraitBottomButtons.toSet()
+        } else {
+          (topRightButtons + bottomRightButtons + bottomLeftButtons).toSet()
+        }
+      }
+    val moreSheetButtons =
+      remember(showControlsDrawer, playerDrawerButtons, hudButtons) {
+        if (showControlsDrawer) {
+          emptyList()
+        } else {
+          playerDrawerButtons.filter { it !in hudButtons && it != PlayerButton.MORE_OPTIONS }
+        }
+      }
+    val moreControls: (@Composable () -> Unit)? =
+      if (moreSheetButtons.isEmpty()) {
+        null
+      } else {
+        {
+          PlayerButtonTheme(hideBackground = false) {
+            CompositionLocalProvider(LocalHidePlayerButtonsBackground provides true) {
+              PlayerControlGrid(
+                buttons = moreSheetButtons,
+                activeButtons = activePlayerDrawerButtons,
+                columnCount = if (isPortrait) 3 else 5,
+                renderButton = { button ->
+                  renderPlayerButton(
+                    button = button,
+                    chapters = chapters,
+                    currentChapter = currentChapter,
+                    isPortrait = isPortrait,
+                    isSpeedNonOne = isSpeedNonOne,
+                    currentZoom = currentZoom,
+                    aspect = aspect,
+                    mediaTitle = mediaTitle,
+                    hideBackground = true,
+                    decoder = decoder,
+                    playbackSpeed = playbackSpeed ?: 1f,
+                    onBackPress = onBackPress,
+                    onOpenSheet = onOpenSheet,
+                    onOpenPanel = onOpenPanel,
+                    viewModel = viewModel,
+                    activity = playerActivity,
+                    buttonSize = 44.dp,
+                    compact = true,
+                  )
+                },
+              )
+            }
+          }
+        }
+      }
+
     val sheetShown by viewModel.sheetShown.collectAsState()
     val subtitles by viewModel.subtitleTracks.collectAsState(persistentListOf())
     val audioTracks by viewModel.audioTracks.collectAsState(persistentListOf())
@@ -2083,6 +2186,7 @@ is PlayerUpdates.FrameInfo -> {
       onOpenPanel = onOpenPanel,
       onShowSheet = onOpenSheet,
       onDismissRequest = { onOpenSheet(Sheets.None) },
+      moreControls = moreControls,
     )
 
     val panel by viewModel.panelShown.collectAsState()
@@ -2091,37 +2195,6 @@ is PlayerUpdates.FrameInfo -> {
       viewModel = viewModel,
       onDismissRequest = { onOpenPanel(Panels.None) },
     )
-
-val activePlayerDrawerButtons =
-      remember(
-        isSpeedNonOne,
-        currentZoom,
-        repeatMode,
-        shuffleEnabled,
-        transformState,
-        abLoopA,
-        abLoopB,
-        isHdrOutputEnabled,
-        isAmbientEnabled,
-        backgroundPlaybackEnabled,
-        statisticsPage,
-        mediaScopesState.overlayVisible,
-      ) {
-        buildSet {
-          if (isSpeedNonOne) add(PlayerButton.PLAYBACK_SPEED)
-          if (kotlin.math.abs(currentZoom) >= 0.005f) add(PlayerButton.VIDEO_ZOOM)
-          if (repeatMode != com.quantummpv.app.ui.player.RepeatMode.OFF) add(PlayerButton.REPEAT_MODE)
-          if (shuffleEnabled) add(PlayerButton.SHUFFLE)
-          if (transformState.isMirrored) add(PlayerButton.MIRROR)
-          if (transformState.isVerticalFlipped) add(PlayerButton.VERTICAL_FLIP)
-          if (abLoopA != null || abLoopB != null) add(PlayerButton.AB_LOOP)
-          if (isHdrOutputEnabled) add(PlayerButton.HDR_MODE)
-          if (isAmbientEnabled) add(PlayerButton.AMBIENT_MODE)
-          if (backgroundPlaybackEnabled) add(PlayerButton.BACKGROUND_PLAYBACK)
-          if (statisticsPage == 6) add(PlayerButton.TIME_NETWORK)
-          if (mediaScopesState.overlayVisible) add(PlayerButton.SCOPES)
-        }
-      }
 
     if (showControlsDrawer) {
       PlayerButtonTheme(hideBackground = false) {

@@ -80,12 +80,13 @@ private val settingsSearchListAnchors: Map<Screen, List<SettingsSearchListAnchor
         SettingsSearchListAnchor(titleRes = R.string.pref_layout_bottom_right_controls, itemIndex = 1),
         SettingsSearchListAnchor(titleRes = R.string.pref_layout_bottom_left_controls, itemIndex = 1),
         SettingsSearchListAnchor(titleRes = R.string.pref_layout_portrait_bottom_controls, itemIndex = 3),
-        SettingsSearchListAnchor(titleRes = R.string.pref_appearance_hide_player_buttons_background_title, itemIndex = 7),
+        SettingsSearchListAnchor(titleRes = R.string.pref_layout_reset_recommended, itemIndex = 4),
+        SettingsSearchListAnchor(titleRes = R.string.pref_appearance_hide_player_buttons_background_title, itemIndex = 8),
         SettingsSearchListAnchor(
           titleRes = R.string.pref_appearance_force_dark_player_buttons_background_title,
-          itemIndex = 7,
+          itemIndex = 8,
         ),
-        SettingsSearchListAnchor(titleRes = R.string.pref_player_display_hide_player_control_time, itemIndex = 7),
+        SettingsSearchListAnchor(titleRes = R.string.pref_player_display_hide_player_control_time, itemIndex = 8),
       ),
     PlayerPreferencesScreen to
       listOf(
@@ -132,6 +133,7 @@ private val settingsSearchListAnchors: Map<Screen, List<SettingsSearchListAnchor
         SettingsSearchListAnchor(titleRes = R.string.pref_gesture_double_tap_center_title, itemIndex = 3),
         SettingsSearchListAnchor(titleRes = R.string.pref_gesture_double_tap_right_title, itemIndex = 3),
         SettingsSearchListAnchor(titleRes = R.string.pref_gesture_use_single_tap_for_center_title, itemIndex = 3),
+        SettingsSearchListAnchor(titleRes = R.string.pref_gesture_wait_for_double_tap_title, itemIndex = 3),
         SettingsSearchListAnchor(titleRes = R.string.pref_gesture_media_previous, itemIndex = 5),
         SettingsSearchListAnchor(titleRes = R.string.pref_gesture_media_play, itemIndex = 5),
         SettingsSearchListAnchor(titleRes = R.string.pref_gesture_media_next, itemIndex = 5),

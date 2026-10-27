@@ -43,6 +43,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -56,6 +57,7 @@ import com.quantummpv.app.preferences.PortraitPlaybackControlsPosition
 import com.quantummpv.app.preferences.SeekbarStyle
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.presentation.Screen
+import com.quantummpv.app.presentation.components.ConfirmDialog
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.controls.components.SeekbarStyleLivePreview
@@ -208,6 +210,42 @@ object PlayerControlsPreferencesScreen : Screen {
                 },
               )
               PreferenceIconSummary(buttons = portraitBottomButtons)
+            }
+          }
+
+          item {
+            var showRecommendedDialog by remember { mutableStateOf(false) }
+            if (showRecommendedDialog) {
+              ConfirmDialog(
+                title = stringResource(R.string.pref_layout_reset_recommended_title),
+                subtitle = stringResource(R.string.pref_layout_reset_recommended_summary),
+                onConfirm = {
+                  appearancePrefs.resetPlayerLayoutToRecommended()
+                  showRecommendedDialog = false
+                },
+                onCancel = { showRecommendedDialog = false },
+              )
+            }
+            PreferenceCard {
+              ListItem(
+                content = { Text(text = stringResource(R.string.pref_layout_reset_recommended)) },
+                supportingContent = { Text(text = stringResource(R.string.pref_layout_reset_recommended_hint)) },
+                leadingContent = {
+                  Icon(
+                    imageVector = Icons.RoundedFilled.Refresh,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                  )
+                },
+                colors =
+                  androidx.compose.material3.ListItemDefaults.colors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                  ),
+                modifier =
+                  Modifier
+                    .settingsSearchTarget(R.string.pref_layout_reset_recommended)
+                    .clickable(role = Role.Button) { showRecommendedDialog = true },
+              )
             }
           }
 

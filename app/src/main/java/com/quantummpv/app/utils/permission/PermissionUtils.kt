@@ -290,7 +290,7 @@ object PermissionUtils {
               deleted++
               deletedPaths += video.path
               RecentlyPlayedOps.onVideoDeleted(video.path)
-              PlaybackStateOps.onVideoDeleted(video.path)
+              PlaybackStateOps.onVideoDeleted(video.path, video.uri.toString())
               Log.d(TAG, "✓ Deleted: ${video.displayName}")
             } else {
               failed++
@@ -332,7 +332,7 @@ object PermissionUtils {
             contentVideos.forEach { video ->
               deleted++
               RecentlyPlayedOps.onVideoDeleted(video.path)
-              PlaybackStateOps.onVideoDeleted(video.path)
+              PlaybackStateOps.onVideoDeleted(video.path, video.uri.toString())
               Log.d(TAG, "✓ Deleted (scoped request): ${video.displayName}")
             }
           } else {
@@ -346,7 +346,7 @@ object PermissionUtils {
               if (rows > 0) {
                 deleted++
                 RecentlyPlayedOps.onVideoDeleted(video.path)
-                PlaybackStateOps.onVideoDeleted(video.path)
+                PlaybackStateOps.onVideoDeleted(video.path, video.uri.toString())
                 Log.d(TAG, "✓ Deleted (scoped): ${video.displayName}")
               } else {
                 failed++
@@ -366,7 +366,7 @@ object PermissionUtils {
               deleted++
               deletedFilePaths += video.path
               RecentlyPlayedOps.onVideoDeleted(video.path)
-              PlaybackStateOps.onVideoDeleted(video.path)
+              PlaybackStateOps.onVideoDeleted(video.path, video.uri.toString())
               Log.d(TAG, "✓ Deleted (file fallback): ${video.displayName}")
             } else {
               failed++
@@ -429,7 +429,7 @@ object PermissionUtils {
           if (oldFile.exists() && oldFile.renameTo(newFile)) {
             // Update history
             RecentlyPlayedOps.onVideoRenamed(oldFile.absolutePath, newFile.absolutePath)
-            PlaybackStateOps.onVideoRenamed(oldFile.absolutePath, newFile.absolutePath)
+            PlaybackStateOps.onVideoRenamed(oldFile.absolutePath, newFile.absolutePath, video.uri.toString())
 
             // Notify that media library has changed
             MediaLibraryEvents.notifyChanged()
@@ -546,7 +546,7 @@ object PermissionUtils {
             val newPath = parent?.let { File(it, newDisplayName).absolutePath } ?: oldPath
 
             RecentlyPlayedOps.onVideoRenamed(oldPath, newPath)
-            PlaybackStateOps.onVideoRenamed(oldPath, newPath)
+            PlaybackStateOps.onVideoRenamed(oldPath, newPath, video.uri.toString())
             MediaLibraryEvents.notifyChanged()
 
             Log.d(TAG, "✓ Renamed (scoped): ${video.displayName} -> $newDisplayName")

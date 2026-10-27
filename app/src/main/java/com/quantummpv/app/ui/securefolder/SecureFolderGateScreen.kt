@@ -11,9 +11,13 @@
 
 package com.quantummpv.app.ui.securefolder
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
+import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.biometric.BiometricManager
@@ -49,6 +53,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
@@ -59,6 +64,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -229,6 +235,73 @@ data object SecureFolderGateScreen : Screen {
       }
     }
 
+    fun getOrCreateRecoverySecretKey(): SecretKey {
+      val keyStore = KeyStore.getInstance(SECURE_FOLDER_BIOMETRIC_KEYSTORE).apply { load(null) }
+      val existingKey = keyStore.getKey(SECURE_FOLDER_BIOMETRIC_KEY_ALIAS, null) as? SecretKey
+      if (existingKey != null) return existingKey
+
+      val keyGenerator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, SECURE_FOLDER_BIOMETRIC_KEYSTORE)
+      val keySpec =
+        KeyGenParameterSpec.Builder(
+          SECURE_FOLDER_BIOMETRIC_KEY_ALIAS,
+          KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT,
+        )
+          .setBlockModes(KeyProperties.BLOCK_MODE_CBC)
+          .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_PKCS7)
+          .setUserAuthenticationRequired(true)
+          .setInvalidatedByBiometricEnrollment(true)
+          .build()
+      keyGenerator.init(keySpec)
+      return keyGenerator.generateKey()
+    }
+
+    fun getRecoveryCipher(): Cipher =
+      Cipher.getInstance(
+        "${KeyProperties.KEY_ALGORITHM_AES}/${KeyProperties.BLOCK_MODE_CBC}/${KeyProperties.ENCRYPTION_PADDING_PKCS7}",
+      )
+
+    fun initRecoveryCipher(): Cipher? =
+      runCatching {
+        val cipher = getRecoveryCipher()
+        cipher.init(Cipher.ENCRYPT_MODE, getOrCreateRecoverySecretKey())
+        cipher
+      }.getOrNull()
+
+    fun showScreenLockRecoveryPrompt() {
+      val fragmentActivity = context as? FragmentActivity ?: return
+      val cipher = initRecoveryCipher() ?: return
+      keyboardController?.hide()
+      val callback =
+        object : BiometricPrompt.AuthenticationCallback() {
+          override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+            super.onAuthenticationSucceeded(result)
+            val authenticatedCipher = result.cryptoObject?.cipher ?: return
+            runCatching {
+              authenticatedCipher.doFinal("secure-folder-recovery".toByteArray())
+            }.onSuccess {
+              viewModel.recoveredWithScreenLock()
+            }
+          }
+        }
+      val authenticators =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+          BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL
+        } else {
+          BiometricManager.Authenticators.BIOMETRIC_WEAK or BiometricManager.Authenticators.DEVICE_CREDENTIAL
+        }
+      BiometricPrompt(fragmentActivity, ContextCompat.getMainExecutor(context), callback).authenticate(
+        BiometricPrompt.PromptInfo
+          .Builder()
+          .setTitle(context.getString(R.string.secure_folder_recover_with_screen_lock))
+          .setSubtitle(context.getString(R.string.secure_folder_recover_with_screen_lock_subtitle))
+          .setAllowedAuthenticators(authenticators)
+          .build(),
+        BiometricPrompt.CryptoObject(cipher),
+      )
+    }
+
+    SecureWindowEffect()
+
     LaunchedEffect(Unit) {
       viewModel.refreshGateStep()
     }
@@ -304,9 +377,13 @@ data object SecureFolderGateScreen : Screen {
 
                 SecureFolderViewModel.GateStep.FORGOT_PIN_QUESTION ->
                   SecurityQuestionAnswerContent(
-                    question = viewModel.preferences.securityQuestion.get(),
+                    question =
+                      viewModel.preferences.securityQuestion
+                        .get()
+                        .takeIf { viewModel.preferences.isSecurityQuestionSet() },
                     error = gateError,
                     onSubmit = { answer -> viewModel.verifySecurityAnswerForRecovery(answer) },
+                    onUseScreenLock = ::showScreenLockRecoveryPrompt.takeIf { canAuthenticateDeviceCredential },
                     onCancel = { viewModel.cancelForgotPinFlow() },
                   )
 
@@ -643,9 +720,18 @@ private fun SetupContent(
         answer = it
         validationErrorRes = null
       },
-      label = { Text(stringResource(R.string.secure_folder_answer)) },
+      label = { Text(stringResource(R.string.secure_folder_answer_optional)) },
+      supportingText = { Text(stringResource(R.string.secure_folder_answer_optional_hint)) },
       singleLine = true,
       modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+    )
+
+    Text(
+      text = stringResource(R.string.secure_folder_not_backed_up),
+      style = MaterialTheme.typography.bodySmall,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+      textAlign = TextAlign.Center,
+      modifier = Modifier.padding(top = 12.dp),
     )
 
     val shownError = if (validationErrorRes != null) stringResource(validationErrorRes!!) else error
@@ -665,7 +751,6 @@ private fun SetupContent(
         when {
           pin.length < 4 -> validationErrorRes = R.string.secure_folder_error_pin_min_digits
           pin != confirmPin -> validationErrorRes = R.string.secure_folder_error_pins_dont_match
-          answer.isBlank() -> validationErrorRes = R.string.secure_folder_error_answer_question
           else -> onSubmit(pin, question, answer)
         }
       },
@@ -801,9 +886,10 @@ private fun ChoosePinContent(
 
 @Composable
 private fun SecurityQuestionAnswerContent(
-  question: String,
+  question: String?,
   error: String?,
   onSubmit: (String) -> Boolean,
+  onUseScreenLock: (() -> Unit)?,
   onCancel: () -> Unit,
 ) {
   var answer by rememberSaveable { mutableStateOf("") }
@@ -851,7 +937,13 @@ private fun SecurityQuestionAnswerContent(
     Spacer(modifier = Modifier.height(8.dp))
 
     Text(
-      text = question.ifBlank { stringResource(R.string.secure_folder_no_question_set) },
+      text =
+        question
+          ?: if (onUseScreenLock != null) {
+            stringResource(R.string.secure_folder_recovery_screen_lock_only)
+          } else {
+            stringResource(R.string.secure_folder_no_question_set)
+          },
       style = MaterialTheme.typography.bodyLarge,
       textAlign = TextAlign.Center,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -859,13 +951,15 @@ private fun SecurityQuestionAnswerContent(
 
     Spacer(modifier = Modifier.height(28.dp))
 
-    OutlinedTextField(
-      value = answer,
-      onValueChange = { answer = it },
-      label = { Text(stringResource(R.string.secure_folder_answer)) },
-      singleLine = true,
-      modifier = Modifier.fillMaxWidth(),
-    )
+    if (question != null) {
+      OutlinedTextField(
+        value = answer,
+        onValueChange = { answer = it },
+        label = { Text(stringResource(R.string.secure_folder_answer)) },
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth(),
+      )
+    }
 
     if (error != null) {
       Text(
@@ -878,20 +972,38 @@ private fun SecurityQuestionAnswerContent(
 
     Spacer(modifier = Modifier.height(28.dp))
 
-    Button(
-      onClick = { onSubmit(answer) },
-      enabled = answer.isNotBlank(),
-      modifier = Modifier.fillMaxWidth().height(54.dp),
-      shape = AppShapeScale.large,
-    ) {
-      Text(
-        text = stringResource(R.string.secure_folder_verify),
-        style = MaterialTheme.typography.titleMedium,
-        fontWeight = FontWeight.Bold,
-      )
+    if (question != null) {
+      Button(
+        onClick = { onSubmit(answer) },
+        enabled = answer.isNotBlank(),
+        modifier = Modifier.fillMaxWidth().height(54.dp),
+        shape = AppShapeScale.large,
+      ) {
+        Text(
+          text = stringResource(R.string.secure_folder_verify),
+          style = MaterialTheme.typography.titleMedium,
+          fontWeight = FontWeight.Bold,
+        )
+      }
+
+      Spacer(modifier = Modifier.height(8.dp))
     }
 
-    Spacer(modifier = Modifier.height(8.dp))
+    if (onUseScreenLock != null) {
+      FilledTonalButton(
+        onClick = onUseScreenLock,
+        modifier = Modifier.fillMaxWidth().height(54.dp),
+        shape = AppShapeScale.large,
+      ) {
+        Text(
+          text = stringResource(R.string.secure_folder_recover_with_screen_lock),
+          style = MaterialTheme.typography.titleMedium,
+          fontWeight = FontWeight.Bold,
+        )
+      }
+
+      Spacer(modifier = Modifier.height(8.dp))
+    }
 
     OutlinedButton(
       onClick = onCancel,
@@ -944,3 +1056,49 @@ internal fun PinField(
     modifier = modifier.fillMaxWidth(),
   )
 }
+
+/**
+ * Keeps Secure Folder content out of screenshots, screen recordings and the Recents thumbnail
+ * while this composable is shown.
+ */
+@Composable
+internal fun SecureWindowEffect() {
+  val activity = LocalContext.current.findActivity() ?: return
+  DisposableEffect(activity) {
+    SecureWindowFlag.acquire(activity)
+    onDispose { SecureWindowFlag.release(activity) }
+  }
+}
+
+/**
+ * Reference-counted FLAG_SECURE: during a navigation transition the gate and the unlocked grid are
+ * both composed, so the leaving screen must not clear the flag the arriving one still needs.
+ */
+private object SecureWindowFlag {
+  private val holders = java.util.WeakHashMap<Activity, Int>()
+
+  @Synchronized
+  fun acquire(activity: Activity) {
+    val count = holders[activity] ?: 0
+    if (count == 0) activity.window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+    holders[activity] = count + 1
+  }
+
+  @Synchronized
+  fun release(activity: Activity) {
+    val count = (holders[activity] ?: 1) - 1
+    if (count <= 0) {
+      holders.remove(activity)
+      activity.window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+    } else {
+      holders[activity] = count
+    }
+  }
+}
+
+private tailrec fun Context.findActivity(): Activity? =
+  when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
+  }

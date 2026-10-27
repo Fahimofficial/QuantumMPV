@@ -91,6 +91,8 @@ fun PlayerSheets(
   onOpenPanel: (Panels) -> Unit,
   onShowSheet: (Sheets) -> Unit,
   onDismissRequest: () -> Unit,
+  // Controls that are not on the HUD, listed in More so nothing is unreachable.
+  moreControls: (@Composable () -> Unit)? = null,
 ) {
   val isTelevision = DeviceFormFactor.isTelevision(LocalContext.current)
   val advancedPreferences = koinInject<AdvancedPreferences>()
@@ -421,6 +423,7 @@ fun PlayerSheets(
         filtersEnabled = MpvConfigOverride.VIDEO_FILTERS.optionNames.any { it !in configOwnedOptions },
         equalizerEnabled = "af" !in configOwnedOptions,
         anime4KEnabled = MpvConfigControlledFeatures.ANIME4K.none(configOwnedOptions::contains),
+        controls = moreControls,
       )
     }
 

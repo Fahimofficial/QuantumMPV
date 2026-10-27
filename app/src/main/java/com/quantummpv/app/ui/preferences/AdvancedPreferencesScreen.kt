@@ -19,6 +19,7 @@ import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -45,6 +46,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -67,6 +69,7 @@ import com.quantummpv.app.presentation.crash.CrashActivity
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.preferences.components.SwitchPreference
+import com.quantummpv.app.ui.theme.spacing
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.LocalShowSettingsBackArrow
 import com.quantummpv.app.ui.utils.navigateTo
@@ -270,14 +273,24 @@ object AdvancedPreferencesScreen : Screen {
         onDismissRequest = { showImportDialog = false },
         title = { Text(stringResource(R.string.pref_import_complete_title)) },
         text = {
-          Text(
-            stringResource(
-              R.string.pref_import_complete_text,
-              importStats?.imported ?: 0,
-              importStats?.failed ?: 0,
-              importStats?.version ?: "unknown",
-            ),
-          )
+          Column(verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.small)) {
+            Text(
+              stringResource(
+                R.string.pref_import_complete_text,
+                importStats?.imported ?: 0,
+                importStats?.failed ?: 0,
+                importStats?.version ?: "unknown",
+              ),
+            )
+            val skipped = importStats?.skipped ?: 0
+            if (skipped > 0) {
+              Text(
+                pluralStringResource(R.plurals.pref_import_skipped_settings, skipped, skipped),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+              )
+            }
+          }
         },
         confirmButton = {
           TextButton(onClick = { showImportDialog = false }) {

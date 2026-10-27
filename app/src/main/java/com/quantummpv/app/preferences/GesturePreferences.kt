@@ -24,6 +24,9 @@ class GesturePreferences(
   val centerSingleActionGesture = preferenceStore.getEnum("center_drag_gesture", SingleActionGesture.PlayPause)
   val rightSingleActionGesture = preferenceStore.getEnum("right_drag_gesture", SingleActionGesture.Seek)
   val useSingleTapForCenter = preferenceStore.getBoolean("use_single_tap_for_center", false)
+
+  // Classic tap timing: every single tap waits for a possible double tap, even where double tap does nothing.
+  val waitForDoubleTapEverywhere = preferenceStore.getBoolean("wait_for_double_tap_everywhere", false)
   val mediaPreviousGesture = preferenceStore.getEnum("media_previous_gesture", SingleActionGesture.Seek)
   val mediaPlayGesture = preferenceStore.getEnum("media_play_gesture", SingleActionGesture.PlayPause)
   val mediaNextGesture = preferenceStore.getEnum("media_next_gesture", SingleActionGesture.Seek)

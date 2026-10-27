@@ -65,8 +65,10 @@ import com.quantummpv.app.preferences.MpvConfigControlledFeatures
 import com.quantummpv.app.preferences.PlayerButton
 import com.quantummpv.app.preferences.PlayerClockFormat
 import com.quantummpv.app.preferences.PlayerPreferences
+import com.quantummpv.app.preferences.getPlayerButtonLabel
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.ui.cast.CastPlayerButton
+import com.quantummpv.app.ui.cast.rememberCastDevicesAvailable
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.Panels
 import com.quantummpv.app.ui.player.PlaybackSession
@@ -110,7 +112,7 @@ fun renderPlayerButton(
   buttonSize: Dp = 40.dp,
   compact: Boolean = false,
 ) {
-  PlayerButtonContentTheme {
+  PlayerButtonContentTheme(label = getPlayerButtonLabel(button)) {
     val controlColor =
       if (compact) androidx.compose.material3.LocalContentColor.current else defaultControlColor
     val clickEvent = LocalPlayerButtonsClickEvent.current
@@ -651,12 +653,14 @@ fun renderPlayerButton(
       }
 
       PlayerButton.CAST -> {
-        CastPlayerButton(
-          hideBackground = hideBackground,
-          buttonSize = buttonSize,
-          onInvoked = clickEvent,
-          contentColor = if (hideBackground) controlColor else null,
-        )
+        if (rememberCastDevicesAvailable()) {
+          CastPlayerButton(
+            hideBackground = hideBackground,
+            buttonSize = buttonSize,
+            onInvoked = clickEvent,
+            contentColor = if (hideBackground) controlColor else null,
+          )
+        }
       }
 
       PlayerButton.ASPECT_RATIO -> {

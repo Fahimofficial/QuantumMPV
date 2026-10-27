@@ -230,6 +230,15 @@ object SearchablePreferences {
       )
       add(
         SearchablePreference(
+          titleRes = R.string.pref_layout_reset_recommended,
+          summaryRes = R.string.pref_layout_reset_recommended_hint,
+          keywords = listOf("reset", "recommended", "default", "layout", "controls", "buttons"),
+          category = "Appearance",
+          screen = PlayerControlsPreferencesScreen,
+        ),
+      )
+      add(
+        SearchablePreference(
           titleRes = R.string.pref_layout_top_right_controls,
           keywords = listOf("controls", "top", "right", "landscape", "buttons"),
           category = "Appearance",
@@ -650,6 +659,15 @@ object SearchablePreferences {
           titleRes = R.string.pref_gesture_use_single_tap_for_center_title,
           summaryRes = R.string.pref_gesture_use_single_tap_for_center_summary,
           keywords = listOf("single", "tap", "center", "play", "pause"),
+          category = "Gestures",
+          screen = GesturePreferencesScreen,
+        ),
+      )
+      add(
+        SearchablePreference(
+          titleRes = R.string.pref_gesture_wait_for_double_tap_title,
+          summaryRes = R.string.pref_gesture_wait_for_double_tap_summary,
+          keywords = listOf("tap", "double", "delay", "timing", "classic", "latency"),
           category = "Gestures",
           screen = GesturePreferencesScreen,
         ),

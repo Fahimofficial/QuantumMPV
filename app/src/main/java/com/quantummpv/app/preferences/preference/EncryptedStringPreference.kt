@@ -32,6 +32,10 @@ class EncryptedStringPreference(
   private val delegate: Preference<String>,
   private val cipher: NetworkCredentialCipher = NetworkCredentialCipher(AndroidNetworkCredentialKey::getOrCreate),
 ) : Preference<String> {
+  init {
+    SecretPreferenceKeys.register(delegate.key())
+  }
+
   override fun key(): String = delegate.key()
 
   override fun get(): String {
@@ -90,6 +94,20 @@ class EncryptedStringPreference(
 
 /** Wraps a string preference so its value is encrypted at rest. */
 fun Preference<String>.encrypted(): Preference<String> = EncryptedStringPreference(this)
+
+/**
+ * Keys of preferences that hold secrets. Settings backups never export or import them: the
+ * ciphertext is bound to this device's Keystore and the plaintext must never leave the app.
+ */
+object SecretPreferenceKeys {
+  private val keys = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+
+  fun register(key: String) {
+    keys += key
+  }
+
+  fun contains(key: String): Boolean = key in keys
+}
 
 /**
  * Delivers the preference key whenever a secret could not be saved because encryption failed.

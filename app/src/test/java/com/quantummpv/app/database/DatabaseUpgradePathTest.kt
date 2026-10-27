@@ -31,7 +31,7 @@ import java.io.File
 /**
  * Reproduces real upgrade paths: v1.0/v1.1 shipped database version 23 and preview builds briefly
  * shipped 24. Each test builds that database from the exported schema JSON, stores user data, then
- * opens it with the current Room database, which validates every table against the v25 schema.
+ * opens it with the current Room database, which validates every table against the current schema.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(manifest = Config.NONE, sdk = [34])
@@ -70,6 +70,27 @@ class DatabaseUpgradePathTest {
 
     withCurrentDatabase { db ->
       assertNotNull(runBlocking { db.videoDataDao().getVideoDataByTitle("movie.mkv") })
+    }
+  }
+
+  @Test
+  fun version25UpgradesTo26KeepsStateAndMarksFavoritesByKind() {
+    createLegacyDatabase(version = 25) { db ->
+      db.execSQL(
+        "INSERT INTO PlaylistEntity (id, name, createdAt, updatedAt, isM3uPlaylist, isAudio, isXtreamPlaylist) " +
+          "VALUES (1, 'Favorites', 0, 0, 0, 1, 0), (2, 'Road trip', 0, 0, 0, 0, 0)",
+      )
+    }
+
+    withCurrentDatabase { db ->
+      val state = runBlocking { db.videoDataDao().getVideoDataByTitle("movie.mkv") }
+      assertEquals(4_200, state?.lastPosition)
+      assertNull("visibility was never saved before v26", state?.subVisibility)
+      assertNull(state?.sidKey)
+
+      val playlists = runBlocking { db.playlistDao().getAllPlaylists() }.associateBy { it.id }
+      assertEquals("favorites", playlists[1]?.systemKind)
+      assertNull(playlists[2]?.systemKind)
     }
   }
 
@@ -116,7 +137,10 @@ class DatabaseUpgradePathTest {
       .also { it.openHelper.writableDatabase }
 
   /** Creates the on-device database exactly as the given exported schema describes it. */
-  private fun createLegacyDatabase(version: Int) {
+  private fun createLegacyDatabase(
+    version: Int,
+    seed: (SupportSQLiteDatabase) -> Unit = {},
+  ) {
     val schemaVersion = if (version == 24) 23 else version
     val schema = loadSchema(schemaVersion)
     val callback =
@@ -134,6 +158,7 @@ class DatabaseUpgradePathTest {
               "secondarySid, subDelay, subSpeed, aid, audioDelay, timeRemaining, externalSubtitles, " +
               "hasBeenWatched) VALUES ('movie.mkv', 4200, 1.0, 0.0, 1, -1, 0, 1.0, 1, 0, 60, '', 0)",
           )
+          seed(db)
         }
 
         override fun onUpgrade(

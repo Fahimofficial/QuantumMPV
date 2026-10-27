@@ -46,6 +46,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.LaunchedEffect
@@ -108,6 +109,8 @@ import com.quantummpv.app.ui.player.SubtitleSelectionSource
 import com.quantummpv.app.ui.player.components.VideoAmbientBackground
 import com.quantummpv.app.ui.player.components.rememberVideoAmbientFrame
 import com.quantummpv.app.ui.player.controls.PlayerControls
+import com.quantummpv.app.ui.player.controls.components.PlaybackErrorCard
+import com.quantummpv.app.ui.player.controls.components.PlaybackErrorScrim
 import com.quantummpv.app.ui.player.media3.MpvMedia3SeekDirection
 import com.quantummpv.app.ui.player.media3.MpvMedia3SessionHost
 import com.quantummpv.app.ui.player.media3.MpvMedia3SessionManager
@@ -122,7 +125,6 @@ import com.quantummpv.app.utils.media.JellyfinSessionReporter
 import com.quantummpv.app.utils.media.M3UParseResult
 import com.quantummpv.app.utils.media.M3UParser
 import com.quantummpv.app.utils.media.MediaUtils
-import com.quantummpv.app.utils.media.PlaybackStateEvents
 import com.quantummpv.app.utils.media.SharedUrlExtractor
 import com.quantummpv.app.utils.media.SubtitleOps
 import com.quantummpv.app.utils.media.fileExtension
@@ -133,7 +135,6 @@ import `is`.xyz.mpv.MPVLib
 import `is`.xyz.mpv.MPVNode
 import `is`.xyz.mpv.Utils
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -222,6 +223,7 @@ class PlayerActivity :
    * Repository for managing playback state.
    */
   private val playbackStateRepository: PlaybackStateRepository by inject()
+  private val playbackStateCoordinator: PlaybackStateCoordinator by inject()
 
   private val torrentStreamingEngine: TorrentStreamingEngine by inject()
 
@@ -438,7 +440,6 @@ class PlayerActivity :
   private var mpvInitialized = false // Track MPV initialization state
   private var viewModelHostAttached = false
   private var torrentPickerHandoff = false
-  private var savePlaybackStateJob: Job? = null // Track ongoing save job
   private var periodicProgressSaveJob: Job? = null
   private var wasPlayingBeforePause = false // Track if video was playing before pause
   private var resumeAfterUnlockJob: Job? = null
@@ -451,7 +452,6 @@ class PlayerActivity :
   private var deferredMpvAssetSyncJob: Job? = null
   private var systemBarsAutoHideJob: Job? = null
   private var videoParamRefreshJob: Job? = null
-  private var intentSubtitleJob: Job? = null
   private var mediaLoadJob: Job? = null
   private var playbackLoadRetryJob: Job? = null
   private var playbackLoadWatchdogJob: Job? = null
@@ -636,6 +636,7 @@ class PlayerActivity :
     }
     // Read from the actual launch intent now that it's safe to (see isSecureFolderLaunch kdoc).
     isSecureFolderLaunch = intent.getStringExtra("launch_source") == "secure_folder"
+    applySecureWindowFlag()
     setContentView(binding.root)
     setupSystemBarsAutoHide()
     setupPipHelper()
@@ -1046,6 +1047,20 @@ class PlayerActivity :
             onBackPress = ::handleBackPress,
             modifier = Modifier,
           )
+          val playbackError by viewModel.playbackError.collectAsState()
+          playbackError?.let { error ->
+            Box(Modifier.fillMaxSize().background(PlaybackErrorScrim))
+            PlaybackErrorCard(
+              error = error,
+              onRetry = { retryPlaybackAfterError(softwareDecoding = false) },
+              onSoftwareDecoding = { retryPlaybackAfterError(softwareDecoding = true) },
+              onOpenExternally = ::openFailedMediaExternally,
+              onClose = {
+                viewModel.clearPlaybackError()
+                finish()
+              },
+            )
+          }
         }
       }
     }
@@ -1569,7 +1584,6 @@ class PlayerActivity :
     player.isExiting = true
     mpvInitialized = false
     player.onSurfaceReady = null
-    intentSubtitleJob?.cancel()
     videoParamRefreshJob?.cancel()
     backgroundServiceSyncJob?.cancel()
     backgroundHandoffJob?.cancel()
@@ -3317,7 +3331,6 @@ class PlayerActivity :
       PlaybackSession.setPropertyInt("time-pos", it / MILLISECONDS_TO_SECONDS)
     }
 
-    addSubtitlesFromExtras(extras)
     setHttpHeadersFromExtras(extras)
   }
 
@@ -3330,7 +3343,10 @@ class PlayerActivity :
    *
    * @param extras Bundle containing subtitle URIs
    */
-  private fun addSubtitlesFromExtras(extras: Bundle) {
+  private suspend fun addSubtitlesFromExtras(
+    extras: Bundle,
+    generation: Long,
+  ) {
     if (!extras.containsKey("subs") && !extras.containsKey("subs.enable")) return
 
     val subList = extractSubtitleUriList(extras, "subs")
@@ -3345,67 +3361,23 @@ class PlayerActivity :
         hasEnabledSubtitleExtra = hasSubsToEnable,
       )
 
-    intentSubtitleJob?.cancel()
-    intentSubtitleJob =
-      lifecycleScope.launch(Dispatchers.IO) {
-        for (entry in subtitleEntries) {
-          if (!isActive || !canIssueMpvCommands()) break
-          val suburi = entry.value
-          val subfile = suburi.resolveUri(this@PlayerActivity) ?: continue
-          val flag = if (entry.select) "select" else "auto"
-          val title =
-            if (entry.metadataIndex >= 0) {
-              subtitleTitles
-                .getOrNull(entry.metadataIndex)
-                ?.trim()
-                .orEmpty()
-                .ifBlank { null }
-            } else {
-              null
-            }
-          val language =
-            if (entry.metadataIndex >= 0) {
-              subtitleLanguages
-                .getOrNull(entry.metadataIndex)
-                ?.trim()
-                .orEmpty()
-                .ifBlank { null }
-            } else {
-              null
-            }
-          val displayTitle = title ?: language
-
-          withContext(Dispatchers.Main.immediate) {
-            if (!canIssueMpvCommands()) return@withContext
-
-            Log.v(TAG, "Adding subtitles from intent extras: $subfile")
-            val trackCountBefore = PlaybackSession.getPropertyInt("track-list/count") ?: 0
-            runCatching {
-              when {
-                displayTitle != null -> PlaybackSession.command("sub-add", subfile, flag, displayTitle)
-                else -> PlaybackSession.command("sub-add", subfile, flag)
-              }
-            }.onSuccess {
-              val trackCountAfter = PlaybackSession.getPropertyInt("track-list/count") ?: 0
-              if (trackCountAfter > trackCountBefore) {
-                val newTrackIndex = trackCountAfter - 1
-                if (displayTitle != null) {
-                  runCatching {
-                    PlaybackSession.setPropertyString("track-list/$newTrackIndex/title", displayTitle)
-                  }
-                }
-                if (language != null) {
-                  runCatching {
-                    PlaybackSession.setPropertyString("track-list/$newTrackIndex/lang", language)
-                  }
-                }
-              }
-            }.onFailure { error ->
-              Log.w(TAG, "Failed to add subtitle from intent extras: $subfile", error)
-            }
-          }
-        }
-      }
+    for (entry in subtitleEntries) {
+      if (!canIssueMpvCommands() || !PlaybackSession.isCurrentGeneration(generation)) break
+      fun metadata(values: Array<String>): String? =
+        entry.metadataIndex
+          .takeIf { it >= 0 }
+          ?.let { values.getOrNull(it) }
+          ?.trim()
+          ?.ifBlank { null }
+      Log.v(TAG, "Adding subtitle from intent extras")
+      viewModel.addIntentSubtitle(
+        uri = entry.value,
+        select = entry.select,
+        title = metadata(subtitleTitles),
+        language = metadata(subtitleLanguages),
+        generation = generation,
+      )
+    }
   }
 
   private fun extractSubtitleUriList(extras: Bundle, key: String): List<Uri> {
@@ -4202,7 +4174,21 @@ class PlayerActivity :
       }
 
       MPVLib.MpvEvent.MPV_EVENT_END_FILE -> {
-        val recovery = pendingMediaLoadRecovery ?: return
+        val recovery = pendingMediaLoadRecovery
+        if (recovery == null) {
+          // END_FILE is delivered before the session publishes ERROR; check once it has settled.
+          val generation = PlaybackSession.state.value.generation
+          lifecycleScope.launch {
+            delay(PLAYBACK_LOAD_ERROR_SETTLE_MS)
+            val latest = PlaybackSession.state.value
+            if (latest.generation == generation && latest.phase == PlaybackPhase.ERROR && ownsPlaybackSession() &&
+              pendingMediaLoadRecovery == null
+            ) {
+              handleMidPlaybackError(latest)
+            }
+          }
+          return
+        }
         val session = PlaybackSession.state.value
         if (session.generation == recovery.generation && session.phase == PlaybackPhase.ERROR) {
           // Some playlist/redirect paths emit END_FILE immediately before a new START_FILE for the
@@ -4297,8 +4283,14 @@ class PlayerActivity :
 
     setIntentExtras(intent.extras)
 
+    val launchExtras = intent.extras
     lifecycleScope.launch(Dispatchers.IO) {
       try {
+        // Subtitles handed over by the launching app are added first, in order, so the saved
+        // state below is restored against the final, deterministic track list.
+        launchExtras?.let { addSubtitlesFromExtras(it, loadGeneration) }
+        if (!PlaybackSession.isCurrentGeneration(loadGeneration)) return@launch
+
         // Load playback state (will skip track restoration if preferred language configured)
         val hasState =
           loadVideoPlaybackState(
@@ -4690,47 +4682,14 @@ class PlayerActivity :
    *
    * @param mediaTitle The title of the media being played
    */
-  @OptIn(DelicateCoroutinesApi::class)
   private fun saveVideoPlaybackState(
     mediaTitle: String,
     immediate: Boolean = false,
   ) {
     val snapshot = capturePlaybackStateSnapshot(mediaTitle) ?: return
-
-    // Cancel any previous pending save operation
-    savePlaybackStateJob?.cancel()
-
-    val saveBlock: suspend kotlinx.coroutines.CoroutineScope.() -> Unit = {
-      runCatching {
-        if (!immediate) {
-          delay(250)
-        }
-
-        val oldState = playbackStateRepository.getVideoDataByTitle(snapshot.mediaIdentifier)
-        Log.d(TAG, "Saving playback state for: ${snapshot.mediaTitle} (identifier: ${snapshot.mediaIdentifier})")
-
-        val playbackState =
-          PlaybackStatePersistence.buildEntity(
-            oldState = oldState,
-            snapshot = snapshot,
-            savePositionOnQuit = playerPreferences.savePositionOnQuit.get(),
-            watchedThreshold = browserPreferences.watchedThreshold.get(),
-          )
-        playbackStateRepository.upsert(playbackState)
-        PlaybackStateEvents.notifyChanged(snapshot.mediaIdentifier)
-      }.onFailure { e ->
-        // A newer save cancels this one through savePlaybackStateJob; that is not an error.
-        if (e is CancellationException) throw e
-        Log.e(TAG, "Error saving playback state", e)
-      }
-    }
-
-    if (immediate) {
-      lifecycleScope.launch(Dispatchers.IO + kotlinx.coroutines.NonCancellable, block = saveBlock)
-    } else {
-      // Launch new save job and track it
-      savePlaybackStateJob = lifecycleScope.launch(Dispatchers.IO, block = saveBlock)
-    }
+    // Debounced saves replace each other; an immediate save (pause, exit, end of file) is written
+    // on the coordinator's application scope so it completes even if this activity is destroyed.
+    playbackStateCoordinator.submit(snapshot, debounceMillis = if (immediate) 0L else SAVE_DEBOUNCE_MS)
   }
 
   /**
@@ -4809,7 +4768,25 @@ class PlayerActivity :
       aid = player.aid,
       audioDelayMs = ((PlaybackSession.getPropertyDouble("audio-delay") ?: 0.0) * MILLISECONDS_TO_SECONDS).toInt(),
       externalSubtitles = viewModel.externalSubtitles.joinToString("|"),
+      subVisibility = SubtitleVisibility.userValue(),
+      sidKey = TrackKeys.currentKey("sub", viewModel::subtitleSourceFor),
+      secondarySidKey = TrackKeys.currentKey("sub2", viewModel::subtitleSourceFor),
+      aidKey = TrackKeys.currentKey("audio"),
+      mediaLocation = verifiedLocalLocation(saveIdentifier),
     )
+  }
+
+  /**
+   * The local file path behind [identifier], recorded so state of deleted files can be swept.
+   * Only returned when the path provably produces [identifier]; during a queue transition the
+   * candidates may still describe the previous item.
+   */
+  private fun verifiedLocalLocation(identifier: String): String? {
+    val item = PlaybackSession.state.value.currentItem
+    return sequenceOf(intent?.getStringExtra("local_media_path"), item?.originalUri, item?.playableUri)
+      .filterNotNull()
+      .map { candidate -> if (candidate.startsWith("file://")) candidate.toUri().path.orEmpty() else candidate }
+      .firstOrNull { path -> path.startsWith("/") && PlaybackIdentity.forLocalPath(path) == identifier }
   }
 
   private fun readMpvIntSeconds(
@@ -4926,31 +4903,23 @@ class PlayerActivity :
       }
     }
 
-    // Always restore subtitle and audio tracks from saved state
-    // Manual selection has highest priority, but respect auto-enable preference
+    // Restore the user's last subtitle choice for this file. Tracks are matched by their stable key
+    // (external source / container stream), so re-numbered tracks never select the wrong
+    // language; rows saved before keys existed fall back to the raw id. A restored choice is
+    // protected from automatic selection but never forces subtitles visible on its own.
     val generation = PlaybackSession.state.value.generation
-    val autoEnableSubs = subtitlesPreferences.autoEnableSubtitles.get()
-    val src = if (autoEnableSubs) SubtitleSelectionSource.USER else SubtitleSelectionSource.INTERNAL
-    if (state.sid > 0) {
-      setTrackSelectionId(
-        "sid",
-        state.sid,
-        restoreSubtitleVisibility = true,
-        source = src,
-        generation = generation,
-      )
-      Log.d(TAG, "Restored primary subtitle track: ${state.sid} (autoEnableSubs=$autoEnableSubs)")
+    val subtitleTracks = TrackKeys.tracks("sub", viewModel::subtitleSourceFor)
+    restoredTrackId(state.sidKey, state.sid, subtitleTracks)?.let { sid ->
+      setTrackSelectionId("sid", sid, source = SubtitleSelectionSource.RESTORED, generation = generation)
+      Log.d(TAG, "Restored primary subtitle track: $sid (keyed=${state.sidKey != null})")
     }
-
-    if (state.secondarySid > 0) {
-      setTrackSelectionId(
-        "secondary-sid",
-        state.secondarySid,
-        restoreSubtitleVisibility = true,
-        source = src,
-        generation = generation,
-      )
-      Log.d(TAG, "Restored secondary subtitle track: ${state.secondarySid} (autoEnableSubs=$autoEnableSubs)")
+    restoredTrackId(state.secondarySidKey, state.secondarySid, subtitleTracks)?.let { sid ->
+      setTrackSelectionId("secondary-sid", sid, source = SubtitleSelectionSource.RESTORED, generation = generation)
+      Log.d(TAG, "Restored secondary subtitle track: $sid (keyed=${state.secondarySidKey != null})")
+    }
+    state.subVisibility?.let { visible ->
+      SubtitleVisibility.applyUserValue(visible)
+      SubtitleSelectionGuard.markVisibilityRestored(generation)
     }
 
     applySubtitleLayout(
@@ -4960,9 +4929,11 @@ class PlayerActivity :
       screenHeight = player.height.takeIf { it > 0 }?.toFloat(),
     )
 
-    if (restoreAudioTrack && state.aid > 0) {
-      player.aid = state.aid
-      Log.d(TAG, "Restored audio track: ${state.aid} (user selection)")
+    if (restoreAudioTrack) {
+      restoredTrackId(state.aidKey, state.aid, TrackKeys.tracks("audio"))?.let { aid ->
+        player.aid = aid
+        Log.d(TAG, "Restored audio track: $aid (keyed=${state.aidKey != null})")
+      }
     }
 
     PlaybackSession.setPropertyDouble("sub-delay", subDelay)
@@ -4976,6 +4947,18 @@ class PlayerActivity :
     PlaybackSession.setPropertyDouble("video-zoom", state.videoZoom.toDouble())
     viewModel.setVideoZoom(state.videoZoom)
   }
+
+  /** Saved track to restore: by stable key when one was saved, else (older rows) by raw id. */
+  private fun restoredTrackId(
+    key: String?,
+    savedId: Int,
+    tracks: List<TrackKeys.Descriptor>,
+  ): Int? =
+    if (key != null) {
+      TrackKeys.resolve(key, tracks.firstOrNull()?.type ?: return null, tracks)
+    } else {
+      savedId.takeIf { id -> id > 0 && tracks.any { it.id == id } }
+    }
 
 private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
   if (state == null || viewModel.isAudioOnly.value || isCurrentMediaKnownAudio()) return
@@ -5292,6 +5275,7 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
     // means it only changes when genuinely new media is being loaded, not on every onNewIntent
     // call, so a stale true/false from the previous file never leaks into the next one.
     isSecureFolderLaunch = intent.getStringExtra("launch_source") == "secure_folder"
+    applySecureWindowFlag()
 
     // External file managers / SAF multiple selections
     val isSendMultiple = intent.action == Intent.ACTION_SEND_MULTIPLE
@@ -5865,8 +5849,116 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
     val message = error?.takeIf { it.isNotBlank() } ?: "Media did not become ready"
     PlaybackSession.reportLoadTimeout(request.generation, message)
     viewModel.onVideoLoadCompleted()
-    viewModel.showToast(getString(R.string.toast_playback_load_failed))
+    lastFailedLoad = request
+    viewModel.reportPlaybackError(classifyPlaybackError(request.item, message))
     Log.e(TAG, "Media load failed after recovery: $message")
+  }
+
+  /** The load that failed most recently, kept so the error card can retry it. */
+  private var lastFailedLoad: PendingMediaLoadRecovery? = null
+
+  /** Generation for which a dropped stream was already retried once automatically. */
+  private var midPlaybackRetryGeneration = Long.MIN_VALUE
+
+  private fun classifyPlaybackError(
+    item: PlaybackItem,
+    error: String?,
+  ): PlaybackErrorUi {
+    val localPath =
+      sequenceOf(item.originalUri, item.playableUri)
+        .firstOrNull { it.startsWith("/") || it.startsWith("file://") }
+        ?.let { if (it.startsWith("file://")) it.toUri().path else it }
+    val hwdec = runCatching { PlaybackSession.getPropertyString("hwdec-current") }.getOrNull().orEmpty()
+    return PlaybackErrorClassifier.classify(
+      error = error,
+      sourceUri = item.originalUri,
+      localFileMissing = localPath != null && !File(localPath).exists(),
+      hardwareDecodingActive = hwdec.isNotBlank() && hwdec != "no",
+    )
+  }
+
+  /**
+   * A file that was already playing ended with an error (typically a dropped network stream).
+   * Network sources are reopened once at the last position; otherwise the error card is shown.
+   */
+  private fun handleMidPlaybackError(session: PlaybackSessionState) {
+    val item = session.currentItem ?: return
+    val failed =
+      PendingMediaLoadRecovery(
+        item = item,
+        generation = session.generation,
+        attempt = MAX_PLAYBACK_LOAD_RETRIES,
+        requestGeneration = mediaRequestGeneration,
+        legacyMediaIdentifier = legacyMediaIdentifier,
+        positionRestoreOverride =
+          PlaybackPositionRestoreOverride(
+            positionSeconds = viewModel.precisePosition.value.toDouble().takeIf { it > 0.0 },
+            paused = false,
+          ),
+      )
+    lastFailedLoad = failed
+    val error = classifyPlaybackError(item, session.error)
+    if (error.kind == PlaybackErrorKind.NETWORK && midPlaybackRetryGeneration != session.generation) {
+      midPlaybackRetryGeneration = session.generation
+      Log.w(TAG, "Stream dropped mid-playback; reopening once at the last position")
+      retryPlaybackAfterError(softwareDecoding = false)
+      return
+    }
+    viewModel.reportPlaybackError(error)
+  }
+
+  /** Reopens the media that failed, optionally with hardware decoding switched off. */
+  internal fun retryPlaybackAfterError(softwareDecoding: Boolean) {
+    val failed = lastFailedLoad ?: return
+    if (softwareDecoding) PlaybackSession.setPropertyString("hwdec", "no")
+    if (!beginMediaRequest()) return
+    val requestGeneration = mediaRequestGeneration
+    mediaLoadJob?.cancel()
+    cancelPlaybackLoadRecovery()
+    isReady = false
+    playWhenFileLoaded = true
+    viewModel.onVideoLoadStarted()
+    mediaLoadJob =
+      lifecycleScope.launch(mediaLoadDispatcher) {
+        try {
+          issuePlaybackLoad(
+            item = failed.item,
+            attempt = 0,
+            requestGeneration = requestGeneration,
+            legacyMediaIdentifier = failed.legacyMediaIdentifier,
+            ytdlFormat = failed.ytdlFormat,
+            positionRestoreOverride = failed.positionRestoreOverride,
+          )
+        } catch (cancellation: CancellationException) {
+          throw cancellation
+        } catch (error: Exception) {
+          Log.e(TAG, "Retry after playback error could not be issued", error)
+          withContext(Dispatchers.Main) {
+            if (!isCurrentMediaRequest(requestGeneration)) return@withContext
+            playWhenFileLoaded = false
+            viewModel.onVideoLoadCompleted()
+            viewModel.reportPlaybackError(classifyPlaybackError(failed.item, error.message))
+          }
+        }
+      }
+  }
+
+  /** Hands the failed media to another installed player. */
+  internal fun openFailedMediaExternally() {
+    val source = lastFailedLoad?.item?.originalUri ?: PlaybackSession.state.value.currentItem?.originalUri ?: return
+    val uri = if (source.startsWith("/")) Uri.fromFile(File(source)) else source.toUri()
+    if (uri.scheme == "file") {
+      // file:// cannot be shared across apps; only content and network URIs are offered.
+      viewModel.showToast(getString(R.string.playback_error_open_with_unavailable))
+      return
+    }
+    val view =
+      Intent(Intent.ACTION_VIEW).apply {
+        setDataAndType(uri, lastFailedLoad?.item?.mimeType ?: "video/*")
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+      }
+    runCatching { startActivity(Intent.createChooser(view, getString(R.string.playback_error_open_with))) }
+      .onFailure { viewModel.showToast(getString(R.string.playback_error_open_with_unavailable)) }
   }
 
   private fun cancelPlaybackLoadRecovery() {
@@ -8170,6 +8262,15 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
     }
   }
 
+  /** Hidden media must not appear in screenshots, recordings or the Recents thumbnail. */
+  private fun applySecureWindowFlag() {
+    if (isSecureFolderLaunch) {
+      window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+    } else {
+      window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+    }
+  }
+
   companion object {
     /**
      * Intent action used to return playback result data to the calling activity.
@@ -8219,6 +8320,7 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
 
     private const val PLAYBACK_LOAD_RETRY_DELAY_MS = 200L
     private const val PLAYBACK_LOAD_ERROR_SETTLE_MS = 300L
+    private const val SAVE_DEBOUNCE_MS = 250L
     private const val MAX_PLAYBACK_LOAD_RETRIES = 1
     private const val DEFERRED_MPV_ASSET_SYNC_DELAY_MS = 5_000L
     private const val LOCKED_CONTROLS_DOUBLE_BACK_TIMEOUT_MS = 2_000L

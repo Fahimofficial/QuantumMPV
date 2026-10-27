@@ -22,6 +22,19 @@ interface PlaybackStateRepository {
 
   suspend fun deleteByTitle(mediaTitle: String)
 
+  /** Deletes every row whose key is one of [identifiers]. */
+  suspend fun deleteStates(identifiers: Collection<String>)
+
+  /**
+   * Atomically re-keys the first existing row found under [fromIdentifiers] (in iteration order) to
+   * [toIdentifier] and removes every other [fromIdentifiers] row. Returns the moved row, or null
+   * when none of the source keys has saved state.
+   */
+  suspend fun moveState(
+    fromIdentifiers: Collection<String>,
+    toIdentifier: String,
+  ): PlaybackStateEntity?
+
   suspend fun updateMediaTitle(
     oldTitle: String,
     newTitle: String,

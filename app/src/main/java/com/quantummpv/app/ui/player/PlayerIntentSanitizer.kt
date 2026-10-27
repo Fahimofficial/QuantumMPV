@@ -16,6 +16,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Parcelable
 import android.util.Log
+import androidx.core.net.toUri
 import java.io.File
 import java.security.SecureRandom
 
@@ -63,15 +64,43 @@ class PrivateStoragePolicy(
    * them read files that the non-exported provider exposes only to this process.
    */
   fun isPrivateUri(uri: Uri): Boolean =
-    when (uri.scheme?.lowercase()) {
+    when (val scheme = uri.scheme?.lowercase()) {
       null, "" -> uri.path?.let(::isPrivatePath) == true
       "file" -> uri.path?.let(::isPrivatePath) == true
       "content" -> uri.authority?.let { it == packageName || it.startsWith("$packageName.") } == true
-      else -> false
+      // mpv/ffmpeg pseudo-protocols (edl://, av://file:, lavf://, slice://, fd://, archive://…)
+      // can wrap a local path, and the app's own schemes resolve saved server credentials. Other
+      // apps only get the plain network and file schemes a player is expected to open.
+      else -> scheme !in EXTERNAL_SCHEMES
     }
 
   fun isPrivateReference(value: String): Boolean =
-    if (value.startsWith("/")) isPrivatePath(value) else isPrivateUri(Uri.parse(value))
+    if (value.startsWith("/")) isPrivatePath(value) else isPrivateUri(value.trim().toUri())
+
+  companion object {
+    /** Schemes other apps may ask the player to open, besides file and content. */
+    val EXTERNAL_SCHEMES =
+      setOf(
+        "http",
+        "https",
+        "rtsp",
+        "rtsps",
+        "rtmp",
+        "rtmps",
+        "rtp",
+        "srt",
+        "mms",
+        "mmsh",
+        "mmst",
+        "udp",
+        "tcp",
+        "ftp",
+        "ftps",
+        "data",
+        "magnet",
+        "torrent",
+      )
+  }
 }
 
 /**
@@ -85,6 +114,24 @@ object PlayerIntentSanitizer {
   private val pathExtras = listOf("local_media_path", "uri")
   private val uriListExtras = listOf("playlist", Intent.EXTRA_STREAM, "subs", "subs.enable")
   private val stringListExtras = listOf("video_list")
+
+  /**
+   * Extras that make the player act on data only the app should be able to name: saved network
+   * connections (and their stored credentials), saved playlists, prepared torrents and playback
+   * state keys. In-process launches carry [InternalPlayerLaunch]; other apps lose these extras.
+   */
+  private val internalOnlyExtras =
+    listOf(
+      "network_connection_id",
+      "network_file_path",
+      "network_playlist_connection_id",
+      "network_playlist_paths",
+      "network_playlist_titles",
+      "network_playlist_artwork_urls",
+      "playlist_id",
+      "torrent_preparation_id",
+      "media_identifier",
+    )
 
   fun policyFor(context: Context): PrivateStoragePolicy {
     val roots =
@@ -117,6 +164,13 @@ object PlayerIntentSanitizer {
     }
 
     val extras = intent.extras ?: return intent.also { logRemoved(removed) }
+
+    internalOnlyExtras.forEach { key ->
+      if (extras.containsKey(key)) {
+        intent.removeExtra(key)
+        removed++
+      }
+    }
 
     pathExtras.forEach { key ->
       val value = runCatching { extras.getString(key) }.getOrNull() ?: return@forEach

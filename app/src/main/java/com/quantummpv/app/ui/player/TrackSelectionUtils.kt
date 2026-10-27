@@ -16,12 +16,24 @@ enum class SubtitleSelectionSource {
   USER,
   AUTO,
   INTERNAL,
+
+  /**
+   * The choice the user made last time for this file, restored from saved state. Automatic
+   * policies may not replace it; a new user choice can. Never forces subtitles visible.
+   */
+  RESTORED,
 }
 
-/** Prevents an automatic selection from overwriting a user choice in the same media generation. */
+/**
+ * Per-generation subtitle ownership: prevents an automatic selection from overwriting a user (or
+ * restored) choice, and keeps a restored visibility from being flipped back on by automation.
+ */
 internal object SubtitleSelectionGuard {
   private var manualGeneration: Long = Long.MIN_VALUE
+  private var restoredGeneration: Long = Long.MIN_VALUE
+  private var visibilityGeneration: Long = Long.MIN_VALUE
 
+  /** An explicit choice (the user, or an external app's "enable this subtitle") was applied. */
   @Synchronized
   fun markManual(generation: Long) {
     manualGeneration = generation
@@ -29,6 +41,25 @@ internal object SubtitleSelectionGuard {
 
   @Synchronized
   fun isManualSelection(generation: Long): Boolean = manualGeneration == generation
+
+  /** The saved choice for this file was applied. */
+  @Synchronized
+  fun markRestored(generation: Long) {
+    restoredGeneration = generation
+  }
+
+  /** Automatic policies may not replace an explicit or restored choice. */
+  @Synchronized
+  fun blocksAutomaticSelection(generation: Long): Boolean = manualGeneration == generation || restoredGeneration == generation
+
+  /** The saved visibility for this file was applied; only the user may change it from now on. */
+  @Synchronized
+  fun markVisibilityRestored(generation: Long) {
+    visibilityGeneration = generation
+  }
+
+  @Synchronized
+  fun isVisibilityRestored(generation: Long): Boolean = visibilityGeneration == generation
 }
 
 internal fun getTrackSelectionId(property: String): Int =
@@ -50,9 +81,12 @@ internal fun setTrackSelectionId(
     return false
   }
   if (property == "sid" || property == "secondary-sid") {
-    if (source == SubtitleSelectionSource.AUTO &&
-      SubtitleSelectionGuard.isManualSelection(generation)
-    ) {
+    if (source == SubtitleSelectionSource.AUTO && SubtitleSelectionGuard.blocksAutomaticSelection(generation)) {
+      return false
+    }
+    // A choice made for this launch (by the user, or an app that asked to enable a subtitle)
+    // outranks what was saved last time.
+    if (source == SubtitleSelectionSource.RESTORED && SubtitleSelectionGuard.isManualSelection(generation)) {
       return false
     }
   }
@@ -67,14 +101,22 @@ internal fun setTrackSelectionId(
     }
     if (getTrackSelectionId(property) != selectedId) return false
 
-    if (source == SubtitleSelectionSource.USER &&
-      (property == "sid" || property == "secondary-sid")
-    ) {
+    if (property == "sid" || property == "secondary-sid") {
       // The ID write is the authoritative selection result. Visibility may be owned by mpv.conf,
-      // so record the user choice before performing the best-effort visibility restore.
-      SubtitleSelectionGuard.markManual(generation)
+      // so record the choice before performing the best-effort visibility restore.
+      when (source) {
+        SubtitleSelectionSource.USER -> SubtitleSelectionGuard.markManual(generation)
+        SubtitleSelectionSource.RESTORED -> SubtitleSelectionGuard.markRestored(generation)
+        else -> Unit
+      }
     }
-    if (restoreSubtitleVisibility && (property == "sid" || property == "secondary-sid")) {
+    val mayShowSubtitles =
+      when (source) {
+        SubtitleSelectionSource.USER -> true
+        SubtitleSelectionSource.RESTORED -> false
+        else -> !SubtitleSelectionGuard.isVisibilityRestored(generation)
+      }
+    if (restoreSubtitleVisibility && mayShowSubtitles && (property == "sid" || property == "secondary-sid")) {
       PlaybackSession.setPropertyBoolean("sub-visibility", true)
       if (PlaybackSession.getPropertyBoolean("sub-visibility") != true) {
         Log.w("TrackSelectionUtils", "MPV did not confirm sub-visibility=true after selecting $selectedId")
@@ -85,10 +127,12 @@ internal fun setTrackSelectionId(
 
   PlaybackSession.setPropertyString(property, "no")
   val cleared = getTrackSelectionId(property) <= 0
-  if (cleared && source == SubtitleSelectionSource.USER &&
-    (property == "sid" || property == "secondary-sid")
-  ) {
-    SubtitleSelectionGuard.markManual(generation)
+  if (cleared && (property == "sid" || property == "secondary-sid")) {
+    when (source) {
+      SubtitleSelectionSource.USER -> SubtitleSelectionGuard.markManual(generation)
+      SubtitleSelectionSource.RESTORED -> SubtitleSelectionGuard.markRestored(generation)
+      else -> Unit
+    }
   }
   return cleared
 }
