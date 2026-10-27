@@ -162,7 +162,7 @@ class SecureFolderRepository(
 
           removeFromMediaStore(context, video)
           RecentlyPlayedOps.onVideoDeleted(video.path)
-          PlaybackStateOps.onVideoDeleted(video.path)
+          PlaybackStateOps.onVideoDeleted(video.path, video.uri.toString())
 
           succeeded += video.id
         } catch (e: Exception) {
