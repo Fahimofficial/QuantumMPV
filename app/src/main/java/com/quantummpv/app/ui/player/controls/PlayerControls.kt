@@ -128,6 +128,7 @@ import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.preferences.preference.deleteAndGet
 import com.quantummpv.app.preferences.preference.minusAssign
 import com.quantummpv.app.preferences.preference.plusAssign
+import com.quantummpv.app.ui.cast.rememberCastDevicesAvailable
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.ControlsAnimationStyle
@@ -500,12 +501,14 @@ fun PlayerControls(
     }
   val portraitHasConfiguredQualityButton = PlayerButton.VIDEO_QUALITY in portraitBottomButtons
   val hasPlaylistSupport = viewModel.hasPlaylistSupport()
-    val playerDrawerButtons =
+  val castDevicesAvailable = rememberCastDevicesAvailable()
+  val playerDrawerButtons =
     remember(
       showVideoQualitySelector,
       chapters,
       isAudioOnly,
       hasPlaylistSupport,
+      castDevicesAvailable,
     ) {
       allPlayerButtons.filter { button ->
         when (button) {
@@ -515,6 +518,7 @@ fun PlayerControls(
           PlayerButton.PICTURE_IN_PICTURE -> !isAudioOnly
           PlayerButton.VIDEO_QUALITY -> showVideoQualitySelector
           PlayerButton.SHUFFLE -> hasPlaylistSupport
+          PlayerButton.CAST -> castDevicesAvailable
           else -> true
         }
       }
@@ -2038,6 +2042,93 @@ is PlayerUpdates.FrameInfo -> {
       }
     }
 
+    val activePlayerDrawerButtons =
+      remember(
+        isSpeedNonOne,
+        currentZoom,
+        repeatMode,
+        shuffleEnabled,
+        transformState,
+        abLoopA,
+        abLoopB,
+        isHdrOutputEnabled,
+        isAmbientEnabled,
+        backgroundPlaybackEnabled,
+        statisticsPage,
+        mediaScopesState.overlayVisible,
+      ) {
+        buildSet {
+          if (isSpeedNonOne) add(PlayerButton.PLAYBACK_SPEED)
+          if (kotlin.math.abs(currentZoom) >= 0.005f) add(PlayerButton.VIDEO_ZOOM)
+          if (repeatMode != com.quantummpv.app.ui.player.RepeatMode.OFF) add(PlayerButton.REPEAT_MODE)
+          if (shuffleEnabled) add(PlayerButton.SHUFFLE)
+          if (transformState.isMirrored) add(PlayerButton.MIRROR)
+          if (transformState.isVerticalFlipped) add(PlayerButton.VERTICAL_FLIP)
+          if (abLoopA != null || abLoopB != null) add(PlayerButton.AB_LOOP)
+          if (isHdrOutputEnabled) add(PlayerButton.HDR_MODE)
+          if (isAmbientEnabled) add(PlayerButton.AMBIENT_MODE)
+          if (backgroundPlaybackEnabled) add(PlayerButton.BACKGROUND_PLAYBACK)
+          if (statisticsPage == 6) add(PlayerButton.TIME_NETWORK)
+          if (mediaScopesState.overlayVisible) add(PlayerButton.SCOPES)
+        }
+      }
+
+    // Without the drawer, More lists every control that is not already on the HUD.
+    val hudButtons =
+      remember(isPortrait, portraitBottomButtons, topRightButtons, bottomRightButtons, bottomLeftButtons) {
+        if (isPortrait) {
+          portraitBottomButtons.toSet()
+        } else {
+          (topRightButtons + bottomRightButtons + bottomLeftButtons).toSet()
+        }
+      }
+    val moreSheetButtons =
+      remember(showControlsDrawer, playerDrawerButtons, hudButtons) {
+        if (showControlsDrawer) {
+          emptyList()
+        } else {
+          playerDrawerButtons.filter { it !in hudButtons && it != PlayerButton.MORE_OPTIONS }
+        }
+      }
+    val moreControls: (@Composable () -> Unit)? =
+      if (moreSheetButtons.isEmpty()) {
+        null
+      } else {
+        {
+          PlayerButtonTheme(hideBackground = false) {
+            CompositionLocalProvider(LocalHidePlayerButtonsBackground provides true) {
+              PlayerControlGrid(
+                buttons = moreSheetButtons,
+                activeButtons = activePlayerDrawerButtons,
+                columnCount = if (isPortrait) 3 else 5,
+                renderButton = { button ->
+                  renderPlayerButton(
+                    button = button,
+                    chapters = chapters,
+                    currentChapter = currentChapter,
+                    isPortrait = isPortrait,
+                    isSpeedNonOne = isSpeedNonOne,
+                    currentZoom = currentZoom,
+                    aspect = aspect,
+                    mediaTitle = mediaTitle,
+                    hideBackground = true,
+                    decoder = decoder,
+                    playbackSpeed = playbackSpeed ?: 1f,
+                    onBackPress = onBackPress,
+                    onOpenSheet = onOpenSheet,
+                    onOpenPanel = onOpenPanel,
+                    viewModel = viewModel,
+                    activity = playerActivity,
+                    buttonSize = 44.dp,
+                    compact = true,
+                  )
+                },
+              )
+            }
+          }
+        }
+      }
+
     val sheetShown by viewModel.sheetShown.collectAsState()
     val subtitles by viewModel.subtitleTracks.collectAsState(persistentListOf())
     val audioTracks by viewModel.audioTracks.collectAsState(persistentListOf())
@@ -2083,6 +2174,7 @@ is PlayerUpdates.FrameInfo -> {
       onOpenPanel = onOpenPanel,
       onShowSheet = onOpenSheet,
       onDismissRequest = { onOpenSheet(Sheets.None) },
+      moreControls = moreControls,
     )
 
     val panel by viewModel.panelShown.collectAsState()
@@ -2091,37 +2183,6 @@ is PlayerUpdates.FrameInfo -> {
       viewModel = viewModel,
       onDismissRequest = { onOpenPanel(Panels.None) },
     )
-
-val activePlayerDrawerButtons =
-      remember(
-        isSpeedNonOne,
-        currentZoom,
-        repeatMode,
-        shuffleEnabled,
-        transformState,
-        abLoopA,
-        abLoopB,
-        isHdrOutputEnabled,
-        isAmbientEnabled,
-        backgroundPlaybackEnabled,
-        statisticsPage,
-        mediaScopesState.overlayVisible,
-      ) {
-        buildSet {
-          if (isSpeedNonOne) add(PlayerButton.PLAYBACK_SPEED)
-          if (kotlin.math.abs(currentZoom) >= 0.005f) add(PlayerButton.VIDEO_ZOOM)
-          if (repeatMode != com.quantummpv.app.ui.player.RepeatMode.OFF) add(PlayerButton.REPEAT_MODE)
-          if (shuffleEnabled) add(PlayerButton.SHUFFLE)
-          if (transformState.isMirrored) add(PlayerButton.MIRROR)
-          if (transformState.isVerticalFlipped) add(PlayerButton.VERTICAL_FLIP)
-          if (abLoopA != null || abLoopB != null) add(PlayerButton.AB_LOOP)
-          if (isHdrOutputEnabled) add(PlayerButton.HDR_MODE)
-          if (isAmbientEnabled) add(PlayerButton.AMBIENT_MODE)
-          if (backgroundPlaybackEnabled) add(PlayerButton.BACKGROUND_PLAYBACK)
-          if (statisticsPage == 6) add(PlayerButton.TIME_NETWORK)
-          if (mediaScopesState.overlayVisible) add(PlayerButton.SCOPES)
-        }
-      }
 
     if (showControlsDrawer) {
       PlayerButtonTheme(hideBackground = false) {

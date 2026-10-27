@@ -106,6 +106,12 @@ class App :
 
     configureDebugStrictMode()
 
+    // Before anything reads a preference: existing installs keep the defaults they started with.
+    com.quantummpv.app.preferences.PreferenceDefaultsGeneration.apply(
+      androidx.preference.PreferenceManager.getDefaultSharedPreferences(this),
+      hasOtherAppData = getDatabasePath("mpvrx.db").exists(),
+    )
+
     // Initialize Koin
     startKoin {
       androidContext(this@App)

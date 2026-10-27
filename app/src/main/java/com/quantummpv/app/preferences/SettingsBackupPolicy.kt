@@ -33,6 +33,8 @@ object SettingsBackupPolicy {
       // Caches and bookkeeping that are only meaningful on the device that wrote them.
       "wyzie_cached_sources_json",
       "ai_last_verified",
+      // Records which defaults this install started with; importing it would change another device's.
+      PreferenceDefaultsGeneration.KEY,
     )
 
   /** Name fragments that mark a value as a credential even if it was never wrapped in encryption. */

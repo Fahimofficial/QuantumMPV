@@ -67,6 +67,7 @@ import com.quantummpv.app.preferences.PlayerClockFormat
 import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.ui.cast.CastPlayerButton
+import com.quantummpv.app.ui.cast.rememberCastDevicesAvailable
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.Panels
 import com.quantummpv.app.ui.player.PlaybackSession
@@ -651,12 +652,14 @@ fun renderPlayerButton(
       }
 
       PlayerButton.CAST -> {
-        CastPlayerButton(
-          hideBackground = hideBackground,
-          buttonSize = buttonSize,
-          onInvoked = clickEvent,
-          contentColor = if (hideBackground) controlColor else null,
-        )
+        if (rememberCastDevicesAvailable()) {
+          CastPlayerButton(
+            hideBackground = hideBackground,
+            buttonSize = buttonSize,
+            onInvoked = clickEvent,
+            contentColor = if (hideBackground) controlColor else null,
+          )
+        }
       }
 
       PlayerButton.ASPECT_RATIO -> {

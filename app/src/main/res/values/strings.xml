@@ -197,6 +197,11 @@
   <string name="pref_layout_title">Player Layout</string>
   <string name="pref_layout_summary">Customize player button layout</string>
   <string name="pref_layout_reset_default">Reset to default</string>
+  <string name="pref_layout_reset_recommended">Use recommended layout</string>
+  <string name="pref_layout_reset_recommended_hint">Fewer buttons on screen. Everything else stays in More.</string>
+  <string name="pref_layout_reset_recommended_title">Use the recommended layout?</string>
+  <string name="pref_layout_reset_recommended_summary">Every control region will be replaced with the recommended buttons. Controls that are no longer on screen are listed in More.</string>
+  <string name="player_more_controls_title">Controls</string>
   <string name="pref_layout_top_right_controls">Top Right Controls</string>
   <string name="pref_layout_bottom_right_controls">Bottom Right Controls</string>
   <string name="pref_layout_bottom_left_controls">Bottom Left Controls</string>

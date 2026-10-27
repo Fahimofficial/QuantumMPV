@@ -54,8 +54,15 @@ import kotlinx.collections.immutable.ImmutableList
 class AppearancePreferences(
   private val preferenceStore: PreferenceStore,
 ) {
-    companion object {
+  companion object {
     const val CUSTOM_WALLPAPER_URI_KEY = "custom_wallpaper_uri"
+
+    const val DEFAULT_TOP_LEFT_CONTROLS = "BACK_ARROW,VIDEO_TITLE"
+    const val DEFAULT_TOP_RIGHT_CONTROLS = "SUBTITLES,AUDIO_TRACK,MORE_OPTIONS"
+    const val DEFAULT_BOTTOM_RIGHT_CONTROLS = "SCREEN_ROTATION,PICTURE_IN_PICTURE,ASPECT_RATIO"
+    const val DEFAULT_BOTTOM_LEFT_CONTROLS = "LOCK_CONTROLS,PLAYBACK_SPEED"
+    const val DEFAULT_PORTRAIT_BOTTOM_CONTROLS =
+      "LOCK_CONTROLS,SUBTITLES,AUDIO_TRACK,PLAYBACK_SPEED,SCREEN_ROTATION,MORE_OPTIONS"
   }
 
   val darkMode = preferenceStore.getEnum("dark_mode", DarkMode.System)
@@ -168,40 +175,14 @@ class AppearancePreferences(
   val showQuickPlayFab = preferenceStore.getBoolean("show_quick_play_fab", true)
   val quickPlayFabDirect = preferenceStore.getBoolean("quick_play_fab_direct", false)
 
-  val topLeftControls =
-    preferenceStore.getString(
-      "top_left_controls",
-      "BACK_ARROW,VIDEO_TITLE",
-    )
-
-  val topRightControls =
-    preferenceStore.getString(
-      "top_right_controls",
-      "CAST,CURRENT_CHAPTER,DECODER,AUDIO_TRACK,SUBTITLES,MORE_OPTIONS",
-    )
-
-  val bottomRightControls =
-    preferenceStore.getString(
-      "bottom_right_controls",
-      "FRAME_NAVIGATION,CLIP,SCOPES,VIDEO_ZOOM,PICTURE_IN_PICTURE,ASPECT_RATIO",
-    )
-
-  val bottomLeftControls =
-    preferenceStore.getString(
-      "bottom_left_controls",
-      "BACKGROUND_PLAYBACK,LOCK_CONTROLS,SCREEN_ROTATION,PLAYBACK_SPEED,REPEAT_MODE,SHUFFLE,AB_LOOP",
-    )
-
+  // Recommended layout for new installs: the controls people reach for while watching, with the rest in
+  // More. Existing installs keep the layout they had (see PreferenceDefaultsGeneration).
+  val topLeftControls = preferenceStore.getString("top_left_controls", DEFAULT_TOP_LEFT_CONTROLS)
+  val topRightControls = preferenceStore.getString("top_right_controls", DEFAULT_TOP_RIGHT_CONTROLS)
+  val bottomRightControls = preferenceStore.getString("bottom_right_controls", DEFAULT_BOTTOM_RIGHT_CONTROLS)
+  val bottomLeftControls = preferenceStore.getString("bottom_left_controls", DEFAULT_BOTTOM_LEFT_CONTROLS)
   val portraitBottomControls =
-    preferenceStore.getString(
-      "portrait_bottom_controls",
-      "CAST,SCREEN_ROTATION,DECODER,AUDIO_TRACK,SUBTITLES,BOOKMARKS_CHAPTERS,PLAYBACK_SPEED,BACKGROUND_PLAYBACK,REPEAT_MODE,SHUFFLE,VIDEO_ZOOM,FRAME_NAVIGATION,CLIP,SCOPES,ASPECT_RATIO,PICTURE_IN_PICTURE,LOCK_CONTROLS,MORE_OPTIONS",
-    )
-
-  private val castButtonMigrationComplete =
-    preferenceStore.getBoolean("cast_button_migration_complete", false)
-  private val clipButtonMigrationComplete =
-    preferenceStore.getBoolean("clip_button_migration_complete", false)
+    preferenceStore.getString("portrait_bottom_controls", DEFAULT_PORTRAIT_BOTTOM_CONTROLS)
 
   init {
     canonicalizeSurfaceStyle()
@@ -215,44 +196,15 @@ class AppearancePreferences(
         selectedCustomThemeName.set(legacyTheme.name)
       }
     }
+  }
 
-    if (!castButtonMigrationComplete.get()) {
-      val landscapeButtons =
-        listOf(
-          topLeftControls.get(),
-          topRightControls.get(),
-          bottomRightControls.get(),
-          bottomLeftControls.get(),
-        ).flatMap { it.split(',') }
-          .map { it.trim().uppercase() }
-      if ("CAST" !in landscapeButtons) {
-        topRightControls.set("CAST,${topRightControls.get()}")
-      }
-      val portraitButtons = portraitBottomControls.get().split(',').map { it.trim().uppercase() }
-      if ("CAST" !in portraitButtons) {
-        portraitBottomControls.set("CAST,${portraitBottomControls.get()}")
-      }
-      castButtonMigrationComplete.set(true)
-    }
-
-    if (!clipButtonMigrationComplete.get()) {
-      val landscapeButtons =
-        listOf(
-          topLeftControls.get(),
-          topRightControls.get(),
-          bottomRightControls.get(),
-          bottomLeftControls.get(),
-        ).flatMap { it.split(',') }
-          .map { it.trim().uppercase() }
-      if ("CLIP" !in landscapeButtons) {
-        bottomRightControls.set("${bottomRightControls.get()},CLIP")
-      }
-      val portraitButtons = portraitBottomControls.get().split(',').map { it.trim().uppercase() }
-      if ("CLIP" !in portraitButtons) {
-        portraitBottomControls.set("${portraitBottomControls.get()},CLIP")
-      }
-      clipButtonMigrationComplete.set(true)
-    }
+  /** Replaces every player control region with the recommended layout. */
+  fun resetPlayerLayoutToRecommended() {
+    topLeftControls.set(DEFAULT_TOP_LEFT_CONTROLS)
+    topRightControls.set(DEFAULT_TOP_RIGHT_CONTROLS)
+    bottomRightControls.set(DEFAULT_BOTTOM_RIGHT_CONTROLS)
+    bottomLeftControls.set(DEFAULT_BOTTOM_LEFT_CONTROLS)
+    portraitBottomControls.set(DEFAULT_PORTRAIT_BOTTOM_CONTROLS)
   }
 
   fun parseButtons(

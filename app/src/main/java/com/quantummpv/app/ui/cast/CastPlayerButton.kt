@@ -19,17 +19,59 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
 import androidx.mediarouter.app.MediaRouteButton
 import com.google.android.gms.cast.framework.CastButtonFactory
+import com.google.android.gms.cast.framework.CastContext
+import com.google.android.gms.cast.framework.CastState
+import com.google.android.gms.cast.framework.CastStateListener
 import com.quantummpv.app.preferences.PlayerButton
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.theme.controlColor
 import androidx.compose.ui.graphics.Color as ComposeColor
+
+/**
+ * True while the Cast framework sees at least one receiver (or a session is active). Google's Cast design
+ * guidelines show the Cast button only then; without Play services the button stays hidden.
+ */
+@Composable
+fun rememberCastDevicesAvailable(): Boolean {
+  val context = LocalContext.current
+  var available by remember { mutableStateOf(false) }
+  DisposableEffect(context) {
+    var castContext: CastContext? = null
+    var disposed = false
+    val listener = CastStateListener { state -> available = state != CastState.NO_DEVICES_AVAILABLE }
+    try {
+      CastContext
+        .getSharedInstance(context.applicationContext, ContextCompat.getMainExecutor(context))
+        .addOnSuccessListener { shared ->
+          if (disposed) return@addOnSuccessListener
+          castContext = shared
+          available = shared.castState != CastState.NO_DEVICES_AVAILABLE
+          shared.addCastStateListener(listener)
+        }.addOnFailureListener { available = false }
+    } catch (_: RuntimeException) {
+      available = false
+    }
+    onDispose {
+      disposed = true
+      castContext?.removeCastStateListener(listener)
+    }
+  }
+  return available
+}
 
 /** Uses the SDK button for Cast behavior while keeping the app's rounded symbol visible. */
 @Composable

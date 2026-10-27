@@ -160,7 +160,7 @@ private fun PlayerControlEdgeHandle(
     modifier =
       modifier
         .width(EdgeTouchWidth)
-        .fillMaxHeight(EdgeTouchHeightFraction)
+        .fillMaxHeight(EDGE_TOUCH_HEIGHT_FRACTION)
         .pointerInput(enabled, thresholdPx, maxPullPx) {
           if (!enabled) return@pointerInput
           var thresholdReached = false
@@ -286,32 +286,44 @@ private fun PlayerControlPanelHeader(onDismissRequest: () -> Unit) {
   }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun PlayerControlPanelContent(
   buttons: List<PlayerButton>,
   activeButtons: Set<PlayerButton>,
   renderButton: @Composable (PlayerButton) -> Unit,
 ) {
-  BoxWithConstraints(
-    modifier =
-      Modifier
-        .fillMaxWidth()
-        .padding(start = 14.dp, end = 14.dp, bottom = 20.dp),
-  ) {
+  PlayerControlGrid(
+    buttons = buttons,
+    activeButtons = activeButtons,
+    renderButton = renderButton,
+    modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 20.dp),
+  )
+}
+
+/** Labelled tiles for [buttons]; shared by the controls drawer and the More sheet. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun PlayerControlGrid(
+  buttons: List<PlayerButton>,
+  activeButtons: Set<PlayerButton>,
+  renderButton: @Composable (PlayerButton) -> Unit,
+  modifier: Modifier = Modifier,
+  columnCount: Int = PANEL_COLUMN_COUNT,
+) {
+  BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
     // Floor to whole pixels: Dp rounding at some densities made 3 tiles + gaps
     // exceed the row width, wrapping the grid to 2 columns (issue #590).
     val density = LocalDensity.current
     val tileWidth =
       with(density) {
-        val availablePx = (maxWidth - PanelTileSpacing * (PanelColumnCount - 1)).toPx()
-        kotlin.math.floor(availablePx / PanelColumnCount).toDp()
+        val availablePx = (maxWidth - PanelTileSpacing * (columnCount - 1)).toPx()
+        kotlin.math.floor(availablePx / columnCount).toDp()
       }
     FlowRow(
       modifier = Modifier.fillMaxWidth().tvFocusGroup(),
       horizontalArrangement = Arrangement.spacedBy(PanelTileSpacing),
       verticalArrangement = Arrangement.spacedBy(PanelTileSpacing),
-      maxItemsInEachRow = PanelColumnCount,
+      maxItemsInEachRow = columnCount,
     ) {
       buttons.forEach { button ->
         PlayerControlTile(
@@ -378,8 +390,8 @@ private fun PlayerControlTile(
           Modifier
             .size(56.dp)
             .graphicsLayer {
-              scaleX = PanelIconScale
-              scaleY = PanelIconScale
+              scaleX = PANEL_ICON_SCALE
+              scaleY = PANEL_ICON_SCALE
             },
         contentAlignment = Alignment.Center,
       ) {
@@ -403,6 +415,6 @@ private val EdgeTouchWidth = 48.dp
 private val EdgePullThreshold = 64.dp
 private val EdgePullMaximum = 92.dp
 private val PanelTileSpacing = 8.dp
-private const val PanelIconScale = 1.24f
-private const val EdgeTouchHeightFraction = 0.34f
-private const val PanelColumnCount = 3
+private const val PANEL_ICON_SCALE = 1.24f
+private const val EDGE_TOUCH_HEIGHT_FRACTION = 0.34f
+private const val PANEL_COLUMN_COUNT = 3

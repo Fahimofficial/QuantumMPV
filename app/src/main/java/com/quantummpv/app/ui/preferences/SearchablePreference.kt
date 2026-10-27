@@ -230,6 +230,15 @@ object SearchablePreferences {
       )
       add(
         SearchablePreference(
+          titleRes = R.string.pref_layout_reset_recommended,
+          summaryRes = R.string.pref_layout_reset_recommended_hint,
+          keywords = listOf("reset", "recommended", "default", "layout", "controls", "buttons"),
+          category = "Appearance",
+          screen = PlayerControlsPreferencesScreen,
+        ),
+      )
+      add(
+        SearchablePreference(
           titleRes = R.string.pref_layout_top_right_controls,
           keywords = listOf("controls", "top", "right", "landscape", "buttons"),
           category = "Appearance",

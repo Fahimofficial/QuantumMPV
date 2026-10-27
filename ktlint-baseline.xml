@@ -536,11 +536,6 @@
         <error line="1094" column="121" source="standard:max-line-length" />
         <error line="1121" column="120" source="standard:max-line-length" />
     </file>
-    <file name="src/main/java/com/quantummpv/app/ui/player/controls/PlayerControlDrawer.kt">
-        <error line="406" column="19" source="standard:property-naming" />
-        <error line="407" column="19" source="standard:property-naming" />
-        <error line="408" column="19" source="standard:property-naming" />
-    </file>
     <file name="src/main/java/com/quantummpv/app/ui/player/controls/PlayerControls.kt">
         <error line="2532" column="121" source="standard:max-line-length" />
     </file>
