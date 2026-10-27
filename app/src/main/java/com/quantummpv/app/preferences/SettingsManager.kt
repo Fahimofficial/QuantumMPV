@@ -9,6 +9,7 @@
 
 package com.quantummpv.app.preferences
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.net.Uri
 import android.util.Xml
@@ -312,7 +313,11 @@ class SettingsManager(
       else -> null
     }
 
-  /** Writes every accepted value in one commit so a failed import never leaves half the settings applied. */
+  /**
+   * Writes every accepted value in one commit so a failed import never leaves half the settings applied.
+   * The KTX `edit {}` helper discards commit()'s result, which is what tells us the import landed.
+   */
+  @SuppressLint("UseKtx")
   private fun writePreferences(values: Map<String, Any>): Boolean {
     val editor = androidx.preference.PreferenceManager.getDefaultSharedPreferences(context).edit()
     values.forEach { (key, value) ->

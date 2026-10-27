@@ -11,6 +11,7 @@ package com.quantummpv.app.data.network.client
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.core.content.edit
 import com.jcraft.jsch.HostKey
 import com.jcraft.jsch.HostKeyRepository
 import com.jcraft.jsch.UserInfo
@@ -53,11 +54,11 @@ class SharedPreferencesSftpKnownHosts(
     hostPort: String,
     key: String,
   ) {
-    preferences.edit().putString(normalize(hostPort), key).apply()
+    preferences.edit { putString(normalize(hostPort), key) }
   }
 
   override fun forget(hostPort: String) {
-    preferences.edit().remove(normalize(hostPort)).apply()
+    preferences.edit { remove(normalize(hostPort)) }
   }
 
   companion object {

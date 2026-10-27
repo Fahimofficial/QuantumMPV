@@ -4787,7 +4787,7 @@ class PlayerActivity :
     val item = PlaybackSession.state.value.currentItem
     return sequenceOf(intent?.getStringExtra("local_media_path"), item?.originalUri, item?.playableUri)
       .filterNotNull()
-      .map { candidate -> if (candidate.startsWith("file://")) Uri.parse(candidate).path.orEmpty() else candidate }
+      .map { candidate -> if (candidate.startsWith("file://")) candidate.toUri().path.orEmpty() else candidate }
       .firstOrNull { path -> path.startsWith("/") && PlaybackIdentity.forLocalPath(path) == identifier }
   }
 
@@ -5869,7 +5869,7 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
     val localPath =
       sequenceOf(item.originalUri, item.playableUri)
         .firstOrNull { it.startsWith("/") || it.startsWith("file://") }
-        ?.let { if (it.startsWith("file://")) Uri.parse(it).path else it }
+        ?.let { if (it.startsWith("file://")) it.toUri().path else it }
     val hwdec = runCatching { PlaybackSession.getPropertyString("hwdec-current") }.getOrNull().orEmpty()
     return PlaybackErrorClassifier.classify(
       error = error,
@@ -5948,7 +5948,7 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
   /** Hands the failed media to another installed player. */
   internal fun openFailedMediaExternally() {
     val source = lastFailedLoad?.item?.originalUri ?: PlaybackSession.state.value.currentItem?.originalUri ?: return
-    val uri = if (source.startsWith("/")) Uri.fromFile(File(source)) else Uri.parse(source)
+    val uri = if (source.startsWith("/")) Uri.fromFile(File(source)) else source.toUri()
     if (uri.scheme == "file") {
       // file:// cannot be shared across apps; only content and network URIs are offered.
       viewModel.showToast(getString(R.string.playback_error_open_with_unavailable))

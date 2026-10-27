@@ -16,6 +16,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Parcelable
 import android.util.Log
+import androidx.core.net.toUri
 import java.io.File
 import java.security.SecureRandom
 
@@ -74,7 +75,7 @@ class PrivateStoragePolicy(
     }
 
   fun isPrivateReference(value: String): Boolean =
-    if (value.startsWith("/")) isPrivatePath(value) else isPrivateUri(Uri.parse(value.trim()))
+    if (value.startsWith("/")) isPrivatePath(value) else isPrivateUri(value.trim().toUri())
 
   companion object {
     /** Schemes other apps may ask the player to open, besides file and content. */
