@@ -151,6 +151,13 @@ class PlayerViewModel : ViewModel(),
   private val host: PlayerHost
     get() = checkNotNull(hostReference.get()) { "Player host is not attached" }
 
+  /**
+   * The host for work that can outlive it (coroutines, Syncplay and focus callbacks). After
+   * [detachHost] these calls become no-ops instead of crashing the process.
+   */
+  private val hostOrNull: PlayerHost?
+    get() = hostReference.get()
+
   fun attachHost(host: PlayerHost) {
     hostReference = WeakReference(host)
   }
@@ -1739,12 +1746,12 @@ val isBrightnessSliderShown = MutableStateFlow(false)
         val currentlyPaused = PlaybackSession.getPropertyBoolean("pause") ?: false
         if (currentlyPaused != shouldPause) {
           if (!shouldPause) {
-            val focusGranted = withContext(Dispatchers.Main) { host.requestAudioFocus() }
+            val focusGranted = withContext(Dispatchers.Main) { hostOrNull?.requestAudioFocus() ?: false }
             if (!focusGranted) return@launch
           }
           PlaybackSession.setPropertyBoolean("pause", shouldPause)
           if (shouldPause) {
-            withContext(Dispatchers.Main) { host.abandonAudioFocus() }
+            withContext(Dispatchers.Main) { hostOrNull?.abandonAudioFocus() }
           }
         }
       }
@@ -4134,7 +4141,10 @@ val isBrightnessSliderShown = MutableStateFlow(false)
       viewModelScope.launch {
         _isSearchingSub.value = true
         val cleanSubHubTitle = MediaInfoParser.parse(query).title.ifBlank { query.trim() }
-        val lookupHints = host.currentPlayerLookupHints()
+        val lookupHints = hostOrNull?.currentPlayerLookupHints() ?: run {
+          _isSearchingSub.value = false
+          return@launch
+        }
         val lookupTitle = lookupHints.canonicalTitle ?: currentMediaTitle
         val cleanLookupTitle = MediaInfoParser.parse(lookupTitle).title.ifBlank { lookupTitle.trim() }
         val matchesCurrentLookup =
@@ -4336,7 +4346,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
 
   fun unpause() {
     viewModelScope.launch(playbackStateDispatcher) {
-      val focusGranted = withContext(Dispatchers.Main) { host.requestAudioFocus() }
+      val focusGranted = withContext(Dispatchers.Main) { hostOrNull?.requestAudioFocus() ?: false }
       if (!focusGranted) return@launch
       PlaybackSession.setPropertyBoolean("pause", false)
       syncplayManager.updatePlayerState(precisePosition.value.toDouble(), false, doSeek = false)
@@ -5593,7 +5603,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
         pendingSeekOffset = 0
         if (PlaybackSession.getPropertyBoolean("pause") != true) {
           PlaybackSession.setPropertyBoolean("pause", true)
-          withContext(Dispatchers.Main) { host.abandonAudioFocus() }
+          withContext(Dispatchers.Main) { hostOrNull?.abandonAudioFocus() }
         }
 
         var refinedPosition = targetPosition
