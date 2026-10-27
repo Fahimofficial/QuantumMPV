@@ -1360,7 +1360,8 @@ private fun FileSystemBrowserContent(
         icon = Icons.RoundedFilled.Folder,
         title = stringResource(R.string.ui_scanning_for_videos),
         message = stringResource(R.string.loading_state_scanning_message),
-        modifier = modifier.fillMaxSize().padding(bottom = 80.dp),
+        // LoadingState already keeps its content clear of the bottom navigation, as on Folders.
+        modifier = modifier.fillMaxSize(),
       )
     }
 
