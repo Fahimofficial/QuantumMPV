@@ -20,13 +20,13 @@ env:
     -Dorg.gradle.parallel=false
     -Dorg.gradle.workers.max=1
     -Dorg.gradle.jvmargs=-Xmx4g -XX:+HeapDumpOnOutOfMemoryError
-    -Dkotlin.daemon.jvm.options=-Xmx2g
+    -Dkotlin.daemon.jvm.options=-Xmx4g
 
 jobs:
   validate:
     name: Lint, test, and build debug APK
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 60
 
     steps:
       - name: Check out source

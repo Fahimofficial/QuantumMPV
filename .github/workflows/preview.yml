@@ -22,7 +22,7 @@ env:
     -Dorg.gradle.parallel=false
     -Dorg.gradle.workers.max=1
     -Dorg.gradle.jvmargs=-Xmx4g -XX:+HeapDumpOnOutOfMemoryError
-    -Dkotlin.daemon.jvm.options=-Xmx2g
+    -Dkotlin.daemon.jvm.options=-Xmx4g
 
 permissions:
   contents: read
