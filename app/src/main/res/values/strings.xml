@@ -886,6 +886,10 @@
   <string name="pref_export_complete_text">Successfully exported %1$d items!</string>
   <string name="pref_import_complete_title">Import Complete</string>
   <string name="pref_import_complete_text">Successfully imported: %1$s\nFailed: %2$s\nVersion: %3$s\n\nPlease restart the app for all changes to take effect.</string>
+  <plurals name="pref_import_skipped_settings">
+    <item quantity="one">%1$d setting was skipped because it is protected, unknown to this version, or invalid.</item>
+    <item quantity="other">%1$d settings were skipped because they are protected, unknown to this version, or invalid.</item>
+  </plurals>
   <string name="pref_section_storage_root">Storage Root</string>
   <string name="pref_base_storage_folder_summary">Tap to select - creates Subtitles/, Fonts/, scripts/, script-modules/ subdirs</string>
   <string name="pref_clear_storage_root_title">Clear Storage Root</string>

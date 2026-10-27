@@ -9,6 +9,9 @@
 
 package com.quantummpv.app.preferences.preference
 
+/** Storage type of a declared preference, used to validate settings backups. */
+enum class PreferenceValueType { STRING, INT, LONG, FLOAT, BOOLEAN, STRING_SET }
+
 interface PreferenceStore {
   fun getString(
     key: String,
@@ -48,6 +51,9 @@ interface PreferenceStore {
   ): Preference<T>
 
   fun getAll(): Map<String, *>
+
+  /** Keys requested through this store so far, with the type they are stored as. */
+  fun declaredTypes(): Map<String, PreferenceValueType> = emptyMap()
 }
 
 inline fun <reified T : Enum<T>> PreferenceStore.getEnum(

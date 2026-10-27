@@ -17,6 +17,7 @@ import com.quantummpv.app.database.MpvRxDatabase
 import com.quantummpv.app.domain.network.NetworkConnection
 import com.quantummpv.app.domain.network.NetworkProtocol
 import com.quantummpv.app.preferences.preference.PreferenceStore
+import com.quantummpv.app.preferences.preference.PreferenceValueType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.xmlpull.v1.XmlPullParser
@@ -31,6 +32,8 @@ class SettingsManager(
   private val context: Context,
   private val preferenceStore: PreferenceStore,
   private val database: MpvRxDatabase,
+  /** Instantiates every preference holder so [PreferenceStore.declaredTypes] is complete. */
+  private val loadPreferenceDeclarations: () -> Unit = {},
 ) {
   companion object {
     private const val TAG_ROOT = "mpvRxSettings"
@@ -45,6 +48,7 @@ class SettingsManager(
     private const val ATTR_VALUE = "value"
     private const val ATTR_EXPORT_DATE = "exportDate"
     private const val ATTR_VERSION = "version"
+    private const val ATTR_FORMAT = "format"
 
     private const val TYPE_STRING = "string"
     private const val TYPE_INT = "int"
@@ -79,7 +83,8 @@ class SettingsManager(
       }
     }
 
-  private suspend fun writeSettingsToXml(outputStream: OutputStream): ExportStats {
+  internal suspend fun writeSettingsToXml(outputStream: OutputStream): ExportStats {
+    loadPreferenceDeclarations()
     val serializer: XmlSerializer = Xml.newSerializer()
     serializer.setOutput(outputStream, "UTF-8")
     serializer.startDocument("UTF-8", true)
@@ -91,6 +96,7 @@ class SettingsManager(
       ATTR_VERSION,
       BuildConfig.VERSION_NAME,
     )
+    serializer.attribute(null, ATTR_FORMAT, SettingsBackupPolicy.FORMAT_VERSION)
     serializer.attribute(
       null,
       ATTR_EXPORT_DATE,
@@ -102,9 +108,9 @@ class SettingsManager(
 
     serializer.startTag(null, TAG_PREFERENCES)
     val allPreferences = preferenceStore.getAll()
-    for ((key, value) in allPreferences) {
-      if (key != BrowserPreferences.ONBOARDING_COMPLETED_KEY && value != null) {
-        writePreference(serializer, key, value)
+    for ((key, value) in allPreferences.toSortedMap()) {
+      if (SettingsBackupPolicy.isExportable(key, value)) {
+        writePreference(serializer, key, value!!)
         exportedCount++
         exportedKeys.add("pref:$key")
       }
@@ -208,7 +214,11 @@ class SettingsManager(
     serializer.endTag(null, TAG_NETWORK_CONNECTION)
   }
 
-  private suspend fun readSettingsFromXml(inputStream: InputStream): ImportStats {
+  internal suspend fun readSettingsFromXml(inputStream: InputStream): ImportStats {
+    loadPreferenceDeclarations()
+    val declaredTypes = preferenceStore.declaredTypes()
+    val storedValues = preferenceStore.getAll()
+
     val parser: XmlPullParser = Xml.newPullParser()
     parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, false)
     parser.setInput(inputStream, "UTF-8")
@@ -217,6 +227,7 @@ class SettingsManager(
     var eventType = parser.eventType
 
     val networkConnections = mutableListOf<NetworkConnection>()
+    val accepted = linkedMapOf<String, Any>()
 
     while (eventType != XmlPullParser.END_DOCUMENT) {
       when (eventType) {
@@ -227,13 +238,29 @@ class SettingsManager(
               stats.version = version ?: "unknown"
             }
             TAG_PREFERENCE -> {
-              if (parser.getAttributeValue(null, ATTR_KEY) != BrowserPreferences.ONBOARDING_COMPLETED_KEY) {
-                try {
-                  readPreference(parser)
-                  stats.imported++
-                } catch (e: Exception) {
-                  stats.failed++
-                  stats.errors.add("Failed to import preference: ${e.message}")
+              val key = parser.getAttributeValue(null, ATTR_KEY)
+              val type = parser.getAttributeValue(null, ATTR_TYPE)
+              val value = parser.getAttributeValue(null, ATTR_VALUE)
+              if (key.isNullOrBlank() || value == null) {
+                stats.failed++
+                stats.errors.add("Skipped a malformed preference entry")
+              } else {
+                val declared = declaredTypes[key] ?: SettingsBackupPolicy.typeOf(storedValues[key])
+                when (
+                  val decision =
+                    SettingsBackupPolicy.decideImport(
+                      key = key,
+                      importedType = valueTypeOf(type),
+                      rawValue = value,
+                      declaredType = declared,
+                      stringSetSeparator = STRING_SET_SEPARATOR,
+                    )
+                ) {
+                  is SettingsBackupPolicy.ImportDecision.Accept -> accepted[key] = decision.value
+                  is SettingsBackupPolicy.ImportDecision.Skip -> {
+                    stats.skipped++
+                    stats.skippedKeys.add("$key (${decision.reason})")
+                  }
                 }
               }
             }
@@ -252,6 +279,15 @@ class SettingsManager(
       eventType = parser.next()
     }
 
+    if (accepted.isNotEmpty()) {
+      if (writePreferences(accepted)) {
+        stats.imported += accepted.size
+      } else {
+        stats.failed += accepted.size
+        stats.errors.add("Failed to save imported preferences")
+      }
+    }
+
     // Insert all database data
     try {
       if (networkConnections.isNotEmpty()) {
@@ -265,34 +301,31 @@ class SettingsManager(
     return stats
   }
 
-  private fun readPreference(parser: XmlPullParser) {
-    val key = parser.getAttributeValue(null, ATTR_KEY) ?: return
-    val type = parser.getAttributeValue(null, ATTR_TYPE) ?: return
-    val valueStr = parser.getAttributeValue(null, ATTR_VALUE) ?: return
-
-    // Get the SharedPreferences editor from the Android context
-    val sharedPrefs =
-      androidx.preference.PreferenceManager.getDefaultSharedPreferences(context)
-    val editor = sharedPrefs.edit()
-
+  private fun valueTypeOf(type: String?): PreferenceValueType? =
     when (type) {
-      TYPE_STRING -> editor.putString(key, valueStr)
-      TYPE_INT -> editor.putInt(key, valueStr.toIntOrNull() ?: 0)
-      TYPE_LONG -> editor.putLong(key, valueStr.toLongOrNull() ?: 0L)
-      TYPE_FLOAT -> editor.putFloat(key, valueStr.toFloatOrNull() ?: 0f)
-      TYPE_BOOLEAN -> editor.putBoolean(key, valueStr.toBoolean())
-      TYPE_STRING_SET -> {
-        val stringSet =
-          if (valueStr.isEmpty()) {
-            emptySet()
-          } else {
-            valueStr.split(STRING_SET_SEPARATOR).toSet()
-          }
-        editor.putStringSet(key, stringSet)
-      }
+      TYPE_STRING -> PreferenceValueType.STRING
+      TYPE_INT -> PreferenceValueType.INT
+      TYPE_LONG -> PreferenceValueType.LONG
+      TYPE_FLOAT -> PreferenceValueType.FLOAT
+      TYPE_BOOLEAN -> PreferenceValueType.BOOLEAN
+      TYPE_STRING_SET -> PreferenceValueType.STRING_SET
+      else -> null
     }
 
-    editor.apply()
+  /** Writes every accepted value in one commit so a failed import never leaves half the settings applied. */
+  private fun writePreferences(values: Map<String, Any>): Boolean {
+    val editor = androidx.preference.PreferenceManager.getDefaultSharedPreferences(context).edit()
+    values.forEach { (key, value) ->
+      when (value) {
+        is String -> editor.putString(key, value)
+        is Int -> editor.putInt(key, value)
+        is Long -> editor.putLong(key, value)
+        is Float -> editor.putFloat(key, value)
+        is Boolean -> editor.putBoolean(key, value)
+        is Set<*> -> editor.putStringSet(key, value.filterIsInstance<String>().toSet())
+      }
+    }
+    return editor.commit()
   }
 
   private fun readNetworkConnection(parser: XmlPullParser): NetworkConnection =
@@ -325,8 +358,10 @@ class SettingsManager(
   data class ImportStats(
     var imported: Int = 0,
     var failed: Int = 0,
+    var skipped: Int = 0,
     var version: String = "unknown",
     val errors: MutableList<String> = mutableListOf(),
+    val skippedKeys: MutableList<String> = mutableListOf(),
   )
 
   data class ExportStats(

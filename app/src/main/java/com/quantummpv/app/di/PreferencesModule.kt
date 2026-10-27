@@ -49,7 +49,33 @@ val PreferencesModule =
     singleOf(::NetworkBookmarkPreferences)
     singleOf(::AiPreferences)
     singleOf(::YtdlPreferences)
-    singleOf(::SettingsManager)
+    single {
+      SettingsManager(
+        context = androidContext(),
+        preferenceStore = get(),
+        database = get(),
+        loadPreferenceDeclarations = {
+          // Resolving each holder registers its keys and types with the store, which is what
+          // settings import validates against.
+          get<AppearancePreferences>()
+          get<PlayerPreferences>()
+          get<GesturePreferences>()
+          get<DecoderPreferences>()
+          get<SubtitlesPreferences>()
+          get<AudioPreferences>()
+          get<AdvancedPreferences>()
+          get<BrowserPreferences>()
+          get<FoldersPreferences>()
+          get<NetworkBookmarkPreferences>()
+          get<AiPreferences>()
+          get<YtdlPreferences>()
+          get<SecureFolderPreferences>()
+          get<SeerrPreferences>()
+          get<MediaServerPreferences>()
+          get<DownloadPreferences>()
+        },
+      )
+    }
     singleOf(::SecureFolderPreferences)
     singleOf(::SeerrPreferences)
     singleOf(::MediaServerPreferences)

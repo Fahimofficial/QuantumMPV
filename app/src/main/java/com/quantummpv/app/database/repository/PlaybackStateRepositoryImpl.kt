@@ -9,9 +9,9 @@
 
 package com.quantummpv.app.database.repository
 
+import androidx.room.withTransaction
 import com.quantummpv.app.database.MpvRxDatabase
 import com.quantummpv.app.database.entities.PlaybackStateEntity
-import androidx.room.withTransaction
 import com.quantummpv.app.domain.playbackstate.repository.PlaybackStateRepository
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock

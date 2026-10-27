@@ -60,6 +60,9 @@ class NetworkCredentialCipher(
   fun isEncrypted(storedValue: String): Boolean = storedValue.startsWith(PREFIX)
 
   companion object {
+    /** True for any value written by this cipher, regardless of which key encrypted it. */
+    fun isEncryptedValue(storedValue: String): Boolean = storedValue.startsWith(PREFIX)
+
     private const val PREFIX = "mpvrx-credential:v1:"
     private const val TRANSFORMATION = "AES/GCM/NoPadding"
     private const val GCM_IV_BYTES = 12
