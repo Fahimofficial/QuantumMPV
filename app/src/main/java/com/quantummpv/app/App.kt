@@ -350,9 +350,8 @@ class App :
             latest.currentItem == null &&
             !latest.surfaceAttached &&
             PlaybackSession.isInitialized
-        if (stillFullyIdle) {
-          Log.d(TAG, "Destroying libmpv after idle grace period")
-          PlaybackSession.destroy()
+        if (stillFullyIdle && PlaybackSession.destroyIfIdle()) {
+          Log.d(TAG, "Destroyed libmpv after idle grace period")
         }
       }
     }

@@ -563,6 +563,23 @@ object PlaybackSession : MPVLib.EventObserver {
   }
 
   /**
+   * Destroys the core only if it is still completely idle, checked under the same lock that every
+   * load takes. A load that starts between the caller's own idleness check and this call wins.
+   */
+  fun destroyIfIdle(): Boolean =
+    nativeLock.withLock {
+      val state = _state.value
+      val idle =
+        initialized &&
+          state.phase == PlaybackPhase.IDLE &&
+          state.currentItem == null &&
+          !state.surfaceAttached &&
+          attachedSurfaceOwner == null
+      if (idle) destroyLocked()
+      idle
+    }
+
+  /**
    * Silence the audio output immediately without pausing/stopping playback or altering the
    * playback position.
    *

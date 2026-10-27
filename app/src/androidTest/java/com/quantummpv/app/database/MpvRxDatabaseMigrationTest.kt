@@ -4,6 +4,7 @@ import androidx.room.testing.MigrationTestHelper
 import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.quantummpv.app.di.DATABASE_MIGRATIONS
 import com.quantummpv.app.di.MIGRATION_19_20
 import com.quantummpv.app.di.MIGRATION_19_21
 import com.quantummpv.app.di.MIGRATION_20_21
@@ -41,6 +42,26 @@ class MpvRxDatabaseMigrationTest {
   fun migrate19To21ThroughDirectMigration() {
     helper.createDatabase(TEST_DATABASE_DIRECT, 19).close()
     helper.runMigrationsAndValidate(TEST_DATABASE_DIRECT, 21, true, MIGRATION_19_21)
+  }
+
+  @Test
+  fun migrate25To26AddsTrackKeysAndMarksFavorites() {
+    helper.createDatabase(TEST_DATABASE_26, 25).apply {
+      execSQL(
+        "INSERT INTO PlaylistEntity (id, name, createdAt, updatedAt, isM3uPlaylist, isAudio, isXtreamPlaylist) " +
+          "VALUES (1, 'Favorites', 0, 0, 0, 1, 0), (2, 'Mine', 0, 0, 0, 0, 0)",
+      )
+      close()
+    }
+
+    helper.runMigrationsAndValidate(TEST_DATABASE_26, 26, true, *DATABASE_MIGRATIONS).use { db ->
+      db.query("SELECT systemKind FROM PlaylistEntity ORDER BY id").use { cursor ->
+        cursor.moveToFirst()
+        assertEquals("favorites", cursor.getString(0))
+        cursor.moveToNext()
+        assertTrue(cursor.isNull(0))
+      }
+    }
   }
 
   @Test
@@ -90,5 +111,6 @@ class MpvRxDatabaseMigrationTest {
     private const val TEST_DATABASE_DIRECT = "migration-direct.db"
     private const val TEST_DATABASE_DEFAULTS = "migration-defaults.db"
     private const val TEST_DATABASE_YTDLP = "migration-ytdlp.db"
+    private const val TEST_DATABASE_26 = "migration-26.db"
   }
 }

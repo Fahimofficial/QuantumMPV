@@ -770,12 +770,13 @@ val MIGRATION_19_20 =
           "`lastConnected` INTEGER NOT NULL" +
           ")",
       )
-      try {
+      // Older preview tables may lack these columns; any other SQL error must fail the migration.
+      if (!db.hasColumn("navidrome_servers", "token")) {
         db.execSQL("ALTER TABLE `navidrome_servers` ADD COLUMN `token` TEXT NOT NULL DEFAULT ''")
-      } catch (_: Exception) {}
-      try {
+      }
+      if (!db.hasColumn("navidrome_servers", "authMode")) {
         db.execSQL("ALTER TABLE `navidrome_servers` ADD COLUMN `authMode` TEXT NOT NULL DEFAULT 'CREDENTIALS'")
-      } catch (_: Exception) {}
+      }
     }
   }
 
@@ -794,12 +795,13 @@ val MIGRATION_20_21 =
           "`lastConnected` INTEGER NOT NULL" +
           ")",
       )
-      try {
+      // Older preview tables may lack these columns; any other SQL error must fail the migration.
+      if (!db.hasColumn("navidrome_servers", "token")) {
         db.execSQL("ALTER TABLE `navidrome_servers` ADD COLUMN `token` TEXT NOT NULL DEFAULT ''")
-      } catch (_: Exception) {}
-      try {
+      }
+      if (!db.hasColumn("navidrome_servers", "authMode")) {
         db.execSQL("ALTER TABLE `navidrome_servers` ADD COLUMN `authMode` TEXT NOT NULL DEFAULT 'CREDENTIALS'")
-      } catch (_: Exception) {}
+      }
     }
   }
 
@@ -818,12 +820,13 @@ val MIGRATION_19_21 =
           "`lastConnected` INTEGER NOT NULL" +
           ")",
       )
-      try {
+      // Older preview tables may lack these columns; any other SQL error must fail the migration.
+      if (!db.hasColumn("navidrome_servers", "token")) {
         db.execSQL("ALTER TABLE `navidrome_servers` ADD COLUMN `token` TEXT NOT NULL DEFAULT ''")
-      } catch (_: Exception) {}
-      try {
+      }
+      if (!db.hasColumn("navidrome_servers", "authMode")) {
         db.execSQL("ALTER TABLE `navidrome_servers` ADD COLUMN `authMode` TEXT NOT NULL DEFAULT 'CREDENTIALS'")
-      } catch (_: Exception) {}
+      }
     }
   }
 
