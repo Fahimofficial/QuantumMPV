@@ -99,6 +99,81 @@ class PlayerIntentSanitizerTest {
   }
 
   @Test
+  fun pseudoProtocolsThatWrapLocalPathsAreDroppedFromExternalIntents() {
+    val wrapped =
+      listOf(
+        "edl://%${secureFile.length}%$secureFile",
+        "av://file:$secureFile",
+        "lavf://file:$secureFile",
+        "slice://0-100@$secureFile",
+        "fd://3",
+        "archive://$secureFile|/inner.mkv",
+        "memory://raw",
+        "mpvrx-network://1/Movies/a.mkv",
+        "mpvrx-xtream://account/stream/1",
+      )
+    wrapped.forEach { value ->
+      val intent =
+        Intent("com.example.PLAY")
+          .putExtra("uri", value)
+          .putStringArrayListExtra("video_list", arrayListOf(value, "https://example.com/ok.mp4"))
+      val sanitized = PlayerIntentSanitizer.sanitize(context, intent)
+      assertNull("uri extra $value must be removed", sanitized.getStringExtra("uri"))
+      assertEquals(listOf("https://example.com/ok.mp4"), sanitized.getStringArrayListExtra("video_list"))
+
+      val view = PlayerIntentSanitizer.sanitize(context, Intent(Intent.ACTION_VIEW, Uri.parse(value)))
+      assertNull("data $value must be removed", view.data)
+    }
+  }
+
+  @Test
+  fun ordinaryStreamingAndFileSchemesStayAllowed() {
+    listOf(
+      "https://cdn.example.com/a.m3u8",
+      "rtsp://camera.local/stream",
+      "rtmp://live.example.com/app/key",
+      "udp://@239.0.0.1:1234",
+      "srt://example.com:9000",
+      "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567",
+      "content://media/external/video/media/3",
+      "file:///storage/emulated/0/Movies/a.mkv",
+    ).forEach { value ->
+      val sanitized = PlayerIntentSanitizer.sanitize(context, Intent(Intent.ACTION_VIEW, Uri.parse(value)))
+      assertEquals(value, sanitized.dataString)
+    }
+  }
+
+  @Test
+  fun externalIntentsCannotUseSavedConnectionsPlaylistsOrStateKeys() {
+    val intent =
+      Intent(Intent.ACTION_VIEW, Uri.parse("https://example.com/a.mp4"))
+        .putExtra("network_connection_id", 4L)
+        .putExtra("network_file_path", "/Private/b.mkv")
+        .putExtra("network_playlist_connection_id", 4L)
+        .putStringArrayListExtra("network_playlist_paths", arrayListOf("/Private/c.mkv"))
+        .putExtra("playlist_id", 9L)
+        .putExtra("torrent_preparation_id", "prep")
+        .putExtra("media_identifier", "media:v2:someone-elses-file")
+        .putExtra("title", "Shown title")
+
+    val sanitized = PlayerIntentSanitizer.sanitize(context, intent)
+
+    listOf(
+      "network_connection_id",
+      "network_file_path",
+      "network_playlist_connection_id",
+      "network_playlist_paths",
+      "playlist_id",
+      "torrent_preparation_id",
+      "media_identifier",
+    ).forEach { key -> assertFalse("$key must be removed", sanitized.hasExtra(key)) }
+    assertEquals("Shown title", sanitized.getStringExtra("title"))
+
+    val internal = InternalPlayerLaunch.mark(Intent(Intent.ACTION_VIEW).putExtra("network_connection_id", 4L))
+    assertEquals(4L, PlayerIntentSanitizer.sanitize(context, internal).getLongExtra("network_connection_id", -1L))
+  }
+
+  @Test
   fun foreignContentUriCannotTraverseIntoPrivateStorage() {
     val file = File(secureFile).apply { parentFile?.mkdirs(); writeText("x") }
     val traversal = Uri.parse("content://attacker.invalid/storage/..${file.absolutePath}")

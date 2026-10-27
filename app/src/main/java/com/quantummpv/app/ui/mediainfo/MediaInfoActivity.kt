@@ -113,6 +113,9 @@ class MediaInfoActivity : AppCompatActivity() {
   private val tag = "MediaInfoActivity"
 
   override fun onCreate(savedInstanceState: Bundle?) {
+    // Exported with VIEW/SEND filters: apply the same private-storage policy as the player so other
+    // apps cannot read metadata (or the text export) of files only this app can access.
+    intent?.let { com.quantummpv.app.ui.player.PlayerIntentSanitizer.sanitize(this, it) }
     super.onCreate(savedInstanceState)
 
     setContent {
