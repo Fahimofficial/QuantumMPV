@@ -1,4 +1,4 @@
-import sys, os, urllib.request
+import hashlib, os, re, sys, urllib.request
 
 # Argument 1: Native Library Directory (passed from Java)
 native_lib_dir = sys.argv[1] if len(sys.argv) > 1 else ""
@@ -7,28 +7,63 @@ native_lib_dir = sys.argv[1] if len(sys.argv) > 1 else ""
 scriptdest = "../youtube-dl.sh"
 name = "yt-dlp"
 download_name = name + ".download"
-url = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp"
+repository = "https://github.com/yt-dlp/yt-dlp"
+user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
 # Clean up legacy and interrupted files, but retain a working yt-dlp until its
-# replacement has downloaded successfully.
+# replacement has downloaded and verified successfully.
 for path in (scriptdest, "youtube-dl", download_name):
     try:
         if os.path.exists(path): os.unlink(path)
     except:
         pass
 
-print("Downloading '{}' to '{}'...".format(url, download_name))
+
+def fetch(url):
+    request = urllib.request.Request(url, headers={"User-Agent": user_agent})
+    return urllib.request.urlopen(request, timeout=60)
+
+
+def latest_tag():
+    # /releases/latest redirects to /releases/tag/<tag>; pin every download to that one tag so the
+    # binary and its checksum file always come from the same release.
+    with fetch(repository + "/releases/latest") as response:
+        match = re.search(r"/releases/tag/([^/?#]+)$", response.geturl())
+    if not match:
+        raise IOError("Could not resolve the latest yt-dlp release")
+    return match.group(1)
+
+
+def expected_sha256(tag):
+    with fetch("{}/releases/download/{}/SHA2-256SUMS".format(repository, tag)) as response:
+        sums = response.read().decode("utf-8", "replace")
+    for line in sums.splitlines():
+        parts = line.split()
+        if len(parts) == 2 and parts[1].lstrip("*") == name and re.fullmatch(r"[0-9a-f]{64}", parts[0]):
+            return parts[0]
+    raise IOError("Release {} publishes no checksum for {}".format(tag, name))
+
+
 try:
-    # Use a real browser user-agent for download
-    opener = urllib.request.build_opener()
-    opener.addheaders = [('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')]
-    urllib.request.install_opener(opener)
-    
-    urllib.request.urlretrieve(url, download_name)
-    if not os.path.isfile(download_name) or os.path.getsize(download_name) == 0:
+    tag = latest_tag()
+    expected = expected_sha256(tag)
+    url = "{}/releases/download/{}/{}".format(repository, tag, name)
+    print("Downloading yt-dlp {} from '{}'...".format(tag, url))
+    digest = hashlib.sha256()
+    with fetch(url) as response, open(download_name, "wb") as out:
+        while True:
+            chunk = response.read(1 << 16)
+            if not chunk:
+                break
+            digest.update(chunk)
+            out.write(chunk)
+    actual = digest.hexdigest()
+    if os.path.getsize(download_name) == 0:
         raise IOError("Downloaded yt-dlp file is empty")
+    if actual != expected:
+        raise IOError("Checksum mismatch for yt-dlp {} (expected {}, got {})".format(tag, expected, actual))
     os.replace(download_name, name)
-    print("Download successful.")
+    print("Download verified (SHA-256 {}).".format(actual))
 except Exception as e:
     try:
         if os.path.exists(download_name): os.unlink(download_name)
@@ -37,8 +72,8 @@ except Exception as e:
     print("Download failed: " + str(e))
     sys.exit(1)
 
-# Ensure executable bit is NOT set on the data directory script 
-# to avoid SELinux denials on Android 10+. 
+# Ensure executable bit is NOT set on the data directory script
+# to avoid SELinux denials on Android 10+.
 # We run it via the native libytdl.so -> libpython.so bridge instead.
 try:
     os.chmod(name, 0o600)

@@ -1804,6 +1804,8 @@
   <string name="ui_update_stable">Update Stable</string>
   <string name="ui_switch_to_stable">Switch to Stable</string>
   <string name="ui_update_nightly">Update Nightly</string>
+  <string name="ytdlp_nightly_confirm_title">Switch to nightly yt-dlp?</string>
+  <string name="ytdlp_nightly_confirm_message">Nightly builds are automatic snapshots of yt-dlp\'s development branch. They can fix broken sites sooner but are not release-tested, and they run with this app\'s access to your media. Stable releases are recommended.</string>
   <string name="ui_switch_to_nightly">Switch to Nightly</string>
   <string name="ui_playback_defaults">Playback Defaults</string>
   <string name="ui_maximum_quality">Maximum Quality</string>
