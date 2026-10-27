@@ -14,6 +14,7 @@ import com.quantummpv.app.data.network.client.NetworkClient
 import com.quantummpv.app.data.network.client.NetworkMimeTypes
 import com.quantummpv.app.domain.network.NetworkConnection
 import com.quantummpv.app.domain.network.NetworkPath
+import com.quantummpv.app.domain.network.encodeNetworkPathForUrl
 import com.quantummpv.app.repository.NetworkRepository
 import fi.iki.elonen.NanoHTTPD
 import kotlinx.coroutines.CancellationException
@@ -31,7 +32,6 @@ import org.koin.core.component.inject
 import java.io.ByteArrayInputStream
 import java.io.IOException
 import java.io.InputStream
-import java.net.URI
 import java.security.SecureRandom
 import java.util.Base64
 import java.util.concurrent.ConcurrentHashMap
@@ -153,7 +153,7 @@ class NetworkStreamingProxy private constructor() :
     }
 
     val route = "/$token${path.value}"
-    return URI("http", null, "127.0.0.1", listeningPort, route, null, null).toASCIIString()
+    return "http://127.0.0.1:$listeningPort${encodeNetworkPathForUrl(route)}"
   }
 
   /** Unregisters the logical ID supplied to [registerStream]. */

@@ -16,6 +16,8 @@ The v2.7.1 follow-up is a 3-commit/24-file font update: Google Sans Flex for mpv
 
 A wholesale merge is not appropriate: the two clients have substantially different package trees and app-specific identity, release workflows, native artifact verification, settings architecture, and playback modifications. Ports are therefore applied selectively instead of replacing QuantumMPV files with upstream versions.
 
+The mpvRx 3.0.0–3.0.2 review (issues #98, #104, #105) is in [UPSTREAM_3_0_SYNC_REVIEW.md](UPSTREAM_3_0_SYNC_REVIEW.md).
+
 ## QuantumMPV-only features that must be preserved
 
 | Feature | Durable implementation | Regression coverage |

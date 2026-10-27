@@ -5,6 +5,13 @@
 - **Reduced motion**: Screen transitions now cross-fade under Reduced motion and are removed when motion is Off.
 
 ### Fixes
+- **Skip markers**: TheIntroDB lookups use its v4 API. v1 has been removed and v2/v3 are being shut down, so intro/credits markers from TheIntroDB would otherwise stop appearing.
+- **Network playback**: WebDAV and other network files whose names use decomposed Unicode (common for names created on macOS) no longer fail with HTTP 404.
+- **Ambient mode**: The vignette fade no longer relies on GLSL behaviour that differs between GPU drivers.
+- **Subtitles**: Turning on a secondary subtitle no longer forces the primary ASS subtitle's styles to be overridden.
+- **Player settings**: Option changes made after playback starts are applied as runtime properties, as libmpv requires, so they take effect reliably.
+- **Navigation bar**: With three-button navigation, the system buttons get Android's contrast scrim again, so they stay visible over artwork and wallpapers.
+- **Library and Tree**: The first load of Library and Tree shows the same scanning state as Folders instead of a bare spinner.
 - **Touch targets**: The More sheet's info button and the mini-player close button are easier to hit.
 - **Opening videos**: The player no longer reads the file's metadata on the main thread to pick the initial orientation, which could freeze or ANR when opening large files or files from cloud/SAF providers.
 - **Saved subtitles**: Subtitles found in the subtitle save folder are now auto-selected reliably; the auto-select no longer races the tracks being added.
