@@ -920,6 +920,9 @@
   </plurals>
   <string name="torrent_picker_finding_details">Finding artwork and details…</string>
   <string name="torrent_picker_play_file">Play %1$s</string>
+  <string name="torrent_consent_title">Open this torrent?</string>
+  <string name="torrent_consent_message">Streaming a torrent connects to the BitTorrent network (DHT, trackers and other peers). Everyone in the swarm can see your IP address and what you are downloading. Only continue if you trust the link and the content is legal where you live.</string>
+  <string name="torrent_consent_connect">Connect</string>
   <string name="torrent_picker_preparing_title">Reading torrent</string>
   <string name="torrent_picker_preparing_description">Connecting to peers and finding playable files…</string>
   <string name="torrent_picker_error_title">Couldn\'t open torrent</string>

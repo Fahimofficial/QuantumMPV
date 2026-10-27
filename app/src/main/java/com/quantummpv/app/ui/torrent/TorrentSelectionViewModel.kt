@@ -44,6 +44,14 @@ data class TorrentArtwork(
 sealed interface TorrentSelectionUiState {
   data object Loading : TorrentSelectionUiState
 
+  /**
+   * A torrent link from another app or a web page. Nothing touches the network (DHT, trackers,
+   * peers) until the user confirms, because joining a swarm publishes the device's IP address.
+   */
+  data class AwaitingConsent(
+    val displayName: String,
+  ) : TorrentSelectionUiState
+
   data class Ready(
     val catalog: TorrentCatalog,
     val artwork: TorrentArtwork,
@@ -78,9 +86,24 @@ class TorrentSelectionViewModel(
   private var activePreparationId: String? = null
   private var handedToPlayer = false
 
-  fun initialize(value: TorrentSelectionInput) {
+  fun initialize(
+    value: TorrentSelectionInput,
+    requireConsent: Boolean = false,
+  ) {
     if (input != null) return
-    open(value)
+    if (requireConsent) {
+      input = value
+      _uiState.value = TorrentSelectionUiState.AwaitingConsent(consentDisplayName(value))
+    } else {
+      open(value)
+    }
+  }
+
+  /** The user agreed to connect to the BitTorrent network for the pending link. */
+  fun confirmConsent() {
+    val pending = input ?: return
+    if (_uiState.value !is TorrentSelectionUiState.AwaitingConsent) return
+    load(pending)
   }
 
   /** Opens a new torrent in the same picker host, replacing any previous picker session. */
@@ -108,6 +131,20 @@ class TorrentSelectionViewModel(
       activePreparationId?.let(torrentStreamingEngine::discardPreparation)
     }
     activePreparationId = null
+  }
+
+  private fun consentDisplayName(value: TorrentSelectionInput): String {
+    value.title.safeText(MAX_TITLE_LENGTH)?.let { return it }
+    val source = value.source.trim()
+    if (source.startsWith("magnet:", ignoreCase = true)) {
+      Regex("[?&]dn=([^&]+)").find(source)?.groupValues?.get(1)?.let { encoded ->
+        runCatching { java.net.URLDecoder.decode(encoded, Charsets.UTF_8.name()) }.getOrNull()
+          .safeText(MAX_TITLE_LENGTH)
+          ?.let { return it }
+      }
+      return "magnet"
+    }
+    return runCatching { URI(source).host }.getOrNull()?.takeIf(String::isNotBlank) ?: source.take(MAX_TITLE_LENGTH)
   }
 
   private fun load(value: TorrentSelectionInput) {
