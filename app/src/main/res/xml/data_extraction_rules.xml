@@ -6,11 +6,16 @@
   decrypted and the app asks the user to sign in again.
 -->
 <data-extraction-rules>
+    <!-- Secure Folder media and its PIN state never leave the device: the media is encrypted with a
+         device-bound key that does not transfer, so a copy would be unreadable anyway. -->
     <cloud-backup>
         <exclude domain="file" path="secure_media/" />
         <exclude domain="file" path="thumbnails/" />
+        <exclude domain="sharedpref" path="secure_folder.xml" />
     </cloud-backup>
     <device-transfer>
+        <exclude domain="file" path="secure_media/" />
         <exclude domain="file" path="thumbnails/" />
+        <exclude domain="sharedpref" path="secure_folder.xml" />
     </device-transfer>
 </data-extraction-rules>

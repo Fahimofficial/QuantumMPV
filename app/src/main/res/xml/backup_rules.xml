@@ -2,5 +2,7 @@
 <!-- Auto Backup rules for Android 11 and lower; see data_extraction_rules.xml. -->
 <full-backup-content>
     <exclude domain="file" path="secure_media/" />
+    <exclude domain="sharedpref" path="secure_folder.xml" />
+    <exclude domain="sharedpref" path="sftp_known_hosts.xml" />
     <exclude domain="file" path="thumbnails/" />
 </full-backup-content>

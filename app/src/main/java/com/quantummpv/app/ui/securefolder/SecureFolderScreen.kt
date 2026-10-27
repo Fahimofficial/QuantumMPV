@@ -93,6 +93,7 @@ data object SecureFolderScreen : Screen {
   @OptIn(ExperimentalMaterial3Api::class)
   @Composable
   override fun Content() {
+    SecureWindowEffect()
     val context = LocalContext.current
     val backstack = LocalBackStack.current
     val viewModel: SecureFolderViewModel =

@@ -11,6 +11,7 @@ package com.quantummpv.app.ui.securefolder
 
 import android.app.Application
 import android.util.Log
+import androidx.annotation.StringRes
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -19,6 +20,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.quantummpv.app.R
 import com.quantummpv.app.database.entities.SecureMediaEntity
 import com.quantummpv.app.database.repository.SecureFolderRepository
+import com.quantummpv.app.preferences.SecureFolderCheck
 import com.quantummpv.app.preferences.SecureFolderPreferences
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -77,10 +79,45 @@ class SecureFolderViewModel(
   }
 
   /** Called from ENTER_PIN. On success the caller (Gate screen) navigates to the grid. */
-  fun verifyPin(pin: String): Boolean {
-    val ok = preferences.verifyPin(pin)
-    _gateError.value = if (ok) null else getApplication<Application>().getString(R.string.secure_folder_error_incorrect_pin)
-    return ok
+  fun verifyPin(pin: String): Boolean = report(preferences.checkPin(pin), R.string.secure_folder_error_incorrect_pin)
+
+  /** Message for an active lockout, or null when PIN entry is allowed right now. */
+  fun lockoutMessage(): String? =
+    preferences.lockoutRemainingMillis().takeIf { it > 0L }?.let(::lockoutText)
+
+  private fun report(
+    result: SecureFolderCheck,
+    @StringRes incorrectMessage: Int,
+  ): Boolean {
+    val app = getApplication<Application>()
+    _gateError.value =
+      when (result) {
+        SecureFolderCheck.Success -> null
+        is SecureFolderCheck.LockedOut -> lockoutText(result.remainingMillis)
+        is SecureFolderCheck.Incorrect ->
+          if (result.attemptsBeforeLockout in 1..2) {
+            app.getString(incorrectMessage) + "\n" +
+              app.resources.getQuantityString(
+                R.plurals.secure_folder_attempts_left,
+                result.attemptsBeforeLockout,
+                result.attemptsBeforeLockout,
+              )
+          } else {
+            app.getString(incorrectMessage)
+          }
+      }
+    return result == SecureFolderCheck.Success
+  }
+
+  private fun lockoutText(remainingMillis: Long): String {
+    val seconds = ((remainingMillis + 999) / 1000).toInt().coerceAtLeast(1)
+    val app = getApplication<Application>()
+    return if (seconds < 60) {
+      app.resources.getQuantityString(R.plurals.secure_folder_locked_seconds, seconds, seconds)
+    } else {
+      val minutes = (seconds + 59) / 60
+      app.resources.getQuantityString(R.plurals.secure_folder_locked_minutes, minutes, minutes)
+    }
   }
 
   /**
@@ -96,12 +133,13 @@ class SecureFolderViewModel(
       _gateError.value = getApplication<Application>().getString(R.string.secure_folder_error_pin_min_digits)
       return false
     }
-    if (question.isBlank() || answer.isBlank()) {
-      _gateError.value = getApplication<Application>().getString(R.string.secure_folder_error_answer_question)
-      return false
-    }
     preferences.setPin(pin)
-    preferences.setSecurityQuestion(question, answer)
+    // The recovery question is optional: a blank answer means "recover with the screen lock only".
+    if (question.isNotBlank() && answer.isNotBlank()) {
+      preferences.setSecurityQuestion(question, answer)
+    } else {
+      preferences.clearSecurityQuestion()
+    }
     _gateError.value = null
     // Keep gateStep consistent with isPinSet() now that a PIN exists, in case this ViewModel
     // instance is revisited later (see refreshGateStep()) instead of being recreated.
@@ -131,8 +169,16 @@ class SecureFolderViewModel(
     return true
   }
 
+  /** The owner confirmed their device screen lock, which is as strong as the recovery answer. */
+  fun recoveredWithScreenLock() {
+    preferences.clearFailedAttempts()
+    _gateError.value = null
+    _gateStep.value = GateStep.FORGOT_PIN_NEW_PIN
+  }
+
   fun verifySecurityAnswerForRecovery(answer: String): Boolean {
-    val ok = preferences.verifySecurityAnswer(answer)
+    val result = preferences.checkSecurityAnswer(answer)
+    val ok = result == SecureFolderCheck.Success
     if (ok) {
       // Don't clear the old PIN here — it stays valid until finishForgotPinFlow() successfully
       // persists the new one via preferences.setPin(), which overwrites the old hash/salt
@@ -142,7 +188,7 @@ class SecureFolderViewModel(
       _gateError.value = null
       _gateStep.value = GateStep.FORGOT_PIN_NEW_PIN
     } else {
-      _gateError.value = getApplication<Application>().getString(R.string.secure_folder_error_recovery_no_match)
+      report(result, R.string.secure_folder_error_recovery_no_match)
     }
     return ok
   }

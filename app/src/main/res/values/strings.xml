@@ -2035,6 +2035,24 @@
   <string name="secure_folder_move_failed">Failed to move files to Secure Folder</string>
 
   <!-- Errors & Operation Results -->
+  <plurals name="secure_folder_attempts_left">
+    <item quantity="one">%1$d attempt left before a temporary lock.</item>
+    <item quantity="other">%1$d attempts left before a temporary lock.</item>
+  </plurals>
+  <plurals name="secure_folder_locked_seconds">
+    <item quantity="one">Too many attempts. Try again in %1$d second.</item>
+    <item quantity="other">Too many attempts. Try again in %1$d seconds.</item>
+  </plurals>
+  <plurals name="secure_folder_locked_minutes">
+    <item quantity="one">Too many attempts. Try again in %1$d minute.</item>
+    <item quantity="other">Too many attempts. Try again in %1$d minutes.</item>
+  </plurals>
+  <string name="secure_folder_recover_with_screen_lock">Use screen lock</string>
+  <string name="secure_folder_recover_with_screen_lock_subtitle">Confirm it\'s you to choose a new Secure Folder PIN</string>
+  <string name="secure_folder_recovery_screen_lock_only">No recovery question was set. Confirm your device screen lock to choose a new PIN.</string>
+  <string name="secure_folder_answer_optional">Answer (optional)</string>
+  <string name="secure_folder_answer_optional_hint">Leave empty to recover a forgotten PIN with your device screen lock only.</string>
+  <string name="secure_folder_not_backed_up">Hidden files and this PIN stay on this device. They are not included in backups or phone-to-phone transfers, and uninstalling the app deletes them.</string>
   <string name="secure_folder_error_incorrect_pin">Incorrect PIN</string>
   <string name="secure_folder_error_pin_min_digits">PIN must be 4 digits</string>
   <string name="secure_folder_error_pins_dont_match">PINs don\'t match</string>

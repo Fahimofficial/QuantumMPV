@@ -636,6 +636,7 @@ class PlayerActivity :
     }
     // Read from the actual launch intent now that it's safe to (see isSecureFolderLaunch kdoc).
     isSecureFolderLaunch = intent.getStringExtra("launch_source") == "secure_folder"
+    applySecureWindowFlag()
     setContentView(binding.root)
     setupSystemBarsAutoHide()
     setupPipHelper()
@@ -5294,6 +5295,7 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
     // means it only changes when genuinely new media is being loaded, not on every onNewIntent
     // call, so a stale true/false from the previous file never leaks into the next one.
     isSecureFolderLaunch = intent.getStringExtra("launch_source") == "secure_folder"
+    applySecureWindowFlag()
 
     // External file managers / SAF multiple selections
     val isSendMultiple = intent.action == Intent.ACTION_SEND_MULTIPLE
@@ -8169,6 +8171,15 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
         Log.d(TAG, "Skipping video track restoration because media is in audio-only mode")
       }
       lastVid = -1
+    }
+  }
+
+  /** Hidden media must not appear in screenshots, recordings or the Recents thumbnail. */
+  private fun applySecureWindowFlag() {
+    if (isSecureFolderLaunch) {
+      window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+    } else {
+      window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
     }
   }
 

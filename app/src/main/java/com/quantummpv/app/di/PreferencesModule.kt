@@ -76,7 +76,18 @@ val PreferencesModule =
         },
       )
     }
-    singleOf(::SecureFolderPreferences)
+    single {
+      // A separate file keeps the PIN state out of backups and out of reach of settings import.
+      val context = androidContext()
+      SecureFolderPreferences(
+        preferenceStore =
+          AndroidPreferenceStore(
+            context,
+            context.getSharedPreferences(SecureFolderPreferences.FILE_NAME, android.content.Context.MODE_PRIVATE),
+          ),
+        legacyStore = get(),
+      )
+    }
     singleOf(::SeerrPreferences)
     singleOf(::MediaServerPreferences)
     singleOf(::DownloadPreferences)
