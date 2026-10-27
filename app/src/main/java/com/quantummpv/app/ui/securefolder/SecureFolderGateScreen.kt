@@ -235,14 +235,52 @@ data object SecureFolderGateScreen : Screen {
       }
     }
 
+    fun getOrCreateRecoverySecretKey(): SecretKey {
+      val keyStore = KeyStore.getInstance(SECURE_FOLDER_BIOMETRIC_KEYSTORE).apply { load(null) }
+      val existingKey = keyStore.getKey(SECURE_FOLDER_BIOMETRIC_KEY_ALIAS, null) as? SecretKey
+      if (existingKey != null) return existingKey
+
+      val keyGenerator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, SECURE_FOLDER_BIOMETRIC_KEYSTORE)
+      val keySpec =
+        KeyGenParameterSpec.Builder(
+          SECURE_FOLDER_BIOMETRIC_KEY_ALIAS,
+          KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT,
+        )
+          .setBlockModes(KeyProperties.BLOCK_MODE_CBC)
+          .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_PKCS7)
+          .setUserAuthenticationRequired(true)
+          .setInvalidatedByBiometricEnrollment(true)
+          .build()
+      keyGenerator.init(keySpec)
+      return keyGenerator.generateKey()
+    }
+
+    fun getRecoveryCipher(): Cipher =
+      Cipher.getInstance(
+        "${KeyProperties.KEY_ALGORITHM_AES}/${KeyProperties.BLOCK_MODE_CBC}/${KeyProperties.ENCRYPTION_PADDING_PKCS7}",
+      )
+
+    fun initRecoveryCipher(): Cipher? =
+      runCatching {
+        val cipher = getRecoveryCipher()
+        cipher.init(Cipher.ENCRYPT_MODE, getOrCreateRecoverySecretKey())
+        cipher
+      }.getOrNull()
+
     fun showScreenLockRecoveryPrompt() {
       val fragmentActivity = context as? FragmentActivity ?: return
+      val cipher = initRecoveryCipher() ?: return
       keyboardController?.hide()
       val callback =
         object : BiometricPrompt.AuthenticationCallback() {
           override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
             super.onAuthenticationSucceeded(result)
-            viewModel.recoveredWithScreenLock()
+            val authenticatedCipher = result.cryptoObject?.cipher ?: return
+            runCatching {
+              authenticatedCipher.doFinal("secure-folder-recovery".toByteArray())
+            }.onSuccess {
+              viewModel.recoveredWithScreenLock()
+            }
           }
         }
       val authenticators =
@@ -258,6 +296,7 @@ data object SecureFolderGateScreen : Screen {
           .setSubtitle(context.getString(R.string.secure_folder_recover_with_screen_lock_subtitle))
           .setAllowedAuthenticators(authenticators)
           .build(),
+        BiometricPrompt.CryptoObject(cipher),
       )
     }
 
