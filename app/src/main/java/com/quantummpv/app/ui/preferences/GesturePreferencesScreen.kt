@@ -461,6 +461,22 @@ object GesturePreferencesScreen : Screen {
 
               PreferenceDivider()
 
+              val waitForDoubleTapEverywhere by preferences.waitForDoubleTapEverywhere.collectAsState()
+              SwitchPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_gesture_wait_for_double_tap_title),
+                value = waitForDoubleTapEverywhere,
+                onValueChange = preferences.waitForDoubleTapEverywhere::set,
+                title = { Text(text = stringResource(R.string.pref_gesture_wait_for_double_tap_title)) },
+                summary = {
+                  Text(
+                    text = stringResource(R.string.pref_gesture_wait_for_double_tap_summary),
+                    color = MaterialTheme.colorScheme.outline,
+                  )
+                },
+              )
+
+              PreferenceDivider()
+
               val centerVerticalSubtitlePositionGesture by preferences.centerVerticalSubtitlePositionGesture
                 .collectAsState()
               SwitchPreference(

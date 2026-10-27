@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.systemGestures
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -61,6 +62,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -187,6 +189,10 @@ fun GestureHandler(
   val enableCenterSwipeUpGesture by gesturePreferences.enableCenterSwipeUpGesture.collectAsState()
   val pinchToZoomSubtitles by gesturePreferences.pinchToZoomSubtitles.collectAsState()
   val swipeSubtitlesToSeekDialog by gesturePreferences.swipeSubtitlesToSeekDialog.collectAsState()
+  val waitForDoubleTapEverywhere by gesturePreferences.waitForDoubleTapEverywhere.collectAsState()
+  val leftDoubleTapAction by gesturePreferences.leftSingleActionGesture.collectAsState()
+  val centerDoubleTapAction by gesturePreferences.centerSingleActionGesture.collectAsState()
+  val rightDoubleTapAction by gesturePreferences.rightSingleActionGesture.collectAsState()
   val isSwipeSubtitlesInverted by gesturePreferences.swipeSubtitlesInvertDirection.collectAsState()
   var isDoubleTapSeeking by remember { mutableStateOf(false) }
   var lastSeekRegion by remember { mutableStateOf<String?>(null) }
@@ -259,6 +265,16 @@ fun GestureHandler(
   val density = LocalDensity.current
   val topStatusBarInsetPx = WindowInsets.statusBars.getTop(density).toFloat()
   val bottomNavigationInsetPx = WindowInsets.navigationBars.getBottom(density).toFloat()
+  val layoutDirection = LocalLayoutDirection.current
+  val systemGestureLeftPx = WindowInsets.systemGestures.getLeft(density, layoutDirection).toFloat()
+  val systemGestureRightPx = WindowInsets.systemGestures.getRight(density, layoutDirection).toFloat()
+  // Only with gesture navigation: horizontal drags from these edges are the system back gesture.
+  val minimumEdgeDeadZonePx = with(density) { TapClassifier.SideEdgeDeadZone.toPx() }
+  val leftEdgeDeadZonePx = if (systemGestureLeftPx > 0f) max(systemGestureLeftPx, minimumEdgeDeadZonePx) else 0f
+  val rightEdgeDeadZonePx = if (systemGestureRightPx > 0f) max(systemGestureRightPx, minimumEdgeDeadZonePx) else 0f
+  // Gesture sensitivities below were tuned in pixels on a ~440 dpi phone; scale them so the same physical
+  // drag does the same thing on every screen.
+  val pixelScale = TapClassifier.SEEK_REFERENCE_DENSITY / density.density
   val topGestureDeadZonePx =
     remember(density, topStatusBarInsetPx) {
       max(
@@ -281,8 +297,41 @@ fun GestureHandler(
   var lastTapRegion by remember { mutableStateOf<String?>(null) }
   var pendingSingleTapRegion by remember { mutableStateOf<String?>(null) }
   var pendingSingleTapPosition by remember { mutableStateOf<androidx.compose.ui.geometry.Offset?>(null) }
-  val doubleTapTimeout = 250L
-  val multiTapContinueWindow = 650L
+  val doubleTapTimeout = TapClassifier.DOUBLE_TAP_TIMEOUT_MS
+  val multiTapContinueWindow = TapClassifier.MULTI_TAP_CONTINUE_WINDOW_MS
+
+  fun performSingleTap(region: String) {
+    if (useSingleTapForCenter && region == "center") {
+      viewModel.handleCenterSingleTap()
+    } else {
+      if (anyPanelShown && !allowGesturesInPanels) {
+        if (panelShown != Panels.None) viewModel.panelShown.update { Panels.None }
+        if (externalPanelShown) onDismissExternalPanel()
+      }
+      if (areControlsLocked) {
+        viewModel.showControls()
+      } else if (controlsShown) {
+        viewModel.hideControls()
+      } else {
+        viewModel.showControls()
+      }
+    }
+  }
+
+  fun waitsForDoubleTap(region: String): Boolean =
+    waitForDoubleTapEverywhere ||
+      TapClassifier.waitsForDoubleTap(
+        region =
+          when (region) {
+            "left" -> TapRegion.LEFT
+            "right" -> TapRegion.RIGHT
+            else -> TapRegion.CENTER
+          },
+        locked = areControlsLocked,
+        left = leftDoubleTapAction,
+        center = centerDoubleTapAction,
+        right = rightDoubleTapAction,
+      )
 
   // Auto-reset tap count on timeout and execute single tap if no double tap detected
   LaunchedEffect(tapCount, longPressTriggeredDuringTouch) {
@@ -290,23 +339,7 @@ fun GestureHandler(
       delay(doubleTapTimeout)
       // Timeout occurred, execute single tap action only if not double-tap seeking and not triggered by long press
       if (tapCount == 1 && pendingSingleTapRegion != null && !isDoubleTapSeeking && !longPressTriggeredDuringTouch) {
-        val region = pendingSingleTapRegion!!
-        val isCenterTap = region == "center"
-        if (useSingleTapForCenter && isCenterTap) {
-          viewModel.handleCenterSingleTap()
-        } else {
-          if (anyPanelShown && !allowGesturesInPanels) {
-            if (panelShown != Panels.None) viewModel.panelShown.update { Panels.None }
-            if (externalPanelShown) onDismissExternalPanel()
-          }
-          if (areControlsLocked) {
-            viewModel.showControls()
-          } else if (controlsShown) {
-            viewModel.hideControls()
-          } else {
-            viewModel.showControls()
-          }
-        }
+        performSingleTap(pendingSingleTapRegion!!)
         pendingSingleTapRegion = null
         pendingSingleTapPosition = null
       }
@@ -332,7 +365,16 @@ fun GestureHandler(
     modifier =
       modifier
         .fillMaxSize()
-        .pointerInput(areControlsLocked, doubleTapSeekAreaWidth, gesturePreferences, isVerticalGestureActive) {
+        .pointerInput(
+          areControlsLocked,
+          doubleTapSeekAreaWidth,
+          gesturePreferences,
+          isVerticalGestureActive,
+          waitForDoubleTapEverywhere,
+          leftDoubleTapAction,
+          centerDoubleTapAction,
+          rightDoubleTapAction,
+        ) {
           // Isolated double-tap detection that doesn't interfere with other gestures
           if (isVerticalGestureActive) return@pointerInput
           awaitEachGesture {
@@ -356,6 +398,8 @@ fun GestureHandler(
                 else -> "center"
               }
 
+            val doubleTapSlopPx = TapClassifier.DoubleTapSlop.toPx()
+
             // Track for potential drag
             var isDrag = false
             var wasConsumedByTapGesture = false
@@ -373,7 +417,7 @@ fun GestureHandler(
                     (pointer.position.y - downPosition.y) * (pointer.position.y - downPosition.y),
                 )
 
-              if (distance > 10f) {
+              if (distance > viewConfiguration.touchSlop) {
                 isDrag = true
                 // Don't consume - let other pointer inputs handle drag gestures
               }
@@ -397,7 +441,7 @@ fun GestureHandler(
                   val isMultiTapContinuation =
                     lastTapRegion == region &&
                       timeSinceLastTap < multiTapContinueWindow &&
-                      positionChange < 100f &&
+                      positionChange < doubleTapSlopPx &&
                       tapCount >= 2 &&
                       isDoubleTapSeeking
 
@@ -405,7 +449,7 @@ fun GestureHandler(
                   val isDoubleTap =
                     timeSinceLastTap < doubleTapTimeout &&
                       lastTapRegion == region &&
-                      positionChange < 100f &&
+                      positionChange < doubleTapSlopPx &&
                       tapCount == 1
 
                   if (isDoubleTap && !areControlsLocked) {
@@ -481,6 +525,15 @@ fun GestureHandler(
                         viewModel.handleCenterDoubleTap()
                       }
                     }
+                  } else if (!waitsForDoubleTap(region)) {
+                    // Nothing happens on a double tap here, so there is nothing to wait for.
+                    tapCount = 0
+                    lastTapRegion = null
+                    pendingSingleTapRegion = null
+                    pendingSingleTapPosition = null
+                    wasConsumedByTapGesture = true
+                    pointer.consume()
+                    if (!isDoubleTapSeeking) performSingleTap(region)
                   } else if (tapCount == 0 || timeSinceLastTap >= doubleTapTimeout) {
                     // Single tap or timed out - start new tap sequence
                     tapCount = 1
@@ -529,11 +582,21 @@ fun GestureHandler(
             val hasActiveSubtitle =
               getTrackSelectionId("sid") > 0 ||
                 getTrackSelectionId("secondary-sid") > 0
+            // Moving subtitles is an explicit mode: hold on the subtitle itself, not anywhere in the centre.
             val isCenterSubtitleTouch =
               centerVerticalSubtitlePositionGesture &&
                 !isVerticalGestureDeadZone &&
                 hasActiveSubtitle &&
-                startPosition.x in (size.width / 3f)..(size.width * 2f / 3f)
+                startPosition.x in (size.width / 3f)..(size.width * 2f / 3f) &&
+                run {
+                  val width = size.width.toFloat()
+                  val height = size.height.toFloat()
+                  val subPos = PlaybackSession.getPropertyInt("sub-pos") ?: subtitlesPreferences.subPos.get()
+                  val (lowerBound, upperBound) = getSubtitleHitboxBounds(width, height)
+                  (getSubtitleScreenY(subPos, width, height) - startPosition.y) in lowerBound..upperBound
+                }
+            val touchSlop = viewConfiguration.touchSlop
+            var latestPosition = startPosition
             speedHoldPending = paused == false && multipleSpeedGesture > 0f && !isCenterSubtitleTouch
 
             // Reset long press tracking at the start of each gesture
@@ -551,11 +614,11 @@ fun GestureHandler(
             var lastBrightnessValue = currentBrightness
             var originalSubtitlePosition = PlaybackSession.getPropertyInt("sub-pos") ?: subtitlesPreferences.subPos.get()
             var lastSubtitlePosition = PlaybackSession.getPropertyInt("sub-pos") ?: subtitlesPreferences.subPos.get()
-            val brightnessGestureSens = 0.001f
+            val brightnessGestureSens = 0.001f * pixelScale
             // Match the anime4k gesture feel, but snap to whole-number volume steps.
-            val volumeGestureSens = 0.1f
-            val mpvVolumeGestureSens = 0.1f
-            val subtitlePositionGestureSens = 0.08f
+            val volumeGestureSens = 0.1f * pixelScale
+            val mpvVolumeGestureSens = 0.1f * pixelScale
+            val subtitlePositionGestureSens = 0.08f * pixelScale
 
             // Original speed for long press
             var originalSpeed = playbackSpeed ?: 1f
@@ -563,18 +626,20 @@ fun GestureHandler(
             // Track long press separately
             var longPressTriggered = false
             var isSubtitleHoldActive = false
-            val longPressDelay = 500L
+            // Honour a longer system "touch & hold delay" (accessibility), never shorter than before.
+            val longPressDelay = max(500L, viewConfiguration.longPressTimeoutMillis)
             var longPressJob =
               coroutineScope.launch {
                 delay(longPressDelay)
                 if (!longPressTriggered) {
-                  val distance =
-                    sqrt(
-                      (down.position.x - startPosition.x) * (down.position.x - startPosition.x) +
-                        (down.position.y - startPosition.y) * (down.position.y - startPosition.y),
+                  // Only trigger if the finger is still where it went down.
+                  if (
+                    TapClassifier.withinSlop(
+                      latestPosition.x - startPosition.x,
+                      latestPosition.y - startPosition.y,
+                      touchSlop,
                     )
-                  // Only trigger if still within tap threshold
-                  if (distance < 10f) {
+                  ) {
                     if (isCenterSubtitleTouch && claimGesture(GestureOwner.SUBTITLE_VERTICAL)) {
                       longPressTriggered = true
                       isSubtitleHoldActive = true
@@ -631,11 +696,12 @@ fun GestureHandler(
                 event.changes.forEach { change ->
                   if (change.pressed) {
                     val currentPosition = change.position
+                    if (change.id == down.id) latestPosition = currentPosition
                     val deltaX = currentPosition.x - startPosition.x
                     val deltaY = currentPosition.y - startPosition.y
 
                     // Determine gesture type based on initial drag direction
-                    if (gestureType == null && (abs(deltaX) > 20f || abs(deltaY) > 20f)) {
+                    if (gestureType == null && (abs(deltaX) > touchSlop || abs(deltaY) > touchSlop)) {
                       val isHorizontalDrag = abs(deltaX) > abs(deltaY) * 1.5f
                       val isVerticalDrag = abs(deltaY) > abs(deltaX) * 1.5f
 
@@ -655,19 +721,21 @@ fun GestureHandler(
                         }
                         speedHoldPending = false
                         val isCenterTouch =
-                          enableCenterSwipeUpGesture && startPosition.x in (size.width * 0.35f)..(size.width * 0.65f)
+                          enableCenterSwipeUpGesture &&
+                            startPosition.x in (size.width * 0.35f)..(size.width * 0.65f) &&
+                            TapClassifier.isInSwipeUpBand(startPosition.y, size.height.toFloat())
                         if (
                           isLongPressing &&
                             isDynamicSpeedControlActive &&
                             gestureOwner == GestureOwner.SPEED &&
-                            (abs(deltaX) > 10f || abs(deltaY) > 10f)
+                            (abs(deltaX) > touchSlop / 2f || abs(deltaY) > touchSlop / 2f)
                         ) {
                           longPressJob.cancel()
                           gestureType = "speed_control"
                         } else if (isCenterTouch && isVerticalDrag) {
                           longPressJob.cancel()
                           if (
-                            deltaY < -20f &&
+                            deltaY < -touchSlop &&
                             viewModel.hasPlaylistSupport() &&
                             claimGesture(GestureOwner.PLAYLIST)
                           ) {
@@ -695,7 +763,7 @@ fun GestureHandler(
                             isLongPressing &&
                             isDynamicSpeedControlActive &&
                             gestureOwner == GestureOwner.SPEED &&
-                            abs(deltaX) > 10f
+                            abs(deltaX) > touchSlop / 2f
                           ) {
                             gestureType = "speed_control"
                           } else {
@@ -1178,6 +1246,8 @@ fun GestureHandler(
           swipeSubtitlesToSeekDialog,
           isSwipeSubtitlesInverted,
           anyPanelShown,
+          leftEdgeDeadZonePx,
+          rightEdgeDeadZonePx,
         ) {
           if ((!horizontalSwipeToSeek && !swipeSubtitlesToSeekDialog) ||
             areControlsLocked ||
@@ -1206,8 +1276,16 @@ fun GestureHandler(
             var hasStartedSeeking = false
             var initialVideoPosition = 0f
             var pendingSeekPosition: Float? = null
-            // Use the sensitivity preference instead of hardcoded value
-            val seekSensitivity = horizontalSwipeSensitivity
+            // Stored as seconds per reference pixel; scaled so a drag covers the same media time everywhere.
+            val seekSensitivity = TapClassifier.seekSecondsPerPixel(horizontalSwipeSensitivity, density.density)
+            val startsInEdgeDeadZone =
+              TapClassifier.isInSideEdgeDeadZone(
+                startPosition.x,
+                size.width.toFloat(),
+                leftEdgeDeadZonePx,
+                rightEdgeDeadZonePx,
+              )
+            val touchSlop = viewConfiguration.touchSlop
 
             do {
               val event = awaitPointerEvent()
@@ -1224,7 +1302,7 @@ fun GestureHandler(
                     if (
                       gestureType == null &&
                       isSubtitleTouch &&
-                      abs(deltaX) > 40f &&
+                      abs(deltaX) > touchSlop * 2f &&
                       abs(deltaX) > abs(deltaY) * 2f &&
                       claimGesture(GestureOwner.SUBTITLE_SEEK)
                     ) {
@@ -1256,7 +1334,8 @@ fun GestureHandler(
                       !suppressHorizontalSeekForPointer &&
                       horizontalSwipeToSeek &&
                       !isSubtitleTouch &&
-                      abs(deltaX) > 30f &&
+                      !startsInEdgeDeadZone &&
+                      abs(deltaX) > touchSlop * 1.5f &&
                       abs(deltaX) > abs(deltaY) * 2f &&
                       // Must be strongly horizontal
                       timeSinceStart > 100L &&

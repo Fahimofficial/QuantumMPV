@@ -278,6 +278,8 @@
   <string name="pref_gesture_double_tap_right_title">Double tap (right)</string>
   <string name="pref_gesture_use_single_tap_for_center_title">Use single tap for center gesture</string>
   <string name="pref_gesture_use_single_tap_for_center_summary">Use a single tap in the center for gestures (like play/pause) instead of a double tap.</string>
+  <string name="pref_gesture_wait_for_double_tap_title">Classic tap timing</string>
+  <string name="pref_gesture_wait_for_double_tap_summary">Every tap waits briefly for a possible double tap, even where double tap does nothing</string>
   <string name="pref_gesture_center_vertical_subtitle_position_title">Hold and drag moves subtitles</string>
   <string name="pref_gesture_center_vertical_subtitle_position_summary">Hold in the center, then drag up or down to move subtitle position</string>
   <string name="pref_gesture_view_title">View</string>

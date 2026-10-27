@@ -665,6 +665,15 @@ object SearchablePreferences {
       )
       add(
         SearchablePreference(
+          titleRes = R.string.pref_gesture_wait_for_double_tap_title,
+          summaryRes = R.string.pref_gesture_wait_for_double_tap_summary,
+          keywords = listOf("tap", "double", "delay", "timing", "classic", "latency"),
+          category = "Gestures",
+          screen = GesturePreferencesScreen,
+        ),
+      )
+      add(
+        SearchablePreference(
           titleRes = R.string.pref_gesture_media_previous,
           keywords = listOf("media", "previous", "gesture", "control", "backward"),
           category = "Gestures",
