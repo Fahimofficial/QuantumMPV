@@ -26,6 +26,7 @@ import androidx.room.PrimaryKey
   indices = [
     Index(value = ["playlistId"]),
     Index(value = ["isFavorite"]),
+    Index(value = ["playlistId", "position"]),
   ],
 )
 data class PlaylistItemEntity(

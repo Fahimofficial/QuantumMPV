@@ -33,4 +33,10 @@ data class PlaylistEntity(
   val xtreamServerUrl: String? = null,
   val xtreamUsername: String? = null,
   val xtreamEncryptedPassword: String? = null,
-)
+  /** Non-null for app-managed collections such as [KIND_FAVORITES]; user playlists keep null. */
+  val systemKind: String? = null,
+) {
+  companion object {
+    const val KIND_FAVORITES = "favorites"
+  }
+}

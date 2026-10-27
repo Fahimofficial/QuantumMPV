@@ -28,4 +28,12 @@ data class PlaybackStateEntity(
   val externalSubtitles: String = "", // Comma-separated list of external subtitle URIs
   val hasBeenWatched: Boolean = false, // Persistent flag: true if video has ever reached the watched threshold
   val newLabelOverride: Boolean? = null,
+  /** User's subtitle visibility for this file; null = never saved, leave mpv's value alone. */
+  val subVisibility: Boolean? = null,
+  /** Stable identity of the selected subtitle track (see TrackKey); survives track re-numbering. */
+  val sidKey: String? = null,
+  val secondarySidKey: String? = null,
+  val aidKey: String? = null,
+  /** Last known location (local path or URI) so rows for vanished files can be swept. */
+  val mediaLocation: String? = null,
 )

@@ -952,6 +952,36 @@ val MIGRATION_24_25 =
     }
   }
 
+/**
+ * v26: stable track keys and subtitle visibility for playback state, the last known media location
+ * (for sweeping state of vanished files), app-managed playlist kinds (Favorites is identified by
+ * kind instead of by name) and an ordered index for playlist item queries. Additive only.
+ */
+val MIGRATION_25_26 =
+  object : Migration(25, 26) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+      fun addColumn(
+        table: String,
+        column: String,
+        type: String,
+      ) {
+        if (!db.hasColumn(table, column)) db.execSQL("ALTER TABLE `$table` ADD COLUMN `$column` $type")
+      }
+      addColumn("PlaybackStateEntity", "subVisibility", "INTEGER")
+      addColumn("PlaybackStateEntity", "sidKey", "TEXT")
+      addColumn("PlaybackStateEntity", "secondarySidKey", "TEXT")
+      addColumn("PlaybackStateEntity", "aidKey", "TEXT")
+      addColumn("PlaybackStateEntity", "mediaLocation", "TEXT")
+      addColumn("PlaylistEntity", "systemKind", "TEXT")
+      // Earlier builds recognised Favorites by name; keep exactly those rows protected.
+      db.execSQL("UPDATE `PlaylistEntity` SET `systemKind` = 'favorites' WHERE `name` = 'Favorites' COLLATE NOCASE")
+      db.execSQL(
+        "CREATE INDEX IF NOT EXISTS `index_PlaylistItemEntity_playlistId_position` " +
+          "ON `PlaylistItemEntity` (`playlistId`, `position`)",
+      )
+    }
+  }
+
 private val MEDIA_INDEX_FTS_TRIGGERS =
   listOf(
     "CREATE TRIGGER IF NOT EXISTS room_fts_content_sync_media_index_fts_BEFORE_UPDATE BEFORE UPDATE ON " +
@@ -1006,6 +1036,7 @@ val DATABASE_MIGRATIONS: Array<Migration> =
     MIGRATION_22_23,
     MIGRATION_23_24,
     MIGRATION_24_25,
+    MIGRATION_25_26,
   )
 
 val DatabaseModule =
