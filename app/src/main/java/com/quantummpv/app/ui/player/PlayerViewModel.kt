@@ -2126,7 +2126,21 @@ val isBrightnessSliderShown = MutableStateFlow(false)
     )
   }
 
+  private val _playbackError = MutableStateFlow<PlaybackErrorUi?>(null)
+
+  /** Non-null while the in-player error card is shown. */
+  val playbackError: StateFlow<PlaybackErrorUi?> = _playbackError.asStateFlow()
+
+  fun reportPlaybackError(error: PlaybackErrorUi) {
+    _playbackError.value = error
+  }
+
+  fun clearPlaybackError() {
+    _playbackError.value = null
+  }
+
   fun onVideoLoadStarted() {
+    _playbackError.value = null
     stopRealtimeSubtitles(showToastMessage = false)
     introLookupJob?.cancel()
     cancelAutoCropAnalysis()

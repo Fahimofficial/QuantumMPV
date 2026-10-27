@@ -46,6 +46,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.LaunchedEffect
@@ -108,6 +109,8 @@ import com.quantummpv.app.ui.player.SubtitleSelectionSource
 import com.quantummpv.app.ui.player.components.VideoAmbientBackground
 import com.quantummpv.app.ui.player.components.rememberVideoAmbientFrame
 import com.quantummpv.app.ui.player.controls.PlayerControls
+import com.quantummpv.app.ui.player.controls.components.PlaybackErrorCard
+import com.quantummpv.app.ui.player.controls.components.PlaybackErrorScrim
 import com.quantummpv.app.ui.player.media3.MpvMedia3SeekDirection
 import com.quantummpv.app.ui.player.media3.MpvMedia3SessionHost
 import com.quantummpv.app.ui.player.media3.MpvMedia3SessionManager
@@ -1044,6 +1047,20 @@ class PlayerActivity :
             onBackPress = ::handleBackPress,
             modifier = Modifier,
           )
+          val playbackError by viewModel.playbackError.collectAsState()
+          playbackError?.let { error ->
+            Box(Modifier.fillMaxSize().background(PlaybackErrorScrim))
+            PlaybackErrorCard(
+              error = error,
+              onRetry = { retryPlaybackAfterError(softwareDecoding = false) },
+              onSoftwareDecoding = { retryPlaybackAfterError(softwareDecoding = true) },
+              onOpenExternally = ::openFailedMediaExternally,
+              onClose = {
+                viewModel.clearPlaybackError()
+                finish()
+              },
+            )
+          }
         }
       }
     }
@@ -4159,7 +4176,21 @@ class PlayerActivity :
       }
 
       MPVLib.MpvEvent.MPV_EVENT_END_FILE -> {
-        val recovery = pendingMediaLoadRecovery ?: return
+        val recovery = pendingMediaLoadRecovery
+        if (recovery == null) {
+          // END_FILE is delivered before the session publishes ERROR; check once it has settled.
+          val generation = PlaybackSession.state.value.generation
+          lifecycleScope.launch {
+            delay(PLAYBACK_LOAD_ERROR_SETTLE_MS)
+            val latest = PlaybackSession.state.value
+            if (latest.generation == generation && latest.phase == PlaybackPhase.ERROR && ownsPlaybackSession() &&
+              pendingMediaLoadRecovery == null
+            ) {
+              handleMidPlaybackError(latest)
+            }
+          }
+          return
+        }
         val session = PlaybackSession.state.value
         if (session.generation == recovery.generation && session.phase == PlaybackPhase.ERROR) {
           // Some playlist/redirect paths emit END_FILE immediately before a new START_FILE for the
@@ -5820,8 +5851,116 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
     val message = error?.takeIf { it.isNotBlank() } ?: "Media did not become ready"
     PlaybackSession.reportLoadTimeout(request.generation, message)
     viewModel.onVideoLoadCompleted()
-    viewModel.showToast(getString(R.string.toast_playback_load_failed))
+    lastFailedLoad = request
+    viewModel.reportPlaybackError(classifyPlaybackError(request.item, message))
     Log.e(TAG, "Media load failed after recovery: $message")
+  }
+
+  /** The load that failed most recently, kept so the error card can retry it. */
+  private var lastFailedLoad: PendingMediaLoadRecovery? = null
+
+  /** Generation for which a dropped stream was already retried once automatically. */
+  private var midPlaybackRetryGeneration = Long.MIN_VALUE
+
+  private fun classifyPlaybackError(
+    item: PlaybackItem,
+    error: String?,
+  ): PlaybackErrorUi {
+    val localPath =
+      sequenceOf(item.originalUri, item.playableUri)
+        .firstOrNull { it.startsWith("/") || it.startsWith("file://") }
+        ?.let { if (it.startsWith("file://")) Uri.parse(it).path else it }
+    val hwdec = runCatching { PlaybackSession.getPropertyString("hwdec-current") }.getOrNull().orEmpty()
+    return PlaybackErrorClassifier.classify(
+      error = error,
+      sourceUri = item.originalUri,
+      localFileMissing = localPath != null && !File(localPath).exists(),
+      hardwareDecodingActive = hwdec.isNotBlank() && hwdec != "no",
+    )
+  }
+
+  /**
+   * A file that was already playing ended with an error (typically a dropped network stream).
+   * Network sources are reopened once at the last position; otherwise the error card is shown.
+   */
+  private fun handleMidPlaybackError(session: PlaybackSessionState) {
+    val item = session.currentItem ?: return
+    val failed =
+      PendingMediaLoadRecovery(
+        item = item,
+        generation = session.generation,
+        attempt = MAX_PLAYBACK_LOAD_RETRIES,
+        requestGeneration = mediaRequestGeneration,
+        legacyMediaIdentifier = legacyMediaIdentifier,
+        positionRestoreOverride =
+          PlaybackPositionRestoreOverride(
+            positionSeconds = viewModel.precisePosition.value.toDouble().takeIf { it > 0.0 },
+            paused = false,
+          ),
+      )
+    lastFailedLoad = failed
+    val error = classifyPlaybackError(item, session.error)
+    if (error.kind == PlaybackErrorKind.NETWORK && midPlaybackRetryGeneration != session.generation) {
+      midPlaybackRetryGeneration = session.generation
+      Log.w(TAG, "Stream dropped mid-playback; reopening once at the last position")
+      retryPlaybackAfterError(softwareDecoding = false)
+      return
+    }
+    viewModel.reportPlaybackError(error)
+  }
+
+  /** Reopens the media that failed, optionally with hardware decoding switched off. */
+  internal fun retryPlaybackAfterError(softwareDecoding: Boolean) {
+    val failed = lastFailedLoad ?: return
+    if (softwareDecoding) PlaybackSession.setPropertyString("hwdec", "no")
+    if (!beginMediaRequest()) return
+    val requestGeneration = mediaRequestGeneration
+    mediaLoadJob?.cancel()
+    cancelPlaybackLoadRecovery()
+    isReady = false
+    playWhenFileLoaded = true
+    viewModel.onVideoLoadStarted()
+    mediaLoadJob =
+      lifecycleScope.launch(mediaLoadDispatcher) {
+        try {
+          issuePlaybackLoad(
+            item = failed.item,
+            attempt = 0,
+            requestGeneration = requestGeneration,
+            legacyMediaIdentifier = failed.legacyMediaIdentifier,
+            ytdlFormat = failed.ytdlFormat,
+            positionRestoreOverride = failed.positionRestoreOverride,
+          )
+        } catch (cancellation: CancellationException) {
+          throw cancellation
+        } catch (error: Exception) {
+          Log.e(TAG, "Retry after playback error could not be issued", error)
+          withContext(Dispatchers.Main) {
+            if (!isCurrentMediaRequest(requestGeneration)) return@withContext
+            playWhenFileLoaded = false
+            viewModel.onVideoLoadCompleted()
+            viewModel.reportPlaybackError(classifyPlaybackError(failed.item, error.message))
+          }
+        }
+      }
+  }
+
+  /** Hands the failed media to another installed player. */
+  internal fun openFailedMediaExternally() {
+    val source = lastFailedLoad?.item?.originalUri ?: PlaybackSession.state.value.currentItem?.originalUri ?: return
+    val uri = if (source.startsWith("/")) Uri.fromFile(File(source)) else Uri.parse(source)
+    if (uri.scheme == "file") {
+      // file:// cannot be shared across apps; only content and network URIs are offered.
+      viewModel.showToast(getString(R.string.playback_error_open_with_unavailable))
+      return
+    }
+    val view =
+      Intent(Intent.ACTION_VIEW).apply {
+        setDataAndType(uri, lastFailedLoad?.item?.mimeType ?: "video/*")
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+      }
+    runCatching { startActivity(Intent.createChooser(view, getString(R.string.playback_error_open_with))) }
+      .onFailure { viewModel.showToast(getString(R.string.playback_error_open_with_unavailable)) }
   }
 
   private fun cancelPlaybackLoadRecovery() {
