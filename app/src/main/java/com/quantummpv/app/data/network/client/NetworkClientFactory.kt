@@ -13,11 +13,14 @@ import com.quantummpv.app.domain.network.NetworkConnection
 import com.quantummpv.app.domain.network.NetworkProtocol
 
 object NetworkClientFactory {
-  fun createClient(connection: NetworkConnection): NetworkClient =
+  fun createClient(
+    connection: NetworkConnection,
+    sftpKnownHosts: SftpKnownHosts,
+  ): NetworkClient =
     when (connection.protocol) {
       NetworkProtocol.SMB -> SmbClient(connection)
       NetworkProtocol.FTP -> FtpClient(connection)
       NetworkProtocol.WEBDAV -> WebDavClient(connection)
-      NetworkProtocol.SFTP -> SftpClient(connection)
+      NetworkProtocol.SFTP -> SftpClient(connection, sftpKnownHosts)
     }
 }

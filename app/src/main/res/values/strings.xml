@@ -1505,6 +1505,14 @@
   <string name="ui_play_recently_played_or_first_video">Play recently played or first video</string>
   <string name="ui_videos">Videos</string>
   <string name="ui_audio_tab">Audio</string>
+  <string name="sftp_host_key_new_title">Trust this SFTP server?</string>
+  <string name="sftp_host_key_new_message">This is the first connection to “%1$s” (%2$s). Compare the fingerprint below with the one shown by the server (for example `ssh-keygen -lf` on the host) before trusting it.</string>
+  <string name="sftp_host_key_changed_title">Server key has changed</string>
+  <string name="sftp_host_key_changed_message">The server for “%1$s” (%2$s) presented a different key than before. This can mean the server was reinstalled, or that someone is intercepting the connection. Your password was not sent.</string>
+  <string name="sftp_host_key_previous">Trusted fingerprint</string>
+  <string name="sftp_host_key_presented">Presented fingerprint</string>
+  <string name="sftp_host_key_trust">Trust and connect</string>
+  <string name="sftp_host_key_replace">Replace trusted key</string>
   <string name="ui_add_connection">Add Connection</string>
   <string name="ui_local_network">Local Network</string>
   <string name="ui_jellyfin">Jellyfin</string>

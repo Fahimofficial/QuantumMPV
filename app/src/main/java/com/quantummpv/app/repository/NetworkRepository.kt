@@ -11,6 +11,8 @@ package com.quantummpv.app.repository
 
 import com.quantummpv.app.data.network.client.NetworkClient
 import com.quantummpv.app.data.network.client.NetworkClientFactory
+import com.quantummpv.app.data.network.client.SftpHostKeyException
+import com.quantummpv.app.data.network.client.SftpKnownHosts
 import com.quantummpv.app.data.network.credentials.NetworkCredentialCipher
 import com.quantummpv.app.data.network.credentials.NetworkCredentialStorageException
 import com.quantummpv.app.data.network.credentials.NetworkCredentialUnavailableException
@@ -18,6 +20,7 @@ import com.quantummpv.app.database.dao.NetworkConnectionDao
 import com.quantummpv.app.domain.network.ConnectionStatus
 import com.quantummpv.app.domain.network.NetworkConnection
 import com.quantummpv.app.domain.network.NetworkFile
+import com.quantummpv.app.domain.network.SftpHostKeyChallenge
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -39,7 +42,8 @@ import kotlin.coroutines.coroutineContext
 class NetworkRepository(
   private val dao: NetworkConnectionDao,
   private val credentialCipher: NetworkCredentialCipher,
-  private val clientFactory: (NetworkConnection) -> NetworkClient = NetworkClientFactory::createClient,
+  private val sftpKnownHosts: SftpKnownHosts,
+  private val clientFactory: (NetworkConnection) -> NetworkClient = { NetworkClientFactory.createClient(it, sftpKnownHosts) },
 ) {
   private val activeClients = ConcurrentHashMap<Long, NetworkClient>()
 
@@ -198,12 +202,30 @@ class NetworkRepository(
               connectionId = connection.id,
               isConnected = hasConnectedClient(connection.id),
               error = e.safeMessage(),
+              hostKeyChallenge = (e as? SftpHostKeyException)?.challenge,
             ),
           )
           Result.failure(e)
         }
       }
     }
+
+  /** Records the key the user confirmed for [challenge] and connects again. */
+  suspend fun trustSftpHostKey(
+    connection: NetworkConnection,
+    challenge: SftpHostKeyChallenge,
+  ): Result<Unit> {
+    sftpKnownHosts.trust(challenge.hostPort, challenge.presentedKey)
+    return connect(connection)
+  }
+
+  /** Clears a pending host-key prompt without trusting the key. */
+  fun dismissSftpHostKey(connectionId: Long) {
+    _connectionStatuses.update { statuses ->
+      val status = statuses[connectionId] ?: return@update statuses
+      statuses + (connectionId to status.copy(hostKeyChallenge = null))
+    }
+  }
 
   suspend fun disconnect(connection: NetworkConnection): Result<Unit> =
     withContext(Dispatchers.IO) {
@@ -279,6 +301,7 @@ class NetworkRepository(
               connectionId = connection.id,
               isConnected = hasConnectedClient(connection.id),
               error = e.safeMessage(),
+              hostKeyChallenge = (e as? SftpHostKeyException)?.challenge,
             ),
           )
           Result.failure(e)

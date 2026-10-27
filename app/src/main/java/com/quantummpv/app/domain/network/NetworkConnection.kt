@@ -59,4 +59,6 @@ data class ConnectionStatus(
   val isConnected: Boolean = false,
   val isConnecting: Boolean = false,
   val error: String? = null,
+  /** Set when an SFTP server presented a host key that needs the user's confirmation. */
+  val hostKeyChallenge: SftpHostKeyChallenge? = null,
 )

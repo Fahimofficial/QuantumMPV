@@ -12,6 +12,7 @@ package com.quantummpv.app.data.network.client
 import android.net.Uri
 import com.jcraft.jsch.ChannelSftp
 import com.jcraft.jsch.JSch
+import com.jcraft.jsch.JSchException
 import com.jcraft.jsch.Session
 import com.quantummpv.app.domain.network.NetworkConnection
 import com.quantummpv.app.domain.network.NetworkFile
@@ -25,6 +26,7 @@ import java.net.URI
 
 class SftpClient(
   private val connection: NetworkConnection,
+  private val knownHosts: SftpKnownHosts,
 ) : NetworkClient {
   companion object {
     private const val CONNECT_TIMEOUT_MS = 15_000
@@ -40,13 +42,22 @@ class SftpClient(
         val host = connection.host.trim().removePrefix("[").removeSuffix("]")
         val username = if (connection.isAnonymous) "anonymous" else connection.username
         val candidate = JSch().getSession(username, host, connection.port)
-        candidate.setConfig("StrictHostKeyChecking", "no")
+        // Only a host key the user has confirmed is accepted. JSch checks it during key exchange,
+        // before any authentication, so a spoofed server never receives the password.
+        val hostKeys = StrictSftpHostKeyRepository(SftpHostKeyFormat.hostPort(host, connection.port), knownHosts)
+        candidate.hostKeyRepository = hostKeys
+        candidate.setConfig("StrictHostKeyChecking", "yes")
         // Skipping GSSAPI avoids a long Kerberos negotiation stall against plain SSH servers.
         candidate.setConfig("PreferredAuthentications", "publickey,keyboard-interactive,password")
         val password = if (connection.isAnonymous) "" else connection.password
         candidate.setPassword(password.toByteArray(Charsets.UTF_8))
         candidate.serverAliveInterval = SERVER_ALIVE_INTERVAL_MS
-        candidate.connect(CONNECT_TIMEOUT_MS)
+        try {
+          candidate.connect(CONNECT_TIMEOUT_MS)
+        } catch (error: JSchException) {
+          hostKeys.rejection?.let { throw SftpHostKeyException(it) }
+          throw error
+        }
 
         try {
           withChannel(candidate) { channel ->

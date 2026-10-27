@@ -1093,6 +1093,7 @@ val DatabaseModule =
       com.quantummpv.app.repository.NetworkRepository(
         dao = get(),
         credentialCipher = get(),
+        sftpKnownHosts = com.quantummpv.app.data.network.client.SharedPreferencesSftpKnownHosts(androidContext()),
       )
     }
 

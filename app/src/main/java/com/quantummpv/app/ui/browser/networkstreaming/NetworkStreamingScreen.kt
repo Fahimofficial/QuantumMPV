@@ -50,6 +50,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -70,6 +71,7 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -81,6 +83,7 @@ import com.quantummpv.app.database.entities.NetworkStreamEntryEntity
 import com.quantummpv.app.database.repository.NetworkStreamEntryRepository
 import com.quantummpv.app.domain.network.ConnectionStatus
 import com.quantummpv.app.domain.network.NetworkConnection
+import com.quantummpv.app.domain.network.SftpHostKeyChallenge
 import com.quantummpv.app.domain.torrent.TorrentStreamingEngine
 import com.quantummpv.app.domain.torrent.isTorrentSource
 import com.quantummpv.app.domain.torrent.normalizeTorrentSource
@@ -304,6 +307,19 @@ object NetworkStreamingScreen : Screen {
     }
 
     val pagerState = rememberPagerState { NetworkTab.entries.size }
+
+    val pendingHostKey =
+      connectionStatuses.values.firstNotNullOfOrNull { status ->
+        status.hostKeyChallenge?.let { challenge -> connections.firstOrNull { it.id == status.connectionId }?.let { it to challenge } }
+      }
+    pendingHostKey?.let { (connection, challenge) ->
+      SftpHostKeyDialog(
+        connectionName = connection.name,
+        challenge = challenge,
+        onTrust = { viewModel.trustSftpHostKey(connection, challenge) },
+        onCancel = { viewModel.dismissSftpHostKey(connection.id) },
+      )
+    }
 
     val headerContainerColor =
       if (MaterialTheme.colorScheme.background == Color.Black) Color.Black else MaterialTheme.colorScheme.surfaceContainer
@@ -1319,4 +1335,58 @@ private fun saveViewedFileIndices(
     .edit()
     .putStringSet(infoHash, indices.map(Int::toString).toSet())
     .apply()
+}
+
+@Composable
+private fun SftpHostKeyDialog(
+  connectionName: String,
+  challenge: SftpHostKeyChallenge,
+  onTrust: () -> Unit,
+  onCancel: () -> Unit,
+) {
+  androidx.compose.material3.AlertDialog(
+    onDismissRequest = onCancel,
+    icon = {
+      Icon(
+        if (challenge.isChanged) Icons.RoundedFilled.Warning else Icons.RoundedFilled.Key,
+        contentDescription = null,
+        tint = if (challenge.isChanged) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+      )
+    },
+    title = {
+      Text(
+        stringResource(
+          if (challenge.isChanged) R.string.sftp_host_key_changed_title else R.string.sftp_host_key_new_title,
+        ),
+      )
+    },
+    text = {
+      Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(
+          stringResource(
+            if (challenge.isChanged) R.string.sftp_host_key_changed_message else R.string.sftp_host_key_new_message,
+            connectionName,
+            challenge.hostPort,
+          ),
+        )
+        challenge.previousFingerprint?.let { previous ->
+          Text(stringResource(R.string.sftp_host_key_previous), style = MaterialTheme.typography.labelMedium)
+          Text(previous, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace)
+        }
+        Text(stringResource(R.string.sftp_host_key_presented), style = MaterialTheme.typography.labelMedium)
+        Text(challenge.fingerprint, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace)
+      }
+    },
+    confirmButton = {
+      TextButton(onClick = onTrust) {
+        Text(
+          stringResource(if (challenge.isChanged) R.string.sftp_host_key_replace else R.string.sftp_host_key_trust),
+          color = if (challenge.isChanged) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+        )
+      }
+    },
+    dismissButton = {
+      TextButton(onClick = onCancel) { Text(stringResource(R.string.generic_cancel)) }
+    },
+  )
 }

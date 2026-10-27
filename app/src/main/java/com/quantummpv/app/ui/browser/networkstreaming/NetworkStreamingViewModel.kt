@@ -22,6 +22,7 @@ import com.quantummpv.app.database.entities.NetworkStreamEntryEntity
 import com.quantummpv.app.database.repository.NetworkStreamEntryRepository
 import com.quantummpv.app.domain.network.ConnectionStatus
 import com.quantummpv.app.domain.network.NetworkConnection
+import com.quantummpv.app.domain.network.SftpHostKeyChallenge
 import com.quantummpv.app.domain.torrent.isTorrentSource
 import com.quantummpv.app.domain.torrent.parseMagnet
 import com.quantummpv.app.preferences.NetworkBookmarkPreferences
@@ -458,6 +459,20 @@ class NetworkStreamingViewModel(
     viewModelScope.launch {
       repository.connect(connection)
     }
+  }
+
+  /** Trusts the SFTP host key the user confirmed and reconnects. */
+  fun trustSftpHostKey(
+    connection: NetworkConnection,
+    challenge: SftpHostKeyChallenge,
+  ) {
+    viewModelScope.launch {
+      repository.trustSftpHostKey(connection, challenge)
+    }
+  }
+
+  fun dismissSftpHostKey(connectionId: Long) {
+    repository.dismissSftpHostKey(connectionId)
   }
 
   /**
