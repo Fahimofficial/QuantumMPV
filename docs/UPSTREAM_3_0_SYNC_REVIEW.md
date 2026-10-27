@@ -42,7 +42,7 @@ Every port was reviewed by hand against QuantumMPV's code; authorship and the up
 | `529617be8` | Three-button navigation keeps Android's contrast scrim | |
 | `82829422a`, `b3cb77969`, `f440f57ee` | Library and Tree cold loads show the Folders scanning state | Uses QuantumMPV's existing localised `loading_state_scanning_message` instead of upstream's hard-coded text. |
 | `f5f616b5d` (vignette part, by hand) | Vignette fade uses `1.0 - smoothstep(0.1, 1.3, r)` | Reversed smoothstep edges are undefined in GLSL. QuantumMPV's Glow shader has no precision-qualified constructors, so the rest of that commit doesn't apply. |
-| `afd38886a` (by hand) | TheIntroDB v4 API | QuantumMPV called v2 with a v1 fallback. v1 is removed and v2/v3 are frozen ([migration guide](https://github.com/TheIntroDB/theintrodb-npm/blob/main/docs/migration-v3-to-v4.md)). |
+| `afd38886a` (by hand) | TheIntroDB v4 API | QuantumMPV called v2 with a v1 fallback. v1 is removed and v2/v3 are frozen ([migration guide](https://github.com/TheIntroDB/theintrodb-npm/blob/main/docs/migration-v3-to-v4.md)). `TheIntroDbV4Test` parses the v4 examples from TheIntroDB's OpenAPI spec. |
 
 Guards for these changes are in `tools/test_upstream_release_ports.py`.
 

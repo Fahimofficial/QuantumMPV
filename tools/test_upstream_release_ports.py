@@ -54,6 +54,9 @@ assert 'val secondaryOverride = if (forceAssOverride || isSecondarySubtitleActiv
 intro_db = (root / "app/src/main/java/com/quantummpv/app/repository/IntroDbRepository.kt").read_text()
 assert '"https://api.theintrodb.org/v4/media"' in intro_db
 assert "api.theintrodb.org/v1" not in intro_db and "api.theintrodb.org/v2" not in intro_db
+# The URL alone can't show markers still parse; the v4 response fixtures live in this unit test.
+intro_db_test = (root / "app/src/test/java/com/quantummpv/app/repository/TheIntroDbV4Test.kt").read_text()
+assert '"tvdb_id": 169' in intro_db_test and "movieResponseYieldsEverySegmentTypeWithItsTimes" in intro_db_test
 
 main_activity = (root / "app/src/main/java/com/quantummpv/app/MainActivity.kt").read_text()
 assert "window.isNavigationBarContrastEnforced = true" in main_activity
