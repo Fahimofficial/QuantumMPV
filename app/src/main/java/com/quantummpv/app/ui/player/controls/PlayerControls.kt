@@ -95,6 +95,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInParent
+import androidx.compose.ui.platform.LocalAccessibilityManager
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -327,6 +328,7 @@ fun PlayerControls(
     abs((playbackSpeed ?: 1f) - 1f) > 0.001f
   }
   val playerTimeToDisappear by playerPreferences.playerTimeToDisappear.collectAsState()
+  val accessibilityManager = LocalAccessibilityManager.current
   val chapters by viewModel.chapters.collectAsState(persistentListOf())
   val skipSegments by viewModel.skipSegments.collectAsState(persistentListOf())
   val currentSkippableSegment by viewModel.currentSkippableSegment.collectAsState()
@@ -563,7 +565,17 @@ fun PlayerControls(
       !(showControlsDrawer && isPlayerDrawerShown)
     ) {
       // Use 2 second delay when controls are locked, otherwise use user preference
-      val delayTime = if (areControlsLocked) 2000L else playerTimeToDisappear.toLong()
+      val baseDelay = if (areControlsLocked) 2000L else playerTimeToDisappear.toLong()
+      // Honours the system "time to take action" setting, and never hides controls while TalkBack's
+      // touch exploration is on (the recommended timeout is then Long.MAX_VALUE).
+      val delayTime =
+        accessibilityManager?.calculateRecommendedTimeoutMillis(
+          baseDelay,
+          containsIcons = true,
+          containsText = true,
+          containsControls = true,
+        ) ?: baseDelay
+      if (delayTime == Long.MAX_VALUE) return@LaunchedEffect
       delay(delayTime)
       viewModel.hideControls()
     }

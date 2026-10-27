@@ -391,7 +391,7 @@ private fun MiniPlayerContent(
                 ),
               )
             },
-            modifier = Modifier.size(36.dp),
+            modifier = Modifier.size(48.dp),
           ) {
             AnimatedPlayPauseIcon(
               isPlaying = isPlaying,
@@ -404,8 +404,7 @@ private fun MiniPlayerContent(
 
           IconButton(
             onClick = { dismissPlayer() },
-            // M3 default 40 dp (was 32): fits the row, and Compose extends the hit area toward 48 dp.
-            modifier = Modifier.size(40.dp),
+            modifier = Modifier.size(48.dp),
           ) {
             Icon(
               imageVector = Icons.RoundedFilled.Close,
@@ -508,7 +507,7 @@ private fun MiniPlayerContent(
               ),
             )
           },
-          modifier = Modifier.size(36.dp),
+          modifier = Modifier.size(48.dp),
         ) {
           AnimatedPlayPauseIcon(
             isPlaying = isPlaying,
@@ -528,7 +527,7 @@ private fun MiniPlayerContent(
               ),
             )
           },
-          modifier = Modifier.size(36.dp),
+          modifier = Modifier.size(48.dp),
         ) {
           Icon(
             imageVector = Icons.RoundedFilled.SkipNext,
@@ -541,8 +540,7 @@ private fun MiniPlayerContent(
         // Close Action Button
         IconButton(
           onClick = { dismissPlayer() },
-          // M3 default 40 dp (was 32): fits the row, and Compose extends the hit area toward 48 dp.
-          modifier = Modifier.size(40.dp),
+          modifier = Modifier.size(48.dp),
         ) {
           Icon(
             imageVector = Icons.RoundedFilled.Close,

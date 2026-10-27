@@ -26,6 +26,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -153,8 +158,15 @@ fun BrightnessSlider(
   val coercedBrightness = brightness.coerceIn(-negativeRange.endInclusive, positiveRange.endInclusive)
   val percentInt = (coercedBrightness * 100).toInt()
   val percentText = remember(percentInt) { "$percentInt%" }
+  val label = stringResource(R.string.player_brightness_label)
+  // Announced politely so hardware-key and gesture changes are spoken without flooding TalkBack.
   Surface(
-    modifier = modifier,
+    modifier =
+      modifier.semantics(mergeDescendants = true) {
+        contentDescription = label
+        stateDescription = percentText
+        liveRegion = LiveRegionMode.Polite
+      },
     shape = AppShapeScale.extraLarge,
     color = Color.Black.copy(alpha = 0.5f),
     contentColor = Color.White,
@@ -204,8 +216,15 @@ fun VolumeSlider(
   displayAsPercentage: Boolean = false,
 ) {
   val percentage = volumePercentage.coerceIn(0, 100)
+  val label = stringResource(R.string.player_volume_label)
+  val spokenVolume = if (mpvVolume > 100) "$mpvVolume%" else "$percentage%"
   Surface(
-    modifier = modifier,
+    modifier =
+      modifier.semantics(mergeDescendants = true) {
+        contentDescription = label
+        stateDescription = spokenVolume
+        liveRegion = LiveRegionMode.Polite
+      },
     shape = AppShapeScale.extraLarge,
     color = Color.Black.copy(alpha = 0.5f),
     contentColor = Color.White,

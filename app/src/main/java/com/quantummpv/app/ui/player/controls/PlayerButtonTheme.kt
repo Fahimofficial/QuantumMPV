@@ -14,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import com.quantummpv.app.ui.player.controls.components.LocalForceDarkPlayerButtonsBackground
 import com.quantummpv.app.ui.player.controls.components.LocalHidePlayerButtonsBackground
+import com.quantummpv.app.ui.player.controls.components.LocalPlayerButtonLabel
 import com.quantummpv.app.ui.theme.LocalDarkAppColorScheme
 
 /**
@@ -34,21 +35,28 @@ internal fun PlayerButtonTheme(
   )
 }
 
-/** Applies the selected dark app palette only to the contents of one player button. */
+/**
+ * Applies the selected dark app palette only to the contents of one player button, and gives it
+ * [label] as its spoken name unless the button passes its own.
+ */
 @Composable
-internal fun PlayerButtonContentTheme(content: @Composable () -> Unit) {
+internal fun PlayerButtonContentTheme(
+  label: String? = null,
+  content: @Composable () -> Unit,
+) {
   val useDarkPalette =
     LocalForceDarkPlayerButtonsBackground.current && !LocalHidePlayerButtonsBackground.current
   val darkColors = LocalDarkAppColorScheme.current
-  if (!useDarkPalette || darkColors == null) {
-    content()
-    return
+  CompositionLocalProvider(LocalPlayerButtonLabel provides label) {
+    if (!useDarkPalette || darkColors == null) {
+      content()
+    } else {
+      MaterialTheme(
+        colorScheme = darkColors,
+        typography = MaterialTheme.typography,
+        shapes = MaterialTheme.shapes,
+        content = content,
+      )
+    }
   }
-
-  MaterialTheme(
-    colorScheme = darkColors,
-    typography = MaterialTheme.typography,
-    shapes = MaterialTheme.shapes,
-    content = content,
-  )
 }

@@ -204,6 +204,11 @@
   <string name="player_more_controls_title">Controls</string>
   <string name="player_seekbar_description">Seek bar</string>
   <string name="player_seekbar_state">%1$s of %2$s</string>
+  <string name="player_video_surface_description">Video</string>
+  <string name="player_show_controls">Show controls</string>
+  <string name="player_hide_controls">Hide controls</string>
+  <string name="player_brightness_label">Brightness</string>
+  <string name="player_volume_label">Volume</string>
   <string name="pref_layout_top_right_controls">Top Right Controls</string>
   <string name="pref_layout_bottom_right_controls">Bottom Right Controls</string>
   <string name="pref_layout_bottom_left_controls">Bottom Left Controls</string>

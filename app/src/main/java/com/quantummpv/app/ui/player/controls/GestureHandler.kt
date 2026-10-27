@@ -63,6 +63,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -361,11 +365,22 @@ fun GestureHandler(
     }
   }
 
+  val surfaceDescription = stringResource(R.string.player_video_surface_description)
+  val toggleControlsLabel =
+    stringResource(if (controlsShown) R.string.player_hide_controls else R.string.player_show_controls)
   Box(
     modifier =
       modifier
         .fillMaxSize()
-        .pointerInput(
+        // Touch exploration never reaches the pointer handlers below; give TalkBack a named action
+        // that brings the controls back (or hides them) on the video itself.
+        .semantics {
+          contentDescription = surfaceDescription
+          onClick(label = toggleControlsLabel) {
+            if (controlsShown && !areControlsLocked) viewModel.hideControls() else viewModel.showControls()
+            true
+          }
+        }.pointerInput(
           areControlsLocked,
           doubleTapSeekAreaWidth,
           gesturePreferences,
