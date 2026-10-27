@@ -39,4 +39,23 @@ assert "animatedPosition.snapTo(finalPosition)" in seekbar
 assert "onValueChangeFinished(finalPosition)" in seekbar
 assert ".focusProperties { canFocus = false }" in seekbar
 
-print("selected upstream 2.7.x release-port regression checks passed")
+# Selected mpvRx 3.0.x ports (docs/UPSTREAM_3_0_SYNC_REVIEW.md).
+playback_session = (root / "app/src/main/java/com/quantummpv/app/ui/player/PlaybackSession.kt").read_text()
+assert "if (nativeCoreReady) {\n        MPVLib.setPropertyString(name, value)" in playback_session
+
+network_path = (root / "app/src/main/java/com/quantummpv/app/domain/network/NetworkPath.kt").read_text()
+network_proxy = (root / "app/src/main/java/com/quantummpv/app/data/network/proxy/NetworkStreamingProxy.kt").read_text()
+assert 'fun encodeNetworkPathForUrl(path: String): String = Uri.encode(path, "/")' in network_path
+assert "URI(SCHEME, connectionId.toString()" not in network_path
+assert "encodeNetworkPathForUrl(route)" in network_proxy
+
+assert 'val secondaryOverride = if (forceAssOverride || isSecondarySubtitleActive()) "force" else "scale"' in subtitle_positioning
+
+intro_db = (root / "app/src/main/java/com/quantummpv/app/repository/IntroDbRepository.kt").read_text()
+assert '"https://api.theintrodb.org/v4/media"' in intro_db
+assert "api.theintrodb.org/v1" not in intro_db and "api.theintrodb.org/v2" not in intro_db
+
+main_activity = (root / "app/src/main/java/com/quantummpv/app/MainActivity.kt").read_text()
+assert "window.isNavigationBarContrastEnforced = true" in main_activity
+
+print("selected upstream 2.7.x and 3.0.x release-port regression checks passed")
