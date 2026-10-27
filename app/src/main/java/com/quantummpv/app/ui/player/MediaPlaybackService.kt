@@ -52,7 +52,6 @@ import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.media3.MpvMedia3SessionHost
 import com.quantummpv.app.ui.player.media3.MpvMedia3SessionManager
-import com.quantummpv.app.utils.media.PlaybackStateEvents
 import com.quantummpv.app.utils.storage.FileTypeUtils
 import `is`.xyz.mpv.MPVLib
 import `is`.xyz.mpv.MPVNode
@@ -61,16 +60,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import java.io.ByteArrayOutputStream
@@ -90,12 +86,9 @@ class MediaPlaybackService :
   companion object {
     private const val TAG = "MediaPlaybackService"
 
-    // Final state saves must outlive serviceScope, which is cancelled during teardown.
-    private val persistenceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private const val NOTIFICATION_ID = 1
     private const val NOTIFICATION_CHANNEL_ID = "mpvrx_playback_channel"
     private const val PLAYBACK_STATE_SAVE_INTERVAL_MS = 5000L
-    private const val TASK_REMOVAL_SAVE_TIMEOUT_MS = 1_500L
     private const val PROGRESS_NOTIFICATION_UPDATE_INTERVAL_MS = 2000L
     private const val MEDIA_NOTIFICATION_UPDATE_INTERVAL_MS = 1000L
     private const val MILLIS_PER_SECOND = 1000L
@@ -237,6 +230,7 @@ class MediaPlaybackService :
   private val gesturePreferences: GesturePreferences by inject()
   private val playlistRepository: PlaylistRepository by inject()
   private val playbackStateRepository: PlaybackStateRepository by inject()
+  private val playbackStateCoordinator: PlaybackStateCoordinator by inject()
   private val torrentStreamingEngine: TorrentStreamingEngine by inject()
 
   private var mediaIdentifier = ""
@@ -274,8 +268,6 @@ class MediaPlaybackService :
   private var lastPaletteThumbnail: Bitmap? = null
   private var lastThumbnailSource: WeakReference<Bitmap>? = null
   private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
-  private val playbackStateMutex = Mutex()
-  private var playbackStateSaveJob: Job? = null
   private var favoriteStateJob: Job? = null
   private var favoriteActionJob: Job? = null
   private val mediaFavoriteActionMutex = Mutex()
@@ -1746,12 +1738,7 @@ class MediaPlaybackService :
     if (!force && now - lastPlaybackStateSaveTime < PLAYBACK_STATE_SAVE_INTERVAL_MS) return
     lastPlaybackStateSaveTime = now
     val snapshot = capturePlaybackStateSnapshot(identifier, oldState = null) ?: return
-
-    playbackStateSaveJob?.cancel()
-    playbackStateSaveJob =
-      serviceScope.launch(Dispatchers.IO) {
-        persistPlaybackState(identifier, snapshot)
-      }
+    playbackStateCoordinator.submit(snapshot)
   }
 
   private fun savePlaybackStateNow() {
@@ -1759,68 +1746,15 @@ class MediaPlaybackService :
     if (identifier.isBlank()) return
     // Every libmpv read happens here, so the database write can safely outlive the service.
     val snapshot = capturePlaybackStateSnapshot(identifier, oldState = null) ?: return
-
-    playbackStateSaveJob?.cancel()
-    persistenceScope.launch {
-      runCatching {
-        persistPlaybackState(identifier, snapshot)
-      }.onFailure { error ->
-        Log.e(TAG, "Error force-saving playback state", error)
-      }
-    }
+    playbackStateCoordinator.submit(snapshot)
   }
 
+  /**
+   * onTaskRemoved runs on the main thread. The snapshot is captured synchronously and written on
+   * the coordinator's application scope; the main thread is never blocked waiting for storage.
+   */
   private fun savePlaybackStateBeforeTaskRemoval() {
-    val identifier = mediaIdentifier
-    if (identifier.isBlank()) return
-    val snapshot = capturePlaybackStateSnapshot(identifier, oldState = null) ?: return
-
-    val pendingSave = playbackStateSaveJob
-    // onTaskRemoved runs on the main thread. Keep the durable write, but never block long enough
-    // to risk an ANR; on timeout the write continues on the persistence scope.
-    val completed =
-      runBlocking(Dispatchers.IO) {
-        withTimeoutOrNull(TASK_REMOVAL_SAVE_TIMEOUT_MS) {
-          pendingSave?.cancelAndJoin()
-          persistPlaybackState(identifier, snapshot)
-        } ?: false
-      }
-    if (!completed) {
-      Log.w(TAG, "Task-removal save exceeded ${TASK_REMOVAL_SAVE_TIMEOUT_MS}ms; finishing asynchronously")
-      persistenceScope.launch { persistPlaybackState(identifier, snapshot) }
-    }
-  }
-
-  /** Returns true only when the snapshot was written; cancellation is propagated, never swallowed. */
-  private suspend fun persistPlaybackState(
-    identifier: String,
-    capturedSnapshot: PlaybackStateSnapshot,
-  ): Boolean {
-    if (identifier.isBlank() || capturedSnapshot.mediaIdentifier != identifier) return false
-
-    return playbackStateMutex.withLock {
-    runCatching {
-      val oldState = playbackStateRepository.getVideoDataByTitle(identifier)
-      val snapshot =
-        if (capturedSnapshot.externalSubtitles.isBlank() && !oldState?.externalSubtitles.isNullOrBlank()) {
-          capturedSnapshot.copy(externalSubtitles = oldState.externalSubtitles.orEmpty())
-        } else {
-          capturedSnapshot
-        }
-      val playbackState =
-        PlaybackStatePersistence.buildEntity(
-          oldState = oldState,
-          snapshot = snapshot,
-          savePositionOnQuit = playerPreferences.savePositionOnQuit.get(),
-          watchedThreshold = browserPreferences.watchedThreshold.get(),
-        )
-      playbackStateRepository.upsert(playbackState)
-      PlaybackStateEvents.notifyChanged(identifier)
-    }
-    }.onFailure { error ->
-      if (error is kotlinx.coroutines.CancellationException) throw error
-      Log.e(TAG, "Error saving playback state from service", error)
-    }.isSuccess
+    savePlaybackStateNow()
   }
 
   /*
@@ -1860,7 +1794,8 @@ class MediaPlaybackService :
             (oldState?.audioDelay ?: 0) / PLAYBACK_STATE_MILLISECONDS_TO_SECONDS.toDouble(),
           ) * PLAYBACK_STATE_MILLISECONDS_TO_SECONDS
         ).toInt(),
-      externalSubtitles = oldState?.externalSubtitles.orEmpty(),
+      // The service does not track external subtitles; null keeps the list the player saved.
+      externalSubtitles = null,
     )
   }
 

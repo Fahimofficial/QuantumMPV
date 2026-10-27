@@ -1081,6 +1081,13 @@ val DatabaseModule =
     }
 
     singleOf(::PlaybackStateRepositoryImpl).bind(PlaybackStateRepository::class)
+    single {
+      com.quantummpv.app.ui.player.PlaybackStateCoordinator(
+        repository = get(),
+        playerPreferences = get(),
+        browserPreferences = get(),
+      )
+    }
 
     single<RecentlyPlayedRepository> {
       RecentlyPlayedRepositoryImpl(get<MpvRxDatabase>().recentlyPlayedDao())

@@ -122,7 +122,6 @@ import com.quantummpv.app.utils.media.JellyfinSessionReporter
 import com.quantummpv.app.utils.media.M3UParseResult
 import com.quantummpv.app.utils.media.M3UParser
 import com.quantummpv.app.utils.media.MediaUtils
-import com.quantummpv.app.utils.media.PlaybackStateEvents
 import com.quantummpv.app.utils.media.SharedUrlExtractor
 import com.quantummpv.app.utils.media.SubtitleOps
 import com.quantummpv.app.utils.media.fileExtension
@@ -133,7 +132,6 @@ import `is`.xyz.mpv.MPVLib
 import `is`.xyz.mpv.MPVNode
 import `is`.xyz.mpv.Utils
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -222,6 +220,7 @@ class PlayerActivity :
    * Repository for managing playback state.
    */
   private val playbackStateRepository: PlaybackStateRepository by inject()
+  private val playbackStateCoordinator: PlaybackStateCoordinator by inject()
 
   private val torrentStreamingEngine: TorrentStreamingEngine by inject()
 
@@ -438,7 +437,6 @@ class PlayerActivity :
   private var mpvInitialized = false // Track MPV initialization state
   private var viewModelHostAttached = false
   private var torrentPickerHandoff = false
-  private var savePlaybackStateJob: Job? = null // Track ongoing save job
   private var periodicProgressSaveJob: Job? = null
   private var wasPlayingBeforePause = false // Track if video was playing before pause
   private var resumeAfterUnlockJob: Job? = null
@@ -4655,47 +4653,14 @@ class PlayerActivity :
    *
    * @param mediaTitle The title of the media being played
    */
-  @OptIn(DelicateCoroutinesApi::class)
   private fun saveVideoPlaybackState(
     mediaTitle: String,
     immediate: Boolean = false,
   ) {
     val snapshot = capturePlaybackStateSnapshot(mediaTitle) ?: return
-
-    // Cancel any previous pending save operation
-    savePlaybackStateJob?.cancel()
-
-    val saveBlock: suspend kotlinx.coroutines.CoroutineScope.() -> Unit = {
-      runCatching {
-        if (!immediate) {
-          delay(250)
-        }
-
-        val oldState = playbackStateRepository.getVideoDataByTitle(snapshot.mediaIdentifier)
-        Log.d(TAG, "Saving playback state for: ${snapshot.mediaTitle} (identifier: ${snapshot.mediaIdentifier})")
-
-        val playbackState =
-          PlaybackStatePersistence.buildEntity(
-            oldState = oldState,
-            snapshot = snapshot,
-            savePositionOnQuit = playerPreferences.savePositionOnQuit.get(),
-            watchedThreshold = browserPreferences.watchedThreshold.get(),
-          )
-        playbackStateRepository.upsert(playbackState)
-        PlaybackStateEvents.notifyChanged(snapshot.mediaIdentifier)
-      }.onFailure { e ->
-        // A newer save cancels this one through savePlaybackStateJob; that is not an error.
-        if (e is CancellationException) throw e
-        Log.e(TAG, "Error saving playback state", e)
-      }
-    }
-
-    if (immediate) {
-      lifecycleScope.launch(Dispatchers.IO + kotlinx.coroutines.NonCancellable, block = saveBlock)
-    } else {
-      // Launch new save job and track it
-      savePlaybackStateJob = lifecycleScope.launch(Dispatchers.IO, block = saveBlock)
-    }
+    // Debounced saves replace each other; an immediate save (pause, exit, end of file) is written
+    // on the coordinator's application scope so it completes even if this activity is destroyed.
+    playbackStateCoordinator.submit(snapshot, debounceMillis = if (immediate) 0L else SAVE_DEBOUNCE_MS)
   }
 
   /**
@@ -8218,6 +8183,7 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
 
     private const val PLAYBACK_LOAD_RETRY_DELAY_MS = 200L
     private const val PLAYBACK_LOAD_ERROR_SETTLE_MS = 300L
+    private const val SAVE_DEBOUNCE_MS = 250L
     private const val MAX_PLAYBACK_LOAD_RETRIES = 1
     private const val DEFERRED_MPV_ASSET_SYNC_DELAY_MS = 5_000L
     private const val LOCKED_CONTROLS_DOUBLE_BACK_TIMEOUT_MS = 2_000L
