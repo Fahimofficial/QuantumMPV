@@ -947,7 +947,7 @@ internal fun VideoListContent(
       LoadingState(
         icon = Icons.RoundedFilled.VideoLibrary,
         title = stringResource(R.string.ui_scanning_for_videos),
-        message = "Please wait while we search your device",
+        message = stringResource(R.string.loading_state_scanning_message),
         modifier = modifier.fillMaxSize().padding(bottom = 80.dp),
       )
     }
