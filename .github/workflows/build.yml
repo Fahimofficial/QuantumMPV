@@ -134,7 +134,7 @@ jobs:
           done < <(find app/build/outputs/apk -type f -name '*.apk' -print0)
       - name: Upload standard arm64-v8a unsigned APK
         if: ${{ env.SELECTED_FLAVOR == 'all' || env.SELECTED_FLAVOR == 'dual' || env.SELECTED_FLAVOR == 'standard' }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: app-standard-arm64-v8a-release-unsigned-${{ env.SHORT_SHA }}
           path: app/build/outputs/apk/standard/release/app-standard-arm64-v8a-release-unsigned.apk
@@ -144,7 +144,7 @@ jobs:
 
       - name: Upload standard armeabi-v7a unsigned APK
         if: ${{ env.SELECTED_FLAVOR == 'all' || env.SELECTED_FLAVOR == 'dual' || env.SELECTED_FLAVOR == 'standard' }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: app-standard-armeabi-v7a-release-unsigned-${{ env.SHORT_SHA }}
           path: app/build/outputs/apk/standard/release/app-standard-armeabi-v7a-release-unsigned.apk
@@ -154,7 +154,7 @@ jobs:
 
       - name: Upload standard universal unsigned APK
         if: ${{ env.SELECTED_FLAVOR == 'all' || env.SELECTED_FLAVOR == 'dual' || env.SELECTED_FLAVOR == 'standard' }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: app-standard-universal-release-unsigned-${{ env.SHORT_SHA }}
           path: app/build/outputs/apk/standard/release/app-standard-universal-release-unsigned.apk
@@ -164,7 +164,7 @@ jobs:
 
       - name: Upload standard x86 unsigned APK
         if: ${{ env.SELECTED_FLAVOR == 'all' || env.SELECTED_FLAVOR == 'dual' || env.SELECTED_FLAVOR == 'standard' }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: app-standard-x86-release-unsigned-${{ env.SHORT_SHA }}
           path: app/build/outputs/apk/standard/release/app-standard-x86-release-unsigned.apk
@@ -174,7 +174,7 @@ jobs:
 
       - name: Upload standard x86_64 unsigned APK
         if: ${{ env.SELECTED_FLAVOR == 'all' || env.SELECTED_FLAVOR == 'dual' || env.SELECTED_FLAVOR == 'standard' }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: app-standard-x86_64-release-unsigned-${{ env.SHORT_SHA }}
           path: app/build/outputs/apk/standard/release/app-standard-x86_64-release-unsigned.apk
@@ -184,7 +184,7 @@ jobs:
 
       - name: Upload Fongmi universal unsigned APK
         if: ${{ env.SELECTED_FLAVOR == 'all' || env.SELECTED_FLAVOR == 'dual' || env.SELECTED_FLAVOR == 'fongmi' }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: app-fongmi-release-unsigned-${{ env.SHORT_SHA }}
           path: app/build/outputs/apk/fongmi/release/app-fongmi-universal-release-unsigned.apk
@@ -194,7 +194,7 @@ jobs:
 
       - name: Upload non-Vulkan universal unsigned APK
         if: ${{ env.SELECTED_FLAVOR == 'all' || env.SELECTED_FLAVOR == 'no_vulkan' }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: app-no-vulkan-release-unsigned-${{ env.SHORT_SHA }}
           path: app/build/outputs/apk/noVulkan/release/app-noVulkan-universal-release-unsigned.apk
