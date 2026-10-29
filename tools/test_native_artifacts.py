@@ -15,7 +15,7 @@ assert 'set(MPVRX_NATIVE_LINK_OPTIONS' in cmake
 assert '"-Wl,-z,max-page-size=16384"' in cmake
 assert '$<$<CONFIG:Release>:-Wl,-z,max-page-size=16384>' not in cmake
 assert 'target_link_options(${target} PRIVATE ${MPVRX_NATIVE_LINK_OPTIONS})' in cmake
-assert 'agp = "9.4.1"' in (root / 'gradle/libs.versions.toml').read_text()
+assert 'agp = "9.5.0"' in (root / 'gradle/libs.versions.toml').read_text()
 assert 'gradle-9.6.0-bin.zip' in (root / 'gradle/wrapper/gradle-wrapper.properties').read_text()
 assert 'org.bouncycastle:bcprov-jdk18on:1.85' in app_gradle
 assert 'org.bouncycastle:bcpkix-jdk18on:1.85' in app_gradle
