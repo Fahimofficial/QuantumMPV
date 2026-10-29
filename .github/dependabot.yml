@@ -31,3 +31,22 @@ updates:
     labels:
       - dependencies
       - ci
+
+  # npm dependencies for the documentation/preview website (website/).
+  - package-ecosystem: npm
+    directory: /website
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - website
+    # Keep PR volume low: group dev deps and non-major runtime bumps.
+    groups:
+      website-dev:
+        dependency-type: development
+      website-prod-minor-patch:
+        dependency-type: production
+        update-types:
+          - minor
+          - patch
