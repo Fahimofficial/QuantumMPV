@@ -264,7 +264,7 @@ room {
 dependencies {
   constraints {
     // Keep security-patched transitive libraries visible to Dependabot's Gradle snapshot.
-    add("implementation", "io.netty:netty-codec:4.1.137.Final")
+    add("implementation", "io.netty:netty-codec:4.2.19.Final")
     add("implementation", "org.bouncycastle:bcprov-jdk18on:1.85")
     add("implementation", "org.bouncycastle:bcpkix-jdk18on:1.85")
     add("implementation", "org.bouncycastle:bcutil-jdk18on:1.85")
