@@ -4,14 +4,9 @@ on:
   pull_request:
   workflow_dispatch:
   # release.yml calls this workflow so a stable release is tested on an
-  # emulator from the exact tagged source before it is published.
+  # emulator before it is published. The caller runs on the release tag, so
+  # the default checkout below is the exact tagged commit.
   workflow_call:
-    inputs:
-      ref:
-        description: Git ref to test (defaults to the triggering ref)
-        type: string
-        required: false
-        default: ''
 
 permissions:
   contents: read
@@ -42,7 +37,6 @@ jobs:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.ref }}
           persist-credentials: false
 
       - name: Fetch and verify pinned native artifacts
