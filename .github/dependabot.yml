@@ -19,8 +19,9 @@ updates:
     groups:
       kotlin-toolchain:
         patterns:
-          - "org.jetbrains.kotlin*"
-          - "com.google.devtools.ksp"
+          - "org.jetbrains.kotlin:*"
+          - "org.jetbrains.kotlin.*"
+          - "com.google.devtools.ksp*"
       androidx-compose:
         patterns:
           - "androidx.compose*"
@@ -30,11 +31,6 @@ updates:
       media3:
         patterns:
           - "androidx.media3:*"
-      test-dependencies:
-        dependency-type: development
-        update-types:
-          - minor
-          - patch
     # These libraries are pinned on purpose by the root build.gradle.kts
     # `resolutionStrategy.eachDependency` security block (and mirrored as
     # `constraints` in app/build.gradle.kts). Dependabot's Gradle parser
@@ -60,12 +56,16 @@ updates:
       - ci
     cooldown:
       default-days: 7
-    # Actions are SHA-pinned; one grouped PR per week keeps pins current
-    # without a PR per action.
+    # Actions are SHA-pinned; one grouped PR per week keeps minor/patch pins
+    # current. Major versions still get individual PRs so a breaking major
+    # cannot hold back the other updates.
     groups:
       github-actions:
         patterns:
           - "*"
+        update-types:
+          - minor
+          - patch
 
   # Hash-pinned Python tooling used by workflow-audit.yml.
   - package-ecosystem: pip

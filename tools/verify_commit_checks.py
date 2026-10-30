@@ -94,8 +94,23 @@ def main() -> int:
         try:
             runs = fetch_check_runs(api, repo, args.sha, token)
         except urllib.error.HTTPError as error:
-            print(f"::error::GitHub API returned HTTP {error.code} while reading check runs.")
-            return 1
+            if error.code in (401, 403, 404, 422):
+                print(f"::error::GitHub API returned HTTP {error.code} while reading check runs "
+                      "(check the token's checks:read permission and the commit SHA).")
+                return 1
+            if time.monotonic() >= deadline:
+                print(f"::error::GitHub API kept failing (last: HTTP {error.code}); giving up.")
+                return 1
+            print(f"GitHub API returned HTTP {error.code}; retrying in {args.interval}s.")
+            time.sleep(args.interval)
+            continue
+        except (urllib.error.URLError, TimeoutError, ConnectionError) as error:
+            if time.monotonic() >= deadline:
+                print(f"::error::Could not reach the GitHub API ({error}); giving up.")
+                return 1
+            print(f"Network error reading check runs ({error}); retrying in {args.interval}s.")
+            time.sleep(args.interval)
+            continue
         passed, pending, failed = evaluate(runs, args.checks)
         for name in passed:
             print(f"PASS     {name}")

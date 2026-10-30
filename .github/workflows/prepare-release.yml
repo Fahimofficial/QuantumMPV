@@ -82,7 +82,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git fetch --quiet --tags origin
+          # fetch-depth: 0 already fetched every tag.
           if [[ "$PRERELEASE" == "true" ]]; then
             latest="$(git tag --list "v${VERSION}-preview.*" | sed -n "s/^v${VERSION//./\\.}-preview\.\([0-9][0-9]*\)$/\1/p" | sort -n | tail -n 1)"
             tag="v${VERSION}-preview.$(( ${latest:-0} + 1 ))"
@@ -126,6 +126,8 @@ jobs:
           gh api "repos/${GITHUB_REPOSITORY}/git/refs" -f ref="refs/tags/${TAG}" -f sha="$tag_object" >/dev/null
           echo "Created ${TAG} at ${TARGET_SHA}"
 
+      # Dispatched on the tag ref, so the release runs the workflow file from
+      # the tagged commit and environment tag policies apply.
       - name: Start the release workflow
         shell: bash
         env:
@@ -134,5 +136,8 @@ jobs:
           WORKFLOW: ${{ steps.tag.outputs.workflow }}
         run: |
           set -euo pipefail
-          gh workflow run "$WORKFLOW" --repo "$GITHUB_REPOSITORY" --ref master -f tag_name="$TAG"
-          echo "Dispatched ${WORKFLOW} for ${TAG}." >> "$GITHUB_STEP_SUMMARY"
+          if ! gh workflow run "$WORKFLOW" --repo "$GITHUB_REPOSITORY" --ref "$TAG" -f tag_name="$TAG"; then
+            echo "::error::Tag ${TAG} was created but ${WORKFLOW} could not be started. Start it manually: Actions -> ${WORKFLOW} -> Run workflow -> Use workflow from: tag ${TAG}."
+            exit 1
+          fi
+          echo "Dispatched ${WORKFLOW} on ${TAG}." >> "$GITHUB_STEP_SUMMARY"

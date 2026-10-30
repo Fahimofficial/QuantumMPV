@@ -4,10 +4,11 @@
 rules:
   artipacked:
     ignore:
-      # The job pushes a review branch with `git push`, which needs the
+      # The only checkout in this file is in the job that pushes a review
+      # branch with `git push`, which needs the
       # credential that actions/checkout persists. No artifacts are uploaded
       # from this job, so the credential cannot leak through an artifact.
-      - upstream-sync-check.yml:26
+      - upstream-sync-check.yml
 
   superfluous-actions:
     ignore:

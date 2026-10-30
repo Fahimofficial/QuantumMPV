@@ -12,8 +12,9 @@ The pipeline has three stages:
 1. **Pull request validation.** Every change must pass build, test, lint, static
    analysis, security and configuration checks before it can merge.
 2. **Main branch validation.** The same workflows run on every push to `master`.
-   Master runs are never cancelled by newer pushes, so every merged commit has a
-   complete result. Release workflows depend on this.
+   Each master commit gets its own concurrency group, so a burst of merges never
+   cancels or drops a master run and every merged commit has a complete result.
+   Release workflows depend on this.
 3. **Release validation.** Tag-triggered workflows re-check the tagged commit,
    build from the exact tag, run release-only checks, sign in an isolated job and
    publish with checksums, an SBOM and build provenance.
@@ -94,8 +95,16 @@ those outputs and fails if any is missing.
 - Release jobs do not restore the Gradle cache.
 - Downloaded tools (actionlint, detekt, native AARs) are checksum-verified. Python
   tooling is installed with `pip --require-hashes`.
-- Every job has `timeout-minutes`. PR runs cancel superseded runs; master and
-  release runs never cancel.
+- Every job has `timeout-minutes`. PR runs cancel superseded runs of the same
+  PR. Push, schedule and release runs are grouped per commit or tag, so they are
+  never cancelled by later runs.
+- Release and preview signing jobs use the `production` / `preview`
+  environments. Configure their deployment policies (docs/RELEASE.md) so that
+  only tags (and master, for preview) can obtain the signing secrets.
+- Stable signing runs in a job without Gradle. Preview builds (`preview.yml`,
+  `pre-release.yml`) still sign in the build job with the same key, because
+  preview and stable share the application ID; splitting them the same way is
+  a recommended follow-up.
 
 ## Severity policy
 
@@ -124,7 +133,9 @@ Exceptions are documented, not silently suppressed:
 | `Android security policy` fails with MAN002/MAN003 | A new exported component or permission | Review the intent handling or permission need, update `PRIVACY.md` if user data is affected, add it to the policy file with a justification |
 | `zizmor` fails | New workflow pattern flagged | Fix it; if it is a false positive, add a scoped, justified ignore to `.github/zizmor.yml` |
 | `Dependency review` reports snapshot warnings | The Gradle dependency snapshot for the PR head is not submitted yet | The action retries for 5 minutes. Re-run the job if automatic dependency submission was slow. |
-| Release `resolve` job times out waiting for checks | A required check never ran on the tagged commit (for example, an older cancelled run) | Re-run the missing workflow on master for that commit, then re-run the release |
+| Release `resolve` job times out waiting for checks | A required check never ran on the tagged commit (for example, a commit from before these workflows existed, or a `[skip ci]` merge) | Run the missing workflow on that commit, then re-run the release |
+| Release fails with "Run this workflow on the release tag" | It was started manually from a branch | Start it again with **Use workflow from → Tags → vX.Y.Z** |
+| Prepare Release created the tag but did not start the release | The dispatch failed | Start Make release / Make Pre Release manually on that tag; do not delete and recreate the tag |
 | Release `sign` job fails on the certificate | Wrong keystore in the environment secrets | Restore the original release key. Never publish with a different key: existing installs could not update. |
 | Prepare Release fails with "master is not prepared" | `versionName` / `releaseVersionCode` not bumped on master | Open a PR that runs `python3 tools/prepare_release.py X.Y.Z` and updates `CHANGELOG.md` |
 

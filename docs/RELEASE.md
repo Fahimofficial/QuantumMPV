@@ -31,6 +31,17 @@ and `preview` (preview builds and tagged previews). Then delete the
 repository-level copies. Environment secrets are only released to jobs that
 reference the environment and pass its protection rules.
 
+Environment protection (Settings → Environments):
+
+| Environment | Deployment branches and tags | Reviewers |
+| --- | --- | --- |
+| `production` | Selected tags: `v1.*.*` only | Required reviewer: the maintainer |
+| `preview` | Selected branches and tags: branch `master`, tags `v*-preview.*` | None (every master push builds a preview) |
+
+All release paths run on a tag ref, including runs started by Prepare Release
+and manual runs, which must use **Use workflow from → Tags**. A run started from
+a branch therefore cannot obtain the production secrets.
+
 The workflows never print these values. A temporary keystore is created with
 `umask 077` in `$RUNNER_TEMP` and deleted on exit. Keystores must never be
 committed: `tools/check_android_security.py` fails if a `.jks`, `.keystore`,
@@ -50,7 +61,10 @@ committed: `tools/check_android_security.py` fails if a `.jks`, `.keystore`,
    - checks that master is prepared for `X.Y.Z`;
    - checks the required checks on the master commit;
    - creates the annotated tag `vX.Y.Z` through the API;
-   - dispatches **Make release**.
+   - dispatches **Make release** on that tag.
+
+   If the dispatch fails after the tag was created, do not delete the tag:
+   start **Make release** manually with **Use workflow from → Tags → vX.Y.Z**.
 
    Alternatively, tag the merge commit yourself and push the tag:
    `git tag -a vX.Y.Z -m "Release vX.Y.Z" <sha> && git push origin vX.Y.Z`.

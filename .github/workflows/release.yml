@@ -1,8 +1,9 @@
 name: Make release
 
-# Stable release pipeline. Stages run in separate jobs so that production
-# signing secrets never reach a runner that executed Gradle or other
-# third-party build code:
+# Stable release pipeline. Stages run in separate jobs so that the stable
+# signing step never shares a runner with Gradle or other third-party build
+# code. (Preview builds use the same key in preview.yml / pre-release.yml,
+# which still sign inside the build job; see docs/RELEASE.md.)
 #
 #   resolve           validate the tag, its source and its required checks
 #   instrumented      emulator tests on the exact tagged source (reusable)
@@ -17,11 +18,13 @@ on:
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'
       - '!v[0-9]+.[0-9]+.[0-9]+-preview.[0-9]+'
+  # Run manually from the tag itself ("Use workflow from" -> Tags -> vX.Y.Z),
+  # so the production environment's tag deployment policy applies.
   workflow_dispatch:
     inputs:
       tag_name:
-        description: Existing stable tag to release (for example v1.2.0)
-        required: true
+        description: Optional; must equal the selected tag (for example v1.2.0)
+        required: false
         type: string
 
 env:
@@ -38,7 +41,7 @@ env:
 permissions: {}
 
 concurrency:
-  group: production-release-${{ inputs.tag_name || github.ref_name }}
+  group: production-release-${{ github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -67,10 +70,14 @@ jobs:
           INPUT_TAG: ${{ inputs.tag_name }}
         run: |
           set -euo pipefail
-          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
-            tag_name="${GITHUB_REF#refs/tags/}"
-          else
-            tag_name="$INPUT_TAG"
+          if [[ "$GITHUB_REF" != refs/tags/* ]]; then
+            echo "::error::Run this workflow on the release tag (Use workflow from -> Tags), not on ${GITHUB_REF}."
+            exit 1
+          fi
+          tag_name="${GITHUB_REF#refs/tags/}"
+          if [[ -n "$INPUT_TAG" && "$INPUT_TAG" != "$tag_name" ]]; then
+            echo "::error::Input tag_name '${INPUT_TAG}' does not match the selected tag '${tag_name}'."
+            exit 1
           fi
 
           if [[ ! "$tag_name" =~ ^v1\.[0-9]+\.[0-9]+$ ]]; then
@@ -78,7 +85,7 @@ jobs:
             exit 1
           fi
 
-          git fetch --quiet --force origin "refs/tags/${tag_name}:refs/tags/${tag_name}" "+refs/heads/master:refs/remotes/origin/master"
+          # fetch-depth: 0 already fetched every tag and origin/* branch.
           tag_sha="$(git rev-parse --verify --quiet "refs/tags/${tag_name}^{commit}" || true)"
           if [[ -z "$tag_sha" ]]; then
             echo "::error::Tag ${tag_name} does not exist on origin or does not point to a commit."
@@ -179,7 +186,7 @@ jobs:
           java-version: '17'
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
         with:
           accept-android-sdk-licenses: true
 
@@ -197,7 +204,7 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Validate Gradle wrapper
-        uses: gradle/actions/wrapper-validation@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6
+        uses: gradle/actions/wrapper-validation@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
 
       - name: Build release APKs
         shell: bash
@@ -264,12 +271,13 @@ jobs:
           done < <(find unsigned -type f -name '*.apk' -print0)
 
       - name: Upload unsigned APKs for signing
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: unsigned-release-apks
           path: unsigned/*.apk
           if-no-files-found: error
-          retention-days: 1
+          # Short-lived, but long enough to re-run a failed later job.
+          retention-days: 5
           compression-level: 0
 
   sign:
@@ -278,7 +286,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     # Holds the production signing secrets. Configure required reviewers and a
-    # tag deployment policy on this environment (docs/RELEASE.md).
+    # deployment policy allowing only tags v1.*.* (docs/RELEASE.md).
     environment: production
     permissions: {}
     env:
@@ -289,7 +297,7 @@ jobs:
       EXPECTED_CERT_SHA256: ${{ vars.RELEASE_SIGNING_CERT_SHA256 }}
     steps:
       - name: Set up Android SDK
-        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
         with:
           accept-android-sdk-licenses: true
 
@@ -367,12 +375,12 @@ jobs:
           [[ "$count" -eq "$EXPECTED_APK_COUNT" ]] || { echo "::error::Signed ${count} APKs, expected ${EXPECTED_APK_COUNT}"; exit 1; }
 
       - name: Upload signed APKs
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: signed-release-apks
           path: signed/*.apk
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 5
           compression-level: 0
 
   publish:
@@ -399,10 +407,14 @@ jobs:
           name: signed-release-apks
           path: release-assets
 
+      # Re-checks the APKs after the artifact round trip and signing. The pinned
+      # AARs are needed as the reference, so they are fetched (and their
+      # checksums verified) first.
       - name: Verify native contents of signed APKs
         shell: bash
         run: |
           set -euo pipefail
+          python3 tools/verify_native_artifacts.py --download
           count=0
           while IFS= read -r -d '' apk; do
             python3 tools/verify_native_artifacts.py --apk "$apk"

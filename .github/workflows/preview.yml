@@ -36,8 +36,9 @@ jobs:
     name: Build preview APKs
     runs-on: ubuntu-24.04
     timeout-minutes: 60
-    # Holds the signing secrets for preview builds. Restrict this environment
-    # to the master branch so workflow_dispatch from other branches cannot sign.
+    # Holds the signing secrets for preview builds. The preview environment
+    # should allow only the master branch and v*-preview.* tags, so
+    # workflow_dispatch from other branches cannot sign (docs/RELEASE.md).
     environment: preview
     outputs:
       should_build: ${{ steps.activity.outputs.should_build }}
@@ -154,7 +155,7 @@ jobs:
           cache: gradle
       - name: Set up Android SDK
         if: steps.activity.outputs.should_build == 'true'
-        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
       - name: Install Android build toolchain
         if: steps.activity.outputs.should_build == 'true'
         shell: bash
@@ -364,7 +365,7 @@ jobs:
 
       - name: Upload preview APKs as Actions artifact
         if: steps.activity.outputs.should_build == 'true'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: QuantumMPV-preview-r${{ steps.metadata.outputs.commit_count }}
           path: site
@@ -395,7 +396,7 @@ jobs:
 
       - name: Configure GitHub Pages
         id: pages
-        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
         continue-on-error: true
         with:
           enablement: true
@@ -409,11 +410,11 @@ jobs:
 
       - name: Upload GitHub Pages artifact
         if: steps.pages.outcome == 'success'
-        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: site
 
       - name: Deploy to GitHub Pages
         id: deployment
         if: steps.pages.outcome == 'success'
-        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

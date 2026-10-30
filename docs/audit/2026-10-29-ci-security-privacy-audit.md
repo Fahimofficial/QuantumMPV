@@ -156,6 +156,20 @@ Not covered by automated tests:
 Room schema 22 is missing from `app/schemas`, so `22 → 23` and `24 → 25` cannot be
 validated with `MigrationTestHelper`, and `1 → 19` has no schemas at all.
 
-## 5. Changes made
+## 5. Pre-push review
+
+Before pushing, an independent review of the branch found and fixed these issues:
+
+- the publish job re-verified APKs without the reference AARs, so it would always have failed;
+- runs dispatched on `master` conflicted with tag-only environment policies;
+- pending master runs could still be dropped by GitHub concurrency;
+- the check gate had no retry for transient API errors;
+- version comments on action pins would drift (zizmor `ref-version-mismatch`);
+- Gradle parsing depended on indentation;
+- the X509TrustManager rule flagged plain type annotations;
+- the Dependabot Kotlin group also caught kotlinx libraries;
+- an exact Gradle wrapper pin would have broken wrapper updates.
+
+## 6. Changes made
 
 See the report in the pull request description and [CI_CD.md](../CI_CD.md).

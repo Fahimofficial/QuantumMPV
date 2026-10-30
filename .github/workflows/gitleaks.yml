@@ -16,7 +16,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: gitleaks-${{ github.event.pull_request.number || github.ref }}
+  group: gitleaks-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -34,7 +34,7 @@ jobs:
       # Pinned to the immutable v3 tag commit. The action runs the scanner locally
       # on the GitHub-hosted runner; no source is sent to Gitleaks for analysis.
       - name: Scan repository history
-        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_ENABLE_COMMENTS: 'false'

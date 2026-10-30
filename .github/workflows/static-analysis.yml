@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: static-analysis-${{ github.event.pull_request.number || github.ref }}
+  group: static-analysis-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
@@ -102,7 +102,7 @@ jobs:
 
       - name: Upload reports
         if: ${{ always() }}
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: static-analysis-reports-${{ github.sha }}
           path: |

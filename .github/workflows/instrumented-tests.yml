@@ -17,7 +17,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: instrumented-${{ github.event.pull_request.number || github.ref }}
+  group: instrumented-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
@@ -55,7 +55,7 @@ jobs:
           cache: gradle
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
 
       - name: Make Gradle wrapper executable
         run: chmod +x ./gradlew
@@ -68,7 +68,7 @@ jobs:
 
       - name: Run instrumented tests on emulator
         id: emulator-tests
-        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
           api-level: ${{ matrix.api-level }}
           arch: x86_64
@@ -91,7 +91,7 @@ jobs:
           done < <(find app/build/outputs/apk -type f -name '*.apk' ! -path '*/androidTest/*' -print0)
       - name: Upload test reports
         if: ${{ always() }}
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: instrumented-test-reports-api-${{ matrix.api-level }}-${{ github.sha }}
           path: app/build/outputs/androidTest-results/**

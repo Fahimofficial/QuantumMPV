@@ -6,11 +6,12 @@ on:
       - 'v[0-9]+.[0-9]+.[0-9]+-preview.[0-9]+'
   # Used by prepare-release.yml: tags pushed with GITHUB_TOKEN do not trigger
   # push workflows, so that workflow dispatches this one explicitly.
+  # Run manually from the tag itself ("Use workflow from" -> Tags).
   workflow_dispatch:
     inputs:
       tag_name:
-        description: Existing preview tag to publish (for example v1.2.0-preview.3)
-        required: true
+        description: Optional; must equal the selected preview tag (for example v1.2.0-preview.3)
+        required: false
         type: string
 
 env:
@@ -28,8 +29,8 @@ jobs:
   release-for-github:
     name: Tagged preview release for GitHub
     runs-on: ubuntu-24.04
-    # Holds the signing secrets for preview releases. Restrict this
-    # environment to v*-preview.* tags (docs/RELEASE.md).
+    # Holds the signing secrets for preview releases. The preview environment
+    # should allow the master branch and v*-preview.* tags (docs/RELEASE.md).
     environment: preview
     permissions:
       contents: write
@@ -40,7 +41,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.tag_name && format('refs/tags/{0}', inputs.tag_name) || github.ref }}
           persist-credentials: false
           fetch-depth: 0
 
@@ -53,7 +53,7 @@ jobs:
           java-version: '17'
           # No Gradle cache in a signing/publishing job (cache poisoning).
       - name: Set up Android SDK
-        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
       - name: Install Android build toolchain
         shell: bash
         run: |
@@ -70,10 +70,14 @@ jobs:
           INPUT_TAG: ${{ inputs.tag_name }}
         run: |
           set -euo pipefail
-          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
-            version_tag="${GITHUB_REF#refs/tags/}"
-          else
-            version_tag="$INPUT_TAG"
+          if [[ "$GITHUB_REF" != refs/tags/* ]]; then
+            echo "::error::Run this workflow on the preview tag (Use workflow from -> Tags), not on ${GITHUB_REF}."
+            exit 1
+          fi
+          version_tag="${GITHUB_REF#refs/tags/}"
+          if [[ -n "$INPUT_TAG" && "$INPUT_TAG" != "$version_tag" ]]; then
+            echo "::error::Input tag_name '${INPUT_TAG}' does not match the selected tag '${version_tag}'."
+            exit 1
           fi
           if [[ ! "$version_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-preview\.[0-9]+$ ]]; then
             echo "Invalid tagged preview version: $version_tag"
@@ -95,7 +99,6 @@ jobs:
             echo "::error::Checked-out commit does not match tag ${version_tag} (${tag_sha})."
             exit 1
           fi
-          git fetch --quiet origin "+refs/heads/master:refs/remotes/origin/master"
           if ! git merge-base --is-ancestor "$tag_sha" refs/remotes/origin/master; then
             echo "::error::Tag ${version_tag} is not on master. Publish previews only from merged commits."
             exit 1
@@ -120,7 +123,7 @@ jobs:
       - name: Make Gradle wrapper executable
         run: chmod +x ./gradlew
       - name: Validate Gradle wrapper
-        uses: gradle/actions/wrapper-validation@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6
+        uses: gradle/actions/wrapper-validation@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
 
       - name: Build preview APKs
         shell: bash

@@ -208,17 +208,51 @@ class Checker:
                         self.add("BAK001", "high", f"{label} does not exclude {domain}:{path}.", rel)
 
     # --------------------------------------------------------------------- build
+    @staticmethod
+    def build_type_blocks(text: str) -> dict[str, str]:
+        """Return the body of each build type in the android.buildTypes block, by brace matching.
+
+        Accepts named("x") { }, getByName("x") { }, create("x") { }, register("x") { } and x { }.
+        """
+        start = re.search(r"\bbuildTypes\s*\{", text)
+        if not start:
+            return {}
+
+        def block_end(open_index: int) -> int:
+            depth = 0
+            for index in range(open_index, len(text)):
+                if text[index] == "{":
+                    depth += 1
+                elif text[index] == "}":
+                    depth -= 1
+                    if depth == 0:
+                        return index
+            return len(text)
+
+        outer_open = start.end() - 1
+        outer_close = block_end(outer_open)
+        blocks: dict[str, str] = {}
+        cursor = outer_open + 1
+        pattern = re.compile(r'(?:(?:named|getByName|create|register|maybeCreate)\(\s*"(\w+)"\s*\)|\b(debug|release)\b)\s*\{')
+        while True:
+            match = pattern.search(text, cursor, outer_close)
+            if not match:
+                return blocks
+            open_index = match.end() - 1
+            close_index = block_end(open_index)
+            blocks[match.group(1) or match.group(2)] = text[open_index + 1 : close_index]
+            cursor = close_index + 1
+
     def check_build(self) -> None:
         rel = "app/build.gradle.kts"
         text = (self.root / rel).read_text(encoding="utf-8")
-        for match in re.finditer(r"\bis(?:Jni)?Debuggable\s*=\s*true", text):
-            preceding = text[: match.start()]
-            blocks = re.findall(r'(?:named|create|getByName)\("([^"]+)"\)', preceding)
-            block = blocks[-1] if blocks else "<unknown>"
-            if block != "debug":
-                self.add("BLD001", "critical", f"Build type '{block}' is debuggable.", rel, text.count("\n", 0, match.start()) + 1)
-        release = re.search(r'named\("release"\)\s*\{(?P<body>.*?)\n    \}', text, re.DOTALL)
-        if not release or "isMinifyEnabled = true" not in release.group("body"):
+        blocks = self.build_type_blocks(text)
+        for name, body in blocks.items():
+            if name != "debug" and re.search(r"\bis(?:Jni)?Debuggable\s*=\s*true", body):
+                self.add("BLD001", "critical", f"Build type '{name}' is debuggable.", rel)
+        if "release" not in blocks:
+            self.add("BLD002", "medium", "Could not find the release build type in android.buildTypes.", rel)
+        elif not re.search(r"\bisMinifyEnabled\s*=\s*true", blocks["release"]):
             self.add("BLD002", "medium", "Release build type must keep isMinifyEnabled = true.", rel)
 
         for gradle_file in [self.root / "build.gradle.kts", self.root / "app/build.gradle.kts", self.root / "gradle.properties"]:
@@ -247,7 +281,8 @@ class Checker:
     SOURCE_RULES = [
         ("SRC001", "high", r"\baddJavascriptInterface\s*\(", "WebView JavaScript bridge exposes app code to web content."),
         ("SRC002", "high", r"(?:setAllow(?:Universal|File)AccessFromFileURLs\s*\(\s*true|allow(?:Universal|File)AccessFromFileURLs\s*=\s*true)", "WebView allows file:// pages to read other origins."),
-        ("SRC003", "critical", r"(?::\s*(?:[\w.]+\.)?X509(?:Extended)?TrustManager\b|implements\s+(?:[\w.]+\.)?X509(?:Extended)?TrustManager\b)", "Custom X509TrustManager implementation; this commonly disables certificate validation."),
+        # Implementations only (object expressions, class supertypes, Java implements), not type annotations.
+        ("SRC003", "critical", r"(?:\bobject\s*:\s*(?:[\w.]+\.)?X509(?:Extended)?TrustManager\b|\bclass\s+\w+[^{\n]*?\)?\s*:\s*(?:[\w.]+\.)?X509(?:Extended)?TrustManager\b|\bimplements\s+(?:[\w.]+\.)?X509(?:Extended)?TrustManager\b)", "Custom X509TrustManager implementation; this commonly disables certificate validation."),
         ("SRC003", "critical", r"(?:HostnameVerifier\s*\{\s*\w+\s*,\s*\w+\s*->\s*true\s*\}|hostnameVerifier\s*\{\s*\w+\s*,\s*\w+\s*->\s*true\s*\}|ALLOW_ALL_HOSTNAME_VERIFIER|NoopHostnameVerifier)", "Hostname verification is disabled."),
         ("SRC004", "high", r"StrictHostKeyChecking\"\s*,\s*\"no\"", "SSH host-key checking is disabled."),
         ("SRC005", "high", r"Cipher\.getInstance\(\s*\"(?:AES\"|AES/ECB|DES|DESede|RC4|Blowfish)", "Weak cipher or ECB mode."),
