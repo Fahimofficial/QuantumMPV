@@ -40,7 +40,7 @@ def fetch_check_runs(api: str, repo: str, sha: str, token: str) -> list[dict]:
                 "User-Agent": "quantummpv-release-gate",
             },
         )
-        with urllib.request.urlopen(request, timeout=30) as response:
+        with urllib.request.urlopen(request, timeout=30) as response:  # nosec B310 - https scheme enforced in main()
             payload = json.load(response)
         batch = payload.get("check_runs", [])
         runs.extend(batch)
@@ -85,6 +85,9 @@ def main() -> int:
     token = os.environ.get("GITHUB_TOKEN", "")
     repo = os.environ.get("GITHUB_REPOSITORY", "")
     api = os.environ.get("GITHUB_API_URL", "https://api.github.com").rstrip("/")
+    if not api.startswith("https://"):
+        print(f"::error::GITHUB_API_URL must be an https:// URL, got {api!r}.")
+        return 1
     if not token or not repo:
         print("::error::GITHUB_TOKEN and GITHUB_REPOSITORY must be set.")
         return 1

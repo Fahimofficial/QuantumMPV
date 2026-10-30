@@ -19,9 +19,9 @@ import argparse
 import json
 import os
 import re
-import subprocess
+import subprocess  # nosec B404 - only runs a fixed `git ls-files` command
 import sys
-import xml.etree.ElementTree as ET
+import xml.etree.ElementTree as ET  # nosec B405 - input is guarded against DTDs/entities in parse_xml
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -51,8 +51,19 @@ class Checker:
 
     def parse_xml(self, rel: str) -> ET.Element | None:
         try:
-            return ET.parse(self.root / rel).getroot()
-        except (ET.ParseError, OSError) as error:
+            text = (self.root / rel).read_text(encoding="utf-8")
+        except OSError as error:
+            self.add("XML000", "high", f"Could not read security-relevant XML: {error}", rel)
+            return None
+        # Android resource XML never needs a DTD. Rejecting DOCTYPE/ENTITY
+        # declarations rules out entity-expansion and external-entity attacks
+        # from a crafted pull request without adding a dependency.
+        if "<!DOCTYPE" in text or "<!ENTITY" in text:
+            self.add("XML001", "high", "XML declares a DOCTYPE or ENTITY; Android resource XML must not.", rel)
+            return None
+        try:
+            return ET.fromstring(text)  # nosec B314 # nosemgrep: use-defused-xml-parse - DTD/entities rejected above
+        except ET.ParseError as error:
             self.add("XML000", "high", f"Could not parse security-relevant XML: {error}", rel)
             return None
 
@@ -272,7 +283,9 @@ class Checker:
         if not log_block or not all(f" {level}(" in log_block.group("body") for level in ("v", "d")):
             self.add("BLD003", "medium", "Release R8 rules must strip Log.v and Log.d calls (they log stream URLs and paths).", proguard_rel)
 
-        tracked = subprocess.run(["git", "ls-files"], cwd=self.root, capture_output=True, text=True, check=True).stdout.splitlines()
+        tracked = subprocess.run(  # nosec B603 B607 - fixed argument list, no shell
+            ["git", "ls-files"], cwd=self.root, capture_output=True, text=True, check=True
+        ).stdout.splitlines()
         for path in tracked:
             if re.search(r"\.(jks|keystore|p12|pfx)$", path, re.IGNORECASE):
                 self.add("REPO001", "critical", "A signing keystore is committed to the repository. Remove it and rotate the key.", path)
