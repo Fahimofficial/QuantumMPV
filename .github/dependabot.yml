@@ -8,6 +8,33 @@ updates:
     labels:
       - dependencies
       - android
+    # Version updates wait a week after a release so broken or malicious
+    # versions are more likely to be caught upstream first. Security updates
+    # are not delayed by cooldown.
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
+    # Libraries that must move together are grouped so CI tests them as one
+    # change. Everything else still gets an individual PR.
+    groups:
+      kotlin-toolchain:
+        patterns:
+          - "org.jetbrains.kotlin*"
+          - "com.google.devtools.ksp"
+      androidx-compose:
+        patterns:
+          - "androidx.compose*"
+        update-types:
+          - minor
+          - patch
+      media3:
+        patterns:
+          - "androidx.media3:*"
+      test-dependencies:
+        dependency-type: development
+        update-types:
+          - minor
+          - patch
     # These libraries are pinned on purpose by the root build.gradle.kts
     # `resolutionStrategy.eachDependency` security block (and mirrored as
     # `constraints` in app/build.gradle.kts). Dependabot's Gradle parser
@@ -31,6 +58,30 @@ updates:
     labels:
       - dependencies
       - ci
+    cooldown:
+      default-days: 7
+    # Actions are SHA-pinned; one grouped PR per week keeps pins current
+    # without a PR per action.
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+
+  # Hash-pinned Python tooling used by workflow-audit.yml.
+  - package-ecosystem: pip
+    directory: /.github/requirements
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 2
+    labels:
+      - dependencies
+      - ci
+    cooldown:
+      default-days: 7
+    groups:
+      ci-python:
+        patterns:
+          - "*"
 
   # npm dependencies for the documentation/preview website (website/).
   - package-ecosystem: npm
@@ -41,6 +92,8 @@ updates:
     labels:
       - dependencies
       - website
+    cooldown:
+      default-days: 7
     # Keep PR volume low: group dev deps and non-major runtime bumps.
     groups:
       website-dev:

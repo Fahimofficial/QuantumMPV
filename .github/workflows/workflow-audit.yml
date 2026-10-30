@@ -1,0 +1,111 @@
+name: Workflow audit
+
+# Validates GitHub Actions workflows and repository configuration, and looks
+# for dangerous GitHub Actions patterns (template injection, excessive
+# permissions, credential persistence, cache poisoning, unpinned actions).
+# Runs on every pull request without path filters so it can be a required check.
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+  schedule:
+    # Weekly: zizmor's online audits pick up newly disclosed vulnerable actions.
+    - cron: '41 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: workflow-audit-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  actionlint:
+    name: actionlint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      ACTIONLINT_VERSION: 1.7.12
+      ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Download and verify actionlint
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl -fsSL --retry 3 --retry-delay 2 -o "$RUNNER_TEMP/$archive" \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${archive}"
+          echo "${ACTIONLINT_SHA256}  $RUNNER_TEMP/$archive" | sha256sum --check --strict
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP" actionlint
+
+      # shellcheck is preinstalled on ubuntu-24.04 runners; actionlint uses it
+      # to lint every run: block.
+      - name: Run actionlint
+        run: '"$RUNNER_TEMP/actionlint" -color'
+
+  zizmor:
+    name: zizmor
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Findings fail this job. Accepted, justified exceptions live in
+      # .github/zizmor.yml. Results are shown as annotations rather than
+      # uploaded to code scanning, so no security-events permission is needed.
+      - name: Audit workflows and Dependabot configuration
+        uses: zizmorcore/zizmor-action@53290badfa369cb0bf7ad16342cb62c2fa47ac7b # v0.8.0
+        with:
+          version: 1.31.1
+          persona: regular
+          advanced-security: false
+          annotations: true
+          config: .github/zizmor.yml
+
+  config:
+    name: Validate repository configuration
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install hash-pinned schema validator
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --quiet --require-hashes --no-deps \
+            -r .github/requirements/config-validation.txt
+
+      - name: Validate Dependabot and workflow schemas
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNNER_TEMP/venv/bin/check-jsonschema" --builtin-schema vendor.dependabot .github/dependabot.yml
+          "$RUNNER_TEMP/venv/bin/check-jsonschema" --builtin-schema vendor.github-workflows .github/workflows/*.yml
+
+      - name: Validate JSON configuration files
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in native-artifacts.json config/security/android-security-policy.json vercel.json; do
+            python3 -m json.tool "$file" >/dev/null
+            echo "valid JSON: $file"
+          done
+
+      - name: Check native artifact metadata consistency
+        run: python3 tools/test_native_artifacts.py
