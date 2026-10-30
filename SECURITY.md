@@ -29,6 +29,9 @@ Please include:
 - impact assessment and, if known, the affected component (playback engine,
   subtitle handling, file access, Cast, intent handling, shaders)
 
+How the project is built, scanned, signed and released is described in
+[docs/SECURITY.md](docs/SECURITY.md) and [docs/RELEASE.md](docs/RELEASE.md).
+
 ## What to expect
 
 - Acknowledgement within 7 days.
