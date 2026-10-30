@@ -36,6 +36,9 @@ jobs:
     name: Build preview APKs
     runs-on: ubuntu-24.04
     timeout-minutes: 60
+    # Holds the signing secrets for preview builds. Restrict this environment
+    # to the master branch so workflow_dispatch from other branches cannot sign.
+    environment: preview
     outputs:
       should_build: ${{ steps.activity.outputs.should_build }}
       commit_count: ${{ steps.metadata.outputs.commit_count }}
@@ -44,6 +47,7 @@ jobs:
       - name: Checkout preview source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           fetch-depth: 0
 
       - name: Check for unpublished app activity
@@ -102,10 +106,12 @@ jobs:
           fi
 
           echo "should_build=$should_build" >> "$GITHUB_OUTPUT"
-          echo "SOURCE_FINGERPRINT=$source_fingerprint" >> "$GITHUB_ENV"
-          echo "SELECTED_FLAVOR=$selected_flavor" >> "$GITHUB_ENV"
-          echo "WEBSITE_VISIBLE=$website_visible" >> "$GITHUB_ENV"
-          echo "PUBLICATION_MODE=$publication_mode" >> "$GITHUB_ENV"
+          {
+            echo "SOURCE_FINGERPRINT=$source_fingerprint"
+            echo "SELECTED_FLAVOR=$selected_flavor"
+            echo "WEBSITE_VISIBLE=$website_visible"
+            echo "PUBLICATION_MODE=$publication_mode"
+          } >> "$GITHUB_ENV"
           echo "Preview decision: $should_build ($reason)"
 
       - name: Set build metadata
@@ -124,17 +130,20 @@ jobs:
           short_sha="$(git rev-parse --short HEAD)"
           published_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
 
-          echo "COMMIT_COUNT=$commit_count" >> "$GITHUB_ENV"
           echo "commit_count=$commit_count" >> "$GITHUB_OUTPUT"
-          echo "SOURCE_SHA=$source_sha" >> "$GITHUB_ENV"
-          echo "SHORT_SHA=$short_sha" >> "$GITHUB_ENV"
-          echo "PUBLISHED_AT=$published_at" >> "$GITHUB_ENV"
-          echo "SOURCE_RUN_ID=$SOURCE_RUN_ID" >> "$GITHUB_ENV"
-          echo "SOURCE_RUN_NUMBER=$SOURCE_RUN_NUMBER" >> "$GITHUB_ENV"
-          echo "SOURCE_RUN_URL=$SOURCE_RUN_URL" >> "$GITHUB_ENV"
-          echo "SOURCE_BRANCH=$SOURCE_BRANCH" >> "$GITHUB_ENV"
+          {
+            echo "COMMIT_COUNT=$commit_count"
+            echo "SOURCE_SHA=$source_sha"
+            echo "SHORT_SHA=$short_sha"
+            echo "PUBLISHED_AT=$published_at"
+            echo "SOURCE_RUN_ID=$SOURCE_RUN_ID"
+            echo "SOURCE_RUN_NUMBER=$SOURCE_RUN_NUMBER"
+            echo "SOURCE_RUN_URL=$SOURCE_RUN_URL"
+            echo "SOURCE_BRANCH=$SOURCE_BRANCH"
+          } >> "$GITHUB_ENV"
 
       - name: Fetch and verify pinned native artifacts
+        if: steps.activity.outputs.should_build == 'true'
         run: python3 tools/verify_native_artifacts.py --download
       - name: Set up JDK 17
         if: steps.activity.outputs.should_build == 'true'
@@ -144,8 +153,10 @@ jobs:
           java-version: '17'
           cache: gradle
       - name: Set up Android SDK
+        if: steps.activity.outputs.should_build == 'true'
         uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
       - name: Install Android build toolchain
+        if: steps.activity.outputs.should_build == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -241,6 +252,7 @@ jobs:
           fi
 
       - name: Verify final APK native contents
+        if: steps.activity.outputs.should_build == 'true'
         shell: bash
         run: |
           set -euo pipefail

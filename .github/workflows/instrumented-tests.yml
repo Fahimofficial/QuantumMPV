@@ -3,13 +3,22 @@ name: Instrumented tests
 on:
   pull_request:
   workflow_dispatch:
+  # release.yml calls this workflow so a stable release is tested on an
+  # emulator from the exact tagged source before it is published.
+  workflow_call:
+    inputs:
+      ref:
+        description: Git ref to test (defaults to the triggering ref)
+        type: string
+        required: false
+        default: ''
 
 permissions:
   contents: read
 
 concurrency:
   group: instrumented-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   GRADLE_OPTS: >-
@@ -32,6 +41,9 @@ jobs:
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
 
       - name: Fetch and verify pinned native artifacts
         run: python3 tools/verify_native_artifacts.py --download
@@ -55,6 +67,7 @@ jobs:
           sudo udevadm trigger --name-match=kvm
 
       - name: Run instrumented tests on emulator
+        id: emulator-tests
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2
         with:
           api-level: ${{ matrix.api-level }}
@@ -66,9 +79,13 @@ jobs:
           script: ./gradlew :app:connectedStandardDebugAndroidTest --stacktrace --no-daemon --max-workers=1
 
       - name: Verify final APK native contents
-        if: ${{ always() }}
+        if: ${{ !cancelled() && steps.emulator-tests.outcome != 'skipped' }}
         run: |
           set -euo pipefail
+          if [[ ! -d app/build/outputs/apk ]]; then
+            echo "::warning::No APK outputs exist because the Gradle build failed; see the previous step."
+            exit 0
+          fi
           while IFS= read -r -d '' apk; do
             python3 tools/verify_native_artifacts.py --apk "$apk"
           done < <(find app/build/outputs/apk -type f -name '*.apk' ! -path '*/androidTest/*' -print0)

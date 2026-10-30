@@ -1,5 +1,10 @@
 name: Android CI
 
+# Pull request validation and main-branch validation share this workflow, so
+# the expensive Gradle build runs once per commit. The job name below is a
+# required status check in master branch protection; do not rename it without
+# updating the protection rule (see docs/CI_CD.md).
+
 on:
   push:
     branches:
@@ -12,7 +17,9 @@ permissions:
 
 concurrency:
   group: android-ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  # Superseded PR runs are cancelled. Master runs are never cancelled, so every
+  # merged commit gets a result (release workflows require it).
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   GRADLE_OPTS: >-
@@ -33,6 +40,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Fetch and verify pinned native artifacts
         run: python3 tools/verify_native_artifacts.py --download
@@ -83,10 +91,17 @@ jobs:
           echo "Gradle validation exited with status $status"
           exit "$status"
 
+      # Runs whenever Gradle ran, including after a Gradle failure, but not when
+      # an earlier step failed and no APKs could exist (avoids a misleading
+      # "No such file or directory" error hiding the real failure).
       - name: Verify final APK native contents
-        if: ${{ always() }}
+        if: ${{ !cancelled() && steps.debug-validation.outcome != 'skipped' }}
         run: |
           set -euo pipefail
+          if [[ ! -d app/build/outputs/apk ]]; then
+            echo "::warning::No APK outputs exist because the Gradle build failed; see the previous step."
+            exit 0
+          fi
           while IFS= read -r -d '' apk; do
             python3 tools/verify_native_artifacts.py --apk "$apk"
           done < <(find app/build/outputs/apk -type f -name '*.apk' ! -path '*/androidTest/*' -print0)

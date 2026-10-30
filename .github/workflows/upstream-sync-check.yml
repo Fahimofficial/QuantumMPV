@@ -45,9 +45,11 @@ jobs:
             exit 1
           fi
           safe_tag="$(printf '%s' "$tag" | tr '/ ' '--')"
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "url=$url" >> "$GITHUB_OUTPUT"
-          echo "safe_tag=$safe_tag" >> "$GITHUB_OUTPUT"
+          {
+            echo "tag=$tag"
+            echo "url=$url"
+            echo "safe_tag=$safe_tag"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Configure upstream remote
         run: git remote add upstream https://github.com/Riteshp2001/mpvRx.git
