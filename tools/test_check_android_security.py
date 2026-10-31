@@ -262,6 +262,21 @@ class NetworkAndBackupTest(FixtureTest):
         self.policy(accepted_exceptions={"nsc-base-cleartext": "Reviewed."})
         self.assertEqual(self.check(), ([("NSC002", "info")], 0))
 
+    def test_missing_data_extraction_section(self) -> None:
+        for section in ("cloud-backup", "device-transfer"):
+            with self.subTest(section):
+                self.setUp()
+                self.replace(f"{XML_DIR}/data_extraction_rules.xml", f'<{section}><exclude domain="file" path="secure/" /></{section}>', "")
+                self.assert_blocks("BAK001", "high")
+
+    def test_manifest_backup_rules_must_be_covered_by_the_policy(self) -> None:
+        for attribute in ("dataExtractionRules", "fullBackupContent"):
+            with self.subTest(attribute):
+                self.setUp()
+                self.replace(MANIFEST, f'android:{attribute}="@xml/', f'android:{attribute}="@xml/unchecked_')
+                self.write(f"{XML_DIR}/unchecked_rules.xml", "<full-backup-content />")
+                self.assert_blocks("BAK002", "high")
+
     def test_missing_backup_exclusions(self) -> None:
         for rel, element in [("backup_rules.xml", "full-backup-content"), ("data_extraction_rules.xml", "device-transfer")]:
             with self.subTest(rel):
@@ -291,15 +306,23 @@ class BuildTest(FixtureTest):
     def test_hardcoded_signing_passwords(self) -> None:
         self.replace(APP_GRADLE, 'System.getenv("KS_PASS") ?: ""', '"hunter2"')
         self.assert_blocks("BLD004", "critical")
+        for properties in ('keyPassword = "hunter2"\n', "storePassword=hunter2\n", "android.injected.signing.store.password: hunter2\n"):
+            with self.subTest(properties):
+                self.setUp()
+                self.write("gradle.properties", properties)
+                self.assert_blocks("BLD004", "critical")
         self.setUp()
-        self.write("gradle.properties", 'keyPassword = "hunter2"\n')
-        self.assert_blocks("BLD004", "critical")
+        self.write("gradle.properties", "# storePassword=example\nkeystorePasswordFile=/secure/pass.txt\nstorePassword=\n")
+        self.assertEqual(self.check(), ([], 0))
         self.setUp()
         self.replace(APP_GRADLE, 'System.getenv("KS_PASS") ?: ""', '"$ksPass"')
         self.assertEqual(self.check(), ([], 0))
 
     def test_release_log_stripping(self) -> None:
         self.replace("app/proguard-rules.pro", "    public static int d(...);\n", "")
+        self.assert_blocks("BLD003", "medium")
+        self.setUp()
+        self.replace("app/proguard-rules.pro", "    public static int d(...);", "    # public static int d(...);")
         self.assert_blocks("BLD003", "medium")
 
     def test_committed_keystore(self) -> None:
@@ -334,6 +357,18 @@ class SourceTest(FixtureTest):
         self.write("app/src/main/java/app/Bad.kt", "val verifier = HostnameVerifier { _, _ -> true }\n")
         findings, _ = self.check()
         self.assertEqual(findings.count(("SRC003", "critical")), 2)
+
+    def test_all_packaged_source_sets_are_scanned(self) -> None:
+        bad = 'package app\nfun bad() = web.addJavascriptInterface(bridge, "app")\n'
+        for source_set in ("release", "fongmi", "standardRelease", "debug"):
+            with self.subTest(source_set):
+                self.setUp()
+                self.write(f"app/src/{source_set}/java/app/Bad.kt", bad)
+                self.assert_blocks("SRC001", "high")
+        self.setUp()
+        for source_set in ("test", "androidTest", "testStandardDebug", "testFixtures"):
+            self.write(f"app/src/{source_set}/java/app/Bad.kt", bad)
+        self.assertEqual(self.check(), ([], 0))
 
     def test_exported_dynamic_receiver(self) -> None:
         self.write("app/src/main/java/app/Bad.kt", 'fun f() = context.registerReceiver(r, IntentFilter("x"), Context.RECEIVER_EXPORTED)\n')

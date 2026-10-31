@@ -77,6 +77,7 @@ class Checker:
             self.add("MAN000", "high", "Manifest has no <application> element.", manifest_rel)
             return
         self.check_application_flags(app, manifest_rel)
+        self.check_backup_references(app, manifest_rel)
         self.check_exported_components(app, manifest_rel)
         self.check_permissions(root, manifest_rel)
         self.check_file_providers(app, manifest_rel)
@@ -103,6 +104,23 @@ class Checker:
                 "Backup is enabled but dataExtractionRules and fullBackupContent are not both set.",
                 rel,
             )
+
+    def check_backup_references(self, app: ElementTree.Element, rel: str) -> None:
+        """The backup rules the manifest uses must be the ones the policy checks."""
+        # Checked even with allowBackup="false": on Android 12+ dataExtractionRules
+        # still governs device-to-device transfer.
+        for attribute in ("dataExtractionRules", "fullBackupContent"):
+            value = app.get(ANDROID + attribute, "")
+            if not value.startswith("@xml/"):
+                continue
+            target = f"app/src/main/res/xml/{value[5:]}.xml"
+            if target not in self.policy["backup_exclusions"]:
+                self.add(
+                    "BAK002",
+                    "high",
+                    f"android:{attribute} points to {target}, which has no backup_exclusions entry in the policy file.",
+                    rel,
+                )
 
     def check_exported_components(self, app: ElementTree.Element, rel: str) -> None:
         """Exported components must match the reviewed allowlist exactly."""
@@ -227,15 +245,25 @@ class Checker:
             root = self.parse_xml(rel)
             if root is None:
                 continue
-            sections = list(root.findall("cloud-backup")) + list(root.findall("device-transfer"))
-            if not sections:
-                sections = [root]
-            for section in sections:
+            for section in self.backup_sections(root, rel):
                 excluded = {(e.get("domain"), e.get("path")) for e in section.iter("exclude")}
                 label = section.tag
                 for domain, path in required:
                     if (domain, path) not in excluded:
                         self.add("BAK001", "high", f"{label} does not exclude {domain}:{path}.", rel)
+
+    def backup_sections(self, root: ElementTree.Element, rel: str) -> list[ElementTree.Element]:
+        """Return the sections whose exclusions must be checked, reporting missing ones."""
+        if root.tag != "data-extraction-rules":
+            return [root]
+        sections = []
+        for tag in ("cloud-backup", "device-transfer"):
+            found = root.findall(tag)
+            if not found:
+                # Android applies no rules, i.e. includes all app data, to a missing section.
+                self.add("BAK001", "high", f"No <{tag}> section, so {tag} includes all app data.", rel)
+            sections.extend(found)
+        return sections
 
     # --------------------------------------------------------------------- build
     @staticmethod
@@ -288,20 +316,28 @@ class Checker:
         elif not re.search(r"\bisMinifyEnabled\s*=\s*true", blocks["release"]):
             self.add("BLD002", "medium", "Release build type must keep isMinifyEnabled = true.", rel)
 
+    # Kotlin DSL: a string literal that is not a template, e.g. storePassword = "secret".
+    KTS_PASSWORD = re.compile(r'\b(storePassword|keyPassword)\s*=\s*"[^"$]')
+    # Properties files: every value is a literal, e.g. storePassword=secret or
+    # android.injected.signing.store.password=secret.
+    PROPERTIES_PASSWORD = re.compile(r"^[ \t]*([\w.-]*(?:store|key)[\w.-]*password)[ \t]*[=:][ \t]*\S", re.IGNORECASE | re.MULTILINE)
+
     def check_signing_passwords(self) -> None:
-        for gradle_file in [self.root / "build.gradle.kts", self.root / "app/build.gradle.kts", self.root / "gradle.properties"]:
-            content = gradle_file.read_text(encoding="utf-8")
-            for match in re.finditer(r'\b(storePassword|keyPassword)\s*=\s*"[^"$]', content):
+        sources = [("build.gradle.kts", self.KTS_PASSWORD), ("app/build.gradle.kts", self.KTS_PASSWORD), ("gradle.properties", self.PROPERTIES_PASSWORD)]
+        for rel, pattern in sources:
+            content = (self.root / rel).read_text(encoding="utf-8")
+            for match in pattern.finditer(content):
                 self.add(
                     "BLD004",
                     "critical",
                     f"Hardcoded {match.group(1)} in Gradle configuration.",
-                    str(gradle_file.relative_to(self.root)),
+                    rel,
                     content.count("\n", 0, match.start()) + 1,
                 )
 
     def check_log_stripping(self, rel: str) -> None:
-        proguard = (self.root / rel).read_text(encoding="utf-8")
+        # Drop comments first, so a commented-out rule does not count.
+        proguard = re.sub(r"#[^\n]*", "", (self.root / rel).read_text(encoding="utf-8"))
         log_block = re.search(r"-assumenosideeffects class android\.util\.Log\s*\{(?P<body>[^}]*)\}", proguard)
         if not log_block or not all(f" {level}(" in log_block.group("body") for level in ("v", "d")):
             self.add("BLD003", "medium", "Release R8 rules must strip Log.v and Log.d calls (they log stream URLs and paths).", rel)
@@ -347,10 +383,17 @@ class Checker:
         ("SRC007", "high", r"\b(?:DexClassLoader|InMemoryDexClassLoader)\b", "Dynamic code loading."),
     ]
 
+    def source_files(self) -> list[Path]:
+        """Kotlin/Java files of every source set that can be packaged (all but test sets)."""
+        files: list[Path] = []
+        for source_set in sorted((self.root / "app/src").iterdir()):
+            if source_set.is_dir() and not source_set.name.startswith(("test", "androidTest")):
+                files.extend(source_set.rglob("*.kt"))
+                files.extend(source_set.rglob("*.java"))
+        return sorted(files)
+
     def check_sources(self) -> None:
-        source_root = self.root / "app/src/main"
-        files = sorted(list(source_root.rglob("*.kt")) + list(source_root.rglob("*.java")))
-        for path in files:
+        for path in self.source_files():
             rel = str(path.relative_to(self.root))
             text = path.read_text(encoding="utf-8", errors="replace")
             lines = text.splitlines()
