@@ -148,3 +148,61 @@ frame timing. Instrumented tests were built but not run. Check these on a device
 4. Playlist: remove items, then Undo. Reorder with haptics.
 5. System "Remove animations" plus each controls style: only fades.
 6. Gesture settings: turning Haptic feedback off silences every haptic.
+
+## 5. Follow-up batch
+
+Implemented after the first push:
+
+- **U2, Undo for Recents:** the history rows are captured before a history-only removal and
+  re-inserted unchanged on Undo. Removals that also delete files show a plain confirmation instead.
+  The snackbar sits above the floating dock. Files: `RecentlyPlayedDao`, `RecentlyPlayedRepository`
+  (+Impl), `RecentlyPlayedViewModel`, `RecentlyPlayedScreen`.
+- **D2:** `ui/browser/components/ServerSetupCard.kt` replaces the three inline Music-tab cards and
+  uses `AppShapeScale.extraLarge`, so the corners go from 24 dp to 28 dp. The "no music library"
+  card keeps its original button order, with "use local" as the primary action, because the server
+  itself works.
+- **D3, D4:** the Recents and playlist remove dialogs and the Recents "disabled" message moved to
+  string resources and plurals. Recents and playlist detail now show `LoadingState` (whose message is
+  now optional) instead of a bare spinner.
+- **A10:** `AppMotion.Duration` now follows Material 3's duration steps (SHORT2 100 through MEDIUM4
+  400 ms). 62 literal tweens plus the navigation, controls and video-open base durations were moved
+  onto it. Values within 20 ms snap to the nearest step (for example 280 to 300 ms and 180 to
+  200 ms). Ambient loops are left as they were: visualizers, shimmer, 800 ms colour drifts, and the
+  70 ms scrollbar tracking ease.
+- **M3 for folders:** the thumbnail fade is shared through `cards/ThumbnailFade.kt`. Folder
+  thumbnails are produced by a MediaStore query plus a cache lookup, so they usually take longer than
+  the 48 ms instant window and fade in.
+
+### P5, nav bar per-frame work: measured and changed
+
+Method: a temporary Robolectric harness, not committed, saved as
+`.toolchain/NavBarFrameCostProbe.kt` in the workspace. It renders `ExpressivePillNavigationBar`
+with five tabs under a `HorizontalPager` and drags the pager 2 px per frame for 5 × 60 frames,
+alternating direction from the middle page. It counts how often the bar recomposes and times each
+frame (input, composition, layout and draw on the JVM). These are not device frame times, but the
+recomposition count is exact.
+
+| | Bar recompositions per 300 drag frames | Median frame | p90 frame |
+|---|---|---|---|
+| Pager alone | n/a | 0.82-1.03 ms | 0.97-1.20 ms |
+| Pager + bar, before | 495 | 2.49-2.65 ms | 3.59 ms |
+| Pager + bar, after | 10 (one at the start and one at the end of each drag) | 1.92-2.19 ms | 3.09-3.16 ms |
+
+Change: the live pager position is now read only inside layout and draw lambdas. That covers tab
+widths, indicator offset and width, label reveal, and icon and label colour (recoloured with an
+offscreen `SrcIn` pass). The settle springs are `Animatable`s seeded from the on-screen value when a
+drag ends. The scroll re-centering follows `scrollState.maxValue` with `snapshotFlow` instead of
+recomposing for it.
+
+Pixel check: I captured the bar at fixed frames before and after the change and compared them.
+- During the drag and at rest, the frames match apart from antialiasing on the label text (17 to
+  69 px with a channel difference above 40, all on glyph edges). The text is recoloured after
+  rasterising rather than drawn in the final colour.
+- Mid-settle frames differ by up to about one frame of animation phase. The spring now starts from a
+  `LaunchedEffect` instead of `animate*AsState`.
+
+Accessibility: the label `Text` is now excluded from semantics. Each tab is still named by its icon's
+content description, and TalkBack no longer reads the selected tab's name twice.
+
+Not verified on a device: absolute frame times, GPU cost of the per-tab offscreen layers (six
+48 dp layers), and how it feels.

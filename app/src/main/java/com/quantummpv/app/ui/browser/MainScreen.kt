@@ -19,7 +19,7 @@ import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.VectorConverter
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
@@ -40,7 +40,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
@@ -83,16 +82,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -130,6 +132,8 @@ import com.quantummpv.app.ui.utils.rememberMorphingCornerShape
 import com.quantummpv.app.ui.utils.rememberSearchMorphModifier
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import org.koin.compose.koinInject
@@ -747,6 +751,11 @@ object MainScreen : Screen {
  * Responsive floating navigation pill. Labels expand when space permits; otherwise the 48dp tab
  * targets remain horizontally scrollable while the overflow trigger stays pinned at the end.
  * [pagerState] is the single source of truth for the travelling selected indicator.
+ *
+ * The live pager position is read only inside layout and draw lambdas (tab widths, indicator
+ * offset and width, label reveal, colour). A pager drag therefore re-runs layout and drawing for
+ * the dock but never recomposes it; composition happens only when the selection or drag state
+ * changes.
  */
 @Composable
 private fun ExpressivePillNavigationBar(
@@ -778,16 +787,15 @@ private fun ExpressivePillNavigationBar(
       com.quantummpv.app.ui.theme.AppMotion.ReducedAlpha,
     )
 
-  val position =
-    if (pagerState != null) {
-      (pagerState.currentPage + pagerState.currentPageOffsetFraction).coerceIn(
-        0f,
-        (visibleTabs.size - 1).toFloat(),
-      )
-    } else {
-      visibleTabs.indexOf(selectedTab).coerceAtLeast(0).toFloat()
-    }
   val selectedTabIndex = visibleTabs.indexOf(selectedTab).coerceAtLeast(0)
+  val maxPosition = (visibleTabs.size - 1).toFloat()
+  // Read lazily: calling this inside layout/draw keeps pager scrolling out of composition.
+  val livePosition: () -> Float =
+    if (pagerState != null) {
+      { (pagerState.currentPage + pagerState.currentPageOffsetFraction).coerceIn(0f, maxPosition) }
+    } else {
+      { selectedTabIndex.toFloat() }
+    }
 
   // While the finger drags the pager the dock tracks it 1:1. Otherwise (tap, programmatic jump,
   // fling settle) the pill and the tab sizes spring to the selected tab, so non-adjacent jumps
@@ -812,69 +820,122 @@ private fun ExpressivePillNavigationBar(
       com.quantummpv.app.ui.theme.AppMotion.ReducedAlpha,
     )
 
+  fun pagerFraction(
+    index: Int,
+    position: Float,
+  ) = (1f - kotlin.math.abs(position - index)).coerceIn(0f, 1f)
+
+  fun settledFraction(index: Int) = if (index == selectedTabIndex) 1f else 0f
+
+  fun widthFor(
+    index: Int,
+    fraction: Float,
+  ) = if (showLabels) {
+    androidx.compose.ui.unit.lerp(NavigationItemSize, activeTabWidth(visibleTabs[index]), fraction)
+  } else {
+    NavigationItemSize
+  }
+
+  fun offsetFor(
+    index: Int,
+    fractionOf: (Int) -> Float,
+  ): androidx.compose.ui.unit.Dp {
+    var offset = NavigationContentPadding
+    for (j in 0 until index) offset += widthFor(j, fractionOf(j)) + NavigationItemSpacing
+    return offset
+  }
+
+  // Indicator geometry while the pager is driven by the finger: interpolated between the two
+  // tabs under the current position, using the same live widths the tabs are laid out with.
+  fun followIndicatorOffset(position: Float): androidx.compose.ui.unit.Dp {
+    val floor = position.toInt().coerceIn(visibleTabs.indices)
+    val ceil = (floor + 1).coerceIn(visibleTabs.indices)
+    val t = (position - floor).coerceIn(0f, 1f)
+    val fractionOf = { j: Int -> pagerFraction(j, position) }
+    return androidx.compose.ui.unit.lerp(offsetFor(floor, fractionOf), offsetFor(ceil, fractionOf), t)
+  }
+
+  fun followIndicatorWidth(position: Float): androidx.compose.ui.unit.Dp {
+    val floor = position.toInt().coerceIn(visibleTabs.indices)
+    val ceil = (floor + 1).coerceIn(visibleTabs.indices)
+    val t = (position - floor).coerceIn(0f, 1f)
+    return androidx.compose.ui.unit.lerp(
+      widthFor(floor, pagerFraction(floor, position)),
+      widthFor(ceil, pagerFraction(ceil, position)),
+      t,
+    )
+  }
+
+  val settledIndicatorOffset = offsetFor(selectedTabIndex, ::settledFraction)
+  val settledIndicatorWidth = widthFor(selectedTabIndex, 1f)
+
   // 0 = collapsed icon-only tab, 1 = fully expanded selected tab. Same spring as the pill, so the
   // tab under the pill always ends up exactly where the pill lands.
-  val activeFractions =
-    visibleTabs.mapIndexed { index, tab ->
-      key(tab) {
-        val pagerFraction = (1f - kotlin.math.abs(position - index)).coerceIn(0f, 1f)
-        val animatedFraction by animateFloatAsState(
-          targetValue = if (followPager) pagerFraction else if (index == selectedTabIndex) 1f else 0f,
-          animationSpec = if (followPager) snap() else pillSpringFloat,
-          label = "nav_tab_active_fraction",
-        )
-        if (followPager) pagerFraction else animatedFraction
+  val fractionAnimations =
+    remember(visibleTabs) { visibleTabs.indices.map { androidx.compose.animation.core.Animatable(settledFraction(it)) } }
+  val indicatorOffsetAnimation =
+    remember {
+      androidx.compose.animation.core.Animatable(
+        settledIndicatorOffset,
+        androidx.compose.ui.unit.Dp.VectorConverter,
+      )
+    }
+  val indicatorWidthAnimation =
+    remember {
+      androidx.compose.animation.core.Animatable(
+        settledIndicatorWidth,
+        androidx.compose.ui.unit.Dp.VectorConverter,
+      )
+    }
+  val wasFollowing = remember { booleanArrayOf(followPager) }
+  LaunchedEffect(followPager, selectedTabIndex, showLabels, visibleTabs, pillSpringDp, pillSpringFloat) {
+    if (followPager) {
+      wasFollowing[0] = true
+      return@LaunchedEffect
+    }
+    // Leaving a drag: start every spring from what is on screen right now, not from a stale value.
+    val seedFromPager = wasFollowing[0]
+    wasFollowing[0] = false
+    val position = livePosition()
+    fractionAnimations.forEachIndexed { index, animation ->
+      launch {
+        if (seedFromPager) animation.snapTo(pagerFraction(index, position))
+        animation.animateTo(settledFraction(index), pillSpringFloat)
       }
     }
-  fun widthFor(
-    tab: MainScreen.MainTab,
-    fraction: Float,
-  ) = if (showLabels) androidx.compose.ui.unit.lerp(NavigationItemSize, activeTabWidth(tab), fraction) else NavigationItemSize
-  fun offsetsFor(widths: List<androidx.compose.ui.unit.Dp>) =
-    buildList {
-      var offset = NavigationContentPadding
-      widths.forEach { width ->
-        add(offset)
-        offset += width + NavigationItemSpacing
-      }
+    launch {
+      if (seedFromPager) indicatorOffsetAnimation.snapTo(followIndicatorOffset(position))
+      indicatorOffsetAnimation.animateTo(settledIndicatorOffset, pillSpringDp)
     }
-  val tabWidths = visibleTabs.mapIndexed { index, tab -> widthFor(tab, activeFractions[index]) }
-  val tabOffsets = offsetsFor(tabWidths)
-  // Where everything settles once the selected tab is fully expanded.
-  val settledTabWidths = visibleTabs.mapIndexed { index, tab -> widthFor(tab, if (index == selectedTabIndex) 1f else 0f) }
-  val settledTabOffsets = offsetsFor(settledTabWidths)
-  val tabsContentWidth =
-    tabWidths.fold(0.dp) { total, width -> total + width } +
-      NavigationItemSpacing * (visibleTabs.size - 1).coerceAtLeast(0) +
-      NavigationContentPadding * 2
+    launch {
+      if (seedFromPager) indicatorWidthAnimation.snapTo(followIndicatorWidth(position))
+      indicatorWidthAnimation.animateTo(settledIndicatorWidth, pillSpringDp)
+    }
+  }
 
-  val pageFloor = position.toInt().coerceIn(visibleTabs.indices)
-  val pageCeil = (pageFloor + 1).coerceIn(visibleTabs.indices)
-  val pageFraction = (position - pageFloor).coerceIn(0f, 1f)
-  val indicatorTargetOffset =
+  val activeFraction: (Int) -> Float =
     if (followPager) {
-      androidx.compose.ui.unit.lerp(tabOffsets[pageFloor], tabOffsets[pageCeil], pageFraction)
+      { index -> pagerFraction(index, livePosition()) }
     } else {
-      settledTabOffsets[selectedTabIndex]
+      { index -> fractionAnimations[index].value }
     }
-  val indicatorTargetWidth =
+  val indicatorOffset: () -> androidx.compose.ui.unit.Dp =
     if (followPager) {
-      androidx.compose.ui.unit.lerp(tabWidths[pageFloor], tabWidths[pageCeil], pageFraction)
+      { followIndicatorOffset(livePosition()) }
     } else {
-      settledTabWidths[selectedTabIndex]
+      { indicatorOffsetAnimation.value }
     }
-  val animatedIndicatorOffset by animateDpAsState(
-    targetValue = indicatorTargetOffset,
-    animationSpec = if (followPager) snap() else pillSpringDp,
-    label = "nav_pill_spring",
-  )
-  val animatedIndicatorWidth by animateDpAsState(
-    targetValue = indicatorTargetWidth,
-    animationSpec = if (followPager) snap() else pillSpringDp,
-    label = "nav_pill_width_spring",
-  )
-  val indicatorOffset = if (followPager) indicatorTargetOffset else animatedIndicatorOffset
-  val indicatorWidth = if (followPager) indicatorTargetWidth else animatedIndicatorWidth
+  val indicatorWidth: () -> androidx.compose.ui.unit.Dp =
+    if (followPager) {
+      { followIndicatorWidth(livePosition()) }
+    } else {
+      { indicatorWidthAnimation.value }
+    }
+  val tabsContentWidth: () -> androidx.compose.ui.unit.Dp = {
+    var total = NavigationContentPadding * 2 + NavigationItemSpacing * (visibleTabs.size - 1).coerceAtLeast(0)
+    visibleTabs.indices.forEach { total += widthFor(it, activeFraction(it)) }
+    total
+  }
 
   val navigationContainer: @Composable (@Composable () -> Unit) -> Unit = { content ->
     com.quantummpv.app.ui.browser.components.NavigationDockSurface(
@@ -890,17 +951,21 @@ private fun ExpressivePillNavigationBar(
       val density = LocalDensity.current
       val tabViewportWidth =
         (maxWidth - com.quantummpv.app.ui.browser.components.FloatingMenuButtonSize).coerceAtLeast(0.dp)
-      val maxScroll = scrollState.maxValue
-      val settledPage = pagerState?.settledPage ?: visibleTabs.indexOf(selectedTab).coerceAtLeast(0)
+      val settledPage = pagerState?.settledPage ?: selectedTabIndex
 
-      LaunchedEffect(settledPage, showLabels, maxScroll, tabViewportWidth) {
+      LaunchedEffect(settledPage, showLabels, tabViewportWidth, selectedTabIndex) {
         val index = settledPage.coerceIn(visibleTabs.indices)
-        val selectedCenter = settledTabOffsets[index] + settledTabWidths[index] / 2
-        val target =
-          with(density) {
-            (selectedCenter - tabViewportWidth / 2).roundToPx().coerceIn(0, maxScroll)
+        val selectedCenter = offsetFor(index, ::settledFraction) + widthFor(index, settledFraction(index)) / 2
+        // maxValue moves while tab widths animate; follow it here rather than recomposing for it.
+        snapshotFlow { scrollState.maxValue }
+          .distinctUntilChanged()
+          .collectLatest { maxScroll ->
+            val target =
+              with(density) {
+                (selectedCenter - tabViewportWidth / 2).roundToPx().coerceIn(0, maxScroll)
+              }
+            if (disableMotion) scrollState.scrollTo(target) else scrollState.animateScrollTo(target, scrollSpec)
           }
-        if (disableMotion) scrollState.scrollTo(target) else scrollState.animateScrollTo(target, scrollSpec)
       }
 
       Row(modifier = Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
@@ -911,14 +976,17 @@ private fun ExpressivePillNavigationBar(
               .height(NavigationDockHeight)
               .horizontalScroll(scrollState),
         ) {
-          Box(modifier = Modifier.width(tabsContentWidth).height(NavigationDockHeight)) {
+          Box(modifier = Modifier.fixedSize({ tabsContentWidth() }, { NavigationDockHeight })) {
             // Sliding active pill, drawn under the tab row.
             Box(
               modifier =
                 Modifier
-                  .offset(x = indicatorOffset, y = NavigationVerticalPadding)
-                  .width(indicatorWidth)
-                  .height(NavigationItemSize)
+                  .offset {
+                    androidx.compose.ui.unit.IntOffset(
+                      indicatorOffset().roundToPx(),
+                      NavigationVerticalPadding.roundToPx(),
+                    )
+                  }.fixedSize(indicatorWidth, { NavigationItemSize })
                   .clip(CircleShape)
                   .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.18f))
                   .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.28f), CircleShape),
@@ -937,9 +1005,11 @@ private fun ExpressivePillNavigationBar(
               horizontalArrangement = Arrangement.spacedBy(NavigationItemSpacing),
               verticalAlignment = Alignment.CenterVertically,
             ) {
+              val inactiveColor = MaterialTheme.colorScheme.onSurfaceVariant
+              val activeColor = MaterialTheme.colorScheme.primary
               visibleTabs.forEachIndexed { index, tab ->
                 key(tab) {
-                  val activeFraction = activeFractions[index].coerceIn(0f, 1f)
+                  val fraction = { activeFraction(index).coerceIn(0f, 1f) }
                   val selected = tab == selectedTab
                   val navBounceScale by animateFloatAsState(
                     targetValue = if (reduceMotion || !selected) 1f else 1.03f,
@@ -947,18 +1017,11 @@ private fun ExpressivePillNavigationBar(
                     label = "bottom_navigation_selection_scale",
                   )
                   val label = mainTabLabel(tab)
-                  val contentColor =
-                    androidx.compose.ui.graphics.lerp(
-                      MaterialTheme.colorScheme.onSurfaceVariant,
-                      MaterialTheme.colorScheme.primary,
-                      activeFraction,
-                    )
 
                   Box(
                     modifier =
                       Modifier
-                        .width(tabWidths[index])
-                        .height(NavigationItemSize)
+                        .fixedSize({ widthFor(index, fraction()) }, { NavigationItemSize })
                         .then(if (selected) Modifier.tvInitialFocus(initialFocusRequester) else Modifier)
                         .tvFocusHighlight(CircleShape, focusedScale = 1.06f)
                         .clip(CircleShape)
@@ -979,26 +1042,39 @@ private fun ExpressivePillNavigationBar(
                           .graphicsLayer {
                             scaleX = navBounceScale
                             scaleY = navBounceScale
+                            // Offscreen so the tint below recolours only the icon and label pixels.
+                            compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen
+                          }.drawWithContent {
+                            drawContent()
+                            drawRect(
+                              color = androidx.compose.ui.graphics.lerp(inactiveColor, activeColor, fraction()),
+                              blendMode = androidx.compose.ui.graphics.BlendMode.SrcIn,
+                            )
                           }.padding(horizontal = 8.dp),
                       horizontalArrangement = Arrangement.Center,
                       verticalAlignment = Alignment.CenterVertically,
                     ) {
-                      MainTabIcon(tab, contentColor, label)
-                      if (showLabels && activeFraction > 0.05f) {
-                        Spacer(modifier = Modifier.width(androidx.compose.ui.unit.lerp(0.dp, 6.dp, activeFraction)))
-                        Text(
-                          text = label,
-                          style = MaterialTheme.typography.labelMedium,
-                          fontWeight = FontWeight.Bold,
-                          color = contentColor,
-                          maxLines = 1,
-                          softWrap = false,
-                          overflow = TextOverflow.Clip,
-                          modifier =
-                            Modifier.graphicsLayer {
-                              alpha = ((activeFraction - 0.25f) / 0.75f).coerceIn(0f, 1f)
-                            },
-                        )
+                      // Drawn opaque white and recoloured above, so the colour can follow the drag.
+                      MainTabIcon(tab, Color.White, label)
+                      if (showLabels) {
+                        NavigationLabelSlot(fraction) {
+                          Text(
+                            text = label,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Clip,
+                            // The icon already names the tab; the label is a visual echo only.
+                            modifier =
+                              Modifier
+                                .clearAndSetSemantics { }
+                                .graphicsLayer {
+                                  alpha = ((fraction() - 0.25f) / 0.75f).coerceIn(0f, 1f)
+                                },
+                          )
+                        }
                       }
                     }
                   }
@@ -1015,6 +1091,40 @@ private fun ExpressivePillNavigationBar(
         )
       }
     }
+  }
+}
+
+/** Measures to an exact size read in the layout phase, so animating it never recomposes. */
+private fun Modifier.fixedSize(
+  width: () -> androidx.compose.ui.unit.Dp,
+  height: () -> androidx.compose.ui.unit.Dp,
+): Modifier =
+  layout { measurable, _ ->
+    val w = width().roundToPx().coerceAtLeast(0)
+    val h = height().roundToPx().coerceAtLeast(0)
+    val placeable = measurable.measure(androidx.compose.ui.unit.Constraints.fixed(w, h))
+    layout(w, h) { placeable.place(0, 0) }
+  }
+
+/**
+ * A tab's label with its leading gap. Below 5 % expansion it takes no space and is not placed;
+ * above, the gap grows to 6 dp and the label gets whatever width remains. Reads [fraction] while
+ * measuring so the reveal follows the pager without recomposition.
+ */
+@Composable
+private fun NavigationLabelSlot(
+  fraction: () -> Float,
+  content: @Composable () -> Unit,
+) {
+  androidx.compose.ui.layout.Layout(content) { measurables, constraints ->
+    val f = fraction()
+    if (f <= 0.05f) return@Layout layout(0, 0) { }
+    val gap = androidx.compose.ui.unit.lerp(0.dp, 6.dp, f).roundToPx()
+    val placeable =
+      measurables.first().measure(
+        constraints.copy(minWidth = 0, maxWidth = (constraints.maxWidth - gap).coerceAtLeast(0)),
+      )
+    layout(gap + placeable.width, placeable.height) { placeable.place(gap, 0) }
   }
 }
 
