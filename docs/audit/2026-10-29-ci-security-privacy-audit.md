@@ -153,7 +153,7 @@ Not covered by automated tests:
 - the secure-folder biometric gate;
 - download foreground services.
 
-Room schema 22 is missing from `app/schemas`, so `22 → 23` and `24 → 25` cannot be
+Room schema 22 is missing from `app/schemas`, so `21 → 22` and `22 → 23` cannot be
 validated with `MigrationTestHelper`, and `1 → 19` has no schemas at all.
 
 ## 5. Pre-push review

@@ -96,8 +96,14 @@ those outputs and fails if any is missing.
 - Downloaded tools (actionlint, detekt, native AARs) are checksum-verified. Python
   tooling is installed with `pip --require-hashes`.
 - Every job has `timeout-minutes`. PR runs cancel superseded runs of the same
-  PR. Push, schedule and release runs are grouped per commit or tag, so they are
-  never cancelled by later runs.
+  PR. The workflows that produce release-gating checks (`ci.yml`,
+  `static-analysis.yml`, `security.yml`, `gitleaks.yml`, `codeql.yml`,
+  `workflow-audit.yml`, `instrumented-tests.yml`) group push and schedule runs
+  per commit, and the release workflows never cancel, so a later push cannot
+  cancel a run that a release depends on. `build.yml`, `preview.yml`,
+  `dependency-submission.yml` and `upstream-sync-check.yml` do cancel superseded
+  runs: only the latest build, preview, dependency snapshot or upstream check
+  matters there, and no release waits for them.
 - Release and preview signing jobs use the `production` / `preview`
   environments. Configure their deployment policies (docs/RELEASE.md) so that
   only tags (and master, for preview) can obtain the signing secrets.

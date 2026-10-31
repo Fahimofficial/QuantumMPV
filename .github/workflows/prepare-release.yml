@@ -103,12 +103,23 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           TARGET_SHA: ${{ steps.source.outputs.sha }}
-        run: >-
-          python3 tools/verify_commit_checks.py --sha "$TARGET_SHA"
-          --check "Lint, test, and build debug APK"
-          --check "ktlint + detekt"
-          --check "Detect leaked secrets"
-          --check "Android security policy"
+        shell: bash
+        run: |
+          set -euo pipefail
+          checks=(
+            --check "Lint, test, and build debug APK"
+            --check "ktlint + detekt"
+            --check "Detect leaked secrets"
+            --check "Android security policy"
+          )
+          # Same list as the release workflow that will run on the tag:
+          # release.yml also requires CodeQL, pre-release.yml does not. Checking
+          # it here keeps a stable tag from being created for a commit that
+          # release.yml would then reject.
+          if [[ "$PRERELEASE" != "true" ]]; then
+            checks+=(--check "Analyze (java-kotlin)")
+          fi
+          python3 tools/verify_commit_checks.py --sha "$TARGET_SHA" "${checks[@]}"
 
       # The ref is created through the API, so no Git credentials are written
       # to disk. Creating a ref fails if it already exists, which makes a

@@ -38,9 +38,12 @@ Environment protection (Settings → Environments):
 | `production` | Selected tags: `v1.*.*` only | Required reviewer: the maintainer |
 | `preview` | Selected branches and tags: branch `master`, tags `v*-preview.*` | None (every master push builds a preview) |
 
-All release paths run on a tag ref, including runs started by Prepare Release
-and manual runs, which must use **Use workflow from → Tags**. A run started from
-a branch therefore cannot obtain the production secrets.
+Stable and tagged preview releases (`release.yml`, `pre-release.yml`) run on a
+tag ref, including runs started by Prepare Release and manual runs, which must
+use **Use workflow from → Tags**. A run started from a branch therefore cannot
+obtain the production secrets. The untagged preview build (`preview.yml`) is the
+exception: it runs on pushes to `master` and uses only the `preview`
+environment, whose policy allows branch `master`.
 
 The workflows never print these values. A temporary keystore is created with
 `umask 077` in `$RUNNER_TEMP` and deleted on exit. Keystores must never be
@@ -81,7 +84,11 @@ The release fails safely, and nothing is published, if any of these is true:
 - an instrumented test fails;
 - an APK is missing, debuggable or has an unexpected `versionCode`;
 - a signing secret is missing;
-- the signing certificate changed.
+- the APKs are not all signed with the same certificate;
+- the signing certificate differs from `RELEASE_SIGNING_CERT_SHA256`. This
+  check only runs when the variable is set. Without it, the run only warns and
+  prints the certificate digest, so a release signed with a different key is
+  still published. Set the variable before the first stable release.
 
 ## Cutting a preview release
 
