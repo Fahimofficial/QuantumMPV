@@ -32,6 +32,11 @@
 - **Memory**: Large embedded and remote cover art is decoded at a reduced size instead of full resolution.
 - **Accessibility**: Audio-player skip/seek buttons, player panel close buttons, speed steppers and the mini-player close button now have TalkBack labels.
 
+### Documentation
+- **README**: Rewritten to match the current source. Features are grouped by area; corrected claims include the torrent engine (libtorrent4j), the video compressor (Media3 Transformer), animation and ambient-mode names, theme count, and cloud-only speech-to-subtitles. Broken screenshot links were fixed, and build steps, permissions, credits and support options were added.
+- **Privacy policy**: The permissions and network-use sections now cover every declared permission and online feature, and state how saved credentials are stored.
+- **Credits**: CITATION.md lists the bundled components with their licenses and replaces the incorrect anacrolix/torrent credit with libtorrent4j. CITATION.cff now describes QuantumMPV and references mpvRx.
+
 ## 1.4.0
 ### What's New
 - **Two surface styles**: The surface picker now offers Classic and Clear Glass, and Classic is the default for new installs and for anyone who never chose a style. Saved legacy styles are mapped automatically: Soft, Frosted, Liquid and AMOLED Glass become Clear Glass, while Minimal and Cinema become Classic. Cinema keeps its no-tint/no-highlight behavior until it is migrated.
