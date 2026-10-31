@@ -279,10 +279,18 @@ class PlaylistRepository(
     }
   }
 
-  /** Re-inserts previously removed items for Undo; see [PlaylistDao.restorePlaylistItems]. */
-  suspend fun restoreItemsToPlaylist(items: List<PlaylistItemEntity>) {
+  /**
+   * Re-inserts previously removed items for Undo; see [PlaylistDao.restorePlaylistItems]. Holds the
+   * remote-playlist write lock so an M3U/Xtream replacement can't read, then overwrite, the restore.
+   */
+  suspend fun restoreItemsToPlaylist(
+    items: List<PlaylistItemEntity>,
+    createdAfterId: Int,
+  ) {
     if (items.isEmpty()) return
-    playlistDao.restorePlaylistItems(items.first().playlistId, items)
+    remotePlaylistWriteMutex.withLock {
+      playlistDao.restorePlaylistItems(items.first().playlistId, items, createdAfterId)
+    }
     getPlaylistById(items.first().playlistId)?.let { playlist ->
       updatePlaylist(playlist)
     }

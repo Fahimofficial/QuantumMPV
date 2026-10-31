@@ -37,6 +37,12 @@ import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import java.io.File
 
+/** Rows removed for a possible Undo, plus the highest item id that existed when they were removed. */
+data class RemovedPlaylistItems(
+  val rows: List<PlaylistItemEntity>,
+  val createdAfterId: Int,
+)
+
 data class PlaylistVideoItem(
   val playlistItem: PlaylistItemEntity,
   val video: Video,
@@ -319,16 +325,17 @@ class PlaylistDetailViewModel(
    * Removes playlist rows by their ids (a row's stored path can differ from the resolved
    * [Video.path], e.g. `content://` rows) and returns the exact rows removed, for Undo.
    */
-  suspend fun removePlaylistItems(itemIds: Collection<Int>): List<PlaylistItemEntity> {
+  suspend fun removePlaylistItems(itemIds: Collection<Int>): RemovedPlaylistItems {
     val ids = itemIds.toSet()
-    val itemsToRemove = playlistRepository.getPlaylistItems(playlistId).filter { it.id in ids }
+    val items = playlistRepository.getPlaylistItems(playlistId)
+    val itemsToRemove = items.filter { it.id in ids }
     playlistRepository.removeItemsFromPlaylist(itemsToRemove)
-    return itemsToRemove
+    return RemovedPlaylistItems(itemsToRemove, createdAfterId = items.maxOfOrNull { it.id } ?: 0)
   }
 
   /** Puts back rows returned by [removePlaylistItems]; the observed item flow re-renders them. */
-  suspend fun restorePlaylistItems(items: List<PlaylistItemEntity>) {
-    playlistRepository.restoreItemsToPlaylist(items)
+  suspend fun restorePlaylistItems(removed: RemovedPlaylistItems) {
+    playlistRepository.restoreItemsToPlaylist(removed.rows, removed.createdAfterId)
   }
 
   suspend fun addVideosToPlaylist(videos: List<Video>) {

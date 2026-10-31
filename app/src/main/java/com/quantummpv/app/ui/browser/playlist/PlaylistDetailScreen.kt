@@ -215,7 +215,8 @@ data class PlaylistDetailScreen(
         items = filteredVideoItems,
         getId = { it.playlistItem.id },
         onDeleteItems = { itemsToDelete, _ ->
-          val removedItems = viewModel.removePlaylistItems(itemsToDelete.map { it.playlistItem.id })
+          val removed = viewModel.removePlaylistItems(itemsToDelete.map { it.playlistItem.id })
+          val removedItems = removed.rows
           if (removedItems.isNotEmpty()) {
             // Removing from a playlist never touches the files, so offer Undo instead of a toast.
             coroutineScope.launch {
@@ -233,7 +234,7 @@ data class PlaylistDetailScreen(
                   duration = androidx.compose.material3.SnackbarDuration.Long,
                 )
               if (result == androidx.compose.material3.SnackbarResult.ActionPerformed) {
-                viewModel.restorePlaylistItems(removedItems)
+                viewModel.restorePlaylistItems(removed)
               }
             }
           }

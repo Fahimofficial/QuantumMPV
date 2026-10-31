@@ -85,24 +85,48 @@ interface PlaylistDao {
   }
 
   /**
-   * Puts removed rows back (Undo) in one transaction. Rows whose file or stream is already in the
-   * playlist again (for example after an M3U refresh re-added it) are skipped so nothing is
-   * duplicated. The rest go back at their saved index within the current order, and every
-   * position is renumbered so no two rows share one.
+   * Puts removed rows back (Undo) in one transaction.
+   *
+   * A removed row is skipped when it is already present (same id), or when a row for the same file
+   * or stream was created after the removal ([createdAfterId]: ids are AUTOINCREMENT, so later rows
+   * always have larger ids). Each such newer row stands in for at most one removed row, so a
+   * playlist that legitimately holds the same path twice gets back exactly the rows it lost, while
+   * an M3U refresh that re-added a stream is not duplicated.
+   *
+   * Survivors are merged by their stored position values (positions may have gaps after earlier
+   * removals), with a restored row placed before a survivor of equal value, then every row is
+   * renumbered 0..n-1 so no two rows share a position.
    */
   @Transaction
   suspend fun restorePlaylistItems(
     playlistId: Int,
     removed: List<PlaylistItemEntity>,
+    createdAfterId: Int,
   ) {
     val current = getPlaylistItems(playlistId)
-    val presentPaths = current.mapTo(HashSet()) { it.filePath }
-    val toRestore = removed.filter { it.playlistId == playlistId && it.filePath !in presentPaths }.sortedBy { it.position }
+    val currentIds = current.mapTo(HashSet()) { it.id }
+    val newerByPath =
+      current.filter { it.id > createdAfterId }.groupingBy { it.filePath }.eachCount().toMutableMap()
+    val toRestore =
+      removed
+        .filter { it.playlistId == playlistId && it.id !in currentIds }
+        .sortedBy { it.position }
+        .filter { item ->
+          val newer = newerByPath[item.filePath] ?: 0
+          if (newer > 0) {
+            newerByPath[item.filePath] = newer - 1
+            false
+          } else {
+            true
+          }
+        }
     if (toRestore.isEmpty()) return
-    val merged = current.toMutableList()
-    toRestore.forEach { item -> merged.add(item.position.coerceIn(0, merged.size), item) }
-    val renumbered = merged.mapIndexed { index, item -> item to index }
     val restoredIds = toRestore.mapTo(HashSet()) { it.id }
+    val merged =
+      (current + toRestore).sortedWith(
+        compareBy<PlaylistItemEntity>({ it.position }, { if (it.id in restoredIds) 0 else 1 }),
+      )
+    val renumbered = merged.mapIndexed { index, item -> item to index }
     insertPlaylistItemsAtomically(
       renumbered.filter { (item, _) -> item.id in restoredIds }.map { (item, index) -> item.copy(position = index) },
     )
