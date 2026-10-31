@@ -955,7 +955,9 @@ private fun ExpressivePillNavigationBar(
 
       LaunchedEffect(settledPage, showLabels, tabViewportWidth, selectedTabIndex) {
         val index = settledPage.coerceIn(visibleTabs.indices)
-        val selectedCenter = offsetFor(index, ::settledFraction) + widthFor(index, settledFraction(index)) / 2
+        // Geometry as it will be once `index` is the expanded tab, independent of the tapped target.
+        val expandedOnly = { i: Int -> if (i == index) 1f else 0f }
+        val selectedCenter = offsetFor(index, expandedOnly) + widthFor(index, 1f) / 2
         // maxValue moves while tab widths animate; follow it here rather than recomposing for it.
         snapshotFlow { scrollState.maxValue }
           .distinctUntilChanged()

@@ -128,7 +128,7 @@ class RecentlyPlayedRepositoryImpl(
   }
 
   override suspend fun restoreEntries(entries: List<RecentlyPlayedEntity>) {
-    if (entries.isNotEmpty()) recentlyPlayedDao.insertAll(entries)
+    recentlyPlayedDao.restoreEntries(entries)
   }
 
   override suspend fun updateFilePath(

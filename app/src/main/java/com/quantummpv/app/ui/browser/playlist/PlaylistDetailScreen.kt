@@ -215,8 +215,7 @@ data class PlaylistDetailScreen(
         items = filteredVideoItems,
         getId = { it.playlistItem.id },
         onDeleteItems = { itemsToDelete, _ ->
-          val videosToRemove = itemsToDelete.map { it.video }
-          val removedItems = viewModel.removeVideosFromPlaylist(videosToRemove)
+          val removedItems = viewModel.removePlaylistItems(itemsToDelete.map { it.playlistItem.id })
           if (removedItems.isNotEmpty()) {
             // Removing from a playlist never touches the files, so offer Undo instead of a toast.
             coroutineScope.launch {
@@ -238,9 +237,12 @@ data class PlaylistDetailScreen(
               }
             }
           }
-          Pair(itemsToDelete.size, 0)
+          // Anything not removed is reported by SelectionManager's failure toast.
+          Pair(removedItems.size, itemsToDelete.size - removedItems.size)
         },
-        onOperationComplete = { viewModel.refresh() },
+        // The observed item flow already republishes the list; an extra refresh could finish after
+        // Undo and overwrite the restored rows with a stale read.
+        onOperationComplete = { },
         announceDeleteSuccess = false,
       )
 

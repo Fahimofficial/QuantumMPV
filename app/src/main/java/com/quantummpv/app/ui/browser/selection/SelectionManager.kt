@@ -143,7 +143,7 @@ class SelectionManager<T, ID>(
               context.getString(com.quantummpv.app.R.string.ui_deleted_successfully),
               Toast.LENGTH_SHORT,
             ).show()
-        } else if (deleted == 0 && failed > 0) {
+        } else if (failed > 0 && (deleted == 0 || !announceDeleteSuccess)) {
           Toast
             .makeText(
               context,

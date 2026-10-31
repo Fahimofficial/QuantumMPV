@@ -13,6 +13,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import com.quantummpv.app.database.entities.RecentlyPlayedEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -110,6 +111,22 @@ interface RecentlyPlayedDao {
   @Query("SELECT * FROM RecentlyPlayedEntity WHERE playlistId IN (:playlistIds)")
   suspend fun getByPlaylistIds(playlistIds: List<Int>): List<RecentlyPlayedEntity>
 
+  /**
+   * Undo for a history removal, in one transaction. A file that was played again after the removal
+   * already has a newer row; that row wins and the saved one is dropped, so one file never ends up
+   * with two history rows. Everything else is restored unchanged.
+   */
+  @Transaction
+  suspend fun restoreEntries(entries: List<RecentlyPlayedEntity>) {
+    if (entries.isEmpty()) return
+    val replayed =
+      entries.map { it.filePath }.distinct().chunked(RESTORE_LOOKUP_CHUNK_SIZE)
+        .flatMap { getByFilePaths(it) }
+        .mapTo(HashSet()) { it.filePath }
+    val toRestore = entries.filter { it.filePath !in replayed }
+    if (toRestore.isNotEmpty()) insertAll(toRestore)
+  }
+
   @Query("UPDATE RecentlyPlayedEntity SET filePath = :newPath, fileName = :newFileName WHERE filePath = :oldPath")
   suspend fun updateFilePath(
     oldPath: String,
@@ -173,3 +190,5 @@ interface RecentlyPlayedDao {
   @Insert(onConflict = OnConflictStrategy.REPLACE)
   suspend fun insertAll(items: List<RecentlyPlayedEntity>)
 }
+
+private const val RESTORE_LOOKUP_CHUNK_SIZE = 500

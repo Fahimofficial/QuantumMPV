@@ -7,9 +7,10 @@ package com.quantummpv.app.ui.browser.cards
 import android.os.SystemClock
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
-import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import com.quantummpv.app.ui.theme.AppMotion
 
@@ -30,6 +31,8 @@ internal fun rememberThumbnailFadeAlpha(
   val requestedAt = remember(requestKey) { SystemClock.uptimeMillis() }
   val alpha = remember(requestKey) { Animatable(0f) }
   val disableFade = AppMotion.shouldDisableAnimations()
+  // Policy-aware: capped to AppMotion.Duration.MICRO under reduced motion.
+  val fadeSpec = AppMotion.tween<Float>(THUMBNAIL_FADE_MS)
   LaunchedEffect(alpha, hasBitmap) {
     if (!hasBitmap) {
       alpha.snapTo(0f)
@@ -37,10 +40,20 @@ internal fun rememberThumbnailFadeAlpha(
     }
     val arrivedLate = SystemClock.uptimeMillis() - requestedAt > THUMBNAIL_INSTANT_WINDOW_MS
     if (arrivedLate && !disableFade && alpha.value < 1f) {
-      alpha.animateTo(1f, tween(THUMBNAIL_FADE_MS))
+      alpha.animateTo(1f, fadeSpec)
     } else {
       alpha.snapTo(1f)
     }
   }
   return alpha
+}
+
+/**
+ * True once [alpha] has reached full opacity. Callers keep the placeholder underneath until then so
+ * the thumbnail area never goes blank mid-fade. Recomposes once, not on every fade frame.
+ */
+@Composable
+internal fun rememberThumbnailOpaque(alpha: Animatable<Float, AnimationVector1D>): Boolean {
+  val opaque by remember(alpha) { derivedStateOf { alpha.value >= 1f } }
+  return opaque
 }

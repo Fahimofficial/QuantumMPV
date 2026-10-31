@@ -685,7 +685,9 @@ object RecentlyPlayedScreen : Screen {
       if (deleteDialogOpen.value && selectionManager.isInSelectionMode) {
         // Remove selected items from history
         val itemCount = selectionManager.selectedCount
-        val deleteFiles = deleteFilesCheckbox.value
+        // Playlist history rows have no file of their own, so file deletion only applies to videos.
+        val canDeleteFiles = selectionManager.getSelectedItems().any { it is RecentlyPlayedItem.VideoItem }
+        val deleteFiles = deleteFilesCheckbox.value && canDeleteFiles
 
         val title =
           if (deleteFiles) {
@@ -703,28 +705,30 @@ object RecentlyPlayedScreen : Screen {
           title = title,
           subtitle = subtitle,
           customContent = {
-            androidx.compose.foundation.layout.Row(
-              modifier = Modifier.fillMaxWidth(),
-              verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-            ) {
-              androidx.compose.material3.Checkbox(
-                checked = deleteFilesCheckbox.value,
-                onCheckedChange = {
-                  deleteFilesCheckbox.value = it
-                },
-              )
-              androidx.compose.material3.Text(
-                text =
-                  androidx.compose.ui.res.stringResource(
-                    com.quantummpv.app.R.string.ui_also_delete_original_file_s,
-                  ),
-                modifier = Modifier.padding(start = 8.dp),
-                style = MaterialTheme.typography.bodyMedium,
-              )
+            if (canDeleteFiles) {
+              androidx.compose.foundation.layout.Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+              ) {
+                androidx.compose.material3.Checkbox(
+                  checked = deleteFilesCheckbox.value,
+                  onCheckedChange = {
+                    deleteFilesCheckbox.value = it
+                  },
+                )
+                androidx.compose.material3.Text(
+                  text =
+                    androidx.compose.ui.res.stringResource(
+                      com.quantummpv.app.R.string.ui_also_delete_original_file_s,
+                    ),
+                  modifier = Modifier.padding(start = 8.dp),
+                  style = MaterialTheme.typography.bodyMedium,
+                )
+              }
             }
           },
           onConfirm = {
-            selectionManager.deleteSelected(deleteFilesCheckbox.value)
+            selectionManager.deleteSelected(deleteFiles)
             deleteDialogOpen.value = false
             deleteFilesCheckbox.value = false
           },

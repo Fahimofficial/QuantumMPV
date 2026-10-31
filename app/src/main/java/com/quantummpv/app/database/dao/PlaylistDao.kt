@@ -84,6 +84,35 @@ interface PlaylistDao {
     items.chunked(PLAYLIST_WRITE_CHUNK_SIZE).forEach { chunk -> insertPlaylistItems(chunk) }
   }
 
+  /**
+   * Puts removed rows back (Undo) in one transaction. Rows whose file or stream is already in the
+   * playlist again (for example after an M3U refresh re-added it) are skipped so nothing is
+   * duplicated. The rest go back at their saved index within the current order, and every
+   * position is renumbered so no two rows share one.
+   */
+  @Transaction
+  suspend fun restorePlaylistItems(
+    playlistId: Int,
+    removed: List<PlaylistItemEntity>,
+  ) {
+    val current = getPlaylistItems(playlistId)
+    val presentPaths = current.mapTo(HashSet()) { it.filePath }
+    val toRestore = removed.filter { it.playlistId == playlistId && it.filePath !in presentPaths }.sortedBy { it.position }
+    if (toRestore.isEmpty()) return
+    val merged = current.toMutableList()
+    toRestore.forEach { item -> merged.add(item.position.coerceIn(0, merged.size), item) }
+    val renumbered = merged.mapIndexed { index, item -> item to index }
+    val restoredIds = toRestore.mapTo(HashSet()) { it.id }
+    insertPlaylistItemsAtomically(
+      renumbered.filter { (item, _) -> item.id in restoredIds }.map { (item, index) -> item.copy(position = index) },
+    )
+    updateItemPositions(
+      renumbered
+        .filter { (item, index) -> item.id !in restoredIds && item.position != index }
+        .map { (item, index) -> PlaylistItemPositionUpdate(id = item.id, position = index) },
+    )
+  }
+
   /** Inserts playlist metadata and every item atomically, assigning the generated parent id. */
   @Transaction
   suspend fun insertPlaylistWithItems(

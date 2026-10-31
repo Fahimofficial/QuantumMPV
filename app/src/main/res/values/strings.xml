@@ -641,12 +641,12 @@
     <item quantity="other">Delete %d items?</item>
   </plurals>
   <plurals name="playlist_remove_title">
-    <item quantity="one">Remove %d video from playlist?</item>
-    <item quantity="other">Remove %d videos from playlist?</item>
+    <item quantity="one">Remove %d item from playlist?</item>
+    <item quantity="other">Remove %d items from playlist?</item>
   </plurals>
   <plurals name="playlist_remove_message">
-    <item quantity="one">The selected video will be removed from this playlist. The original file will not be deleted.</item>
-    <item quantity="other">The selected videos will be removed from this playlist. The original files will not be deleted.</item>
+    <item quantity="one">The selected item will be removed from this playlist. The original file will not be deleted.</item>
+    <item quantity="other">The selected items will be removed from this playlist. The original files will not be deleted.</item>
   </plurals>
   <plurals name="seconds">
     <item quantity="one">%1$d second</item>

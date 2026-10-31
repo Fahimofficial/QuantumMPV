@@ -366,6 +366,7 @@ fun VideoCard(
 
           val thumbnailBitmap = remember(thumbnail) { thumbnail?.asImageBitmap() }
           val thumbnailAlpha = rememberThumbnailFadeAlpha(thumbnailRequestKey, thumbnailBitmap != null)
+          val thumbnailOpaque = rememberThumbnailOpaque(thumbnailAlpha)
 
           // Thumbnail
           Box(
@@ -382,6 +383,17 @@ fun VideoCard(
             contentAlignment = Alignment.Center,
           ) {
             if (showThumbnails) {
+              // Placeholder stays underneath until a fading thumbnail is fully opaque.
+              if (thumbnailBitmap == null || !thumbnailOpaque) {
+                Icon(
+                  if (video.isAudio) Icons.RoundedFilled.Audiotrack else Icons.RoundedFilled.PlayArrow,
+                  contentDescription =
+                    androidx.compose.ui.res
+                      .stringResource(com.quantummpv.app.R.string.ui_play),
+                  modifier = Modifier.size(48.dp),
+                  tint = MaterialTheme.colorScheme.secondary,
+                )
+              }
               thumbnailBitmap?.let {
                 Image(
                   bitmap = it,
@@ -390,15 +402,6 @@ fun VideoCard(
                       .stringResource(com.quantummpv.app.R.string.ui_thumbnail),
                   modifier = Modifier.matchParentSize().graphicsLayer { alpha = thumbnailAlpha.value },
                   contentScale = ContentScale.Crop,
-                )
-              } ?: run {
-                Icon(
-                  if (video.isAudio) Icons.RoundedFilled.Audiotrack else Icons.RoundedFilled.PlayArrow,
-                  contentDescription =
-                    androidx.compose.ui.res
-                      .stringResource(com.quantummpv.app.R.string.ui_play),
-                  modifier = Modifier.size(48.dp),
-                  tint = MaterialTheme.colorScheme.secondary,
                 )
               }
             } else {
@@ -699,6 +702,7 @@ fun VideoCard(
 
           val listThumbnailBitmap = remember(thumbnail) { thumbnail?.asImageBitmap() }
           val thumbnailAlpha = rememberThumbnailFadeAlpha(thumbnailRequestKey, listThumbnailBitmap != null)
+          val thumbnailOpaque = rememberThumbnailOpaque(thumbnailAlpha)
 
           Box(
             modifier =
@@ -714,6 +718,17 @@ fun VideoCard(
             contentAlignment = Alignment.Center,
           ) {
             if (showThumbnails) {
+              // Placeholder stays underneath until a fading thumbnail is fully opaque.
+              if (listThumbnailBitmap == null || !thumbnailOpaque) {
+                Icon(
+                  if (video.isAudio) Icons.RoundedFilled.Audiotrack else Icons.RoundedFilled.PlayArrow,
+                  contentDescription =
+                    androidx.compose.ui.res
+                      .stringResource(com.quantummpv.app.R.string.ui_play),
+                  modifier = Modifier.size(48.dp),
+                  tint = MaterialTheme.colorScheme.secondary,
+                )
+              }
               listThumbnailBitmap?.let {
                 Image(
                   bitmap = it,
@@ -722,15 +737,6 @@ fun VideoCard(
                       .stringResource(com.quantummpv.app.R.string.ui_thumbnail),
                   modifier = Modifier.matchParentSize().graphicsLayer { alpha = thumbnailAlpha.value },
                   contentScale = ContentScale.Crop,
-                )
-              } ?: run {
-                Icon(
-                  if (video.isAudio) Icons.RoundedFilled.Audiotrack else Icons.RoundedFilled.PlayArrow,
-                  contentDescription =
-                    androidx.compose.ui.res
-                      .stringResource(com.quantummpv.app.R.string.ui_play),
-                  modifier = Modifier.size(48.dp),
-                  tint = MaterialTheme.colorScheme.secondary,
                 )
               }
             } else {

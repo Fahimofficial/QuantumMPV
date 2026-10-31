@@ -24,11 +24,14 @@ import androidx.compose.material3.CardColors
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.preferences.MpvConfigControlledFeatures
+import com.quantummpv.app.preferences.PlayerPreferences
+import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.ui.player.Panels
 import com.quantummpv.app.ui.player.PlayerActivity
 import com.quantummpv.app.ui.player.PlayerViewModel
@@ -43,6 +46,7 @@ import com.quantummpv.app.ui.player.controls.components.panels.VideoSettingsPane
 import com.quantummpv.app.ui.theme.AppMotion
 import com.quantummpv.app.ui.utils.isAnyMpvOptionOwnedByConfig
 import com.quantummpv.app.ui.utils.isMpvOptionOwnedByConfig
+import org.koin.compose.koinInject
 
 @Composable
 fun PlayerPanels(
@@ -52,7 +56,9 @@ fun PlayerPanels(
   modifier: Modifier = Modifier,
 ) {
   val disableMotion = AppMotion.shouldDisableAnimations()
-  val reduceMotion = AppMotion.shouldReduceMotion()
+  // The player's own Reduce motion setting is not part of the app motion policy; honour either.
+  val playerReduceMotion by koinInject<PlayerPreferences>().reduceMotion.collectAsState()
+  val reduceMotion = AppMotion.shouldReduceMotion() || playerReduceMotion
   AnimatedContent(
     targetState = panelShown,
     label = "panels",
