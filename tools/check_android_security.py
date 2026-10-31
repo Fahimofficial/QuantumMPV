@@ -26,6 +26,15 @@ from pathlib import Path
 ANDROID = "{http://schemas.android.com/apk/res/android}"
 BLOCKING = {"critical", "high", "medium"}
 SEVERITY_ORDER = ["critical", "high", "medium", "low", "info"]
+# The spellings AAPT2 compiles to true (ResourceUtils::ParseBool), after trimming whitespace.
+ANDROID_TRUE_VALUES = frozenset(("true", "TRUE", "True"))
+
+
+def is_android_true(value: str | None, default: bool = False) -> bool:
+    """Return whether an XML boolean attribute is true as Android reads it; ``default`` if absent."""
+    if value is None:
+        return default
+    return value.strip() in ANDROID_TRUE_VALUES
 
 
 @dataclass
@@ -85,9 +94,9 @@ class Checker:
         self.check_backup_rules()
 
     def check_application_flags(self, app: ElementTree.Element, rel: str) -> None:
-        if app.get(ANDROID + "debuggable") == "true":
+        if is_android_true(app.get(ANDROID + "debuggable")):
             self.add("MAN001", "critical", "android:debuggable=\"true\" is hardcoded in the manifest.", rel)
-        if app.get(ANDROID + "usesCleartextTraffic") == "true":
+        if is_android_true(app.get(ANDROID + "usesCleartextTraffic")):
             self.add(
                 "MAN005",
                 "medium",
@@ -95,7 +104,7 @@ class Checker:
                 "configure cleartext in network_security_config.xml instead.",
                 rel,
             )
-        backup_enabled = app.get(ANDROID + "allowBackup", "true") == "true"
+        backup_enabled = is_android_true(app.get(ANDROID + "allowBackup"), default=True)
         backup_rules_set = bool(app.get(ANDROID + "dataExtractionRules")) and bool(app.get(ANDROID + "fullBackupContent"))
         if backup_enabled and not backup_rules_set:
             self.add(
@@ -155,7 +164,7 @@ class Checker:
                         f"{tag} {name} has intent filters but no explicit android:exported value.",
                         rel,
                     )
-                if flag == "true":
+                if is_android_true(flag):
                     exported.add(name)
                     if tag == "provider":
                         self.add("MAN004", "high", f"Content provider {name} is exported.", rel)
@@ -183,7 +192,7 @@ class Checker:
         for provider in app.iter("provider"):
             if provider.get(ANDROID + "name") != "androidx.core.content.FileProvider":
                 continue
-            if provider.get(ANDROID + "grantUriPermissions") != "true":
+            if not is_android_true(provider.get(ANDROID + "grantUriPermissions")):
                 self.add("MAN004", "medium", "FileProvider must set android:grantUriPermissions=\"true\".", rel)
             for meta in provider.iter("meta-data"):
                 resource = meta.get(ANDROID + "resource", "")
@@ -228,12 +237,12 @@ class Checker:
                     rel,
                 )
         for cert in certificates:
-            if cert.get("overridePins") == "true":
+            if is_android_true(cert.get("overridePins")):
                 self.add("NSC003", "medium", f"{section} overrides certificate pins.", rel)
 
     def check_base_cleartext(self, root: ElementTree.Element, rel: str) -> None:
         base = root.find("base-config")
-        if base is None or base.get("cleartextTrafficPermitted") != "true":
+        if base is None or not is_android_true(base.get("cleartextTrafficPermitted")):
             return
         if "nsc-base-cleartext" in self.policy.get("accepted_exceptions", {}):
             self.add("NSC002", "info", "Cleartext traffic is permitted globally (accepted exception nsc-base-cleartext).", rel)

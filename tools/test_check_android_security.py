@@ -205,6 +205,27 @@ class ManifestTest(FixtureTest):
                 self.replace(MANIFEST, old, new)
                 self.assert_blocks(rule, severity)
 
+    def test_aapt2_boolean_spellings_are_recognized(self) -> None:
+        cases = [
+            ('android:allowBackup="true"', 'android:allowBackup="true" android:debuggable="True"', "MAN001", "critical"),
+            ('android:allowBackup="true"', 'android:allowBackup="true" android:debuggable=" TRUE "', "MAN001", "critical"),
+            ('android:allowBackup="true"', 'android:allowBackup="true" android:usesCleartextTraffic="TRUE"', "MAN005", "medium"),
+            ('android:exported="false" />', 'android:exported="True" />', "MAN002", "medium"),
+            ('android:allowBackup="true"', 'android:allowBackup="True"', "MAN006", "high"),
+        ]
+        for old, new, rule, severity in cases:
+            with self.subTest(new):
+                self.setUp()
+                self.replace(MANIFEST, old, new)
+                if rule == "MAN006":
+                    self.replace(MANIFEST, 'android:fullBackupContent="@xml/backup_rules"', "")
+                self.assert_blocks(rule, severity)
+
+    def test_non_true_spellings_are_not_true(self) -> None:
+        # AAPT2 rejects other spellings, so they cannot enable a flag in a built APK.
+        self.replace(MANIFEST, 'android:allowBackup="true"', 'android:allowBackup="true" android:debuggable="tRUE"')
+        self.assertEqual(self.check(), ([], 0))
+
     def test_backup_rules_are_not_required_when_backup_is_disabled(self) -> None:
         self.replace(MANIFEST, 'android:allowBackup="true"', 'android:allowBackup="false"')
         self.replace(MANIFEST, 'android:fullBackupContent="@xml/backup_rules"', "")
@@ -236,6 +257,9 @@ class ManifestTest(FixtureTest):
     def test_file_provider(self) -> None:
         self.replace(MANIFEST, 'android:grantUriPermissions="true"', 'android:grantUriPermissions="false"')
         self.assert_blocks("MAN004", "medium")
+        self.setUp()
+        self.replace(MANIFEST, 'android:grantUriPermissions="true"', 'android:grantUriPermissions="True"')
+        self.assertEqual(self.check(), ([], 0))
         for paths in ('<root-path name="r" path="x" />', '<files-path name="f" path="." />', '<cache-path name="c" />'):
             with self.subTest(paths):
                 self.setUp()
@@ -247,7 +271,7 @@ class NetworkAndBackupTest(FixtureTest):
     NSC = f"{XML_DIR}/network_security_config.xml"
 
     def test_user_certificates_and_pin_overrides(self) -> None:
-        self.replace(self.NSC, '<certificates src="system" />', '<certificates src="user" overridePins="true" />')
+        self.replace(self.NSC, '<certificates src="system" />', '<certificates src="user" overridePins="TRUE" />')
         findings, code = self.check()
         self.assertEqual((sorted(findings), code), ([("NSC001", "high"), ("NSC003", "medium")], 1))
 
