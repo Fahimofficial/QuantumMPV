@@ -24,7 +24,7 @@
 | `SIGNING_KEY_ALIAS` | secret | same | Key alias |
 | `SIGNING_STORE_PASSWORD` | secret | same | Keystore password |
 | `KEY_PASSWORD` | secret | same | Key password |
-| `RELEASE_SIGNING_CERT_SHA256` | repository **variable** (not secret) | `release.yml` | SHA-256 of the signing certificate, for example from `apksigner verify --print-certs QuantumMPV-universal-v1.4.0.apk`. Colons, spaces and letter case are ignored, so the `keytool` form also works. When set, a release signed with any other key fails before publishing. |
+| `RELEASE_SIGNING_CERT_SHA256` | repository **variable** (not secret) | `release.yml` | SHA-256 of the signing certificate, for example from `apksigner verify --print-certs QuantumMPV-universal-v1.4.0.apk`. Colons, spaces and letter case are ignored, so the `keytool` form also works. Required: stable releases fail before signing when it is unset, and a release signed with any other key fails before publishing. |
 
 Store the four signing secrets as **environment secrets** of `production` (stable)
 and `preview` (preview builds and tagged previews). Then delete the
@@ -85,10 +85,9 @@ The release fails safely, and nothing is published, if any of these is true:
 - an APK is missing, debuggable or has an unexpected `versionCode`;
 - a signing secret is missing;
 - the APKs are not all signed with the same certificate;
-- the signing certificate differs from `RELEASE_SIGNING_CERT_SHA256`. This
-  check only runs when the variable is set. Without it, the run only warns and
-  prints the certificate digest, so a release signed with a different key is
-  still published. Set the variable before the first stable release.
+- `RELEASE_SIGNING_CERT_SHA256` is unset or not a SHA-256 digest (checked
+  before anything is signed);
+- the signing certificate differs from `RELEASE_SIGNING_CERT_SHA256`.
 
 ## Cutting a preview release
 

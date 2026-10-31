@@ -62,7 +62,7 @@ resolve ──► instrumented (API 30, 34) ──┐
 | `resolve` | `contents: read`, `checks: read` | Validates `v1.MINOR.PATCH`, resolves the tag to a commit, requires that commit to be on `master`, requires `versionName` and the first `CHANGELOG.md` heading to match, and waits for the required checks on that commit (`tools/verify_commit_checks.py`) |
 | `instrumented` | `contents: read` | Calls `instrumented-tests.yml` on the tagged commit |
 | `build` | `contents: read` | Builds the three release flavors without a Gradle cache, checks application ID, `versionName`, the expected `versionCode` per ABI and that no APK is debuggable, verifies native contents, uploads unsigned APKs (1-day retention) |
-| `sign` | none, `production` environment | Downloads the unsigned APKs, signs them with `apksigner`, verifies signatures, checks that all APKs share one certificate and that it matches `vars.RELEASE_SIGNING_CERT_SHA256` when set, uploads signed APKs (1-day retention). No Gradle or repository code runs here. |
+| `sign` | none, `production` environment | Fails first if `vars.RELEASE_SIGNING_CERT_SHA256` is unset or malformed, then downloads the unsigned APKs, signs them with `apksigner`, verifies signatures, checks that all APKs share one certificate and that it matches `vars.RELEASE_SIGNING_CERT_SHA256`, uploads signed APKs (1-day retention). No Gradle or repository code runs here. |
 | `publish` | `contents: write`, `id-token: write`, `attestations: write` | Re-verifies native contents, writes `SHA256SUMS`, exports the SPDX SBOM from the dependency graph, creates build provenance attestations and creates the GitHub release |
 
 Published assets: `QuantumMPV-{universal,arm64-v8a,armeabi-v7a,x86,x86_64}-vX.Y.Z.apk`,

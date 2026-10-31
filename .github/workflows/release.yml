@@ -292,9 +292,24 @@ jobs:
       VERSION_TAG: ${{ needs.resolve.outputs.tag }}
       EXPECTED_VERSION_NAME: ${{ needs.resolve.outputs.version }}
       # Public SHA-256 fingerprint of the release signing certificate. Not a
-      # secret. When set, every signed APK must match it.
+      # secret. Required: every signed APK must match it.
       EXPECTED_CERT_SHA256: ${{ vars.RELEASE_SIGNING_CERT_SHA256 }}
     steps:
+      # Runs first, so nothing is signed or published without a pinned key.
+      - name: Require the expected signing certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="$(tr -d ':[:space:]' <<< "$EXPECTED_CERT_SHA256" | tr '[:upper:]' '[:lower:]')"
+          if [[ -z "$expected" ]]; then
+            echo "::error::Variable RELEASE_SIGNING_CERT_SHA256 is not set. Set it to the SHA-256 digest of the release signing certificate (docs/RELEASE.md). Nothing was signed or published."
+            exit 1
+          fi
+          if [[ ! "$expected" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "::error::RELEASE_SIGNING_CERT_SHA256 must be a SHA-256 digest (64 hex digits, colons optional). Nothing was signed or published."
+            exit 1
+          fi
+
       - name: Set up Android SDK
         uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
         with:
@@ -364,20 +379,13 @@ jobs:
             echo "::error::APKs were signed with different certificates."
             exit 1
           fi
-          if [[ -n "$EXPECTED_CERT_SHA256" ]]; then
-            expected="$(normalize_fingerprint <<< "$EXPECTED_CERT_SHA256")"
-            if [[ ! "$expected" =~ ^[0-9a-f]{64}$ ]]; then
-              echo "::error::RELEASE_SIGNING_CERT_SHA256 must be a SHA-256 digest (64 hex digits, colons optional). Nothing was published."
-              exit 1
-            fi
-            if [[ "$unique" != "$expected" ]]; then
-              echo "::error::Signing certificate ${unique} does not match RELEASE_SIGNING_CERT_SHA256. Existing users could not update; nothing was published."
-              exit 1
-            fi
-            echo "Signing certificate matches RELEASE_SIGNING_CERT_SHA256."
-          else
-            echo "::warning::Repository variable RELEASE_SIGNING_CERT_SHA256 is not set, so the signing certificate was not compared with the expected key. Certificate SHA-256: ${unique}"
+          # Presence and format were checked in the first step of this job.
+          expected="$(normalize_fingerprint <<< "$EXPECTED_CERT_SHA256")"
+          if [[ "$unique" != "$expected" ]]; then
+            echo "::error::Signing certificate ${unique} does not match RELEASE_SIGNING_CERT_SHA256. Existing users could not update; nothing was published."
+            exit 1
           fi
+          echo "Signing certificate matches RELEASE_SIGNING_CERT_SHA256."
 
           count="$(find signed -maxdepth 1 -name '*.apk' | wc -l)"
           [[ "$count" -eq "$EXPECTED_APK_COUNT" ]] || { echo "::error::Signed ${count} APKs, expected ${EXPECTED_APK_COUNT}"; exit 1; }
