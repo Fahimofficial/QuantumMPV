@@ -35,6 +35,10 @@ Do not publish vulnerability details, exposed credentials, or private conduct re
 
 For community concerns, see the [Code of Conduct](CODE_OF_CONDUCT.md).
 
+## Supporting development
+
+Help with the app is free. If you want to support development with money, the options are in the README's [Support development](README.md#support-development) section. Donations are voluntary and do not buy priority support.
+
 ## Respectful collaboration
 
 Support and review depend on maintainer availability; a report does not guarantee an immediate response or implementation. Keep follow-ups relevant, avoid duplicate reports, and follow the [Code of Conduct](CODE_OF_CONDUCT.md).
