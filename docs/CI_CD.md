@@ -143,6 +143,8 @@ Exceptions are documented, not silently suppressed:
 
 ```bash
 python3 tools/check_android_security.py
+python3 tools/test_check_android_security.py
+python3 tools/test_verify_commit_checks.py
 python3 tools/test_native_artifacts.py
 python3 tools/validate_quantummpv_identity.py
 actionlint                      # https://github.com/rhysd/actionlint

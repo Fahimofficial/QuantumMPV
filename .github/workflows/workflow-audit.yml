@@ -109,3 +109,6 @@ jobs:
 
       - name: Check native artifact metadata consistency
         run: python3 tools/test_native_artifacts.py
+
+      - name: Test the release check gate
+        run: python3 tools/test_verify_commit_checks.py

@@ -35,6 +35,9 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Test the security policy checker
+        run: python3 tools/test_check_android_security.py
+
       # Native AAR checksum verification already runs in ci.yml
       # (tools/verify_native_artifacts.py --download), so it is not repeated here.
       - name: Check manifest, network, backup, build and source security policy

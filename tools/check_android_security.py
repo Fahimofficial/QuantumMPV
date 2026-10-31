@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Android application security policy gate for QuantumMPV.
+"""
+Android application security policy gate for QuantumMPV.
 
 Checks the source manifest, XML security configuration, Gradle build types and
 Kotlin/Java sources against the reviewed baseline in
@@ -21,7 +22,7 @@ import os
 import re
 import subprocess  # nosec B404 - only runs a fixed `git ls-files` command
 import sys
-import xml.etree.ElementTree as ET  # nosec B405 - input is guarded against DTDs/entities in parse_xml
+from xml.etree import ElementTree  # nosec B405 - input is guarded against DTDs/entities in parse_xml
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -41,6 +42,7 @@ class Finding:
 
 class Checker:
     def __init__(self, root: Path) -> None:
+        """Load the reviewed policy baseline from the repository at ``root``."""
         self.root = root
         self.findings: list[Finding] = []
         policy_path = root / "config/security/android-security-policy.json"
@@ -49,10 +51,10 @@ class Checker:
     def add(self, rule: str, severity: str, message: str, path: str | None = None, line: int | None = None) -> None:
         self.findings.append(Finding(rule, severity, message, path, line))
 
-    def parse_xml(self, rel: str) -> ET.Element | None:
+    def parse_xml(self, rel: str) -> ElementTree.Element | None:
         try:
             text = (self.root / rel).read_text(encoding="utf-8")
-        except OSError as error:
+        except (OSError, UnicodeDecodeError) as error:
             self.add("XML000", "high", f"Could not read security-relevant XML: {error}", rel)
             return None
         # Android resource XML never needs a DTD. Rejecting DOCTYPE/ENTITY
@@ -62,8 +64,8 @@ class Checker:
             self.add("XML001", "high", "XML declares a DOCTYPE or ENTITY; Android resource XML must not.", rel)
             return None
         try:
-            return ET.fromstring(text)  # nosec B314 # nosemgrep: use-defused-xml-parse - DTD/entities rejected above
-        except ET.ParseError as error:
+            return ElementTree.fromstring(text)  # nosec B314 # nosemgrep: use-defused-xml-parse - DTD/entities rejected above
+        except ElementTree.ParseError as error:
             self.add("XML000", "high", f"Could not parse security-relevant XML: {error}", rel)
             return None
 
@@ -77,96 +79,108 @@ class Checker:
         if app is None:
             self.add("MAN000", "high", "Manifest has no <application> element.", manifest_rel)
             return
+        self.check_application_flags(app, manifest_rel)
+        self.check_exported_components(app, manifest_rel)
+        self.check_permissions(root, manifest_rel)
+        self.check_file_providers(app, manifest_rel)
+        self.check_network_security_reference(app, manifest_rel)
+        self.check_backup_rules()
 
+    def check_application_flags(self, app: ElementTree.Element, rel: str) -> None:
         if app.get(ANDROID + "debuggable") == "true":
-            self.add("MAN001", "critical", "android:debuggable=\"true\" is hardcoded in the manifest.", manifest_rel)
+            self.add("MAN001", "critical", "android:debuggable=\"true\" is hardcoded in the manifest.", rel)
         if app.get(ANDROID + "usesCleartextTraffic") == "true":
             self.add(
                 "MAN005",
                 "medium",
                 "android:usesCleartextTraffic=\"true\" bypasses the network security config; "
                 "configure cleartext in network_security_config.xml instead.",
-                manifest_rel,
+                rel,
             )
-        if app.get(ANDROID + "allowBackup", "true") == "true":
-            if not app.get(ANDROID + "dataExtractionRules") or not app.get(ANDROID + "fullBackupContent"):
-                self.add(
-                    "MAN006",
-                    "high",
-                    "Backup is enabled but dataExtractionRules and fullBackupContent are not both set.",
-                    manifest_rel,
-                )
+        backup_enabled = app.get(ANDROID + "allowBackup", "true") == "true"
+        backup_rules_set = bool(app.get(ANDROID + "dataExtractionRules")) and bool(app.get(ANDROID + "fullBackupContent"))
+        if backup_enabled and not backup_rules_set:
+            self.add(
+                "MAN006",
+                "high",
+                "Backup is enabled but dataExtractionRules and fullBackupContent are not both set.",
+                rel,
+            )
 
-        # Exported components must match the reviewed allowlist exactly.
+    def check_exported_components(self, app: ElementTree.Element, rel: str) -> None:
+        """Exported components must match the reviewed allowlist exactly."""
         allowed = self.policy["exported_components"]
-        exported: set[str] = set()
-        for tag in ("activity", "activity-alias", "service", "receiver", "provider"):
-            for component in app.iter(tag):
-                name = component.get(ANDROID + "name", "")
-                flag = component.get(ANDROID + "exported")
-                has_filters = component.find("intent-filter") is not None
-                if flag is None and has_filters:
-                    self.add(
-                        "MAN002",
-                        "high",
-                        f"{tag} {name} has intent filters but no explicit android:exported value.",
-                        manifest_rel,
-                    )
-                if flag == "true":
-                    exported.add(name)
-                if tag == "provider" and flag == "true":
-                    self.add("MAN004", "high", f"Content provider {name} is exported.", manifest_rel)
+        exported = self.collect_exported_components(app, rel)
         for name in sorted(exported - allowed.keys()):
             self.add(
                 "MAN002",
                 "medium",
                 f"New exported component {name} is not in the reviewed allowlist. Review its intent "
                 "handling and add a justification to config/security/android-security-policy.json.",
-                manifest_rel,
+                rel,
             )
         for name in sorted(allowed.keys() - exported):
             self.add(
                 "MAN002",
                 "low",
                 f"Allowlisted component {name} is no longer exported; remove it from the policy file.",
-                manifest_rel,
+                rel,
             )
 
-        # Permissions must match the reviewed allowlist.
-        allowed_permissions = self.policy["permissions"]
+    def collect_exported_components(self, app: ElementTree.Element, rel: str) -> set[str]:
+        exported: set[str] = set()
+        for tag in ("activity", "activity-alias", "service", "receiver", "provider"):
+            for component in app.iter(tag):
+                name = component.get(ANDROID + "name", "")
+                flag = component.get(ANDROID + "exported")
+                if flag is None and component.find("intent-filter") is not None:
+                    self.add(
+                        "MAN002",
+                        "high",
+                        f"{tag} {name} has intent filters but no explicit android:exported value.",
+                        rel,
+                    )
+                if flag == "true":
+                    exported.add(name)
+                    if tag == "provider":
+                        self.add("MAN004", "high", f"Content provider {name} is exported.", rel)
+        return exported
+
+    def check_permissions(self, root: ElementTree.Element, rel: str) -> None:
+        """Declared permissions must match the reviewed allowlist."""
+        allowed = self.policy["permissions"]
         declared = {
             p.get(ANDROID + "name", "")
             for p in list(root.iter("uses-permission")) + list(root.iter("uses-permission-sdk-23"))
         }
-        for name in sorted(declared - allowed_permissions.keys()):
+        for name in sorted(declared - allowed.keys()):
             self.add(
                 "MAN003",
                 "medium",
                 f"New permission {name} is not in the reviewed allowlist. Confirm it is necessary, "
                 "update PRIVACY.md, and add a justification to the policy file.",
-                manifest_rel,
+                rel,
             )
-        for name in sorted(allowed_permissions.keys() - declared):
-            self.add("MAN003", "low", f"Allowlisted permission {name} is no longer declared; remove it from the policy file.", manifest_rel)
+        for name in sorted(allowed.keys() - declared):
+            self.add("MAN003", "low", f"Allowlisted permission {name} is no longer declared; remove it from the policy file.", rel)
 
-        # FileProvider configuration.
+    def check_file_providers(self, app: ElementTree.Element, rel: str) -> None:
         for provider in app.iter("provider"):
             if provider.get(ANDROID + "name") != "androidx.core.content.FileProvider":
                 continue
             if provider.get(ANDROID + "grantUriPermissions") != "true":
-                self.add("MAN004", "medium", "FileProvider must set android:grantUriPermissions=\"true\".", manifest_rel)
+                self.add("MAN004", "medium", "FileProvider must set android:grantUriPermissions=\"true\".", rel)
             for meta in provider.iter("meta-data"):
                 resource = meta.get(ANDROID + "resource", "")
                 if resource.startswith("@xml/"):
                     self.check_file_provider_paths(f"app/src/main/res/xml/{resource[5:]}.xml")
 
+    def check_network_security_reference(self, app: ElementTree.Element, rel: str) -> None:
         nsc = app.get(ANDROID + "networkSecurityConfig", "")
         if nsc.startswith("@xml/"):
             self.check_network_security_config(f"app/src/main/res/xml/{nsc[5:]}.xml")
         else:
-            self.add("NSC000", "medium", "No networkSecurityConfig is declared.", manifest_rel)
-
-        self.check_backup_rules()
+            self.add("NSC000", "medium", "No networkSecurityConfig is declared.", rel)
 
     def check_file_provider_paths(self, rel: str) -> None:
         root = self.parse_xml(rel)
@@ -185,23 +199,31 @@ class Checker:
             return
         for section in ("base-config", "domain-config"):
             for config in root.iter(section):
-                for cert in config.iter("certificates"):
-                    if cert.get("src") == "user":
-                        self.add(
-                            "NSC001",
-                            "high",
-                            f"{section} trusts user-installed CAs; restrict them to <debug-overrides>.",
-                            rel,
-                        )
-                for cert in config.iter("certificates"):
-                    if cert.get("overridePins") == "true":
-                        self.add("NSC003", "medium", f"{section} overrides certificate pins.", rel)
+                self.check_trust_anchors(config, section, rel)
+        self.check_base_cleartext(root, rel)
+
+    def check_trust_anchors(self, config: ElementTree.Element, section: str, rel: str) -> None:
+        certificates = list(config.iter("certificates"))
+        for cert in certificates:
+            if cert.get("src") == "user":
+                self.add(
+                    "NSC001",
+                    "high",
+                    f"{section} trusts user-installed CAs; restrict them to <debug-overrides>.",
+                    rel,
+                )
+        for cert in certificates:
+            if cert.get("overridePins") == "true":
+                self.add("NSC003", "medium", f"{section} overrides certificate pins.", rel)
+
+    def check_base_cleartext(self, root: ElementTree.Element, rel: str) -> None:
         base = root.find("base-config")
-        if base is not None and base.get("cleartextTrafficPermitted") == "true":
-            if "nsc-base-cleartext" in self.policy.get("accepted_exceptions", {}):
-                self.add("NSC002", "info", "Cleartext traffic is permitted globally (accepted exception nsc-base-cleartext).", rel)
-            else:
-                self.add("NSC002", "medium", "base-config permits cleartext traffic without an accepted exception.", rel)
+        if base is None or base.get("cleartextTrafficPermitted") != "true":
+            return
+        if "nsc-base-cleartext" in self.policy.get("accepted_exceptions", {}):
+            self.add("NSC002", "info", "Cleartext traffic is permitted globally (accepted exception nsc-base-cleartext).", rel)
+        else:
+            self.add("NSC002", "medium", "base-config permits cleartext traffic without an accepted exception.", rel)
 
     def check_backup_rules(self) -> None:
         for rel, required in self.policy["backup_exclusions"].items():
@@ -221,7 +243,8 @@ class Checker:
     # --------------------------------------------------------------------- build
     @staticmethod
     def build_type_blocks(text: str) -> dict[str, str]:
-        """Return the body of each build type in the android.buildTypes block, by brace matching.
+        """
+        Return the body of each build type in the android.buildTypes block, by brace matching.
 
         Accepts named("x") { }, getByName("x") { }, create("x") { }, register("x") { } and x { }.
         """
@@ -255,7 +278,12 @@ class Checker:
             cursor = close_index + 1
 
     def check_build(self) -> None:
-        rel = "app/build.gradle.kts"
+        self.check_build_types("app/build.gradle.kts")
+        self.check_signing_passwords()
+        self.check_log_stripping("app/proguard-rules.pro")
+        self.check_committed_keystores()
+
+    def check_build_types(self, rel: str) -> None:
         text = (self.root / rel).read_text(encoding="utf-8")
         blocks = self.build_type_blocks(text)
         for name, body in blocks.items():
@@ -266,6 +294,7 @@ class Checker:
         elif not re.search(r"\bisMinifyEnabled\s*=\s*true", blocks["release"]):
             self.add("BLD002", "medium", "Release build type must keep isMinifyEnabled = true.", rel)
 
+    def check_signing_passwords(self) -> None:
         for gradle_file in [self.root / "build.gradle.kts", self.root / "app/build.gradle.kts", self.root / "gradle.properties"]:
             content = gradle_file.read_text(encoding="utf-8")
             for match in re.finditer(r'\b(storePassword|keyPassword)\s*=\s*"[^"$]', content):
@@ -277,12 +306,13 @@ class Checker:
                     content.count("\n", 0, match.start()) + 1,
                 )
 
-        proguard_rel = "app/proguard-rules.pro"
-        proguard = (self.root / proguard_rel).read_text(encoding="utf-8")
+    def check_log_stripping(self, rel: str) -> None:
+        proguard = (self.root / rel).read_text(encoding="utf-8")
         log_block = re.search(r"-assumenosideeffects class android\.util\.Log\s*\{(?P<body>[^}]*)\}", proguard)
         if not log_block or not all(f" {level}(" in log_block.group("body") for level in ("v", "d")):
-            self.add("BLD003", "medium", "Release R8 rules must strip Log.v and Log.d calls (they log stream URLs and paths).", proguard_rel)
+            self.add("BLD003", "medium", "Release R8 rules must strip Log.v and Log.d calls (they log stream URLs and paths).", rel)
 
+    def check_committed_keystores(self) -> None:
         tracked = subprocess.run(  # nosec B603 B607 - fixed argument list, no shell
             ["git", "ls-files"], cwd=self.root, capture_output=True, text=True, check=True
         ).stdout.splitlines()
@@ -293,10 +323,30 @@ class Checker:
     # -------------------------------------------------------------------- source
     SOURCE_RULES = [
         ("SRC001", "high", r"\baddJavascriptInterface\s*\(", "WebView JavaScript bridge exposes app code to web content."),
-        ("SRC002", "high", r"(?:setAllow(?:Universal|File)AccessFromFileURLs\s*\(\s*true|allow(?:Universal|File)AccessFromFileURLs\s*=\s*true)", "WebView allows file:// pages to read other origins."),
+        (
+            "SRC002",
+            "high",
+            r"(?:setAllow(?:Universal|File)AccessFromFileURLs\s*\(\s*true"
+            r"|allow(?:Universal|File)AccessFromFileURLs\s*=\s*true)",
+            "WebView allows file:// pages to read other origins.",
+        ),
         # Implementations only (object expressions, class supertypes, Java implements), not type annotations.
-        ("SRC003", "critical", r"(?:\bobject\s*:\s*(?:[\w.]+\.)?X509(?:Extended)?TrustManager\b|\bclass\s+\w+[^{\n]*?\)?\s*:\s*(?:[\w.]+\.)?X509(?:Extended)?TrustManager\b|\bimplements\s+(?:[\w.]+\.)?X509(?:Extended)?TrustManager\b)", "Custom X509TrustManager implementation; this commonly disables certificate validation."),
-        ("SRC003", "critical", r"(?:HostnameVerifier\s*\{\s*\w+\s*,\s*\w+\s*->\s*true\s*\}|hostnameVerifier\s*\{\s*\w+\s*,\s*\w+\s*->\s*true\s*\}|ALLOW_ALL_HOSTNAME_VERIFIER|NoopHostnameVerifier)", "Hostname verification is disabled."),
+        (
+            "SRC003",
+            "critical",
+            r"(?:\bobject\s*:\s*(?:[\w.]+\.)?X509(?:Extended)?TrustManager\b"
+            r"|\bclass\s+\w+[^{\n]*?\)?\s*:\s*(?:[\w.]+\.)?X509(?:Extended)?TrustManager\b"
+            r"|\bimplements\s+(?:[\w.]+\.)?X509(?:Extended)?TrustManager\b)",
+            "Custom X509TrustManager implementation; this commonly disables certificate validation.",
+        ),
+        (
+            "SRC003",
+            "critical",
+            r"(?:HostnameVerifier\s*\{\s*\w+\s*,\s*\w+\s*->\s*true\s*\}"
+            r"|hostnameVerifier\s*\{\s*\w+\s*,\s*\w+\s*->\s*true\s*\}"
+            r"|ALLOW_ALL_HOSTNAME_VERIFIER|NoopHostnameVerifier)",
+            "Hostname verification is disabled.",
+        ),
         ("SRC004", "high", r"StrictHostKeyChecking\"\s*,\s*\"no\"", "SSH host-key checking is disabled."),
         ("SRC005", "high", r"Cipher\.getInstance\(\s*\"(?:AES\"|AES/ECB|DES|DESede|RC4|Blowfish)", "Weak cipher or ECB mode."),
         ("SRC006", "high", r"\bMODE_WORLD_(?:READABLE|WRITEABLE)\b", "World-accessible file mode."),
@@ -347,19 +397,23 @@ class Checker:
             prefix = text[max(0, match.start() - 4) : match.start()]
             if prefix.endswith("fun "):
                 continue
-            args = self.call_arguments(text, match.end() - 1).strip()
+            problem = self.receiver_problem(self.call_arguments(text, match.end() - 1).strip())
             line = text.count("\n", 0, match.start()) + 1
-            first = re.split(r",", args, maxsplit=1)[0].strip()
-            # registerReceiver(null, filter) only reads a sticky broadcast.
-            if first == "null" or re.match(r"^\w+\s*,\s*null\s*,", args):
-                continue
-            if "RECEIVER_NOT_EXPORTED" in args or "RECEIVER_EXPORTED" in args:
-                if "RECEIVER_EXPORTED" in args and "RECEIVER_NOT_EXPORTED" not in args and not self.allowed(lines, line, "SRC009"):
-                    self.add("SRC009", "medium", "Dynamic receiver is registered as RECEIVER_EXPORTED.", rel, line)
-                continue
-            if self.allowed(lines, line, "SRC009"):
-                continue
-            self.add("SRC009", "medium", "Dynamic receiver registered without RECEIVER_NOT_EXPORTED.", rel, line)
+            if problem and not self.allowed(lines, line, "SRC009"):
+                self.add("SRC009", "medium", problem, rel, line)
+
+    @staticmethod
+    def receiver_problem(args: str) -> str | None:
+        """Return why a registerReceiver(...) call is unsafe, or None if it is fine."""
+        first = args.split(",", 1)[0].strip()
+        # registerReceiver(null, filter) only reads a sticky broadcast.
+        if first == "null" or re.match(r"^\w+\s*,\s*null\s*,", args):
+            return None
+        if "RECEIVER_NOT_EXPORTED" in args:
+            return None
+        if "RECEIVER_EXPORTED" in args:
+            return "Dynamic receiver is registered as RECEIVER_EXPORTED."
+        return "Dynamic receiver registered without RECEIVER_NOT_EXPORTED."
 
     @staticmethod
     def allowed(lines: list[str], line: int, rule: str) -> bool:
@@ -370,37 +424,43 @@ class Checker:
         return any(marker.search(candidate) for candidate in candidates)
 
     # -------------------------------------------------------------------- report
+    @staticmethod
+    def location(finding: Finding) -> str:
+        return (finding.path or "-") + (f":{finding.line}" if finding.line else "")
+
+    @staticmethod
+    def annotation(finding: Finding) -> str:
+        """Format a finding as a GitHub Actions workflow command."""
+        level = "error" if finding.severity in BLOCKING else ("warning" if finding.severity == "low" else "notice")
+        props = [f"file={finding.path}"] if finding.path else []
+        if finding.line:
+            props.append(f"line={finding.line}")
+        props.append(f"title={finding.rule} ({finding.severity})")
+        return f"::{level} {','.join(props)}::{finding.message}"
+
+    def write_summary(self, summary_path: str, ordered: list[Finding], blocking: list[Finding]) -> None:
+        with open(summary_path, "a", encoding="utf-8") as summary:
+            summary.write("## Android security policy\n\n")
+            if not ordered:
+                summary.write("No findings.\n")
+            else:
+                summary.write("| Severity | Rule | Location | Finding |\n| --- | --- | --- | --- |\n")
+                for finding in ordered:
+                    summary.write(f"| {finding.severity} | {finding.rule} | `{self.location(finding)}` | {finding.message} |\n")
+            summary.write(f"\nBlocking findings (critical/high/medium): **{len(blocking)}**\n")
+
     def report(self) -> int:
         ordered = sorted(self.findings, key=lambda f: (SEVERITY_ORDER.index(f.severity), f.rule, f.path or "", f.line or 0))
         blocking = [f for f in ordered if f.severity in BLOCKING]
         in_actions = os.environ.get("GITHUB_ACTIONS") == "true"
         for finding in ordered:
-            location = finding.path or "-"
-            if finding.line:
-                location += f":{finding.line}"
-            print(f"[{finding.severity.upper():8}] {finding.rule} {location}: {finding.message}")
+            print(f"[{finding.severity.upper():8}] {finding.rule} {self.location(finding)}: {finding.message}")
             if in_actions:
-                level = "error" if finding.severity in BLOCKING else ("warning" if finding.severity == "low" else "notice")
-                props = []
-                if finding.path:
-                    props.append(f"file={finding.path}")
-                if finding.line:
-                    props.append(f"line={finding.line}")
-                props.append(f"title={finding.rule} ({finding.severity})")
-                print(f"::{level} {','.join(props)}::{finding.message}")
+                print(self.annotation(finding))
 
         summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
         if summary_path:
-            with open(summary_path, "a", encoding="utf-8") as summary:
-                summary.write("## Android security policy\n\n")
-                if not ordered:
-                    summary.write("No findings.\n")
-                else:
-                    summary.write("| Severity | Rule | Location | Finding |\n| --- | --- | --- | --- |\n")
-                    for finding in ordered:
-                        location = (finding.path or "-") + (f":{finding.line}" if finding.line else "")
-                        summary.write(f"| {finding.severity} | {finding.rule} | `{location}` | {finding.message} |\n")
-                summary.write(f"\nBlocking findings (critical/high/medium): **{len(blocking)}**\n")
+            self.write_summary(summary_path, ordered, blocking)
 
         print(f"\n{len(ordered)} finding(s), {len(blocking)} blocking.")
         if blocking:
@@ -412,7 +472,7 @@ class Checker:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(description=__doc__.strip().splitlines()[0])
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
     args = parser.parse_args()
     checker = Checker(args.root.resolve())
