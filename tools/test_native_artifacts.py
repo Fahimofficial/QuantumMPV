@@ -3,6 +3,7 @@
 from hashlib import sha256
 import json
 from pathlib import Path
+import re
 import subprocess
 
 root = Path(__file__).resolve().parents[1]
@@ -15,8 +16,16 @@ assert 'set(MPVRX_NATIVE_LINK_OPTIONS' in cmake
 assert '"-Wl,-z,max-page-size=16384"' in cmake
 assert '$<$<CONFIG:Release>:-Wl,-z,max-page-size=16384>' not in cmake
 assert 'target_link_options(${target} PRIVATE ${MPVRX_NATIVE_LINK_OPTIONS})' in cmake
-assert 'agp = "9.5.0"' in (root / 'gradle/libs.versions.toml').read_text()
-assert 'gradle-9.6.0-bin.zip' in (root / 'gradle/wrapper/gradle-wrapper.properties').read_text()
+# AGP 9.4.1 is the floor that moved Android tooling off vulnerable Bouncy Castle 1.79
+# (see NATIVE_ARTIFACT_AUDIT.md). Newer AGP releases are accepted so routine
+# Dependabot bumps do not fail this check; downgrades below the floor still do.
+agp_match = re.search(r'^agp = "(\d+)\.(\d+)\.(\d+)"$', (root / 'gradle/libs.versions.toml').read_text(), re.MULTILINE)
+assert agp_match, 'gradle/libs.versions.toml must pin agp to a stable MAJOR.MINOR.PATCH version'
+assert tuple(map(int, agp_match.groups())) >= (9, 4, 1), f'AGP {".".join(agp_match.groups())} is below the 9.4.1 security floor'
+wrapper_properties = (root / 'gradle/wrapper/gradle-wrapper.properties').read_text()
+wrapper_match = re.search(r'distributionUrl=.*/gradle-(\d+)\.(\d+)(?:\.(\d+))?-bin\.zip$', wrapper_properties, re.MULTILINE)
+assert wrapper_match, 'Gradle wrapper must use a stable -bin distribution'
+assert tuple(int(part or 0) for part in wrapper_match.groups()) >= (9, 6, 0), 'Gradle wrapper is below the 9.6.0 floor'
 assert 'org.bouncycastle:bcprov-jdk18on:1.85' in app_gradle
 assert 'org.bouncycastle:bcpkix-jdk18on:1.85' in app_gradle
 assert 'requested.group == "org.bouncycastle" -> useVersion("1.85")' in (root / 'build.gradle.kts').read_text()

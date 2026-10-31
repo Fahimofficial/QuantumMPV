@@ -1,0 +1,26 @@
+# zizmor configuration used by .github/workflows/workflow-audit.yml.
+# Every ignore must be scoped to a file (and line where possible) and justified.
+# Review this list whenever the referenced workflow changes.
+rules:
+  artipacked:
+    ignore:
+      # The only checkout in this file is in the job that pushes a review
+      # branch with `git push`, which needs the
+      # credential that actions/checkout persists. No artifacts are uploaded
+      # from this job, so the credential cannot leak through an artifact.
+      - upstream-sync-check.yml
+
+  superfluous-actions:
+    ignore:
+      # softprops/action-gh-release is SHA-pinned, maintained, and already
+      # handles asset upload and the release body; replacing it with a
+      # `gh release` script is a refactor without a security benefit.
+      - release.yml
+      - pre-release.yml
+
+  self-repository:
+    ignore:
+      # GitHub's `$/` self-repository syntax is not yet resolved by CodeQL's
+      # Actions analysis (github/codeql#22755), which would analyze the called
+      # workflow without its caller. Keep `./` until that is fixed.
+      - release.yml

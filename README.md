@@ -427,7 +427,9 @@ Use the [issue tracker](https://github.com/Fahimofficial/QuantumMPV/issues) for 
 
 ## Release Notes For Maintainers
 
-To cut a signed GitHub release through Actions, configure these repository secrets:
+The full procedure, required secrets and verification steps are in [docs/RELEASE.md](docs/RELEASE.md); the CI/CD architecture is described in [docs/CI_CD.md](docs/CI_CD.md).
+
+To cut a signed GitHub release through Actions, configure these secrets (preferably as environment secrets of the `production` and `preview` environments):
 
 | Secret Name | Description |
 |---|---|
@@ -436,7 +438,7 @@ To cut a signed GitHub release through Actions, configure these repository secre
 | `SIGNING_STORE_PASSWORD` | Password for the keystore |
 | `KEY_PASSWORD` | Password for the signing key |
 
-Then bump `versionCode` and `versionName` in `app/build.gradle.kts`, create a tag, and push it:
+Then bump the version in a pull request with `python3 tools/prepare_release.py X.Y.Z` (this updates `versionName` and `releaseVersionCode` in `app/build.gradle.kts`), add a `## X.Y.Z` section at the top of `CHANGELOG.md`, and merge it after CI passes. Run the **Prepare Release** workflow, or create a tag on that master commit and push it:
 
 ```bash
 git tag -a v1.3.1 -m "Release version 1.3.1"
