@@ -315,11 +315,18 @@ class PlaylistDetailViewModel(
     }
   }
 
-  suspend fun removeVideosFromPlaylist(videos: List<Video>) {
+  /** Removes the items and returns the exact rows removed, so the caller can offer Undo. */
+  suspend fun removeVideosFromPlaylist(videos: List<Video>): List<PlaylistItemEntity> {
     val items = playlistRepository.getPlaylistItems(playlistId)
     val videoPaths = videos.map { it.path }.toSet()
     val itemsToRemove = items.filter { it.filePath in videoPaths }
     playlistRepository.removeItemsFromPlaylist(itemsToRemove)
+    return itemsToRemove
+  }
+
+  /** Puts back rows returned by [removeVideosFromPlaylist]; the observed item flow re-renders them. */
+  suspend fun restorePlaylistItems(items: List<PlaylistItemEntity>) {
+    playlistRepository.restoreItemsToPlaylist(items)
   }
 
   suspend fun addVideosToPlaylist(videos: List<Video>) {

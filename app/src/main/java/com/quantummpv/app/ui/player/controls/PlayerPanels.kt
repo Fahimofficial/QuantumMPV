@@ -11,6 +11,8 @@ package com.quantummpv.app.ui.player.controls
 
 import androidx.activity.compose.LocalActivity
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -38,6 +40,7 @@ import com.quantummpv.app.ui.player.controls.components.panels.LuaScriptsPanel
 import com.quantummpv.app.ui.player.controls.components.panels.SubtitleDelayPanel
 import com.quantummpv.app.ui.player.controls.components.panels.SubtitleSettingsPanel
 import com.quantummpv.app.ui.player.controls.components.panels.VideoSettingsPanel
+import com.quantummpv.app.ui.theme.AppMotion
 import com.quantummpv.app.ui.utils.isAnyMpvOptionOwnedByConfig
 import com.quantummpv.app.ui.utils.isMpvOptionOwnedByConfig
 
@@ -48,13 +51,25 @@ fun PlayerPanels(
   onDismissRequest: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
+  val disableMotion = AppMotion.shouldDisableAnimations()
+  val reduceMotion = AppMotion.shouldReduceMotion()
   AnimatedContent(
     targetState = panelShown,
     label = "panels",
     contentAlignment = Alignment.CenterEnd,
     contentKey = { it.name },
     transitionSpec = {
-      fadeIn() + slideInHorizontally { it / 3 } togetherWith fadeOut() + slideOutHorizontally { it / 2 }
+      when {
+        disableMotion -> EnterTransition.None togetherWith ExitTransition.None
+        // Reduced motion keeps the hand-off legible without lateral travel.
+        reduceMotion ->
+          fadeIn(AppMotion.ReducedAlpha) togetherWith fadeOut(AppMotion.ReducedAlpha)
+        // Panels arrive from and leave toward the same edge over the same distance, on critically
+        // damped springs, so a panel dismissed mid-entry reverses along its own path.
+        else ->
+          (fadeIn(AppMotion.Effect.Alpha) + slideInHorizontally(AppMotion.Spatial.StandardOffset) { it / 4 }) togetherWith
+            (fadeOut(AppMotion.Effect.Alpha) + slideOutHorizontally(AppMotion.Spatial.StandardOffset) { it / 4 })
+      }
     },
     modifier = modifier,
   ) { currentPanel ->

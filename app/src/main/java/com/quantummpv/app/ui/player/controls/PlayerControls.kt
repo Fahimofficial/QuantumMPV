@@ -19,10 +19,7 @@ import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -169,6 +166,7 @@ import com.quantummpv.app.ui.player.controls.components.sheets.toFixed
 import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.ui.player.controls.components.tvInitialFocus
 import com.quantummpv.app.ui.player.declaredMediaKind
+import com.quantummpv.app.ui.theme.AppMotion
 import com.quantummpv.app.ui.theme.controlColor
 import com.quantummpv.app.ui.theme.playerRippleConfiguration
 import com.quantummpv.app.ui.theme.rememberMotionPolicy
@@ -617,6 +615,7 @@ fun PlayerControls(
       speedMultiplier = animSpeed,
       animationState = videoOpenAnimState,
       animationsDisabled = motionPolicy.shouldDisableAnimations,
+      reduceMotion = motionPolicy.shouldReduceAnimations || playerPreferences.reduceMotion.collectAsState().value,
     )
     if (brightness < 0) {
       Box(
@@ -769,8 +768,12 @@ fun PlayerControls(
                   height = Dimension.wrapContent
                 }.fillMaxWidth()
                 .height(120.dp)
-                .background(TopHudScrim)
-                .alpha((transparentOverlay / 0.8f).coerceIn(0f, 1f))
+                // Read the animated alpha in the draw phase: a `.background().alpha()` chain leaves the
+                // gradient fully opaque (alpha only wraps what follows it) and recomposes every frame.
+                .drawBehind {
+                  val hudAlpha = (transparentOverlay / 0.8f).coerceIn(0f, 1f)
+                  if (hudAlpha > 0f) drawRect(TopHudScrim, alpha = hudAlpha)
+                }
           )
 
           // Bottom HUD scrim gradient for bright-frame contrast
@@ -784,8 +787,12 @@ fun PlayerControls(
                   height = Dimension.wrapContent
                 }.fillMaxWidth()
                 .height(120.dp)
-                .background(BottomHudScrim)
-                .alpha((transparentOverlay / 0.8f).coerceIn(0f, 1f))
+                // Read the animated alpha in the draw phase: a `.background().alpha()` chain leaves the
+                // gradient fully opaque (alpha only wraps what follows it) and recomposes every frame.
+                .drawBehind {
+                  val hudAlpha = (transparentOverlay / 0.8f).coerceIn(0f, 1f)
+                  if (hudAlpha > 0f) drawRect(BottomHudScrim, alpha = hudAlpha)
+                }
           )
 
           AnimatedVisibility(
@@ -1144,7 +1151,12 @@ is PlayerUpdates.FrameInfo -> {
             }
           val skipChipBottomOffset by animateDpAsState(
             targetValue = skipChipBottomTarget,
-            animationSpec = if (motionPolicy.shouldDisableAnimations) snap() else spring(),
+            animationSpec =
+              when {
+                motionPolicy.shouldDisableAnimations -> snap()
+                reduceMotion -> AppMotion.ReducedDp
+                else -> AppMotion.Spatial.StandardDp
+              },
             label = "skip_chip_bottom_offset",
           )
 
@@ -1433,8 +1445,9 @@ is PlayerUpdates.FrameInfo -> {
 
           AnimatedVisibility(
             visible = showBufferingIndicator,
-            enter = fadeIn(),
-            exit = fadeOut(),
+            // Same style policy as every other HUD element: no motion when Off, a plain fade otherwise.
+            enter = buildControlsEnterV(controlsAnimStyle, reduceMotion = true, enterMs = enterMs) { 0 },
+            exit = buildControlsExitV(controlsAnimStyle, reduceMotion = true, exitMs = exitMs) { 0 },
             modifier =
               Modifier.constrainAs(bufferingIndicator) {
                 start.linkTo(parent.absoluteLeft)

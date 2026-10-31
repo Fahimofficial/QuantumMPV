@@ -25,6 +25,7 @@ import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.SpringSpec
+import androidx.compose.animation.core.VisibilityThreshold
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
@@ -271,6 +272,10 @@ object AppMotion {
     /** Dp-specific variants for animateDpAsState. */
     val ExpressiveDp: SpringSpec<Dp> = spring(dampingRatio = 0.9f, stiffness = 700f)
     val StandardDp: SpringSpec<Dp> = spring(dampingRatio = 1f, stiffness = 380f)
+
+    /** IntOffset variant of [Standard] for slideIn/slideOut: critically damped, no overshoot. */
+    val StandardOffset: SpringSpec<IntOffset> =
+      spring(dampingRatio = 1f, stiffness = 380f, visibilityThreshold = IntOffset.VisibilityThreshold)
   }
 
   /** Effect animations — color and alpha transitions (no overshoot). */

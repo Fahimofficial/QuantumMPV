@@ -104,6 +104,7 @@ import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.NavigationPager
+import com.quantummpv.app.ui.utils.appItemMotion
 import com.quantummpv.app.ui.utils.calculateResponsiveGridSpans
 import com.quantummpv.app.ui.utils.navigateTo
 import com.quantummpv.app.ui.utils.rememberTabNavigation
@@ -942,6 +943,7 @@ private fun RecentItemsContent(
                   gridColumns = spansInfo.spans,
                   showSubtitleIndicator = showSubtitleIndicator,
                   uiConfig = videoCardUiConfig,
+                  modifier = appItemMotion(),
                 )
               }
 
@@ -984,6 +986,7 @@ private fun RecentItemsContent(
                     }
                   },
                   customIcon = Icons.RoundedFilled.PlaylistPlay,
+                  modifier = appItemMotion(),
                   showDateModified = true,
                   isGridMode = true,
                 )
@@ -1069,6 +1072,7 @@ private fun RecentItemsContent(
                   thumbnailHeightPx = if (isAudioTab) with(density) { musicCoverArtSize.dp.roundToPx() } else null,
                   showSubtitleIndicator = showSubtitleIndicator,
                   uiConfig = videoCardUiConfig,
+                  modifier = appItemMotion(),
                 )
               }
 
@@ -1111,6 +1115,7 @@ private fun RecentItemsContent(
                     }
                   },
                   customIcon = Icons.RoundedFilled.PlaylistPlay,
+                  modifier = appItemMotion(),
                   showDateModified = true,
                   isGridMode = false,
                 )

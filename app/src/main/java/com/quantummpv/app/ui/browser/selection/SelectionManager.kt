@@ -38,6 +38,7 @@ class SelectionManager<T, ID>(
   private val onDeleteItems: suspend (List<T>, Boolean) -> Pair<Int, Int>,
   private val onRenameItem: (suspend (T, String) -> Result<Unit>)?,
   private val onOperationComplete: () -> Unit,
+  private val announceDeleteSuccess: Boolean = true,
 ) {
   var state by mutableStateOf(SelectionState<ID>())
     private set
@@ -135,14 +136,14 @@ class SelectionManager<T, ID>(
     scope.launch {
       runCatching {
         val (deleted, failed) = onDeleteItems(selected, deleteFiles)
-        if (deleted > 0) {
+        if (deleted > 0 && announceDeleteSuccess) {
           Toast
             .makeText(
               context,
               context.getString(com.quantummpv.app.R.string.ui_deleted_successfully),
               Toast.LENGTH_SHORT,
             ).show()
-        } else if (failed > 0) {
+        } else if (deleted == 0 && failed > 0) {
           Toast
             .makeText(
               context,
@@ -296,6 +297,8 @@ class SelectionManager<T, ID>(
  * @param onDeleteItems Callback to delete items (includes boolean to delete original files)
  * @param onRenameItem Optional callback to rename an item
  * @param onOperationComplete Callback when an operation completes (to refresh list)
+ * @param announceDeleteSuccess Show the generic success toast; disable when the caller confirms
+ *   the result itself (for example with an Undo snackbar). Failures are always reported.
  */
 @Composable
 fun <T, ID> rememberSelectionManager(
@@ -304,6 +307,7 @@ fun <T, ID> rememberSelectionManager(
   onDeleteItems: suspend (List<T>, Boolean) -> Pair<Int, Int>,
   onRenameItem: (suspend (T, String) -> Result<Unit>)? = null,
   onOperationComplete: () -> Unit = {},
+  announceDeleteSuccess: Boolean = true,
 ): SelectionManager<T, ID> {
   val context = LocalContext.current
   val scope = rememberCoroutineScope()
@@ -314,7 +318,7 @@ fun <T, ID> rememberSelectionManager(
   val latestOnOperationComplete by rememberUpdatedState(onOperationComplete)
   val hasRenameAction = onRenameItem != null
 
-  return remember(context, scope, hasRenameAction) {
+  return remember(context, scope, hasRenameAction, announceDeleteSuccess) {
     SelectionManager(
       items = { latestItems },
       getId = { item -> latestGetId(item) },
@@ -331,6 +335,7 @@ fun <T, ID> rememberSelectionManager(
           null
         },
       onOperationComplete = { latestOnOperationComplete() },
+      announceDeleteSuccess = announceDeleteSuccess,
     )
   }
 }

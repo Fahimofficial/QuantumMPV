@@ -15,7 +15,7 @@ import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -41,6 +41,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.ui.theme.AppMotion
 import kotlinx.coroutines.delay
@@ -105,7 +107,8 @@ fun buildControlsEnterH(
   when {
     style == ControlsAnimationStyle.None -> EnterTransition.None
 
-    style == ControlsAnimationStyle.Minimal ->
+    // Reduced motion wins over every expressive style: a plain fade, no scale or travel.
+    style == ControlsAnimationStyle.Minimal || reduceMotion ->
       fadeIn(tween(durationMillis = enterMs, easing = LinearOutSlowInEasing))
 
     style == ControlsAnimationStyle.Cinematic ->
@@ -138,7 +141,7 @@ fun buildControlsEnterH(
         offsetX,
       ) + fadeIn(spring(stiffness = AppMotion.Spatial.Snappy.stiffness))
 
-    !reduceMotion ->
+    else ->
       slideInHorizontally(
         tween(durationMillis = enterMs, easing = LinearOutSlowInEasing),
         offsetX,
@@ -146,8 +149,6 @@ fun buildControlsEnterH(
         fadeIn(
           tween(durationMillis = enterMs, easing = LinearOutSlowInEasing),
         )
-
-    else -> fadeIn(tween(durationMillis = enterMs, easing = LinearOutSlowInEasing))
   }
 
 fun buildControlsExitH(
@@ -159,7 +160,8 @@ fun buildControlsExitH(
   when {
     style == ControlsAnimationStyle.None -> ExitTransition.None
 
-    style == ControlsAnimationStyle.Minimal ->
+    // Reduced motion wins over every expressive style: a plain fade, no scale or travel.
+    style == ControlsAnimationStyle.Minimal || reduceMotion ->
       fadeOut(tween(durationMillis = exitMs, easing = FastOutSlowInEasing))
 
     style == ControlsAnimationStyle.Cinematic ->
@@ -201,7 +203,7 @@ fun buildControlsExitH(
           ),
         )
 
-    !reduceMotion ->
+    else ->
       slideOutHorizontally(
         tween(durationMillis = exitMs, easing = FastOutSlowInEasing),
         offsetX,
@@ -209,8 +211,6 @@ fun buildControlsExitH(
         fadeOut(
           tween(durationMillis = exitMs, easing = FastOutSlowInEasing),
         )
-
-    else -> fadeOut(tween(durationMillis = exitMs, easing = FastOutSlowInEasing))
   }
 
 /**
@@ -227,7 +227,8 @@ fun buildControlsEnterV(
   when {
     style == ControlsAnimationStyle.None -> EnterTransition.None
 
-    style == ControlsAnimationStyle.Minimal ->
+    // Reduced motion wins over every expressive style: a plain fade, no scale or travel.
+    style == ControlsAnimationStyle.Minimal || reduceMotion ->
       fadeIn(tween(durationMillis = enterMs, easing = LinearOutSlowInEasing))
 
     style == ControlsAnimationStyle.Cinematic ->
@@ -260,7 +261,7 @@ fun buildControlsEnterV(
         offsetY,
       ) + fadeIn(spring(stiffness = AppMotion.Spatial.Snappy.stiffness))
 
-    !reduceMotion ->
+    else ->
       slideInVertically(
         tween(durationMillis = enterMs, easing = LinearOutSlowInEasing),
         offsetY,
@@ -268,8 +269,6 @@ fun buildControlsEnterV(
         fadeIn(
           tween(durationMillis = enterMs, easing = LinearOutSlowInEasing),
         )
-
-    else -> fadeIn(tween(durationMillis = enterMs, easing = LinearOutSlowInEasing))
   }
 
 fun buildControlsExitV(
@@ -281,7 +280,8 @@ fun buildControlsExitV(
   when {
     style == ControlsAnimationStyle.None -> ExitTransition.None
 
-    style == ControlsAnimationStyle.Minimal ->
+    // Reduced motion wins over every expressive style: a plain fade, no scale or travel.
+    style == ControlsAnimationStyle.Minimal || reduceMotion ->
       fadeOut(tween(durationMillis = exitMs, easing = FastOutSlowInEasing))
 
     style == ControlsAnimationStyle.Cinematic ->
@@ -323,7 +323,7 @@ fun buildControlsExitV(
           ),
         )
 
-    !reduceMotion ->
+    else ->
       slideOutVertically(
         tween(durationMillis = exitMs, easing = FastOutSlowInEasing),
         offsetY,
@@ -331,8 +331,6 @@ fun buildControlsExitV(
         fadeOut(
           tween(durationMillis = exitMs, easing = FastOutSlowInEasing),
         )
-
-    else -> fadeOut(tween(durationMillis = exitMs, easing = FastOutSlowInEasing))
   }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -350,8 +348,11 @@ fun VideoOpenAnimationOverlay(
   speedMultiplier: Float,
   animationState: VideoOpenAnimationState,
   animationsDisabled: Boolean,
+  reduceMotion: Boolean = false,
 ) {
   if (animationsDisabled || style == VideoOpenAnimation.Default || style == VideoOpenAnimation.None) return
+  // Zooms, slides and bars become the plain fade from black when the user asked for less motion.
+  val effectiveStyle = if (reduceMotion) VideoOpenAnimation.FadeDark else style
 
   val durationMs = (400 * speedMultiplier).toInt().coerceAtLeast(100)
   val holdMs = (120 * speedMultiplier).toInt().coerceAtLeast(50)
@@ -369,7 +370,10 @@ fun VideoOpenAnimationOverlay(
       overlayVisible = false
     }
 
-    when (style) {
+    when (effectiveStyle) {
+      // Filtered out by the early return above.
+      VideoOpenAnimation.Default, VideoOpenAnimation.None -> Unit
+
       VideoOpenAnimation.FadeDark -> {
         AnimatedVisibility(
           visible = overlayVisible,
@@ -439,8 +443,10 @@ fun VideoOpenAnimationOverlay(
 
       VideoOpenAnimation.CinemaBars -> {
         // Two black bars that hold while loading, then shrink away once the video is ready.
-        val barHeight by animateDpAsState(
-          targetValue = if (overlayVisible) 110.dp else 0.dp,
+        // Bars keep a fixed 110 dp layout and shrink with a layer scale toward their outer edge, so the
+        // spring runs in the draw phase instead of re-measuring both bars on every frame.
+        val barFraction by animateFloatAsState(
+          targetValue = if (overlayVisible) 1f else 0f,
           animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = 180f),
           label = "cinema_bars",
         )
@@ -448,16 +454,22 @@ fun VideoOpenAnimationOverlay(
           Box(
             Modifier
               .fillMaxWidth()
-              .height(barHeight)
-              .background(Color.Black)
-              .align(Alignment.TopCenter),
+              .height(110.dp)
+              .align(Alignment.TopCenter)
+              .graphicsLayer {
+                scaleY = barFraction.coerceAtLeast(0f)
+                transformOrigin = TransformOrigin(0.5f, 0f)
+              }.background(Color.Black),
           )
           Box(
             Modifier
               .fillMaxWidth()
-              .height(barHeight)
-              .background(Color.Black)
-              .align(Alignment.BottomCenter),
+              .height(110.dp)
+              .align(Alignment.BottomCenter)
+              .graphicsLayer {
+                scaleY = barFraction.coerceAtLeast(0f)
+                transformOrigin = TransformOrigin(0.5f, 1f)
+              }.background(Color.Black),
           )
         }
       }

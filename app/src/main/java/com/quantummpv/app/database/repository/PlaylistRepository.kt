@@ -279,6 +279,15 @@ class PlaylistRepository(
     }
   }
 
+  /** Re-inserts previously removed items unchanged (same ids and positions), e.g. for Undo. */
+  suspend fun restoreItemsToPlaylist(items: List<PlaylistItemEntity>) {
+    if (items.isEmpty()) return
+    playlistDao.insertPlaylistItems(items)
+    getPlaylistById(items.first().playlistId)?.let { playlist ->
+      updatePlaylist(playlist)
+    }
+  }
+
   suspend fun removeItemById(itemId: Int) {
     playlistDao.deletePlaylistItemById(itemId)
   }

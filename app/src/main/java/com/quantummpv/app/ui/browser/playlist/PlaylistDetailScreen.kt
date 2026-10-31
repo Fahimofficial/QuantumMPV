@@ -206,6 +206,9 @@ data class PlaylistDetailScreen(
       }
     }
 
+    val snackbarHostState = remember { androidx.compose.material3.SnackbarHostState() }
+    val resources = androidx.compose.ui.platform.LocalResources.current
+
     // Selection manager - use playlist item ID as unique key, work with filtered items
     val selectionManager =
       rememberSelectionManager(
@@ -213,10 +216,32 @@ data class PlaylistDetailScreen(
         getId = { it.playlistItem.id },
         onDeleteItems = { itemsToDelete, _ ->
           val videosToRemove = itemsToDelete.map { it.video }
-          viewModel.removeVideosFromPlaylist(videosToRemove)
+          val removedItems = viewModel.removeVideosFromPlaylist(videosToRemove)
+          if (removedItems.isNotEmpty()) {
+            // Removing from a playlist never touches the files, so offer Undo instead of a toast.
+            coroutineScope.launch {
+              snackbarHostState.currentSnackbarData?.dismiss()
+              val result =
+                snackbarHostState.showSnackbar(
+                  message =
+                    resources.getQuantityString(
+                      com.quantummpv.app.R.plurals.playlist_items_removed,
+                      removedItems.size,
+                      removedItems.size,
+                    ),
+                  actionLabel = resources.getString(com.quantummpv.app.R.string.generic_undo),
+                  withDismissAction = true,
+                  duration = androidx.compose.material3.SnackbarDuration.Long,
+                )
+              if (result == androidx.compose.material3.SnackbarResult.ActionPerformed) {
+                viewModel.restorePlaylistItems(removedItems)
+              }
+            }
+          }
           Pair(itemsToDelete.size, 0)
         },
         onOperationComplete = { viewModel.refresh() },
+        announceDeleteSuccess = false,
       )
 
     // UI State
@@ -272,6 +297,7 @@ data class PlaylistDetailScreen(
     }
 
     Scaffold(
+      snackbarHost = { androidx.compose.material3.SnackbarHost(snackbarHostState) },
       topBar = {
         if (isSearching) {
           // Search mode - show search bar
@@ -788,10 +814,14 @@ private fun PlaylistVideoListContent(
         label = "scrollbarAlpha",
       )
 
-      // Reorderable state
+      // Reorderable state. Haptics follow the drag: a pickup on grab, a tick per slot crossed,
+      // and a confirm on drop only when the order actually changed.
+      val reorderFeedback = com.quantummpv.app.ui.utils.rememberReorderFeedback()
+      val reduceMotion = com.quantummpv.app.ui.theme.AppMotion.shouldReduceMotion()
       val reorderableLazyListState =
         rememberReorderableLazyListState(listState) { from, to ->
           if (isReorderMode) {
+            reorderFeedback.move(from.index, to.index)
             onReorder(from.index, to.index)
           }
         }
@@ -806,8 +836,18 @@ private fun PlaylistVideoListContent(
             count = videoItems.size,
             key = { index -> videoItems[index].playlistItem.id },
           ) { index ->
-            ReorderableItem(reorderableLazyListState, key = videoItems[index].playlistItem.id) {
+            ReorderableItem(reorderableLazyListState, key = videoItems[index].playlistItem.id) { isDragging ->
               val item = videoItems[index]
+              // The held row lifts slightly so it reads as picked up, above the rows moving under it.
+              val liftScale by androidx.compose.animation.core.animateFloatAsState(
+                targetValue = if (isDragging && !reduceMotion) 1.02f else 1f,
+                animationSpec =
+                  com.quantummpv.app.ui.theme.AppMotion.spatial(
+                    com.quantummpv.app.ui.theme.AppMotion.Spatial.Snappy,
+                    com.quantummpv.app.ui.theme.AppMotion.ReducedAlpha,
+                  ),
+                label = "playlist_reorder_lift",
+              )
 
               val progressPercentage =
                 if (item.playlistItem.lastPosition > 0 && item.video.duration > 0) {
@@ -817,7 +857,13 @@ private fun PlaylistVideoListContent(
                 }
 
               Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier =
+                  Modifier
+                    .fillMaxWidth()
+                    .graphicsLayer {
+                      scaleX = liftScale
+                      scaleY = liftScale
+                    },
                 verticalAlignment = Alignment.CenterVertically,
               ) {
                 if (isM3uPlaylist) {
@@ -866,7 +912,12 @@ private fun PlaylistVideoListContent(
                     modifier =
                       Modifier
                         .size(48.dp)
-                        .draggableHandle(),
+                        .draggableHandle(
+                          interactionSource = reorderFeedback.interactions,
+                          onDragStarted = { reorderFeedback.start() },
+                          // finish() is idempotent, so this and the Stop interaction can't double-confirm.
+                          onDragStopped = { reorderFeedback.finish(cancelled = false) },
+                        ),
                   ) {
                     Icon(
                       imageVector = Icons.RoundedFilled.DragHandle,

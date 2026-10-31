@@ -618,6 +618,11 @@
   <string name="player_sheets_frame_navigation_snapshot_saved" translatable="false">Saved to Pictures/mpvSnaps</string>
   <string name="player_sheets_frame_navigation_include_subtitles">Include subtitles in snapshot</string>
   <string name="player_sheets_zoom_slider_label">Video Zoom</string>
+  <string name="generic_undo">Undo</string>
+  <plurals name="playlist_items_removed">
+    <item quantity="one">Removed %d item from playlist</item>
+    <item quantity="other">Removed %d items from playlist</item>
+  </plurals>
   <plurals name="seconds">
     <item quantity="one">%1$d second</item>
     <item quantity="other">%1$d seconds</item>
