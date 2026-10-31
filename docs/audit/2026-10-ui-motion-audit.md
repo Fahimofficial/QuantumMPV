@@ -195,6 +195,7 @@ drag ends. The scroll re-centering follows `scrollState.maxValue` with `snapshot
 recomposing for it.
 
 Pixel check: I captured the bar at fixed frames before and after the change and compared them.
+
 - During the drag and at rest, the frames match apart from antialiasing on the label text (17 to
   69 px with a channel difference above 40, all on glyph edges). The text is recoloured after
   rasterising rather than drawn in the final colour.

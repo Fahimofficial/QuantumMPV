@@ -1,6 +1,8 @@
 # Changelog
 ## Unreleased
+
 ### What's New
+
 - **Undo**: Removing videos from a playlist or items from Recents shows an Undo action that puts them back exactly where they were. Removals that also delete files still ask first and can't be undone.
 - **Reordering playlists**: Dragging a playlist item lifts it slightly and gives a haptic tick for each slot it crosses and a confirmation when dropped.
 - **Pull to refresh**: The list follows your finger, resists progressively past the trigger point, and ticks once when releasing would refresh.
@@ -9,6 +11,7 @@
 - **Reduced motion**: Screen transitions now cross-fade under Reduced motion and are removed when motion is Off.
 
 ### Fixes
+
 - **Player**: The top and bottom shading behind the player controls now fades out with them instead of staying over the video.
 - **Haptic feedback setting**: Turning off Haptic feedback now silences every in-app haptic, including player gestures, tab taps and long-press.
 - **Reduced motion in the player**: Every controls animation style, the side panels, the buffering indicator and the video-open animation fall back to a simple fade.
