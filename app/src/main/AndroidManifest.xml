@@ -40,6 +40,14 @@
         android:name="android.software.leanback"
         android:required="false" />
 
+    <!-- Lets the Support My Work screen detect installed UPI apps (no permission needed). -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="upi" />
+        </intent>
+    </queries>
+
     <application
         android:name=".App"
         android:appCategory="video"

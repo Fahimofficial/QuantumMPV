@@ -24,8 +24,6 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -63,7 +61,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -76,10 +73,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.compose.ui.window.Dialog
 import androidx.core.net.toUri
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.quantummpv.app.BuildConfig
@@ -147,7 +144,6 @@ object AboutScreen : Screen {
     val settingsScrollState = rememberScrollState()
     val settingsHighlight =
       rememberSettingsSearchHighlight(AboutScreen, settingsScrollState, MaterialTheme.colorScheme.primary)
-    val showUpiQr = remember { mutableStateOf(false) }
 
     // Conditionally initialize update feature based on build config
     val updateViewModel: UpdateViewModel? =
@@ -424,7 +420,7 @@ object AboutScreen : Screen {
 
         Spacer(Modifier.height(8.dp))
 
-        // Support / Donation Section
+        // Support My Work: details live on their own screen (SupportScreen).
         PreferenceSectionHeader(title = stringResource(R.string.pref_section_support))
         PreferenceCard(
           emphasis = true,
@@ -434,145 +430,40 @@ object AboutScreen : Screen {
               highlight = cs.tertiary,
             ),
         ) {
-          Column(modifier = Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-              Icon(
-                imageVector = Icons.RoundedFilled.MonetizationOn,
-                contentDescription = null,
-                modifier = Modifier.size(24.dp),
-                tint = cs.error,
-              )
-              Spacer(Modifier.width(10.dp))
+          Row(
+            modifier =
+              Modifier
+                .fillMaxWidth()
+                .clickable(role = Role.Button) { backstack.navigateTo(SupportScreen) }
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+          ) {
+            Icon(
+              imageVector = Icons.RoundedFilled.Favorite,
+              contentDescription = null,
+              modifier = Modifier.size(24.dp),
+              tint = cs.primary,
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
               Text(
-                text =
-                  androidx.compose.ui.res
-                    .stringResource(com.quantummpv.app.R.string.ui_buy_me_a_coffee),
+                text = stringResource(R.string.support_title),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = cs.onSurface,
               )
-            }
-            Spacer(Modifier.height(10.dp))
-            Text(
-              text =
-                androidx.compose.ui.res.stringResource(
-                  com.quantummpv.app.R.string.ui_if_you_enjoy_mpvrx_consider_supporting_its_development_every_bit,
-                ),
-              style = MaterialTheme.typography.bodyMedium,
-              color = cs.onSurfaceVariant,
-            )
-            Spacer(Modifier.height(14.dp))
-            Surface(
-              shape = RoundedCornerShape(12.dp),
-              color = cs.primaryContainer.copy(alpha = 0.4f),
-              modifier = Modifier.fillMaxWidth(),
-            ) {
-              Row(
-                modifier =
-                  Modifier
-                    .fillMaxWidth()
-                    .clickable {
-                      SafeClipboard.copyPlainText(
-                        context = context,
-                        label = "quantummpv_upi_id",
-                        text = "SimplyFahim@Sbi",
-                        showToast = false,
-                      )
-                      Toast
-                        .makeText(
-                          context,
-                          context.getString(com.quantummpv.app.R.string.ui_upi_id_copied),
-                          Toast.LENGTH_SHORT,
-                        ).show()
-                    }.padding(horizontal = 16.dp, vertical = 14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-              ) {
-                Column(modifier = Modifier.weight(1f)) {
-                  Text(
-                    text =
-                      androidx.compose.ui.res
-                        .stringResource(com.quantummpv.app.R.string.ui_upi_id),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = cs.outline,
-                  )
-                  Spacer(Modifier.height(2.dp))
-                  Text(
-                    text =
-                      androidx.compose.ui.res.stringResource(
-                        com.quantummpv.app.R.string.ui_fahim_support_contact,
-                      ),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Medium,
-                    color = cs.onSurface,
-                  )
-                }
-                Icon(
-                  imageVector = Icons.RoundedFilled.ContentCopy,
-                  contentDescription =
-                    androidx.compose.ui.res.stringResource(
-                      com.quantummpv.app.R.string.ui_copy_upi_id,
-                    ),
-                  modifier = Modifier.size(20.dp),
-                  tint = cs.primary,
-                )
-              }
-            }
-            Spacer(Modifier.height(12.dp))
-            Button(
-              onClick = {
-                try {
-                  val upiIntent =
-                    Intent(
-                      Intent.ACTION_VIEW,
-                      "upi://pay?pa=SimplyFahim%40Sbi&pn=FAHIM&cu=INR".toUri(),
-                    )
-                  context.startActivity(upiIntent)
-                } catch (_: Exception) {
-                  Toast
-                    .makeText(
-                      context,
-                      context.getString(com.quantummpv.app.R.string.ui_no_upi_app_found),
-                      Toast.LENGTH_SHORT,
-                    ).show()
-                }
-              },
-              modifier = Modifier.fillMaxWidth().height(50.dp),
-              shape = RoundedCornerShape(12.dp),
-              colors =
-                ButtonDefaults.buttonColors(
-                  containerColor = cs.error,
-                  contentColor = cs.onError,
-                ),
-              elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp),
-            ) {
-              Icon(Icons.RoundedFilled.MonetizationOn, null, modifier = Modifier.size(18.dp))
-              Spacer(Modifier.width(8.dp))
+              Spacer(Modifier.height(2.dp))
               Text(
-                androidx.compose.ui.res
-                  .stringResource(com.quantummpv.app.R.string.ui_send_love),
-                fontWeight = FontWeight.SemiBold,
+                text = stringResource(R.string.support_entry_summary),
+                style = MaterialTheme.typography.bodyMedium,
+                color = cs.onSurfaceVariant,
               )
             }
-            Spacer(Modifier.height(10.dp))
-            Button(
-              onClick = { showUpiQr.value = true },
-              modifier = Modifier.fillMaxWidth().height(52.dp),
-              shape = RoundedCornerShape(12.dp),
-              colors = ButtonDefaults.buttonColors(
-                containerColor = cs.tertiary,
-                contentColor = cs.onTertiary,
-              ),
-              border = androidx.compose.foundation.BorderStroke(1.dp, cs.onTertiary.copy(alpha = 0.35f)),
-              elevation = ButtonDefaults.buttonElevation(
-                defaultElevation = 6.dp,
-                pressedElevation = 2.dp,
-                focusedElevation = 6.dp,
-                hoveredElevation = 8.dp,
-              ),
-            ) {
-              Text("View UPI QR", fontWeight = FontWeight.Bold)
-            }
+            Icon(
+              imageVector = Icons.RoundedFilled.ChevronRight,
+              contentDescription = null,
+              tint = cs.outline,
+            )
           }
         }
 
@@ -703,42 +594,6 @@ object AboutScreen : Screen {
         }
 
         Spacer(Modifier.height(12.dp))
-      }
-    }
-
-    if (showUpiQr.value) {
-      Dialog(onDismissRequest = { showUpiQr.value = false }) {
-        Surface(
-          shape = RoundedCornerShape(24.dp),
-          color = MaterialTheme.colorScheme.surface,
-          tonalElevation = 8.dp,
-          modifier = Modifier.fillMaxWidth().padding(18.dp),
-        ) {
-          Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(18.dp),
-          ) {
-            Text("Support QuantumMPV", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(4.dp))
-            Text("Scan with any UPI app", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(14.dp))
-            Image(
-              painter = painterResource(R.drawable.upi_qr),
-              contentDescription = "UPI QR code for SimplyFahim@Sbi",
-              modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)),
-            )
-            Spacer(Modifier.height(8.dp))
-            Text("SimplyFahim@Sbi", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.height(12.dp))
-            Button(
-              onClick = { showUpiQr.value = false },
-              modifier = Modifier.fillMaxWidth().height(46.dp),
-              shape = RoundedCornerShape(12.dp),
-            ) {
-              Text("Close", fontWeight = FontWeight.SemiBold)
-            }
-          }
-        }
       }
     }
   }
