@@ -383,11 +383,15 @@ class Checker:
         ("SRC007", "high", r"\b(?:DexClassLoader|InMemoryDexClassLoader)\b", "Dynamic code loading."),
     ]
 
+    # Gradle test source sets: test, androidTest, and their variants (testDebug,
+    # androidTestStandard, testFixtures). Names such as "testing" are not tests.
+    TEST_SOURCE_SET = re.compile(r"^(?:test|androidTest)(?:[A-Z]\w*)?$")
+
     def source_files(self) -> list[Path]:
         """Kotlin/Java files of every source set that can be packaged (all but test sets)."""
         files: list[Path] = []
         for source_set in sorted((self.root / "app/src").iterdir()):
-            if source_set.is_dir() and not source_set.name.startswith(("test", "androidTest")):
+            if source_set.is_dir() and not self.TEST_SOURCE_SET.match(source_set.name):
                 files.extend(source_set.rglob("*.kt"))
                 files.extend(source_set.rglob("*.java"))
         return sorted(files)

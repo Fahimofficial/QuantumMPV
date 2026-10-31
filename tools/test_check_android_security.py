@@ -360,7 +360,7 @@ class SourceTest(FixtureTest):
 
     def test_all_packaged_source_sets_are_scanned(self) -> None:
         bad = 'package app\nfun bad() = web.addJavascriptInterface(bridge, "app")\n'
-        for source_set in ("release", "fongmi", "standardRelease", "debug"):
+        for source_set in ("release", "fongmi", "standardRelease", "debug", "testing", "androidTesting"):
             with self.subTest(source_set):
                 self.setUp()
                 self.write(f"app/src/{source_set}/java/app/Bad.kt", bad)
