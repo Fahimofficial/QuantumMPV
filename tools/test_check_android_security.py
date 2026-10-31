@@ -1,12 +1,9 @@
 #!/usr/bin/env python3
-"""
-Regression tests for tools/check_android_security.py.
-
-Each test builds a small, self-contained fixture repository that passes the
-policy, applies one change and checks which findings the gate reports.
-
-Run: python3 tools/test_check_android_security.py
-"""
+"""Regression tests for tools/check_android_security.py."""
+# Each test builds a small, self-contained fixture repository that passes the
+# policy, applies one change and checks which findings the gate reports.
+#
+# Run: python3 tools/test_check_android_security.py
 from __future__ import annotations
 
 import contextlib

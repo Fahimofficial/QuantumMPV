@@ -1,19 +1,16 @@
 #!/usr/bin/env python3
-"""
-Android application security policy gate for QuantumMPV.
-
-Checks the source manifest, XML security configuration, Gradle build types and
-Kotlin/Java sources against the reviewed baseline in
-config/security/android-security-policy.json.
-
-Findings at severity critical, high or medium fail the run. Low and info
-findings are reported but do not fail it. A source-code finding can be accepted
-by putting a reviewed justification on the same line or the line above:
-
-    // security-policy: allow <rule-id> -- <reason>
-
-Usage: python3 tools/check_android_security.py [--root PATH]
-"""
+"""Android application security policy gate for QuantumMPV."""
+# Checks the source manifest, XML security configuration, Gradle build types and
+# Kotlin/Java sources against the reviewed baseline in
+# config/security/android-security-policy.json.
+#
+# Findings at severity critical, high or medium fail the run. Low and info
+# findings are reported but do not fail it. A source-code finding can be accepted
+# by putting a reviewed justification on the same line or the line above:
+#
+#     // security-policy: allow <rule-id> -- <reason>
+#
+# Usage: python3 tools/check_android_security.py [--root PATH]
 from __future__ import annotations
 
 import argparse
@@ -243,11 +240,8 @@ class Checker:
     # --------------------------------------------------------------------- build
     @staticmethod
     def build_type_blocks(text: str) -> dict[str, str]:
-        """
-        Return the body of each build type in the android.buildTypes block, by brace matching.
-
-        Accepts named("x") { }, getByName("x") { }, create("x") { }, register("x") { } and x { }.
-        """
+        """Return the body of each build type in the android.buildTypes block, by brace matching."""
+        # Accepts named("x") { }, getByName("x") { }, create("x") { }, register("x") { } and x { }.
         start = re.search(r"\bbuildTypes\s*\{", text)
         if not start:
             return {}

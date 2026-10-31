@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
-"""
-Regression tests for tools/verify_commit_checks.py (the release check gate).
-
-Run: python3 tools/test_verify_commit_checks.py
-"""
+"""Regression tests for tools/verify_commit_checks.py (the release check gate)."""
+# Run: python3 tools/test_verify_commit_checks.py
 from __future__ import annotations
 
 import contextlib
@@ -20,7 +17,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import verify_commit_checks as gate  # noqa: E402
 
 SHA = "0123456789abcdef0123456789abcdef01234567"
-ENV = {"GITHUB_TOKEN": "test-token", "GITHUB_REPOSITORY": "owner/repo", "GITHUB_API_URL": "https://api.github.com"}
+# Dummy token: fetch_check_runs and urlopen are mocked, nothing is sent anywhere.
+ENV = {"GITHUB_TOKEN": "test-token", "GITHUB_REPOSITORY": "owner/repo", "GITHUB_API_URL": "https://api.github.com"}  # nosec B105
 
 
 def run(name: str, status: str = "completed", conclusion: str | None = "success") -> dict:
@@ -35,6 +33,7 @@ class FakeClock:
     """Deterministic replacement for time.monotonic/time.sleep."""
 
     def __init__(self) -> None:
+        """Start the clock at zero with no recorded sleeps."""
         self.now = 0.0
         self.sleeps: list[float] = []
 
@@ -148,7 +147,7 @@ class MainTest(unittest.TestCase):
             "http api": ({"env": {**ENV, "GITHUB_API_URL": "http://api.github.com"}}, "must be an https:// URL"),
             "file api": ({"env": {**ENV, "GITHUB_API_URL": "file:///etc/passwd"}}, "must be an https:// URL"),
             "no token": ({"env": {"GITHUB_REPOSITORY": "owner/repo"}}, "GITHUB_TOKEN and GITHUB_REPOSITORY must be set"),
-            "no repo": ({"env": {"GITHUB_TOKEN": "t"}}, "GITHUB_TOKEN and GITHUB_REPOSITORY must be set"),
+            "no repo": ({"env": {"GITHUB_TOKEN": "t"}}, "GITHUB_TOKEN and GITHUB_REPOSITORY must be set"),  # nosec B105 - dummy token
         }
         for label, (kwargs, message) in cases.items():
             with self.subTest(label):

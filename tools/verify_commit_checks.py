@@ -1,18 +1,15 @@
 #!/usr/bin/env python3
-"""
-Fail unless the required GitHub check runs succeeded on a commit.
-
-Release workflows call this before building, so a tag can only be published
-from a commit that already passed the repository's merge gates.
-
-Environment: GITHUB_TOKEN (needs checks:read), GITHUB_REPOSITORY,
-GITHUB_API_URL (optional). Waits for in-progress checks up to --timeout
-seconds; a missing, failed, cancelled or timed-out check fails the run.
-
-Usage:
-  python3 tools/verify_commit_checks.py --sha <commit> \
-      --check "Lint, test, and build debug APK" --check "ktlint + detekt"
-"""
+"""Fail unless the required GitHub check runs succeeded on a commit."""
+# Release workflows call this before building, so a tag can only be published
+# from a commit that already passed the repository's merge gates.
+#
+# Environment: GITHUB_TOKEN (needs checks:read), GITHUB_REPOSITORY,
+# GITHUB_API_URL (optional). Waits for in-progress checks up to --timeout
+# seconds; a missing, failed, cancelled or timed-out check fails the run.
+#
+# Usage:
+#   python3 tools/verify_commit_checks.py --sha <commit> \
+#       --check "Lint, test, and build debug APK" --check "ktlint + detekt"
 from __future__ import annotations
 
 import argparse
