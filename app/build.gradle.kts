@@ -320,6 +320,8 @@ dependencies {
   implementation(libs.kotlinx.immutable.collections)
   implementation(libs.kotlinx.serialization.json)
   implementation(libs.okhttp)
+  // Local, offline QR encoding for the Support My Work screen (pure Java, no permissions).
+  implementation(libs.zxing.core)
   implementation(libs.jsoup)
   // Playback stays on libmpv. Media3 provides the Android media integration surface only:
   // session/controller types plus the clip export pipeline (transformer).

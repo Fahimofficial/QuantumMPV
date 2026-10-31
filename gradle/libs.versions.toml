@@ -56,6 +56,7 @@ leakcanary = "2.14"
 libtorrent4j = "2.1.0-39"
 libarchiveAndroid = "1.1.6"
 ktlint = "14.2.0"
+zxing = "3.5.4"
 
 [libraries]
 androidx-profileinstaller = { group = "androidx.profileinstaller", name = "profileinstaller", version.ref = "profileinstaller" }
@@ -130,6 +131,7 @@ accompanist-permissions = { module = "com.google.accompanist:accompanist-permiss
 desugar-jdk-libs = { module = "com.android.tools:desugar_jdk_libs", version.ref = "desugarJdkLibs" }
 
 okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
+zxing-core = { module = "com.google.zxing:core", version.ref = "zxing" }
 google-cast-framework = { module = "com.google.android.gms:play-services-cast-framework", version.ref = "googleCast" }
 jsoup = { module = "org.jsoup:jsoup", version.ref = "jsoup" }
 reorderable = { module = "sh.calvin.reorderable:reorderable", version.ref = "reorderable" }

@@ -1634,6 +1634,15 @@ object SearchablePreferences {
           screen = AboutScreen,
         ),
       )
+      add(
+        SearchablePreference(
+          titleRes = R.string.support_title,
+          summaryRes = R.string.support_entry_summary,
+          keywords = listOf("support", "donate", "ko-fi", "kofi", "upi", "qr", "website", "github", "developer"),
+          category = "About",
+          screen = SupportScreen,
+        ),
+      )
     }
 
   /**
