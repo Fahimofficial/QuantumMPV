@@ -14,8 +14,9 @@
 > **Support QuantumMPV**
 > **If QuantumMPV is useful to you, please consider supporting continued development.**
 >
-> **[Pay via UPI app · SimplyFahim@Sbi](upi://pay?pa=SimplyFahim%40Sbi&pn=SimplyFahim&cu=INR)**<br>
-> **[UPI QR · SimplyFahim@Sbi](https://quantummpv.vercel.app/upi-qr.png)**
+> **[Ko-fi · ko-fi.com/simplyfahim](https://ko-fi.com/simplyfahim)**<br>
+> **UPI ID: `SimplyFahim@sbi`** (payee SimplyFahim). In the app: **Settings → Support my work** shows a QR code generated on your device.<br>
+> More projects: [SimplyFahim.pages.dev](https://SimplyFahim.pages.dev)
 >
 > Use your UPI app to confirm the recipient before sending.
 
@@ -496,10 +497,10 @@ Distributed under **GNU Affero General Public License v3.0 (AGPL-3.0-or-later)**
 
 ---
 <div align="center">
-  <a href="https://quantummpv.vercel.app/upi-qr.png">
-    <img src="https://img.shields.io/badge/View-UPI_QR-2ea44f?style=for-the-badge" alt="View QuantumMPV UPI QR code" />
+  <a href="https://ko-fi.com/simplyfahim">
+    <img src="https://img.shields.io/badge/Support_on-Ko--fi-FF5E5B?style=for-the-badge" alt="Support SimplyFahim on Ko-fi" />
   </a>
   <br>
-  <h2><code>SimplyFahim@Sbi</code></h2>
+  <h2><code>SimplyFahim@sbi</code></h2>
   <p><strong>UPI ID · Select and copy</strong></p>
 </div>

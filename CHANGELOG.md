@@ -3,6 +3,7 @@
 ### What's New
 - **Design system**: QuantumMPV now follows a documented visual language ("Quiet Geometry", see docs/design). Player panels share one header with a standard-size, labelled close button; player sheets show a drag handle for their swipe-to-dismiss; player buttons give the same press feedback as the dock.
 - **Reduced motion**: Screen transitions now cross-fade under Reduced motion and are removed when motion is Off.
+- **Support my work**: A new screen (Settings → About → Support my work, also listed under About in Settings) with Ko-fi, UPI `SimplyFahim@sbi` and a QR code generated on the device, Copy UPI ID, Open UPI app (chooser or a clear message when none is installed), Share/Save QR, and separate links to the QuantumMPV repository, SimplyFahim.pages.dev and the GitHub profile. The old static QR image and unused upstream donation strings are removed.
 
 ### Fixes
 - **Skip markers**: TheIntroDB lookups use its v4 API. v1 has been removed and v2/v3 are being shut down, so intro/credits markers from TheIntroDB would otherwise stop appearing.

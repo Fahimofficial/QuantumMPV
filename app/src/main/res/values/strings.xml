@@ -476,15 +476,6 @@
   <string name="pref_about_title">About</string>
   <string name="pref_about_summary">Acknowledgments, licenses</string>
   <string name="pref_about_oss_libraries">Libraries</string>
-  <string name="pref_about_donate_title">Donate</string>
-  <string name="pref_about_donate_kofi">Ko-fi</string>
-  <string name="pref_about_donate_kofi_summary">Support the developer on Ko-fi</string>
-  <string name="pref_about_donate_kofi_url" translatable="false">https://ko-fi.com/adityanarvekar</string>
-  <string name="pref_about_donate_paypal">PayPal</string>
-  <string name="pref_about_donate_paypal_summary">Support the developer on PayPal</string>
-  <string name="pref_about_donate_paypal_url" translatable="false">https://paypal.me/aadinarvekar</string>
-  <string name="pref_about_donate_upi">UPI</string>
-  <string name="pref_about_donate_upi_id" translatable="false">aadiinarvekar@upi</string>
   <string name="player_sheets_add_ext_sub">Add external subtitles</string>
   <string name="player_sheets_add_ext_audio">Add external audio tracks</string>
   <string name="player_sheets_embedded_audio_tracks">Embedded Audio</string>
@@ -1724,11 +1715,6 @@
   <string name="ui_by_fahim">By FAHIM</string>
   <string name="ui_github">GitHub</string>
   <string name="ui_device_info">Device Info</string>
-  <string name="ui_buy_me_a_coffee">Buy Me a Coffee</string>
-  <string name="ui_if_you_enjoy_mpvrx_consider_supporting_its_development_every_bit">If you enjoy QuantumMPV, consider supporting its development. Every bit helps!</string>
-  <string name="ui_upi_id">Support contact</string>
-  <string name="ui_fahim_support_contact">SimplyFahim@Sbi</string>
-  <string name="ui_send_love">Send Love</string>
   <string name="ui_auto_check_for_updates">Auto Check for Updates</string>
   <string name="ui_check_on_startup">Check on startup</string>
   <string name="ui_check_for_updates_now">Check for Updates Now</string>
@@ -1747,10 +1733,7 @@
   <string name="update_beta_build_format">Beta r%1$d</string>
   <string name="ui_beta_badge_suffix">\u0020(Beta)</string>
   <string name="ui_core_open_source_dependencies_used_by_mpvrx">Core open source dependencies used by QuantumMPV.</string>
-  <string name="ui_copy_upi_id">Copy UPI ID</string>
   <string name="ui_already_using_latest_version">Already using latest version</string>
-  <string name="ui_upi_id_copied">UPI ID copied!</string>
-  <string name="ui_no_upi_app_found">No UPI app found</string>
   <string name="ui_install_and_update_yt_dlp_for_streaming_support">Install and update yt-dlp for streaming support</string>
   <string name="ui_instructions_for_ai_file_renaming">Instructions for AI file renaming...</string>
   <string name="ui_instructions_for_ai_subtitle_translation">Instructions for AI subtitle translation...</string>
@@ -2664,4 +2647,34 @@
 
   <!-- Floating menu -->
   <string name="ui_menu">Menu</string>
+  <!-- Support my work -->
+  <string name="support_my_work">Support my work</string>
+  <string name="support_my_work_summary">Ko-fi, UPI and project links. Always optional.</string>
+  <string name="support_open">Support options</string>
+  <string name="support_intro">Your support helps me maintain existing applications, improve features and continue developing independent open-source projects. Every contribution is voluntary and appreciated.</string>
+  <string name="support_payment_options">Payment options</string>
+  <string name="support_kofi">Support on Ko-fi</string>
+  <string name="support_upi">Pay with UPI</string>
+  <string name="support_upi_scan_hint">Scan this code with any UPI app, or open one on this phone. You choose the amount.</string>
+  <string name="support_upi_id_label">UPI ID</string>
+  <string name="support_upi_payee">Payee: %1$s</string>
+  <string name="support_upi_verify_hint">Check that your UPI app shows the payee %1$s before you pay. Opening a UPI app doesn\'t mean a payment was made: only your UPI app can confirm that.</string>
+  <string name="support_upi_qr_description">UPI QR code for %1$s, payee %2$s</string>
+  <string name="support_copy_upi_id">Copy UPI ID</string>
+  <string name="support_upi_id_copied">Copied</string>
+  <string name="support_open_upi_app">Open UPI app</string>
+  <string name="support_choose_upi_app">Pay with</string>
+  <string name="support_no_upi_app">No UPI app found on this device. The UPI ID was copied, so you can pay from another UPI app or scan the QR code with another phone.</string>
+  <string name="support_share_qr">Share QR</string>
+  <string name="support_share_qr_text">UPI ID: %1$s (payee %2$s)</string>
+  <string name="support_share_qr_failed">Couldn\'t share the QR code</string>
+  <string name="support_save_qr">Save QR</string>
+  <string name="support_qr_saved">QR code saved</string>
+  <string name="support_qr_save_failed">Couldn\'t save the QR code</string>
+  <string name="support_project_and_contact">Project and contact</string>
+  <string name="support_project_info">QuantumMPV is a free, open-source video player for Android built on mpv, licensed under AGPL-3.0.</string>
+  <string name="support_app_repository">QuantumMPV on GitHub</string>
+  <string name="support_website">Personal website</string>
+  <string name="support_github_profile">More projects on GitHub</string>
+  <string name="support_no_app_for_link">No app found to open this link. It was copied: %1$s</string>
 </resources>

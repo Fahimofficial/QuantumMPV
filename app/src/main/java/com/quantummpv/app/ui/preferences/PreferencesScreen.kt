@@ -380,6 +380,12 @@ object PreferencesScreen : Screen {
               icon = Icons.RoundedFilled.Info,
               screen = AboutScreen,
             ),
+            SettingsDestination(
+              title = stringResource(R.string.support_my_work),
+              summary = stringResource(R.string.support_my_work_summary),
+              icon = Icons.RoundedFilled.Favorite,
+              screen = SupportScreen,
+            ),
           ),
       ),
     )
