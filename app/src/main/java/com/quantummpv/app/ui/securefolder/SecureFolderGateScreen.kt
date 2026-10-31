@@ -100,6 +100,7 @@ import com.quantummpv.app.presentation.components.ExposedTextDropDownMenu
 import com.quantummpv.app.ui.browser.components.BrowserTopBar
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.ui.theme.AppMotion
 import com.quantummpv.app.ui.theme.AppShapeScale
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.popSafely
@@ -346,7 +347,7 @@ data object SecureFolderGateScreen : Screen {
           ) {
             AnimatedContent(
               targetState = gateStep,
-              transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(150)) },
+              transitionSpec = { fadeIn(tween(AppMotion.Duration.SHORT4)) togetherWith fadeOut(tween(AppMotion.Duration.SHORT3)) },
               label = "secure_folder_gate_step",
             ) { step ->
               when (step) {

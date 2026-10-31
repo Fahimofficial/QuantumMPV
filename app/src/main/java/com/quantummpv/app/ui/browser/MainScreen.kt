@@ -39,7 +39,6 @@ import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -95,7 +94,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -108,6 +106,8 @@ import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.presentation.Screen
 import com.quantummpv.app.ui.browser.components.FloatingSearchButtonSize
+import com.quantummpv.app.ui.browser.components.ServerSetupAction
+import com.quantummpv.app.ui.browser.components.ServerSetupCard
 import com.quantummpv.app.ui.browser.folderlist.FolderListScreen
 import com.quantummpv.app.ui.browser.music.MusicLibraryContent
 import com.quantummpv.app.ui.browser.networkstreaming.NetworkStreamingScreen
@@ -464,107 +464,33 @@ object MainScreen : Screen {
                   if (musicSourceProvider == MusicSourceProvider.JELLYFIN) {
                     val jellyfinUiState by jellyfinViewModel.uiState.collectAsStateWithLifecycle()
                     if (jellyfinUiState.activeServer == null) {
-                      Box(
-                        modifier = Modifier.fillMaxSize().padding(24.dp),
-                        contentAlignment = Alignment.Center,
-                      ) {
-                        androidx.compose.material3.Card(
-                          shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
-                          colors =
-                            androidx.compose.material3.CardDefaults.cardColors(
-                              containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                            ),
-                        ) {
-                          Column(
-                            modifier = Modifier.padding(24.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(16.dp),
-                          ) {
-                            androidx.compose.material3.Icon(
-                              painter = painterResource(R.drawable.ic_jellyfin),
-                              contentDescription = null,
-                              modifier = Modifier.size(56.dp),
-                              tint = MaterialTheme.colorScheme.primary,
-                            )
-                            Text(
-                              text = stringResource(R.string.music_source_jellyfin),
-                              style = MaterialTheme.typography.titleLarge,
-                              fontWeight = FontWeight.Bold,
-                            )
-                            Text(
-                              text = stringResource(R.string.pref_jellyfin_no_server),
-                              style = MaterialTheme.typography.bodyMedium,
-                              color = MaterialTheme.colorScheme.onSurfaceVariant,
-                              textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                            )
-                            androidx.compose.material3.FilledTonalButton(
-                              onClick = {
-                                backStack.navigateTo(com.quantummpv.app.ui.preferences.MediaServersPreferencesScreen)
-                              },
-                            ) {
-                              Text(stringResource(R.string.generic_configure))
-                            }
-                            androidx.compose.material3.TextButton(
-                              onClick = {
-                                mediaServerPreferences.musicSourceProvider.set(MusicSourceProvider.LOCAL)
-                              },
-                            ) {
-                              Text(stringResource(R.string.music_source_local))
-                            }
-                          }
-                        }
-                      }
+                      ServerSetupCard(
+                        icon = R.drawable.ic_jellyfin,
+                        title = stringResource(R.string.music_source_jellyfin),
+                        message = stringResource(R.string.pref_jellyfin_no_server),
+                        primary =
+                          ServerSetupAction(stringResource(R.string.generic_configure)) {
+                            backStack.navigateTo(com.quantummpv.app.ui.preferences.MediaServersPreferencesScreen)
+                          },
+                        secondary =
+                          ServerSetupAction(stringResource(R.string.music_source_local)) {
+                            mediaServerPreferences.musicSourceProvider.set(MusicSourceProvider.LOCAL)
+                          },
+                      )
                     } else if (!jellyfinUiState.isLoading && !jellyfinUiState.hasMusicLibrary && jellyfinUiState.libraries.isNotEmpty()) {
-                      Box(
-                        modifier = Modifier.fillMaxSize().padding(24.dp),
-                        contentAlignment = Alignment.Center,
-                      ) {
-                        androidx.compose.material3.Card(
-                          shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
-                          colors =
-                            androidx.compose.material3.CardDefaults.cardColors(
-                              containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                            ),
-                        ) {
-                          Column(
-                            modifier = Modifier.padding(24.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(16.dp),
-                          ) {
-                            androidx.compose.material3.Icon(
-                              painter = painterResource(R.drawable.ic_jellyfin),
-                              contentDescription = null,
-                              modifier = Modifier.size(56.dp),
-                              tint = MaterialTheme.colorScheme.primary,
-                            )
-                            Text(
-                              text = stringResource(R.string.music_source_jellyfin),
-                              style = MaterialTheme.typography.titleLarge,
-                              fontWeight = FontWeight.Bold,
-                            )
-                            Text(
-                              text = stringResource(R.string.jellyfin_no_music_library),
-                              style = MaterialTheme.typography.bodyMedium,
-                              color = MaterialTheme.colorScheme.onSurfaceVariant,
-                              textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                            )
-                            androidx.compose.material3.FilledTonalButton(
-                              onClick = {
-                                mediaServerPreferences.musicSourceProvider.set(MusicSourceProvider.LOCAL)
-                              },
-                            ) {
-                              Text(stringResource(R.string.music_source_local))
-                            }
-                            androidx.compose.material3.TextButton(
-                              onClick = {
-                                backStack.navigateTo(com.quantummpv.app.ui.preferences.MediaServersPreferencesScreen)
-                              },
-                            ) {
-                              Text(stringResource(R.string.generic_configure))
-                            }
-                          }
-                        }
-                      }
+                      ServerSetupCard(
+                        icon = R.drawable.ic_jellyfin,
+                        title = stringResource(R.string.music_source_jellyfin),
+                        message = stringResource(R.string.jellyfin_no_music_library),
+                        primary =
+                          ServerSetupAction(stringResource(R.string.music_source_local)) {
+                            mediaServerPreferences.musicSourceProvider.set(MusicSourceProvider.LOCAL)
+                          },
+                        secondary =
+                          ServerSetupAction(stringResource(R.string.generic_configure)) {
+                            backStack.navigateTo(com.quantummpv.app.ui.preferences.MediaServersPreferencesScreen)
+                          },
+                      )
                     } else {
                       LaunchedEffect(jellyfinUiState.libraries) {
                         jellyfinViewModel.ensureMusicLibraryOpened()
@@ -577,56 +503,19 @@ object MainScreen : Screen {
                   } else if (musicSourceProvider == MusicSourceProvider.NAVIDROME) {
                     val navidromeUiState by navidromeViewModel.uiState.collectAsStateWithLifecycle()
                     if (navidromeUiState.activeServer == null) {
-                      Box(
-                        modifier = Modifier.fillMaxSize().padding(24.dp),
-                        contentAlignment = Alignment.Center,
-                      ) {
-                        androidx.compose.material3.Card(
-                          shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
-                          colors =
-                            androidx.compose.material3.CardDefaults.cardColors(
-                              containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                            ),
-                        ) {
-                          Column(
-                            modifier = Modifier.padding(24.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(16.dp),
-                          ) {
-                            androidx.compose.material3.Icon(
-                              painter = painterResource(R.drawable.ic_navidrome),
-                              contentDescription = null,
-                              modifier = Modifier.size(56.dp),
-                              tint = MaterialTheme.colorScheme.primary,
-                            )
-                            Text(
-                              text = stringResource(R.string.music_source_navidrome),
-                              style = MaterialTheme.typography.titleLarge,
-                              fontWeight = FontWeight.Bold,
-                            )
-                            Text(
-                              text = stringResource(R.string.pref_navidrome_no_server),
-                              style = MaterialTheme.typography.bodyMedium,
-                              color = MaterialTheme.colorScheme.onSurfaceVariant,
-                              textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                            )
-                            androidx.compose.material3.FilledTonalButton(
-                              onClick = {
-                                backStack.navigateTo(com.quantummpv.app.ui.preferences.MediaServersPreferencesScreen)
-                              },
-                            ) {
-                              Text(stringResource(R.string.generic_configure))
-                            }
-                            androidx.compose.material3.TextButton(
-                              onClick = {
-                                mediaServerPreferences.musicSourceProvider.set(MusicSourceProvider.LOCAL)
-                              },
-                            ) {
-                              Text(stringResource(R.string.music_source_local))
-                            }
-                          }
-                        }
-                      }
+                      ServerSetupCard(
+                        icon = R.drawable.ic_navidrome,
+                        title = stringResource(R.string.music_source_navidrome),
+                        message = stringResource(R.string.pref_navidrome_no_server),
+                        primary =
+                          ServerSetupAction(stringResource(R.string.generic_configure)) {
+                            backStack.navigateTo(com.quantummpv.app.ui.preferences.MediaServersPreferencesScreen)
+                          },
+                        secondary =
+                          ServerSetupAction(stringResource(R.string.music_source_local)) {
+                            mediaServerPreferences.musicSourceProvider.set(MusicSourceProvider.LOCAL)
+                          },
+                      )
                     } else {
                       com.quantummpv.app.ui.browser.navidrome.NavidromeContent(
                         viewModel = navidromeViewModel,

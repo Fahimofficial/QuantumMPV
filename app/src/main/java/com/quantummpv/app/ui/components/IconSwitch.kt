@@ -20,6 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.ui.theme.AppMotion
 
 @Composable
 fun IconSwitch(
@@ -38,7 +39,7 @@ fun IconSwitch(
     thumbContent = {
       Crossfade(
         targetState = checked,
-        animationSpec = tween(durationMillis = 200),
+        animationSpec = tween(durationMillis = AppMotion.Duration.SHORT4),
         label = "SwitchIconAnimation",
       ) { isChecked ->
         if (isChecked) {

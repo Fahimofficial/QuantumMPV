@@ -86,6 +86,7 @@ import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.PlaybackSession
 import com.quantummpv.app.ui.player.PlayerViewModel
 import com.quantummpv.app.ui.player.controls.components.sheets.LyricsTranslateDialog
+import com.quantummpv.app.ui.theme.AppMotion
 import com.quantummpv.app.ui.theme.fontFamilyForText
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.isActive
@@ -359,7 +360,7 @@ fun LyricsView(
                       distanceFromActive == 2 -> 1.0.dp
                       else -> 0.dp
                     },
-                  animationSpec = tween(durationMillis = 420, easing = FastOutSlowInEasing),
+                  animationSpec = tween(durationMillis = AppMotion.Duration.MEDIUM4, easing = FastOutSlowInEasing),
                   label = "LineBlur",
                 )
 
@@ -368,7 +369,7 @@ fun LyricsView(
 
                 val lineColor by animateColorAsState(
                   targetValue = if (isActiveLine) activeColor else inactiveColor,
-                  animationSpec = tween(durationMillis = 250),
+                  animationSpec = tween(durationMillis = AppMotion.Duration.MEDIUM1),
                   label = "LineColor",
                 )
 
@@ -448,7 +449,7 @@ fun LyricsView(
                   if (hasTranslation) {
                     val translationColor by animateColorAsState(
                       targetValue = if (isActiveLine) activeColor.copy(alpha = 0.85f) else inactiveColor.copy(alpha = 0.70f),
-                      animationSpec = tween(durationMillis = 250),
+                      animationSpec = tween(durationMillis = AppMotion.Duration.MEDIUM1),
                       label = "TranslationColor",
                     )
                     Spacer(modifier = Modifier.height(2.dp))

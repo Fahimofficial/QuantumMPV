@@ -623,6 +623,31 @@
     <item quantity="one">Removed %d item from playlist</item>
     <item quantity="other">Removed %d items from playlist</item>
   </plurals>
+  <plurals name="recents_items_removed">
+    <item quantity="one">Removed %d item from history</item>
+    <item quantity="other">Removed %d items from history</item>
+  </plurals>
+  <string name="loading_state_history_title">Loading history…</string>
+  <string name="loading_state_playlist_title">Loading playlist…</string>
+  <string name="recents_disabled_message">Enable it in Advanced Settings to track your playback history</string>
+  <string name="recents_remove_message">The selected items will be removed from your recently played list. The original files will not be deleted.</string>
+  <string name="recents_delete_files_message">This will permanently delete the original files from your device storage.\n\nThis action cannot be undone.</string>
+  <plurals name="recents_remove_title">
+    <item quantity="one">Remove %d item from history?</item>
+    <item quantity="other">Remove %d items from history?</item>
+  </plurals>
+  <plurals name="recents_delete_files_title">
+    <item quantity="one">Delete %d item?</item>
+    <item quantity="other">Delete %d items?</item>
+  </plurals>
+  <plurals name="playlist_remove_title">
+    <item quantity="one">Remove %d video from playlist?</item>
+    <item quantity="other">Remove %d videos from playlist?</item>
+  </plurals>
+  <plurals name="playlist_remove_message">
+    <item quantity="one">The selected video will be removed from this playlist. The original file will not be deleted.</item>
+    <item quantity="other">The selected videos will be removed from this playlist. The original files will not be deleted.</item>
+  </plurals>
   <plurals name="seconds">
     <item quantity="one">%1$d second</item>
     <item quantity="other">%1$d seconds</item>

@@ -104,6 +104,12 @@ interface RecentlyPlayedDao {
   @Query("DELETE FROM RecentlyPlayedEntity WHERE playlistId = :playlistId")
   suspend fun deleteByPlaylistId(playlistId: Int)
 
+  @Query("SELECT * FROM RecentlyPlayedEntity WHERE filePath IN (:filePaths)")
+  suspend fun getByFilePaths(filePaths: List<String>): List<RecentlyPlayedEntity>
+
+  @Query("SELECT * FROM RecentlyPlayedEntity WHERE playlistId IN (:playlistIds)")
+  suspend fun getByPlaylistIds(playlistIds: List<Int>): List<RecentlyPlayedEntity>
+
   @Query("UPDATE RecentlyPlayedEntity SET filePath = :newPath, fileName = :newFileName WHERE filePath = :oldPath")
   suspend fun updateFilePath(
     oldPath: String,

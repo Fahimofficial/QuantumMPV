@@ -33,7 +33,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
@@ -59,6 +58,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -753,15 +753,12 @@ private fun PlaylistVideoListContent(
 
   when {
     isLoading -> {
-      Box(
-        modifier = modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center,
-      ) {
-        CircularProgressIndicator(
-          modifier = Modifier.size(48.dp),
-          color = MaterialTheme.colorScheme.primary,
-        )
-      }
+      com.quantummpv.app.ui.browser.states.LoadingState(
+        icon = Icons.RoundedFilled.PlaylistPlay,
+        title = androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.loading_state_playlist_title),
+        message = null,
+        modifier = modifier,
+      )
     }
 
     videoItems.isEmpty() -> {
@@ -1075,13 +1072,11 @@ private fun RemoveFromPlaylistDialog(
 ) {
   if (!isOpen) return
 
-  val itemText = if (itemCount == 1) "video" else "videos"
-
   androidx.compose.material3.AlertDialog(
     onDismissRequest = onDismiss,
     title = {
       Text(
-        text = "Remove $itemCount $itemText from playlist?",
+        text = pluralStringResource(com.quantummpv.app.R.plurals.playlist_remove_title, itemCount, itemCount),
         style = MaterialTheme.typography.headlineMedium,
         fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
       )
@@ -1100,7 +1095,7 @@ private fun RemoveFromPlaylistDialog(
           shape = MaterialTheme.shapes.extraLarge,
         ) {
           Text(
-            text = "The selected $itemText will be removed from this playlist. The original ${if (itemCount == 1) "file" else "files"} will not be deleted.",
+            text = pluralStringResource(com.quantummpv.app.R.plurals.playlist_remove_message, itemCount),
             style = MaterialTheme.typography.bodyLarge,
             fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
             color = MaterialTheme.colorScheme.onSecondaryContainer,

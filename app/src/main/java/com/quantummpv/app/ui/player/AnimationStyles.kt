@@ -354,7 +354,7 @@ fun VideoOpenAnimationOverlay(
   // Zooms, slides and bars become the plain fade from black when the user asked for less motion.
   val effectiveStyle = if (reduceMotion) VideoOpenAnimation.FadeDark else style
 
-  val durationMs = (400 * speedMultiplier).toInt().coerceAtLeast(100)
+  val durationMs = (AppMotion.Duration.MEDIUM4 * speedMultiplier).toInt().coerceAtLeast(100)
   val holdMs = (120 * speedMultiplier).toInt().coerceAtLeast(50)
 
   key(animationState.loadToken) {

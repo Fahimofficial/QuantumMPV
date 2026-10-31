@@ -194,12 +194,27 @@ object AppMotion {
   @Composable
   fun shouldEnableDynamicEffects(): Boolean = policy().shouldEnableDynamicEffects
 
-  /** Duration tokens for the few tween-based transitions (springs remain the default). */
+  /**
+   * Duration tokens for tween-based transitions (springs remain the default for anything a finger
+   * can touch). The scale follows Material 3's duration steps so timings stay consistent across
+   * screens; pick by role: SHORT* for small fades and feedback, MEDIUM* for panels, content swaps
+   * and screen transitions. Ambient loops (visualizers, shimmer, slow colour drifts) keep their own
+   * timing on purpose and are not part of this scale.
+   */
   object Duration {
+    const val SHORT2 = 100
+    const val SHORT3 = 150
+    const val SHORT4 = 200
+    const val MEDIUM1 = 250
+    const val MEDIUM2 = 300
+    const val MEDIUM3 = 350
+    const val MEDIUM4 = 400
+
+    /** Cap applied to every tween under reduced motion. */
     const val MICRO = 120
-    const val SHORT = 200
-    const val MEDIUM = 300
-    const val LONG = 400
+    const val SHORT = SHORT4
+    const val MEDIUM = MEDIUM2
+    const val LONG = MEDIUM4
   }
 
   /** A tween that snaps when motion is Off and shortens to [Duration.MICRO] when motion is reduced. */

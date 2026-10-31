@@ -40,6 +40,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
@@ -311,11 +312,12 @@ fun FolderCard(
               } else {
                 null
               }
+            val thumbnailAlpha = rememberThumbnailFadeAlpha(folder.bucketId, resolvedThumbnail != null)
             if (resolvedThumbnail != null) {
               androidx.compose.foundation.Image(
                 bitmap = resolvedThumbnail,
                 contentDescription = null,
-                modifier = Modifier.matchParentSize(),
+                modifier = Modifier.matchParentSize().graphicsLayer { alpha = thumbnailAlpha.value },
                 contentScale = ContentScale.Crop,
               )
             } else {
@@ -426,11 +428,12 @@ fun FolderCard(
                 ),
             contentAlignment = Alignment.Center,
           ) {
+            val thumbnailAlpha = rememberThumbnailFadeAlpha(folder.bucketId, thumbnail != null)
             if (thumbnail != null) {
               androidx.compose.foundation.Image(
                 bitmap = thumbnail,
                 contentDescription = null,
-                modifier = Modifier.matchParentSize(),
+                modifier = Modifier.matchParentSize().graphicsLayer { alpha = thumbnailAlpha.value },
                 contentScale = ContentScale.Crop,
               )
             } else {

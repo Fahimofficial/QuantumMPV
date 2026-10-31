@@ -80,6 +80,7 @@ import com.quantummpv.app.ui.player.clip.ClipOverlayView
 import com.quantummpv.app.ui.player.controls.components.AbLoopIcon
 import com.quantummpv.app.ui.player.controls.components.ControlsButton
 import com.quantummpv.app.ui.player.controls.components.CurrentChapter
+import com.quantummpv.app.ui.theme.AppMotion
 import com.quantummpv.app.ui.theme.spacing
 import com.quantummpv.app.ui.utils.isAnyMpvOptionOwnedByConfig
 import com.quantummpv.app.ui.utils.isMpvOptionOwnedByConfig
@@ -402,8 +403,8 @@ fun renderPlayerButton(
         AnimatedContent(
           targetState = isExpanded && !compact,
           transitionSpec = {
-            (fadeIn(animationSpec = tween(200)) + expandHorizontally(animationSpec = tween(250)))
-              .togetherWith(fadeOut(animationSpec = tween(200)) + shrinkHorizontally(animationSpec = tween(250)))
+            (fadeIn(animationSpec = tween(AppMotion.Duration.SHORT4)) + expandHorizontally(animationSpec = tween(AppMotion.Duration.MEDIUM1)))
+              .togetherWith(fadeOut(animationSpec = tween(AppMotion.Duration.SHORT4)) + shrinkHorizontally(animationSpec = tween(AppMotion.Duration.MEDIUM1)))
               .using(SizeTransform(clip = false))
           },
           label = "FrameNavExpandCollapse",
@@ -950,8 +951,8 @@ fun renderPlayerButton(
         AnimatedContent(
           targetState = isExpanded && !compact,
           transitionSpec = {
-            (fadeIn(animationSpec = tween(200)) + expandHorizontally(animationSpec = tween(250)))
-              .togetherWith(fadeOut(animationSpec = tween(200)) + shrinkHorizontally(animationSpec = tween(250)))
+            (fadeIn(animationSpec = tween(AppMotion.Duration.SHORT4)) + expandHorizontally(animationSpec = tween(AppMotion.Duration.MEDIUM1)))
+              .togetherWith(fadeOut(animationSpec = tween(AppMotion.Duration.SHORT4)) + shrinkHorizontally(animationSpec = tween(AppMotion.Duration.MEDIUM1)))
               .using(SizeTransform(clip = false))
           },
           label = "ABLoopExpandCollapse",

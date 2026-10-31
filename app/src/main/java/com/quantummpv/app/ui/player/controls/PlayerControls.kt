@@ -186,10 +186,10 @@ import kotlin.math.roundToInt
 @Suppress("CompositionLocalAllowlist")
 val LocalPlayerButtonsClickEvent = staticCompositionLocalOf { {} }
 
-fun <T> playerControlsExitAnimationSpec(durationMillis: Int = 300): FiniteAnimationSpec<T> =
+fun <T> playerControlsExitAnimationSpec(durationMillis: Int = AppMotion.Duration.MEDIUM2): FiniteAnimationSpec<T> =
   tween(durationMillis = durationMillis, easing = FastOutSlowInEasing)
 
-fun <T> playerControlsEnterAnimationSpec(durationMillis: Int = 100): FiniteAnimationSpec<T> =
+fun <T> playerControlsEnterAnimationSpec(durationMillis: Int = AppMotion.Duration.SHORT2): FiniteAnimationSpec<T> =
   tween(durationMillis = durationMillis, easing = LinearOutSlowInEasing)
 
 private fun transparentOverlayAnimation(
@@ -202,8 +202,8 @@ private fun transparentOverlayAnimation(
   val targetAlpha = if (showing) 0.8f else 0f
   val animationSpec = when {
     animationsDisabled -> snap<Float>()
-    showing -> playerControlsEnterAnimationSpec((100 * animationSpeed).toInt().coerceAtLeast(30))
-    else -> playerControlsExitAnimationSpec((300 * animationSpeed).toInt().coerceAtLeast(50))
+    showing -> playerControlsEnterAnimationSpec((AppMotion.Duration.SHORT2 * animationSpeed).toInt().coerceAtLeast(30))
+    else -> playerControlsExitAnimationSpec((AppMotion.Duration.MEDIUM2 * animationSpeed).toInt().coerceAtLeast(50))
   }
   return targetAlpha to animationSpec
 }
@@ -704,8 +704,8 @@ fun PlayerControls(
             } else {
               selectedControlsAnimStyle
             }
-          val enterMs = (100 * animSpeed).toInt().coerceAtLeast(30)
-          val exitMs = (300 * animSpeed).toInt().coerceAtLeast(50)
+          val enterMs = (AppMotion.Duration.SHORT2 * animSpeed).toInt().coerceAtLeast(30)
+          val exitMs = (AppMotion.Duration.MEDIUM2 * animSpeed).toInt().coerceAtLeast(50)
 
           // Slider display duration: 1000ms shown + 300ms exit animation = 1300ms total
           val sliderDisplayDuration = 1000L

@@ -32,7 +32,6 @@ import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FloatingActionButtonMenu
@@ -70,6 +69,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -194,6 +194,8 @@ object RecentlyPlayedScreen : Screen {
     val showLinkDialog = remember { mutableStateOf(false) }
 
     val coroutineScope = rememberCoroutineScope()
+    val snackbarHostState = remember { androidx.compose.material3.SnackbarHostState() }
+    val resources = androidx.compose.ui.platform.LocalResources.current
 
     // Selection manager for all items (videos and playlists)
     val selectionManager =
@@ -206,6 +208,9 @@ object RecentlyPlayedScreen : Screen {
 
           var successCount = 0
           var failCount = 0
+          // History-only removals are reversible: keep the exact rows so Undo can put them back.
+          // Removals that also delete files are not, so they get a plain confirmation.
+          val undoSnapshot = if (deleteFiles) emptyList() else viewModel.snapshotHistory(videos, playlistIds)
 
           // Delete videos from history
           if (videos.isNotEmpty()) {
@@ -221,10 +226,39 @@ object RecentlyPlayedScreen : Screen {
             failCount += playlistFail
           }
 
+          if (successCount > 0) {
+            coroutineScope.launch {
+              snackbarHostState.currentSnackbarData?.dismiss()
+              val canUndo = undoSnapshot.isNotEmpty()
+              val result =
+                snackbarHostState.showSnackbar(
+                  message =
+                    if (canUndo) {
+                      resources.getQuantityString(R.plurals.recents_items_removed, successCount, successCount)
+                    } else {
+                      resources.getString(R.string.ui_deleted_successfully)
+                    },
+                  actionLabel = if (canUndo) resources.getString(R.string.generic_undo) else null,
+                  withDismissAction = canUndo,
+                  duration =
+                    if (canUndo) {
+                      androidx.compose.material3.SnackbarDuration.Long
+                    } else {
+                      androidx.compose.material3.SnackbarDuration.Short
+                    },
+                )
+              if (result == androidx.compose.material3.SnackbarResult.ActionPerformed) {
+                viewModel.restoreHistory(undoSnapshot)
+              }
+            }
+          }
+
           Pair(successCount, failCount)
         },
         onRenameItem = null, // Cannot rename from history screen
         onOperationComplete = { },
+        // Results are confirmed by the snackbar above; failures still toast.
+        announceDeleteSuccess = false,
       )
 
     // Synchronize the shared selection bar before handling local search/FAB Back presses.
@@ -308,6 +342,13 @@ object RecentlyPlayedScreen : Screen {
     }
 
     Scaffold(
+      snackbarHost = {
+        // Sits above the floating dock, which overlays the bottom of every tab.
+        androidx.compose.material3.SnackbarHost(
+          snackbarHostState,
+          modifier = Modifier.padding(bottom = com.quantummpv.app.ui.browser.LocalNavigationBarHeight.current),
+        )
+      },
       topBar = {
         // Recents has no bottom selection bar, so Delete, Select all and the count must stay visible
         // while a search is active. The query keeps filtering the list until search is closed.
@@ -559,21 +600,17 @@ object RecentlyPlayedScreen : Screen {
             EmptyState(
               icon = Icons.RoundedFilled.History,
               title = stringResource(R.string.ui_recently_played_disabled),
-              message = "Enable it in Advanced Settings to track your playback history",
+              message = stringResource(R.string.recents_disabled_message),
             )
           }
         }
 
         isLoading && recentItems.isEmpty() -> {
-          Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center,
-          ) {
-            CircularProgressIndicator(
-              modifier = Modifier.size(48.dp),
-              color = MaterialTheme.colorScheme.primary,
-            )
-          }
+          com.quantummpv.app.ui.browser.states.LoadingState(
+            icon = Icons.RoundedFilled.History,
+            title = stringResource(R.string.loading_state_history_title),
+            message = null,
+          )
         }
 
         else -> {
@@ -648,26 +685,19 @@ object RecentlyPlayedScreen : Screen {
       if (deleteDialogOpen.value && selectionManager.isInSelectionMode) {
         // Remove selected items from history
         val itemCount = selectionManager.selectedCount
-        val itemText = if (itemCount == 1) "item" else "items"
         val deleteFiles = deleteFilesCheckbox.value
 
         val title =
           if (deleteFiles) {
-            "Delete $itemCount $itemText?"
+            pluralStringResource(R.plurals.recents_delete_files_title, itemCount, itemCount)
           } else {
-            "Remove $itemCount $itemText from history?"
+            pluralStringResource(R.plurals.recents_remove_title, itemCount, itemCount)
           }
 
         val subtitle =
-          buildString {
-            if (deleteFiles) {
-              append("This will permanently delete the original video file(s) from your device storage.\n\n")
-              append("This action cannot be undone.")
-            } else {
-              append("This will remove the selected $itemText from your recently played list. ")
-              append("The original video files will not be deleted.")
-            }
-          }
+          stringResource(
+            if (deleteFiles) R.string.recents_delete_files_message else R.string.recents_remove_message,
+          )
 
         ConfirmDialog(
           title = title,
