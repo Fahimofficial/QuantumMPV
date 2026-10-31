@@ -39,7 +39,10 @@ import org.koin.compose.koinInject
 import kotlin.math.roundToInt
 
 /** The Appearance slider is a duration multiplier: smaller values finish sooner. */
-internal fun navigationDurationMillis(speed: Float, baseMillis: Int = 300): Int =
+internal fun navigationDurationMillis(
+  speed: Float,
+  baseMillis: Int = com.quantummpv.app.ui.theme.AppMotion.Duration.MEDIUM2,
+): Int =
   (baseMillis * (speed.takeIf { it.isFinite() } ?: 1f).coerceIn(0.25f, 2.5f)).roundToInt()
 
 /**

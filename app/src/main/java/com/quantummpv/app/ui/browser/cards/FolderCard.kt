@@ -40,6 +40,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
@@ -311,14 +312,10 @@ fun FolderCard(
               } else {
                 null
               }
-            if (resolvedThumbnail != null) {
-              androidx.compose.foundation.Image(
-                bitmap = resolvedThumbnail,
-                contentDescription = null,
-                modifier = Modifier.matchParentSize(),
-                contentScale = ContentScale.Crop,
-              )
-            } else {
+            val thumbnailAlpha = rememberThumbnailFadeAlpha(folder.bucketId, resolvedThumbnail != null)
+            val thumbnailOpaque = rememberThumbnailOpaque(thumbnailAlpha)
+            // Placeholder stays underneath until a fading thumbnail is fully opaque.
+            if (resolvedThumbnail == null || !thumbnailOpaque) {
               Icon(
                 customIcon ?: Icons.RoundedFilled.Folder,
                 contentDescription =
@@ -326,6 +323,14 @@ fun FolderCard(
                     .stringResource(com.quantummpv.app.R.string.ui_folder),
                 modifier = Modifier.size(56.dp),
                 tint = MaterialTheme.colorScheme.secondary,
+              )
+            }
+            if (resolvedThumbnail != null) {
+              androidx.compose.foundation.Image(
+                bitmap = resolvedThumbnail,
+                contentDescription = null,
+                modifier = Modifier.matchParentSize().graphicsLayer { alpha = thumbnailAlpha.value },
+                contentScale = ContentScale.Crop,
               )
             }
 
@@ -426,14 +431,10 @@ fun FolderCard(
                 ),
             contentAlignment = Alignment.Center,
           ) {
-            if (thumbnail != null) {
-              androidx.compose.foundation.Image(
-                bitmap = thumbnail,
-                contentDescription = null,
-                modifier = Modifier.matchParentSize(),
-                contentScale = ContentScale.Crop,
-              )
-            } else {
+            val thumbnailAlpha = rememberThumbnailFadeAlpha(folder.bucketId, thumbnail != null)
+            val thumbnailOpaque = rememberThumbnailOpaque(thumbnailAlpha)
+            // Placeholder stays underneath until a fading thumbnail is fully opaque.
+            if (thumbnail == null || !thumbnailOpaque) {
               Icon(
                 customIcon ?: Icons.RoundedFilled.Folder,
                 contentDescription =
@@ -441,6 +442,14 @@ fun FolderCard(
                     .stringResource(com.quantummpv.app.R.string.ui_folder),
                 modifier = Modifier.size(48.dp),
                 tint = MaterialTheme.colorScheme.secondary,
+              )
+            }
+            if (thumbnail != null) {
+              androidx.compose.foundation.Image(
+                bitmap = thumbnail,
+                contentDescription = null,
+                modifier = Modifier.matchParentSize().graphicsLayer { alpha = thumbnailAlpha.value },
+                contentScale = ContentScale.Crop,
               )
             }
 

@@ -80,6 +80,7 @@ import com.quantummpv.app.ui.player.PlaybackSession
 import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.ui.player.screenshot.ScreenshotSaver
 import com.quantummpv.app.ui.player.screenshot.ScreenshotSettings
+import com.quantummpv.app.ui.theme.AppMotion
 import com.quantummpv.app.ui.theme.spacing
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -310,7 +311,7 @@ private fun FrameReviewOverlay(
   val actualFrame = currentFrame.coerceIn(0, lastFrame)
   val animatedFrame by animateFloatAsState(
     targetValue = actualFrame.toFloat(),
-    animationSpec = tween(durationMillis = 140),
+    animationSpec = tween(durationMillis = AppMotion.Duration.SHORT3),
     label = "FrameReviewFrameSeekbar",
   )
   val displayedFrame = if (isSeeking) userSliderFrame else settlingFrame ?: actualFrame

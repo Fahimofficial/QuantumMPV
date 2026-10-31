@@ -30,6 +30,7 @@ import androidx.compose.ui.composed
 import androidx.compose.ui.graphics.Color
 import com.quantummpv.app.R
 import com.quantummpv.app.presentation.Screen
+import com.quantummpv.app.ui.theme.AppMotion
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -291,7 +292,7 @@ fun Modifier.highlightBackground(highlighted: Boolean): Modifier {
       if (highlightFlag) {
         repeatable(
           iterations = 5,
-          animation = tween(durationMillis = 200),
+          animation = tween(durationMillis = AppMotion.Duration.SHORT4),
           repeatMode = RepeatMode.Reverse,
           initialStartOffset =
             StartOffset(
@@ -300,7 +301,7 @@ fun Modifier.highlightBackground(highlighted: Boolean): Modifier {
             ),
         )
       } else {
-        tween(200)
+        tween(AppMotion.Duration.SHORT4)
       },
     label = "highlight",
   )

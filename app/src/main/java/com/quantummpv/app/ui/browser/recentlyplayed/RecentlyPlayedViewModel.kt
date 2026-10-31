@@ -347,6 +347,21 @@ class RecentlyPlayedViewModel(
     }
   }
 
+  /** Captures the history rows a removal would delete, so the screen can offer Undo. */
+  suspend fun snapshotHistory(
+    videos: List<Video>,
+    playlistIds: List<Int>,
+  ): List<RecentlyPlayedEntity> =
+    runCatching { recentlyPlayedRepository.snapshotEntries(videos.map { it.path }, playlistIds) }
+      .onFailure { Log.e("RecentlyPlayedViewModel", "Error capturing history for undo", it) }
+      .getOrDefault(emptyList())
+
+  /** Restores rows from [snapshotHistory]; the observed history flow re-renders them. */
+  suspend fun restoreHistory(entries: List<RecentlyPlayedEntity>) {
+    runCatching { recentlyPlayedRepository.restoreEntries(entries) }
+      .onFailure { Log.e("RecentlyPlayedViewModel", "Error restoring history", it) }
+  }
+
   suspend fun deleteVideosFromHistory(
     videos: List<Video>,
     deleteFiles: Boolean = false,

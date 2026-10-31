@@ -65,6 +65,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.ui.theme.AppMotion
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
@@ -280,19 +281,19 @@ fun ExpressiveScrollBar(
   val shouldShowScrollbar = isInteracting || sourceIsScrolling || keepVisibleAfterScroll
   val visibilityAlpha by animateFloatAsState(
     targetValue = if (shouldShowScrollbar) 1f else 0f,
-    animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
+    animationSpec = tween(durationMillis = AppMotion.Duration.SHORT4, easing = FastOutSlowInEasing),
     label = "expressive_scroll_visibility_alpha",
   )
 
   val animatedWidth by animateDpAsState(
     targetValue = if (isInteracting) expandedIndicatorWidth else thickness,
-    animationSpec = tween(durationMillis = 200),
+    animationSpec = tween(durationMillis = AppMotion.Duration.SHORT4),
     label = "expressive_scroll_width",
   )
 
   val iconAlpha by animateFloatAsState(
     targetValue = if (isInteracting) 1f else 0f,
-    animationSpec = tween(durationMillis = 200),
+    animationSpec = tween(durationMillis = AppMotion.Duration.SHORT4),
     label = "expressive_scroll_icon_alpha",
   )
 
@@ -574,17 +575,17 @@ fun ExpressiveScrollBar(
 
     val dragLabelAlpha by animateFloatAsState(
       targetValue = if (showDragLabel) 1f else 0f,
-      animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing),
+      animationSpec = tween(durationMillis = AppMotion.Duration.SHORT4, easing = FastOutSlowInEasing),
       label = "expressive_scroll_label_alpha",
     )
     val dragLabelScale by animateFloatAsState(
       targetValue = if (showDragLabel) 1f else 0.82f,
-      animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing),
+      animationSpec = tween(durationMillis = AppMotion.Duration.SHORT4, easing = FastOutSlowInEasing),
       label = "expressive_scroll_label_scale",
     )
     val dragLabelSlide by animateDpAsState(
       targetValue = if (showDragLabel) 0.dp else 8.dp,
-      animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing),
+      animationSpec = tween(durationMillis = AppMotion.Duration.SHORT4, easing = FastOutSlowInEasing),
       label = "expressive_scroll_label_slide",
     )
 

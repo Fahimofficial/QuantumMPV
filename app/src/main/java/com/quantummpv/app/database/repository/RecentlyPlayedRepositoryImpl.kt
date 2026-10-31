@@ -117,6 +117,20 @@ class RecentlyPlayedRepositoryImpl(
     recentlyPlayedDao.deleteByPlaylistId(playlistId)
   }
 
+  override suspend fun snapshotEntries(
+    filePaths: List<String>,
+    playlistIds: List<Int>,
+  ): List<RecentlyPlayedEntity> {
+    // Chunked to stay under SQLite's bound-variable limit for large selections.
+    val byPath = filePaths.distinct().chunked(SNAPSHOT_CHUNK_SIZE).flatMap { recentlyPlayedDao.getByFilePaths(it) }
+    val byPlaylist = playlistIds.distinct().chunked(SNAPSHOT_CHUNK_SIZE).flatMap { recentlyPlayedDao.getByPlaylistIds(it) }
+    return (byPath + byPlaylist).distinctBy { it.id }
+  }
+
+  override suspend fun restoreEntries(entries: List<RecentlyPlayedEntity>) {
+    recentlyPlayedDao.restoreEntries(entries)
+  }
+
   override suspend fun updateFilePath(
     oldPath: String,
     newPath: String,
@@ -143,3 +157,5 @@ class RecentlyPlayedRepositoryImpl(
     recentlyPlayedDao.updateVideoMetadata(filePath, videoTitle, duration, fileSize, width, height)
   }
 }
+
+private const val SNAPSHOT_CHUNK_SIZE = 500

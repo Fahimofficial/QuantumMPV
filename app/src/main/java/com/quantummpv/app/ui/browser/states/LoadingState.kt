@@ -39,7 +39,7 @@ import com.quantummpv.app.ui.theme.AppShapeScale
 fun LoadingState(
   icon: AppIcon = Icons.RoundedFilled.FolderOpen,
   title: String = stringResource(R.string.loading_state_scanning_title),
-  message: String = stringResource(R.string.loading_state_scanning_message),
+  message: String? = stringResource(R.string.loading_state_scanning_message),
   modifier: Modifier = Modifier,
 ) {
   // Subtle pulse; constant under reduced/disabled motion.
@@ -88,16 +88,17 @@ fun LoadingState(
         color = MaterialTheme.colorScheme.onSurface,
       )
 
-      Spacer(modifier = Modifier.height(8.dp))
-
-      // Message
-      Text(
-        text = message,
-        style = MaterialTheme.typography.bodyMedium,
-        textAlign = TextAlign.Center,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        lineHeight = MaterialTheme.typography.bodyMedium.lineHeight,
-      )
+      // Message (optional: a short load needs only the title)
+      if (message != null) {
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+          text = message,
+          style = MaterialTheme.typography.bodyMedium,
+          textAlign = TextAlign.Center,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+          lineHeight = MaterialTheme.typography.bodyMedium.lineHeight,
+        )
+      }
     }
   }
 }

@@ -57,6 +57,7 @@ import com.composables.icons.materialsymbols.roundedfilled.Replay
 import com.quantummpv.app.R
 import com.quantummpv.app.ui.player.PlayerActivity
 import com.quantummpv.app.ui.player.PlayerViewModel
+import com.quantummpv.app.ui.theme.AppMotion
 import `is`.xyz.mpv.Utils
 
 private val tabularFigures = "tnum"
@@ -163,7 +164,7 @@ fun CompactSpeedIndicator(
     AnimatedContent(
       targetState = speedString,
       transitionSpec = {
-        (fadeIn(animationSpec = tween(100)) +
+        (fadeIn(animationSpec = tween(AppMotion.Duration.SHORT2)) +
           scaleIn(
             initialScale = 0.85f,
             animationSpec =
@@ -180,9 +181,9 @@ fun CompactSpeedIndicator(
                 stiffness = Spring.StiffnessLow,
               ),
           )).togetherWith(
-          fadeOut(animationSpec = tween(100)) +
-            scaleOut(targetScale = 1.1f, animationSpec = tween(100)) +
-            slideOutVertically(targetOffsetY = { -it / 3 }, animationSpec = tween(100)),
+          fadeOut(animationSpec = tween(AppMotion.Duration.SHORT2)) +
+            scaleOut(targetScale = 1.1f, animationSpec = tween(AppMotion.Duration.SHORT2)) +
+            slideOutVertically(targetOffsetY = { -it / 3 }, animationSpec = tween(AppMotion.Duration.SHORT2)),
         ).using(SizeTransform(clip = false))
       },
       label = "SpeedJumpAnimation",

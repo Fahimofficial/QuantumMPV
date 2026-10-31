@@ -76,6 +76,7 @@ import com.quantummpv.app.presentation.Screen
 import com.quantummpv.app.ui.icons.AppIcon
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.ui.theme.AppMotion
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.LocalShowSettingsBackArrow
 import com.quantummpv.app.ui.utils.popSafely
@@ -1120,7 +1121,7 @@ private fun CodecDetailCard(codec: CodecCapabilitiesInfo) {
   var expanded by remember { mutableStateOf(false) }
   val arrowRotation by animateFloatAsState(
     targetValue = if (expanded) 180f else 0f,
-    animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing),
+    animationSpec = tween(durationMillis = AppMotion.Duration.MEDIUM1, easing = FastOutSlowInEasing),
     label = "ArrowRotation",
   )
 

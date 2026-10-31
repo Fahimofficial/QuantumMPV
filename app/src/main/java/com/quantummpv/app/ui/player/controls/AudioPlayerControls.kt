@@ -160,6 +160,7 @@ import com.quantummpv.app.ui.player.visualizer.GalaxyOverlay
 import com.quantummpv.app.ui.player.visualizer.ParticleOverlay
 import com.quantummpv.app.ui.player.visualizer.VisualizerPalette
 import com.quantummpv.app.ui.player.visualizer.rememberAudioVisualizerFeatures
+import com.quantummpv.app.ui.theme.AppMotion
 import com.quantummpv.app.ui.theme.fontFamilyForText
 import com.quantummpv.app.ui.utils.isMpvOptionOwnedByConfig
 import com.quantummpv.app.utils.media.fileExtension
@@ -1194,18 +1195,18 @@ fun AudioPlayerControls(
             transitionSpec = {
               val contentTransform =
                 if (targetState) {
-                  (fadeIn(animationSpec = tween(350, easing = FastOutSlowInEasing)) +
-                    scaleIn(animationSpec = tween(350, easing = FastOutSlowInEasing), initialScale = 0.90f))
+                  (fadeIn(animationSpec = tween(AppMotion.Duration.MEDIUM3, easing = FastOutSlowInEasing)) +
+                    scaleIn(animationSpec = tween(AppMotion.Duration.MEDIUM3, easing = FastOutSlowInEasing), initialScale = 0.90f))
                     .togetherWith(
-                      fadeOut(animationSpec = tween(280)) +
-                        scaleOut(animationSpec = tween(280), targetScale = 1.06f),
+                      fadeOut(animationSpec = tween(AppMotion.Duration.MEDIUM2)) +
+                        scaleOut(animationSpec = tween(AppMotion.Duration.MEDIUM2), targetScale = 1.06f),
                     )
                 } else {
-                  (fadeIn(animationSpec = tween(350, easing = FastOutSlowInEasing)) +
+                  (fadeIn(animationSpec = tween(AppMotion.Duration.MEDIUM3, easing = FastOutSlowInEasing)) +
                     scaleIn(animationSpec = spring(dampingRatio = 0.72f, stiffness = 400f), initialScale = 0.88f))
                     .togetherWith(
-                      fadeOut(animationSpec = tween(280)) +
-                        scaleOut(animationSpec = tween(280), targetScale = 1.06f),
+                      fadeOut(animationSpec = tween(AppMotion.Duration.MEDIUM2)) +
+                        scaleOut(animationSpec = tween(AppMotion.Duration.MEDIUM2), targetScale = 1.06f),
                     )
                 }
               contentTransform.using(SizeTransform(clip = false))
@@ -1430,8 +1431,8 @@ fun AudioPlayerControls(
             AnimatedContent(
               targetState = abLoop.isExpanded,
               transitionSpec = {
-                (fadeIn(animationSpec = tween(200)) + expandHorizontally(animationSpec = tween(250)))
-                  .togetherWith(fadeOut(animationSpec = tween(200)) + shrinkHorizontally(animationSpec = tween(250)))
+                (fadeIn(animationSpec = tween(AppMotion.Duration.SHORT4)) + expandHorizontally(animationSpec = tween(AppMotion.Duration.MEDIUM1)))
+                  .togetherWith(fadeOut(animationSpec = tween(AppMotion.Duration.SHORT4)) + shrinkHorizontally(animationSpec = tween(AppMotion.Duration.MEDIUM1)))
               },
               label = "AudioABLoopExpand",
             ) { expanded ->
@@ -1936,8 +1937,8 @@ fun AudioPlayerControls(
       ) {
         androidx.compose.animation.AnimatedVisibility(
           visible = !isLyricsFullscreen,
-          enter = fadeIn(animationSpec = tween(300)) + androidx.compose.animation.expandVertically(animationSpec = tween(300)),
-          exit = fadeOut(animationSpec = tween(300)) + androidx.compose.animation.shrinkVertically(animationSpec = tween(300)),
+          enter = fadeIn(animationSpec = tween(AppMotion.Duration.MEDIUM2)) + androidx.compose.animation.expandVertically(animationSpec = tween(AppMotion.Duration.MEDIUM2)),
+          exit = fadeOut(animationSpec = tween(AppMotion.Duration.MEDIUM2)) + androidx.compose.animation.shrinkVertically(animationSpec = tween(AppMotion.Duration.MEDIUM2)),
         ) {
           Column(horizontalAlignment = Alignment.CenterHorizontally) {
             headerBar()
@@ -1951,8 +1952,8 @@ fun AudioPlayerControls(
 
         androidx.compose.animation.AnimatedVisibility(
           visible = !isLyricsFullscreen,
-          enter = fadeIn(animationSpec = tween(300)) + androidx.compose.animation.expandVertically(animationSpec = tween(300)),
-          exit = fadeOut(animationSpec = tween(300)) + androidx.compose.animation.shrinkVertically(animationSpec = tween(300)),
+          enter = fadeIn(animationSpec = tween(AppMotion.Duration.MEDIUM2)) + androidx.compose.animation.expandVertically(animationSpec = tween(AppMotion.Duration.MEDIUM2)),
+          exit = fadeOut(animationSpec = tween(AppMotion.Duration.MEDIUM2)) + androidx.compose.animation.shrinkVertically(animationSpec = tween(AppMotion.Duration.MEDIUM2)),
         ) {
           Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Spacer(modifier = Modifier.height(16.dp))
