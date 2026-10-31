@@ -24,7 +24,7 @@
 | `SIGNING_KEY_ALIAS` | secret | same | Key alias |
 | `SIGNING_STORE_PASSWORD` | secret | same | Keystore password |
 | `KEY_PASSWORD` | secret | same | Key password |
-| `RELEASE_SIGNING_CERT_SHA256` | repository **variable** (not secret) | `release.yml` | SHA-256 of the signing certificate, for example from `apksigner verify --print-certs QuantumMPV-universal-v1.4.0.apk`. When set, a release signed with any other key fails before publishing. |
+| `RELEASE_SIGNING_CERT_SHA256` | repository **variable** (not secret) | `release.yml` | SHA-256 of the signing certificate, for example from `apksigner verify --print-certs QuantumMPV-universal-v1.4.0.apk`. Colons, spaces and letter case are ignored, so the `keytool` form also works. When set, a release signed with any other key fails before publishing. |
 
 Store the four signing secrets as **environment secrets** of `production` (stable)
 and `preview` (preview builds and tagged previews). Then delete the

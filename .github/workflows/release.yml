@@ -333,6 +333,11 @@ jobs:
           trap 'rm -f "$keystore"' EXIT
           printf '%s' "$SIGNING_KEYSTORE" | base64 --decode > "$keystore"
 
+          # apksigner prints lowercase hex without separators; keytool and the
+          # Play Console show uppercase, colon-separated hex. Normalize both
+          # sides so the comparison does not depend on either format.
+          normalize_fingerprint() { tr -d ':[:space:]' | tr '[:upper:]' '[:lower:]'; }
+
           mkdir -p signed
           fingerprints=""
           for unsigned in unsigned/*.apk; do
@@ -345,8 +350,8 @@ jobs:
               --out "signed/$name" \
               "$unsigned"
             "$tools/apksigner" verify --verbose "signed/$name" >/dev/null
-            cert="$("$tools/apksigner" verify --print-certs "signed/$name" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p')"
-            [[ -n "$cert" ]] || { echo "::error::Could not read the signing certificate of $name"; exit 1; }
+            cert="$("$tools/apksigner" verify --print-certs "signed/$name" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | normalize_fingerprint)"
+            [[ "$cert" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::Could not read the SHA-256 signing certificate digest of $name"; exit 1; }
             fingerprints="$fingerprints $cert"
             package_line="$("$tools/aapt" dump badging "signed/$name" | sed -n '1p')"
             grep -q "package: name='com.quantummpv.app'" <<< "$package_line" || { echo "::error::Unexpected package in $name"; exit 1; }
@@ -360,7 +365,11 @@ jobs:
             exit 1
           fi
           if [[ -n "$EXPECTED_CERT_SHA256" ]]; then
-            expected="$(tr -d ': ' <<< "$EXPECTED_CERT_SHA256" | tr '[:upper:]' '[:lower:]')"
+            expected="$(normalize_fingerprint <<< "$EXPECTED_CERT_SHA256")"
+            if [[ ! "$expected" =~ ^[0-9a-f]{64}$ ]]; then
+              echo "::error::RELEASE_SIGNING_CERT_SHA256 must be a SHA-256 digest (64 hex digits, colons optional). Nothing was published."
+              exit 1
+            fi
             if [[ "$unique" != "$expected" ]]; then
               echo "::error::Signing certificate ${unique} does not match RELEASE_SIGNING_CERT_SHA256. Existing users could not update; nothing was published."
               exit 1
