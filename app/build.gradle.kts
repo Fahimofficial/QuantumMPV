@@ -342,6 +342,7 @@ dependencies {
   implementation(libs.mediainfo.lib)
   implementation(libs.androidx.profileinstaller)
   implementation(libs.google.cast.framework)
+  implementation(libs.zxing.core)
 
   testImplementation(libs.kotlin.test)
   testImplementation(libs.junit)
