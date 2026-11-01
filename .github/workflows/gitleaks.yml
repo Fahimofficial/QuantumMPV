@@ -5,6 +5,10 @@ on:
     branches:
       - master
   pull_request:
+  schedule:
+    # Weekly full-history scan, in case a secret reaches the repository by a
+    # path that bypasses push and PR scans (for example an upstream merge).
+    - cron: '7 3 * * 0'
   workflow_dispatch:
 
 # The scanner only needs to read the checked-out repository.
@@ -12,8 +16,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: gitleaks-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: gitleaks-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   gitleaks:
@@ -24,12 +28,13 @@ jobs:
       - name: Check out source history
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           fetch-depth: 0
 
       # Pinned to the immutable v3 tag commit. The action runs the scanner locally
       # on the GitHub-hosted runner; no source is sent to Gitleaks for analysis.
       - name: Scan repository history
-        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_ENABLE_COMMENTS: 'false'

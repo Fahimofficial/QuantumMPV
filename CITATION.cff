@@ -1,18 +1,17 @@
 cff-version: 1.2.0
-message: "If you use mpvRx, please cite it using the metadata below."
+message: "If you use QuantumMPV, please cite it using the metadata below. QuantumMPV continues the mpvRx codebase, which is listed under references."
 type: software
-title: "mpvRx"
-abstract: "An Android video and music player powered by mpv."
+title: "QuantumMPV"
+abstract: "An open-source Android video and music player built on libmpv."
 authors:
-  - name: "Ritesh Pandit"
-repository-code: "https://github.com/Riteshp2001/mpvRx"
-url: "https://riteshp2001.github.io/mpvRx"
+  - name: "FAHIM"
+repository-code: "https://github.com/Fahimofficial/QuantumMPV"
+url: "https://quantummpv.vercel.app/"
 license: AGPL-3.0-or-later
 keywords:
   - Android
   - Anime4K
   - BitTorrent
-  - Chromecast
   - Google Cast
   - HDR
   - Jellyfin
@@ -21,13 +20,24 @@ keywords:
   - Navidrome
   - SMB
   - Subsonic
-  - Vulkan
   - WebDAV
   - libmpv
   - media player
-  - media streaming
   - music player
-  - speech-to-text
   - subtitles
   - video player
   - yt-dlp
+references:
+  - type: software
+    title: "mpvRx"
+    abstract: "An Android video and music player powered by mpv. Upstream codebase of QuantumMPV."
+    authors:
+      - name: "Ritesh Pandit"
+    repository-code: "https://github.com/Riteshp2001/mpvRx"
+    url: "https://riteshp2001.github.io/mpvRx"
+    license: AGPL-3.0-or-later
+  - type: software
+    title: "mpv"
+    authors:
+      - name: "mpv contributors"
+    repository-code: "https://github.com/mpv-player/mpv"

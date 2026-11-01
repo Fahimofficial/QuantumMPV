@@ -73,6 +73,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -419,7 +420,7 @@ object AboutScreen : Screen {
 
         Spacer(Modifier.height(8.dp))
 
-        // Support my work: a short entry; the payment options live on their own screen.
+        // Support My Work: details live on their own screen (SupportScreen).
         PreferenceSectionHeader(title = stringResource(R.string.pref_section_support))
         PreferenceCard(
           emphasis = true,
@@ -429,44 +430,40 @@ object AboutScreen : Screen {
               highlight = cs.tertiary,
             ),
         ) {
-          Column(modifier = Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-              Icon(
-                imageVector = Icons.RoundedFilled.Favorite,
-                contentDescription = null,
-                modifier = Modifier.size(24.dp),
-                tint = cs.error,
-              )
-              Spacer(Modifier.width(10.dp))
+          Row(
+            modifier =
+              Modifier
+                .fillMaxWidth()
+                .clickable(role = Role.Button) { backstack.navigateTo(SupportScreen) }
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+          ) {
+            Icon(
+              imageVector = Icons.RoundedFilled.Favorite,
+              contentDescription = null,
+              modifier = Modifier.size(24.dp),
+              tint = cs.primary,
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
               Text(
-                text = stringResource(R.string.support_my_work),
+                text = stringResource(R.string.support_title),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = cs.onSurface,
               )
+              Spacer(Modifier.height(2.dp))
+              Text(
+                text = stringResource(R.string.support_entry_summary),
+                style = MaterialTheme.typography.bodyMedium,
+                color = cs.onSurfaceVariant,
+              )
             }
-            Spacer(Modifier.height(10.dp))
-            Text(
-              text = stringResource(R.string.support_my_work_summary),
-              style = MaterialTheme.typography.bodyMedium,
-              color = cs.onSurfaceVariant,
+            Icon(
+              imageVector = Icons.RoundedFilled.ChevronRight,
+              contentDescription = null,
+              tint = cs.outline,
             )
-            Spacer(Modifier.height(14.dp))
-            Button(
-              onClick = { backstack.navigateTo(SupportScreen) },
-              modifier = Modifier.fillMaxWidth().height(50.dp),
-              shape = RoundedCornerShape(12.dp),
-              colors =
-                ButtonDefaults.buttonColors(
-                  containerColor = cs.error,
-                  contentColor = cs.onError,
-                ),
-              elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp),
-            ) {
-              Icon(Icons.RoundedFilled.Favorite, null, modifier = Modifier.size(18.dp))
-              Spacer(Modifier.width(8.dp))
-              Text(stringResource(R.string.support_open), fontWeight = FontWeight.SemiBold)
-            }
           }
         }
 

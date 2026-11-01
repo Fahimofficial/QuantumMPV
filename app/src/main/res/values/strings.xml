@@ -609,6 +609,36 @@
   <string name="player_sheets_frame_navigation_snapshot_saved" translatable="false">Saved to Pictures/mpvSnaps</string>
   <string name="player_sheets_frame_navigation_include_subtitles">Include subtitles in snapshot</string>
   <string name="player_sheets_zoom_slider_label">Video Zoom</string>
+  <string name="generic_undo">Undo</string>
+  <plurals name="playlist_items_removed">
+    <item quantity="one">Removed %d item from playlist</item>
+    <item quantity="other">Removed %d items from playlist</item>
+  </plurals>
+  <plurals name="recents_items_removed">
+    <item quantity="one">Removed %d item from history</item>
+    <item quantity="other">Removed %d items from history</item>
+  </plurals>
+  <string name="loading_state_history_title">Loading history…</string>
+  <string name="loading_state_playlist_title">Loading playlist…</string>
+  <string name="recents_disabled_message">Enable it in Advanced Settings to track your playback history</string>
+  <string name="recents_remove_message">The selected items will be removed from your recently played list. The original files will not be deleted.</string>
+  <string name="recents_delete_files_message">This will permanently delete the original files from your device storage.\n\nThis action cannot be undone.</string>
+  <plurals name="recents_remove_title">
+    <item quantity="one">Remove %d item from history?</item>
+    <item quantity="other">Remove %d items from history?</item>
+  </plurals>
+  <plurals name="recents_delete_files_title">
+    <item quantity="one">Delete %d item?</item>
+    <item quantity="other">Delete %d items?</item>
+  </plurals>
+  <plurals name="playlist_remove_title">
+    <item quantity="one">Remove %d item from playlist?</item>
+    <item quantity="other">Remove %d items from playlist?</item>
+  </plurals>
+  <plurals name="playlist_remove_message">
+    <item quantity="one">The selected item will be removed from this playlist. The original file will not be deleted.</item>
+    <item quantity="other">The selected items will be removed from this playlist. The original files will not be deleted.</item>
+  </plurals>
   <plurals name="seconds">
     <item quantity="one">%1$d second</item>
     <item quantity="other">%1$d seconds</item>
@@ -1733,6 +1763,39 @@
   <string name="update_beta_build_format">Beta r%1$d</string>
   <string name="ui_beta_badge_suffix">\u0020(Beta)</string>
   <string name="ui_core_open_source_dependencies_used_by_mpvrx">Core open source dependencies used by QuantumMPV.</string>
+  <!-- Support My Work screen. Payment details live in support/SupportConfig.kt, not here. -->
+  <string name="support_title">Support My Work</string>
+  <string name="support_entry_summary">Ko-fi, UPI and project links</string>
+  <string name="support_intro">Your support helps me maintain existing applications, improve features and continue developing independent open-source projects. Every contribution is voluntary and appreciated.</string>
+  <string name="support_section_payment">Payment options</string>
+  <string name="support_kofi_title">Ko-fi</string>
+  <string name="support_kofi_summary">Support me on Ko-fi. Opens ko-fi.com in your browser.</string>
+  <string name="support_kofi_button">Support on Ko-fi</string>
+  <string name="support_upi_title">UPI</string>
+  <string name="support_upi_summary">Scan the code with any UPI app, or open one on this phone. You choose the amount.</string>
+  <string name="support_upi_qr_description">UPI QR code to pay %1$s, UPI ID %2$s</string>
+  <string name="support_upi_payee_label">Payee name</string>
+  <string name="support_upi_id_label">UPI ID</string>
+  <string name="support_copy_upi_id">Copy UPI ID</string>
+  <string name="support_upi_id_copied">UPI ID copied</string>
+  <string name="support_open_upi_app">Open UPI app</string>
+  <string name="support_choose_upi_app">Pay with</string>
+  <string name="support_no_upi_app">No UPI app is installed on this device. Scan the QR code from another phone, or copy the UPI ID.</string>
+  <string name="support_share_qr">Share QR</string>
+  <string name="support_save_qr">Save QR</string>
+  <string name="support_qr_saved">QR code saved</string>
+  <string name="support_qr_save_failed">Couldn’t save the QR code</string>
+  <string name="support_qr_share_failed">Couldn’t share the QR code</string>
+  <string name="support_share_qr_text">UPI ID: %1$s (payee %2$s)</string>
+  <string name="support_upi_safety_note">Check that your UPI app shows the payee name %1$s before you pay. Opening a UPI app does not complete a payment, and this app never learns whether you paid.</string>
+  <string name="support_qr_enlarged_title">Scan with any UPI app</string>
+  <string name="support_close">Close</string>
+  <string name="support_section_about">About %1$s</string>
+  <string name="support_repo_title">Source code on GitHub</string>
+  <string name="support_website_title">Personal website</string>
+  <string name="support_profile_title">More projects on GitHub</string>
+  <string name="support_project_info">%1$s is free and open-source software, licensed under %2$s. Version %3$s.</string>
+  <string name="support_link_open_failed">No app found to open this link</string>
   <string name="ui_already_using_latest_version">Already using latest version</string>
   <string name="ui_install_and_update_yt_dlp_for_streaming_support">Install and update yt-dlp for streaming support</string>
   <string name="ui_instructions_for_ai_file_renaming">Instructions for AI file renaming...</string>
@@ -2647,34 +2710,4 @@
 
   <!-- Floating menu -->
   <string name="ui_menu">Menu</string>
-  <!-- Support my work -->
-  <string name="support_my_work">Support my work</string>
-  <string name="support_my_work_summary">Ko-fi, UPI and project links. Always optional.</string>
-  <string name="support_open">Support options</string>
-  <string name="support_intro">Your support helps me maintain existing applications, improve features and continue developing independent open-source projects. Every contribution is voluntary and appreciated.</string>
-  <string name="support_payment_options">Payment options</string>
-  <string name="support_kofi">Support on Ko-fi</string>
-  <string name="support_upi">Pay with UPI</string>
-  <string name="support_upi_scan_hint">Scan this code with any UPI app, or open one on this phone. You choose the amount.</string>
-  <string name="support_upi_id_label">UPI ID</string>
-  <string name="support_upi_payee">Payee: %1$s</string>
-  <string name="support_upi_verify_hint">Check that your UPI app shows the payee %1$s before you pay. Opening a UPI app doesn\'t mean a payment was made: only your UPI app can confirm that.</string>
-  <string name="support_upi_qr_description">UPI QR code for %1$s, payee %2$s</string>
-  <string name="support_copy_upi_id">Copy UPI ID</string>
-  <string name="support_upi_id_copied">Copied</string>
-  <string name="support_open_upi_app">Open UPI app</string>
-  <string name="support_choose_upi_app">Pay with</string>
-  <string name="support_no_upi_app">No UPI app found on this device. The UPI ID was copied, so you can pay from another UPI app or scan the QR code with another phone.</string>
-  <string name="support_share_qr">Share QR</string>
-  <string name="support_share_qr_text">UPI ID: %1$s (payee %2$s)</string>
-  <string name="support_share_qr_failed">Couldn\'t share the QR code</string>
-  <string name="support_save_qr">Save QR</string>
-  <string name="support_qr_saved">QR code saved</string>
-  <string name="support_qr_save_failed">Couldn\'t save the QR code</string>
-  <string name="support_project_and_contact">Project and contact</string>
-  <string name="support_project_info">QuantumMPV is a free, open-source video player for Android built on mpv, licensed under AGPL-3.0.</string>
-  <string name="support_app_repository">QuantumMPV on GitHub</string>
-  <string name="support_website">Personal website</string>
-  <string name="support_github_profile">More projects on GitHub</string>
-  <string name="support_no_app_for_link">No app found to open this link. It was copied: %1$s</string>
 </resources>

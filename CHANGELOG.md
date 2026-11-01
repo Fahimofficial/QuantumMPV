@@ -1,11 +1,24 @@
 # Changelog
 ## Unreleased
+
 ### What's New
+
+- **Undo**: Removing videos from a playlist or items from Recents shows an Undo action that puts them back exactly where they were. Removals that also delete files still ask first and can't be undone.
+- **Reordering playlists**: Dragging a playlist item lifts it slightly and gives a haptic tick for each slot it crosses and a confirmation when dropped.
+- **Pull to refresh**: The list follows your finger, resists progressively past the trigger point, and ticks once when releasing would refresh.
+- **Lists**: Removing or re-sorting items in Recents and Playlists animates rows into place instead of jumping. Thumbnails that take time to load fade in.
 - **Design system**: QuantumMPV now follows a documented visual language ("Quiet Geometry", see docs/design). Player panels share one header with a standard-size, labelled close button; player sheets show a drag handle for their swipe-to-dismiss; player buttons give the same press feedback as the dock.
 - **Reduced motion**: Screen transitions now cross-fade under Reduced motion and are removed when motion is Off.
-- **Support my work**: A new screen (Settings → About → Support my work, also listed under About in Settings) with Ko-fi, UPI `SimplyFahim@sbi` and a QR code generated on the device, Copy UPI ID, Open UPI app (chooser or a clear message when none is installed), Share/Save QR, and separate links to the QuantumMPV repository, SimplyFahim.pages.dev and the GitHub profile. The old static QR image and unused upstream donation strings are removed.
+- **Support My Work**: About now opens a dedicated Support My Work screen with Ko-fi, a UPI QR code generated on the device (scan, enlarge, share or save), Copy UPI ID and Open UPI app, kept separate from the project's GitHub repository and the developer's website. The UPI ID is now `SimplyFahim@sbi` with payee SimplyFahim, and the old bundled QR image and unused upstream Ko-fi/PayPal/UPI strings are gone.
 
 ### Fixes
+
+- **Player**: The top and bottom shading behind the player controls now fades out with them instead of staying over the video.
+- **Haptic feedback setting**: Turning off Haptic feedback now silences every in-app haptic, including player gestures, tab taps and long-press.
+- **Reduced motion in the player**: Every controls animation style, the side panels, the buffering indicator and the video-open animation fall back to a simple fade.
+- **Player sheets**: The dimmed background follows the sheet as you drag it, and a quick upward flick opens it.
+- **Swipe to seek**: Seeking starts at +0:00 instead of jumping by the distance the finger moved before the gesture engaged. Volume gestures give one tick at mute, 100% and the boost limit.
+- **Text**: Recents and playlist remove dialogs, and the Recents "disabled" message, are now translatable.
 - **Skip markers**: TheIntroDB lookups use its v4 API. v1 has been removed and v2/v3 are being shut down, so intro/credits markers from TheIntroDB would otherwise stop appearing.
 - **Network playback**: WebDAV and other network files whose names use decomposed Unicode (common for names created on macOS) no longer fail with HTTP 404.
 - **Ambient mode**: The vignette fade no longer relies on GLSL behaviour that differs between GPU drivers.
@@ -19,6 +32,11 @@
 - **Privacy**: Release builds no longer write debug logs, and Navidrome/stream URL error logs no longer include login tokens or API keys.
 - **Memory**: Large embedded and remote cover art is decoded at a reduced size instead of full resolution.
 - **Accessibility**: Audio-player skip/seek buttons, player panel close buttons, speed steppers and the mini-player close button now have TalkBack labels.
+
+### Documentation
+- **README**: Rewritten to match the current source. Features are grouped by area; corrected claims include the torrent engine (libtorrent4j), the video compressor (Media3 Transformer), animation and ambient-mode names, theme count, and cloud-only speech-to-subtitles. Broken screenshot links were fixed, and build steps, permissions, credits and support options were added.
+- **Privacy policy**: The permissions and network-use sections now cover every declared permission and online feature, and state how saved credentials are stored.
+- **Credits**: CITATION.md lists the bundled components with their licenses and replaces the incorrect anacrolix/torrent credit with libtorrent4j. CITATION.cff now describes QuantumMPV and references mpvRx.
 
 ## 1.4.0
 ### What's New

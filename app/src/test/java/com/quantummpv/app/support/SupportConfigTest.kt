@@ -1,41 +1,64 @@
-/*
- * SPDX-License-Identifier: AGPL-3.0-or-later
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as published
- * by the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- */
-
 package com.quantummpv.app.support
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SupportConfigTest {
   @Test
-  fun `UPI link identifies the payee only, with no amount`() {
-    assertEquals("upi://pay?pa=SimplyFahim@sbi&pn=SimplyFahim&cu=INR", SupportConfig.upiPaymentUri())
-    assertFalse(SupportConfig.upiPaymentUri().contains("am="))
-  }
-
-  @Test
-  fun `UPI link percent-encodes unsafe characters`() {
-    assertEquals(
-      "upi://pay?pa=a%26b@bank&pn=Jane%20Doe&cu=INR",
-      SupportConfig.upiPaymentUri(upiId = "a&b@bank", payeeName = "Jane Doe"),
-    )
-  }
-
-  @Test
-  fun `support details are the developer's own and the repo is QuantumMPV's`() {
+  fun `official support details are exact`() {
+    assertEquals("https://ko-fi.com/simplyfahim", SupportConfig.KOFI_URL)
     assertEquals("SimplyFahim@sbi", SupportConfig.UPI_ID)
     assertEquals("SimplyFahim", SupportConfig.UPI_PAYEE_NAME)
     assertEquals("INR", SupportConfig.UPI_CURRENCY)
-    assertEquals("https://ko-fi.com/simplyfahim", SupportConfig.KOFI_URL)
-    assertEquals("https://SimplyFahim.pages.dev", SupportConfig.WEBSITE)
-    assertEquals("https://github.com/Fahimofficial/", SupportConfig.GITHUB_PROFILE)
-    assertEquals("https://github.com/Fahimofficial/QuantumMPV", SupportConfig.APP_REPOSITORY)
+    assertEquals("https://SimplyFahim.pages.dev", SupportConfig.WEBSITE_URL)
+    assertEquals("https://github.com/Fahimofficial/", SupportConfig.GITHUB_PROFILE_URL)
+  }
+
+  @Test
+  fun `repository link points at this app's own repository`() {
+    assertEquals("https://github.com/Fahimofficial/QuantumMPV", SupportConfig.PROJECT_REPOSITORY_URL)
+    assertFalse(SupportConfig.PROJECT_REPOSITORY_URL == SupportConfig.WEBSITE_URL)
+  }
+
+  @Test
+  fun `upi uri has payee, name and currency but no amount`() {
+    assertEquals("upi://pay?pa=SimplyFahim@sbi&pn=SimplyFahim&cu=INR", SupportConfig.upiPaymentUri)
+    val params = UpiPaymentUri.parse(SupportConfig.upiPaymentUri)!!
+    assertEquals(mapOf("pa" to "SimplyFahim@sbi", "pn" to "SimplyFahim", "cu" to "INR"), params)
+    assertNull(params["am"])
+  }
+
+  @Test
+  fun `builder percent-encodes names with spaces and rejects invalid ids`() {
+    assertEquals(
+      "upi://pay?pa=a.b@okaxis&pn=A%20B%26C&cu=INR",
+      UpiPaymentUri.build("a.b@okaxis", "A B&C"),
+    )
+    assertTrue(UpiPaymentUri.isValidVpa("SimplyFahim@sbi"))
+    assertFalse(UpiPaymentUri.isValidVpa("no-at-sign"))
+    assertFalse(UpiPaymentUri.isValidVpa("x@"))
+  }
+
+  @Test
+  fun `old project-specific donation details are gone`() {
+    val all =
+      listOf(
+        SupportConfig.KOFI_URL,
+        SupportConfig.UPI_ID,
+        SupportConfig.upiPaymentUri,
+        SupportConfig.WEBSITE_URL,
+      ).joinToString()
+    listOf("adityanarvekar", "aadinarvekar", "aadiinarvekar", "paypal", "@Sbi", "vercel.app").forEach {
+      assertFalse("found $it", all.contains(it))
+    }
+  }
+
+  @Test
+  fun `display url strips scheme and trailing slash`() {
+    assertEquals("ko-fi.com/simplyfahim", SupportConfig.displayUrl(SupportConfig.KOFI_URL))
+    assertEquals("github.com/Fahimofficial", SupportConfig.displayUrl(SupportConfig.GITHUB_PROFILE_URL))
   }
 }

@@ -1,0 +1,44 @@
+name: Security analysis
+
+# Android application security gate. Complements, and does not duplicate:
+#   codeql.yml             SAST for Kotlin/Java, C/C++, Python and workflows
+#   gitleaks.yml           secret detection over the full Git history
+#   dependency-review.yml  vulnerable dependency changes in pull requests
+#   workflow-audit.yml     actionlint + zizmor for GitHub Actions
+#   ci.yml                 Android Lint (includes Android security lint checks)
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+  schedule:
+    # Weekly, so policy drift from upstream syncs is caught even without PRs.
+    - cron: '23 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  android-policy:
+    name: Android security policy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Test the security policy checker
+        run: python3 tools/test_check_android_security.py
+
+      # Native AAR checksum verification already runs in ci.yml
+      # (tools/verify_native_artifacts.py --download), so it is not repeated here.
+      - name: Check manifest, network, backup, build and source security policy
+        run: python3 tools/check_android_security.py

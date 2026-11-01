@@ -40,8 +40,7 @@
         android:name="android.software.leanback"
         android:required="false" />
 
-    <!-- Package visibility (not a permission): lets Support my work find installed UPI apps, so it
-         can offer a chooser or explain that none is installed. -->
+    <!-- Lets the Support My Work screen detect installed UPI apps (no permission needed). -->
     <queries>
         <intent>
             <action android:name="android.intent.action.VIEW" />

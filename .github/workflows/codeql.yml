@@ -5,22 +5,27 @@ on:
     branches:
       - master
   pull_request:
+  schedule:
+    # Weekly, so new CodeQL queries are applied to unchanged code.
+    - cron: '31 2 * * 3'
   workflow_dispatch:
 
 permissions:
   contents: read
-  security-events: write
-  actions: read
 
 concurrency:
-  group: codeql-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: codeql-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
     runs-on: ubuntu-24.04
     timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
     strategy:
       fail-fast: false
       matrix:
@@ -37,10 +42,11 @@ jobs:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           fetch-depth: 0
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@87ef0dc97def48aa960fbf026a2563ee9dbdb470 # v3
+        uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
@@ -58,7 +64,7 @@ jobs:
         run: python3 tools/verify_native_artifacts.py --download
       - name: Set up Android SDK
         if: matrix.language == 'java-kotlin'
-        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
 
       - name: Install Android build toolchain
         if: matrix.language == 'java-kotlin'
@@ -83,6 +89,6 @@ jobs:
           ./gradlew :app:assembleStandardDebug --stacktrace --no-daemon --max-workers=1
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@87ef0dc97def48aa960fbf026a2563ee9dbdb470 # v3
+        uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         with:
           category: "/language:${{ matrix.language }}"

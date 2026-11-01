@@ -51,6 +51,7 @@ import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.PlaybackSession
 import com.quantummpv.app.ui.player.PlayerViewModel
+import com.quantummpv.app.ui.theme.AppMotion
 import com.quantummpv.app.ui.theme.fontFamilyForText
 
 @Composable
@@ -246,7 +247,7 @@ fun LyricsSheet(
                   } else {
                     MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
                   },
-                  animationSpec = tween(durationMillis = 250),
+                  animationSpec = tween(durationMillis = AppMotion.Duration.MEDIUM1),
                   label = "LyricTextColor",
                 )
 

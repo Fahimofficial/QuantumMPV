@@ -343,7 +343,9 @@ fun MpvrxTheme(
           typography = if (useSystemFont || localeNeedsSystemFont) SystemTypography else AppTypography,
           shapes = AppShapes,
           motionScheme = MotionScheme.expressive(),
-          content = content,
+          // Routes every LocalHapticFeedback call through the app's Haptic feedback setting, the
+          // system haptic setting, and one tuned vibration table.
+          content = { com.quantummpv.app.ui.utils.ProvideAppHaptics(content) },
         )
       }
     }

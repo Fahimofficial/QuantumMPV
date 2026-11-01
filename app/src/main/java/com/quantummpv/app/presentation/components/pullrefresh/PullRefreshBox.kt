@@ -9,9 +9,6 @@
 
 package com.quantummpv.app.presentation.components.pullrefresh
 
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -28,21 +25,28 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.pulltorefresh.pullToRefresh
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 
 /**
@@ -79,32 +83,22 @@ fun PullRefreshBox(
 
   val activeJob = remember { mutableStateOf<Job?>(null) }
 
-  val targetTranslationY =
-    if (isRefreshing.value) {
-      maxTranslationPx
-    } else {
-      (state.distanceFraction * maxTranslationPx).coerceAtLeast(0f)
-    }
+  // The pull state already follows the finger and animates itself to the threshold while refreshing
+  // and back to zero afterwards, so content and indicator read it directly in the draw phase:
+  // 1:1 with the finger, no second spring lagging behind, and no recomposition per frame.
+  fun contentTranslation(): Float = rubberBandedPull(state.distanceFraction, maxTranslationPx)
+  fun indicatorProgress(): Float = state.distanceFraction.coerceIn(0f, 1f)
 
-  val animatedTranslationY by animateFloatAsState(
-    targetValue = targetTranslationY,
-    animationSpec =
-      spring(
-        dampingRatio = Spring.DampingRatioMediumBouncy,
-        stiffness = Spring.StiffnessMediumLow,
-      ),
-    label = "content_translationY",
-  )
-
-  val indicatorScale by animateFloatAsState(
-    targetValue = if (isRefreshing.value) 1f else state.distanceFraction.coerceIn(0f, 1f),
-    animationSpec =
-      spring(
-        dampingRatio = Spring.DampingRatioLowBouncy,
-        stiffness = Spring.StiffnessMedium,
-      ),
-    label = "indicator_scale",
-  )
+  // One tick at the moment a release would refresh, so the commit point can be felt.
+  val haptics = LocalHapticFeedback.current
+  val latestIsRefreshing by rememberUpdatedState(isRefreshing.value)
+  LaunchedEffect(state, enabled) {
+    if (!enabled) return@LaunchedEffect
+    snapshotFlow { state.distanceFraction >= 1f }
+      .distinctUntilChanged()
+      .drop(1)
+      .collect { armed -> if (armed && !latestIsRefreshing) haptics.performHapticFeedback(HapticFeedbackType.SegmentTick) }
+  }
 
   val expressivePolygons =
     remember {
@@ -143,7 +137,7 @@ fun PullRefreshBox(
       modifier =
         Modifier
           .matchParentSize()
-          .graphicsLayer { translationY = animatedTranslationY },
+          .graphicsLayer { translationY = contentTranslation() },
     ) {
       content()
     }
@@ -153,10 +147,11 @@ fun PullRefreshBox(
         Modifier
           .align(Alignment.TopCenter)
           .graphicsLayer {
-            translationY = (animatedTranslationY / 2f) - (indicatorSizePx / 2f)
-            scaleX = indicatorScale
-            scaleY = indicatorScale
-            alpha = indicatorScale
+            val progress = indicatorProgress()
+            translationY = (contentTranslation() / 2f) - (indicatorSizePx / 2f)
+            scaleX = progress
+            scaleY = progress
+            alpha = progress
           }.shadow(elevation = 4.dp, shape = CircleShape, clip = false)
           .size(indicatorSize)
           .clip(CircleShape)
@@ -178,4 +173,20 @@ fun PullRefreshBox(
       }
     }
   }
+}
+
+/**
+ * Pull distance in px for [fraction] of the threshold [thresholdPx]. Up to the threshold the content
+ * follows 1:1; past it, resistance grows progressively (rubber band) instead of either stopping hard
+ * or tracking without limit.
+ */
+internal fun rubberBandedPull(
+  fraction: Float,
+  thresholdPx: Float,
+  constant: Float = 0.55f,
+): Float {
+  if (!fraction.isFinite() || fraction <= 0f || thresholdPx <= 0f) return 0f
+  if (fraction <= 1f) return fraction * thresholdPx
+  val overshoot = (fraction - 1f) * thresholdPx
+  return thresholdPx + (overshoot * thresholdPx * constant) / (thresholdPx + constant * overshoot)
 }

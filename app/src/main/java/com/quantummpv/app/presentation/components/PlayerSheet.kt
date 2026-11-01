@@ -14,8 +14,9 @@ package com.quantummpv.app.presentation.components
 import android.annotation.SuppressLint
 import android.content.res.Configuration.ORIENTATION_LANDSCAPE
 import android.content.res.Configuration.ORIENTATION_PORTRAIT
+import android.os.SystemClock
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animate
 import androidx.compose.animation.rememberSplineBasedDecay
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -55,12 +56,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.util.VelocityTracker1D
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
@@ -140,20 +143,9 @@ fun PlayerSheet(
     } else {
       screenHeightPx
     }
-  val swipeProgress = if (height > 0) (-scaledSwipeOffset / height).coerceIn(0f, 1f) else 0f
-  val targetAlpha =
-    if (isSwipeActive) {
-      if (anchoredDraggableState.anchors.size > 0) 0.5f * swipeProgress else 0f
-    } else if (anchoredDraggableState.targetValue == 0) {
-      0.5f
-    } else {
-      0f
-    }
-  val alpha by animateFloatAsState(
-    targetAlpha,
-    animationSpec = sheetAnimationSpec,
-    label = "alpha",
-  )
+  // Samples the externally driven swipe so its release can hand the finger's velocity to the sheet.
+  val swipeVelocityTracker = remember { VelocityTracker1D(isDataDifferential = false) }
+  var wasOpened by remember { mutableStateOf(false) }
 
   val internalOnDismissRequest = {
     if (anchoredDraggableState.currentValue == 0) {
@@ -170,8 +162,16 @@ fun PlayerSheet(
           indication = null,
           onClick = internalOnDismissRequest,
         ).fillMaxSize()
-        .background(Color.Black.copy(alpha))
-        .onSizeChanged {
+        // The scrim is a function of where the sheet actually is, read in the draw phase: it tracks
+        // the finger 1:1 during drags, lands with the sheet's own spring, and never recomposes.
+        .drawBehind {
+          val closed = if (anchoredDraggableState.anchors.size > 0) anchoredDraggableState.anchors.positionOf(1) else Float.NaN
+          val sheetOffset = anchoredDraggableState.offset
+          if (closed.isFinite() && closed > 0f && sheetOffset.isFinite()) {
+            val openFraction = (1f - sheetOffset / closed).coerceIn(0f, 1f)
+            if (openFraction > 0f) drawRect(Color.Black, alpha = SCRIM_MAX_ALPHA * openFraction)
+          }
+        }.onSizeChanged {
           val anchors =
             DraggableAnchors {
               0 at 0f
@@ -240,6 +240,7 @@ fun PlayerSheet(
           val currentOffset = anchoredDraggableState.offset
           if (closedOffset.isFinite() && currentOffset.isFinite()) {
             val targetOffset = (closedOffset + latestSwipeOffset).coerceIn(0f, screenHeightPx)
+            swipeVelocityTracker.addDataPoint(SystemClock.uptimeMillis(), targetOffset)
             anchoredDraggableState.dispatchRawDelta(targetOffset - currentOffset)
           }
         }
@@ -253,10 +254,20 @@ fun PlayerSheet(
       } else {
         if (wasSwipeActive) {
           val currentOffset = anchoredDraggableState.offset
-          // Settle to open (0) if the user dragged up by more than 10% of the sheet height
-          val target = if (currentOffset >= height * 0.9f) 1 else 0
-          anchoredDraggableState.animateTo(target)
-          if (target == 1) {
+          // A release sample: if the finger paused before lifting, the gap makes the tracker read
+          // the gesture as stopped instead of reusing the earlier flick's speed.
+          if (currentOffset.isFinite()) swipeVelocityTracker.addDataPoint(SystemClock.uptimeMillis(), currentOffset)
+          val releaseVelocity =
+            swipeVelocityTracker.calculateVelocity().takeIf { it.isFinite() } ?: 0f
+          swipeVelocityTracker.resetTracking()
+          // Decide from where the gesture is heading, not only where the finger let go: a short,
+          // fast upward flick opens the sheet. Open once the projected rest point clears 10%.
+          val projectedOffset = currentOffset + projectSheetMomentum(releaseVelocity)
+          val target = if (projectedOffset >= height * 0.9f) 1 else 0
+          anchoredDraggableState.animateToWithVelocity(target, releaseVelocity)
+          // When the sheet had opened, the currentValue collector below reports the dismissal;
+          // reporting here too would fire onDismissRequest twice.
+          if (target == 1 && !wasOpened) {
             latestOnDismissRequest()
           }
           wasSwipeActive = false
@@ -271,7 +282,6 @@ fun PlayerSheet(
       }
     }
 
-    var wasOpened by remember { mutableStateOf(false) }
     LaunchedEffect(anchoredDraggableState) {
       snapshotFlow { anchoredDraggableState.currentValue }
         .collectLatest { value ->
@@ -281,6 +291,33 @@ fun PlayerSheet(
             latestOnDismissRequest()
           }
         }
+    }
+  }
+}
+
+private const val SCRIM_MAX_ALPHA = 0.5f
+
+/**
+ * Distance a released swipe would still travel under scroll-like deceleration (rate 0.99 per ms),
+ * used to pick the settle target from the gesture's trajectory.
+ */
+private fun projectSheetMomentum(velocityPxPerSecond: Float, decelerationRate: Float = 0.99f): Float =
+  (velocityPxPerSecond / 1000f) * decelerationRate / (1f - decelerationRate)
+
+/** Springs to [target] starting at the finger's release [velocity], so drag and settle have no seam. */
+private suspend fun AnchoredDraggableState<Int>.animateToWithVelocity(
+  target: Int,
+  velocity: Float,
+) {
+  anchoredDrag(target) { anchors, latestTarget ->
+    val targetOffset = anchors.positionOf(latestTarget)
+    if (!targetOffset.isNaN() && offset.isFinite()) {
+      animate(
+        initialValue = offset,
+        targetValue = targetOffset,
+        initialVelocity = velocity,
+        animationSpec = sheetAnimationSpec,
+      ) { value, currentVelocity -> dragTo(value, currentVelocity) }
     }
   }
 }

@@ -68,8 +68,31 @@ The groups below organize the existing credits by project type; they are not an 
 
 | Project | Role | Source |
 |---|---|---|
-| yt-dlp | Website media extraction and download support | [yt-dlp](https://github.com/yt-dlp/yt-dlp) |
-| FFmpeg | Media probing and video compression workflows | [FFmpeg](https://ffmpeg.org/) |
+| mpv / libmpv | Playback engine | [mpv-player/mpv](https://github.com/mpv-player/mpv) |
+| mpvlibAndroid | Prebuilt libmpv AARs (`standard`, `noVulkan` and `fongmi` builds) pinned in `native-artifacts.json` | [Riteshp2001/mpvlibAndroid](https://github.com/Riteshp2001/mpvlibAndroid) |
+| libplacebo | GPU rendering used by mpv's `gpu-next` output | [haasn/libplacebo](https://github.com/haasn/libplacebo) |
+| FFmpeg | Demuxing and decoding inside libmpv | [FFmpeg](https://ffmpeg.org/) |
+| yt-dlp | Website media extraction and download support. Downloaded at runtime from its GitHub releases, not bundled. | [yt-dlp](https://github.com/yt-dlp/yt-dlp) |
+| CPython | Bundled Python 3.13 runtime that runs yt-dlp | [python/cpython](https://github.com/python/cpython) |
+| QuickJS-NG | Vendored JavaScript engine (`app/src/main/cpp/third_party/quickjs`) used by yt-dlp | [quickjs-ng/quickjs](https://github.com/quickjs-ng/quickjs) |
+| AndroidX Media3 | Media session and notifications, plus Transformer for clip export and video compression. Playback stays on libmpv. | [Media3](https://developer.android.com/media/media3) |
+| Room | Local database | [Room](https://developer.android.com/training/data-storage/room) |
+| Sora Editor | Built-in code editor with TextMate highlighting | [Rosemoe/sora-editor](https://github.com/Rosemoe/sora-editor) |
+| Haze | Blur and glass effects in Compose | [chrisbanes/haze](https://github.com/chrisbanes/haze) |
+| smbj | SMB client | [hierynomus/smbj](https://github.com/hierynomus/smbj) |
+| Apache Commons Net | FTP client | [apache/commons-net](https://github.com/apache/commons-net) |
+| sardine-android | WebDAV client | [thegrizzlylabs/sardine-android](https://github.com/thegrizzlylabs/sardine-android) |
+| NanoHTTPD | Local HTTP server for casting local files | [NanoHttpd/nanohttpd](https://github.com/NanoHttpd/nanohttpd) |
+| libtorrent4j | Torrent and magnet streaming, built on libtorrent | [aldenml/libtorrent4j](https://github.com/aldenml/libtorrent4j), [arvidn/libtorrent](https://github.com/arvidn/libtorrent) |
+| libarchive-android | Archive handling | [zhanghai/libarchive-android](https://github.com/zhanghai/libarchive-android) |
+| ComposePreference | Settings screens | [zhanghai/ComposePreference](https://github.com/zhanghai/ComposePreference) |
+| jsoup | HTML parsing | [jhy/jsoup](https://github.com/jhy/jsoup) |
+| Seeker | Compose seek bar | [abdallahmehiz/seeker](https://github.com/abdallahmehiz/seeker) |
+| Multiplatform Markdown Renderer | Markdown rendering in Compose | [mikepenz/multiplatform-markdown-renderer](https://github.com/mikepenz/multiplatform-markdown-renderer) |
+| Reorderable | Drag-to-reorder lists | [Calvin-LL/Reorderable](https://github.com/Calvin-LL/Reorderable) |
+| LazyColumnScrollbar | List scrollbars | [nanihadesuka/LazyColumnScrollbar](https://github.com/nanihadesuka/LazyColumnScrollbar) |
+| FSAF | Storage Access Framework helper | [K1rakishou/Fuck-Storage-Access-Framework](https://github.com/K1rakishou/Fuck-Storage-Access-Framework) |
+| CrashX | On-device crash screen; reports are not uploaded | [TutorialsAndroid/crashx](https://github.com/TutorialsAndroid/crashx) |
 | MediaInfo | Detailed container, video, audio, subtitle, and image metadata | [MediaInfo](https://mediaarea.net/MediaInfo) |
 | OkHttp | HTTP networking and streaming support | [OkHttp](https://github.com/square/okhttp) |
 | JSch | SFTP connectivity | [mwiede/jsch](https://github.com/mwiede/jsch) |
@@ -78,10 +101,40 @@ The groups below organize the existing credits by project type; they are not an 
 
 ### Video processing & streaming
 
-| Project | Source |
+| Project | Use | Source |
+|---|---|---|
+| hdr-toys | HDR tone-mapping, gamut-mapping and transfer-function shaders bundled in `assets/shaders/hdr-toys` | [natural-harmonia-gropius/hdr-toys](https://github.com/natural-harmonia-gropius/hdr-toys) |
+| Anime4K | Upscaling and restoration shaders bundled in `assets/shaders/anime4k` | [bloc97/Anime4K](https://github.com/bloc97/Anime4K) |
+| ArtCNN | Architecture of the `Ani4Kv2_ArtCNN` shader; weights trained by Sirosky | [Artoriuz/ArtCNN](https://github.com/Artoriuz/ArtCNN) |
+
+### Online services
+
+The app can query these services when you use the related feature. They are not affiliated with QuantumMPV.
+
+| Service | Use |
 |---|---|
-| hdr-toys | [natural-harmonia-gropius/hdr-toys](https://github.com/natural-harmonia-gropius/hdr-toys) |
-| anacrolix/torrent | [anacrolix/torrent](https://github.com/anacrolix/torrent) |
+| [Wyzie](https://sub.wyzie.io) | Subtitle search and TMDB metadata |
+| [LRCLIB](https://lrclib.net) | Online lyrics |
+| [TheIntroDB](https://theintrodb.org), IntroDB, [AniSkip](https://aniskip.com), [Anime Skip](https://anime-skip.com) | Intro, recap and credits timestamps |
+| [Jellyfin](https://jellyfin.org), [Navidrome](https://www.navidrome.org) / [Subsonic API](https://www.subsonic.org/pages/api.jsp), [Audiobookshelf](https://www.audiobookshelf.org), [Seerr](https://github.com/seerr-team/seerr) | Self-hosted media servers you connect to |
+| [Syncplay](https://github.com/Syncplay/syncplay) | Synchronized playback rooms (protocol compatibility) |
+
+### Licenses of bundled components
+
+These components ship inside the app and keep their own licenses. Their notices remain in the files listed.
+
+| Component | License | Notice location |
+|---|---|---|
+| QuickJS-NG | MIT. © Fabrice Bellard, Charlie Gordon, Ben Noordhuis | `app/src/main/cpp/third_party/quickjs/LICENSE` |
+| Anime4K shaders | MIT. © 2019-2021 bloc97 | Header of each `Anime4K_*.glsl` |
+| `Anime4K_AutoDownscalePre_x2.glsl` | Unlicense (public domain dedication) | File header |
+| `Ani4Kv2_ArtCNN_C4F32_i2_CMP.glsl` | Weights: CC BY-NC 4.0 (trained by Sirosky). Architecture: MIT, © 2024 Joao Chrisostomo | File header |
+| Go Noto Current (`GoNotoCurrent-Regular.ttf`), from [Go Noto Universal](https://github.com/satbyy/go-noto-universal) | SIL Open Font License 1.1. © 2022 The Noto Project Authors | `app/src/main/assets/subtitle-fonts/OFL.txt` |
+| TextMate grammars | The JavaScript grammar is derived from [microsoft/TypeScript-TmLanguage](https://github.com/microsoft/TypeScript-TmLanguage) and the Lua grammar from [sumneko/lua.tmbundle](https://github.com/sumneko/lua.tmbundle), as stated in the grammar files | `app/src/main/assets/textmate/` |
+| hdr-toys shaders | See the [upstream repository](https://github.com/natural-harmonia-gropius/hdr-toys). The bundled copies carry no license header. | `app/src/main/assets/shaders/hdr-toys/` |
+| libmpv, FFmpeg, libplacebo | See [mpvlibAndroid](https://github.com/Riteshp2001/mpvlibAndroid) and the upstream projects for the licenses of the prebuilt AARs | Release AARs pinned in `native-artifacts.json` |
+
+QuantumMPV's own source is AGPL-3.0-or-later, as declared by the SPDX header in each Kotlin file and in [LICENSE](LICENSE).
 
 ### Individual contributions
 
@@ -97,4 +150,4 @@ Preserve upstream copyright and license notices when adapting code or assets. Th
 
 If a credit is missing or incorrect, [open an issue](https://github.com/Fahimofficial/QuantumMPV/issues/new) or a pull request with the relevant source link and the attribution to add or correct.
 
-[Back to the README](README.md#credits--third-party-licenses)
+[Back to the README](README.md#acknowledgements)

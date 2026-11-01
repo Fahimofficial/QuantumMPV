@@ -84,6 +84,59 @@ interface PlaylistDao {
     items.chunked(PLAYLIST_WRITE_CHUNK_SIZE).forEach { chunk -> insertPlaylistItems(chunk) }
   }
 
+  /**
+   * Puts removed rows back (Undo) in one transaction.
+   *
+   * A removed row is skipped when it is already present (same id), or when a row for the same file
+   * or stream was created after the removal ([createdAfterId]: ids are AUTOINCREMENT, so later rows
+   * always have larger ids). Each such newer row stands in for at most one removed row, so a
+   * playlist that legitimately holds the same path twice gets back exactly the rows it lost, while
+   * an M3U refresh that re-added a stream is not duplicated.
+   *
+   * Survivors are merged by their stored position values (positions may have gaps after earlier
+   * removals), with a restored row placed before a survivor of equal value, then every row is
+   * renumbered 0..n-1 so no two rows share a position.
+   */
+  @Transaction
+  suspend fun restorePlaylistItems(
+    playlistId: Int,
+    removed: List<PlaylistItemEntity>,
+    createdAfterId: Int,
+  ) {
+    val current = getPlaylistItems(playlistId)
+    val currentIds = current.mapTo(HashSet()) { it.id }
+    val newerByPath =
+      current.filter { it.id > createdAfterId }.groupingBy { it.filePath }.eachCount().toMutableMap()
+    val toRestore =
+      removed
+        .filter { it.playlistId == playlistId && it.id !in currentIds }
+        .sortedBy { it.position }
+        .filter { item ->
+          val newer = newerByPath[item.filePath] ?: 0
+          if (newer > 0) {
+            newerByPath[item.filePath] = newer - 1
+            false
+          } else {
+            true
+          }
+        }
+    if (toRestore.isEmpty()) return
+    val restoredIds = toRestore.mapTo(HashSet()) { it.id }
+    val merged =
+      (current + toRestore).sortedWith(
+        compareBy<PlaylistItemEntity>({ it.position }, { if (it.id in restoredIds) 0 else 1 }),
+      )
+    val renumbered = merged.mapIndexed { index, item -> item to index }
+    insertPlaylistItemsAtomically(
+      renumbered.filter { (item, _) -> item.id in restoredIds }.map { (item, index) -> item.copy(position = index) },
+    )
+    updateItemPositions(
+      renumbered
+        .filter { (item, index) -> item.id !in restoredIds && item.position != index }
+        .map { (item, index) -> PlaylistItemPositionUpdate(id = item.id, position = index) },
+    )
+  }
+
   /** Inserts playlist metadata and every item atomically, assigning the generated parent id. */
   @Transaction
   suspend fun insertPlaylistWithItems(

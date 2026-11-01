@@ -1,5 +1,10 @@
 name: Android CI
 
+# Pull request validation and main-branch validation share this workflow, so
+# the expensive Gradle build runs once per commit. The job name below is a
+# required status check in master branch protection; do not rename it without
+# updating the protection rule (see docs/CI_CD.md).
+
 on:
   push:
     branches:
@@ -11,8 +16,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: android-ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: android-ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  # PR runs share one group per PR and superseded runs are cancelled. Every
+  # other run gets its own group (one per commit), so a burst of merges never
+  # drops a pending master run: release workflows need a result per commit.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   GRADLE_OPTS: >-
@@ -33,6 +41,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Fetch and verify pinned native artifacts
         run: python3 tools/verify_native_artifacts.py --download
@@ -48,7 +57,7 @@ jobs:
           cache: gradle
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
 
       - name: Install Android build toolchain
         run: |
@@ -62,7 +71,7 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Validate Gradle wrapper
-        uses: gradle/actions/wrapper-validation@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6
+        uses: gradle/actions/wrapper-validation@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
 
       - name: Validate QuantumMPV identity and protected behavior
         run: python3 tools/validate_quantummpv_identity.py
@@ -83,16 +92,23 @@ jobs:
           echo "Gradle validation exited with status $status"
           exit "$status"
 
+      # Runs whenever Gradle ran, including after a Gradle failure, but not when
+      # an earlier step failed and no APKs could exist (avoids a misleading
+      # "No such file or directory" error hiding the real failure).
       - name: Verify final APK native contents
-        if: ${{ always() }}
+        if: ${{ !cancelled() && steps.debug-validation.outcome != 'skipped' }}
         run: |
           set -euo pipefail
+          if [[ ! -d app/build/outputs/apk ]]; then
+            echo "::warning::No APK outputs exist because the Gradle build failed; see the previous step."
+            exit 0
+          fi
           while IFS= read -r -d '' apk; do
             python3 tools/verify_native_artifacts.py --apk "$apk"
           done < <(find app/build/outputs/apk -type f -name '*.apk' ! -path '*/androidTest/*' -print0)
       - name: Upload debug lint reports
         if: ${{ always() }}
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: quantummpv-debug-lint-reports-${{ github.sha }}
           path: |
@@ -106,7 +122,7 @@ jobs:
         run: ./gradlew :app:lintStandardRelease --stacktrace --no-daemon --max-workers=1
 
       - name: Upload debug APK
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: quantummpv-debug-apk-${{ github.sha }}
           path: app/build/outputs/apk/standard/debug/*.apk

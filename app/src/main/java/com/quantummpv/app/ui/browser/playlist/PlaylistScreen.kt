@@ -70,6 +70,7 @@ import com.quantummpv.app.ui.components.InlineSearchBar
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.utils.LocalBackStack
+import com.quantummpv.app.ui.utils.appItemMotion
 import com.quantummpv.app.ui.utils.navigateTo
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
@@ -502,6 +503,7 @@ object PlaylistScreen : Screen {
                 onLongClick = { onPlaylistLongClick(playlistWithCount) },
                 onThumbClick = { onPlaylistClick(playlistWithCount) },
                 isGridMode = true,
+                modifier = appItemMotion(),
               )
             }
           }
@@ -547,6 +549,7 @@ object PlaylistScreen : Screen {
                 onLongClick = { onPlaylistLongClick(playlistWithCount) },
                 onThumbClick = { onPlaylistClick(playlistWithCount) },
                 isGridMode = false,
+                modifier = appItemMotion(),
               )
             }
           }

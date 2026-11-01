@@ -9,58 +9,52 @@
 
 package com.quantummpv.app.support
 
-import android.graphics.Bitmap
-import android.graphics.Color
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
-import com.google.zxing.common.BitMatrix
 import com.google.zxing.qrcode.QRCodeWriter
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
 
 /**
- * Generates the UPI QR code on the device with ZXing's encoder. The payload never leaves the
- * device: no QR web API is involved.
+ * Generates QR codes on the device with ZXing's encoder. No network, no third-party service.
+ *
+ * The output is a plain ARGB pixel array so it can be unit tested on the JVM and turned into an
+ * Android `Bitmap` with `Bitmap.createBitmap(pixels, width, height, ARGB_8888)`.
  */
 object UpiQrCode {
-  /** Quiet zone around the code, in modules. The QR specification asks for 4. */
-  const val QUIET_ZONE_MODULES = 4
+  const val DARK: Int = 0xFF000000.toInt()
+  const val LIGHT: Int = 0xFFFFFFFF.toInt()
 
-  /** Pixels per module for the shared/saved PNG. */
-  const val EXPORT_PIXELS_PER_MODULE = 16
+  /** Four-module quiet zone, as required by ISO/IEC 18004 for reliable scanning. */
+  private const val QUIET_ZONE_MODULES = 4
 
-  /**
-   * Encodes [content] as a QR matrix with one cell per module, quiet zone included.
-   * Error correction M (15%) tolerates glare and smudges. No character-set hint: the UPI link is
-   * ASCII, so no ECI header is written (some UPI scanners reject codes with one).
-   */
-  fun encode(content: String): BitMatrix =
-    QRCodeWriter().encode(
-      content,
-      BarcodeFormat.QR_CODE,
-      0,
-      0,
+  class Pixels(
+    val width: Int,
+    val height: Int,
+    val argb: IntArray,
+  )
+
+  fun encode(
+    content: String,
+    sizePx: Int,
+  ): Pixels {
+    require(sizePx > 0) { "sizePx must be positive" }
+    require(content.all { it.code in 0x20..0x7E }) { "QR content must be printable ASCII" }
+    val hints =
       mapOf(
         EncodeHintType.ERROR_CORRECTION to ErrorCorrectionLevel.M,
         EncodeHintType.MARGIN to QUIET_ZONE_MODULES,
-      ),
-    )
-
-  /** Black-on-white bitmap (in every theme: scanners expect dark on light). */
-  fun toBitmap(
-    matrix: BitMatrix,
-    pixelsPerModule: Int = 1,
-  ): Bitmap {
-    require(pixelsPerModule > 0) { "pixelsPerModule must be positive" }
-    val width = matrix.width * pixelsPerModule
-    val height = matrix.height * pixelsPerModule
+        // No CHARACTER_SET hint: UPI links are ASCII, and an ECI header confuses some scanners.
+      )
+    val matrix = QRCodeWriter().encode(content, BarcodeFormat.QR_CODE, sizePx, sizePx, hints)
+    val width = matrix.width
+    val height = matrix.height
     val pixels = IntArray(width * height)
     for (y in 0 until height) {
       val row = y * width
-      val moduleY = y / pixelsPerModule
       for (x in 0 until width) {
-        pixels[row + x] = if (matrix[x / pixelsPerModule, moduleY]) Color.BLACK else Color.WHITE
+        pixels[row + x] = if (matrix[x, y]) DARK else LIGHT
       }
     }
-    return Bitmap.createBitmap(pixels, width, height, Bitmap.Config.ARGB_8888)
+    return Pixels(width, height, pixels)
   }
 }

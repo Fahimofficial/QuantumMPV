@@ -2,12 +2,13 @@
 
 **QuantumMPV does not collect, transmit, or sell any personal data.**
 
-Last updated: 2026-09-19
+Last updated: 2026-10-31
 
 ## No analytics, no tracking, no ads
 
 QuantumMPV contains no analytics SDKs, no advertising SDKs, no crash-reporting
-service, and no telemetry. Nothing about your usage, your library, or your
+service, and no telemetry. Crash details are shown on the device and stored
+locally; they are not uploaded. Nothing about your usage, your library, or your
 device is sent to the developer.
 
 ## Data stored on your device only
@@ -21,24 +22,48 @@ The app stores the following locally, and only on your device:
 
 Uninstalling the app, or clearing its storage, removes this data.
 
+## Saved credentials
+
+Passwords, tokens and API keys you enter are stored in the app's private
+storage. Passwords for network shares, Jellyfin, Navidrome and Audiobookshelf
+credentials, and API keys for AI and subtitle providers are encrypted with an
+Android Keystore key (AES-GCM). One exception: the Syncplay room password is
+currently stored unencrypted in the app's private preferences.
+
 ## Network access
 
-QuantumMPV makes network requests only when you ask it to:
+QuantumMPV makes network requests when you use a feature that needs them:
 
-- opening a network stream or URL you provide
+- opening a network stream, URL, playlist, torrent or magnet link you provide
+- browsing network shares (SMB, FTP, SFTP, WebDAV) or media servers (Jellyfin,
+  Navidrome/Subsonic, Audiobookshelf, Seerr) that you add
 - casting to a device you select on your local network
-- checking for app updates or downloading a release, when that action is
-  triggered
-- fetching subtitles or metadata, when you initiate that action
+- searching for subtitles (Wyzie, SubHub), lyrics (LRCLIB), or skip segments
+  (IntroDB, TheIntroDB, AniSkip, Anime Skip)
+- AI features (subtitle translation, speech-to-subtitles, renaming), which send
+  the relevant subtitle text, audio or file names to the provider you configured
+  with your own API key
+- installing or updating yt-dlp, which is downloaded from the yt-dlp GitHub
+  releases and checked against its published SHA-256 sums
+- checking for or downloading app updates from this project's GitHub releases.
+  Automatic update checks are off by default.
 
-The app does not contact any developer-operated server in the background.
+The app does not contact any developer-operated server in the background. When
+you use a third-party service, that service's own privacy policy applies.
 
 ## Permissions
 
-Storage/media permissions are used to read the media files you choose to play.
-Notification permission is used for playback controls. Local network access is
-used for casting and for network streams. No permission is used for data
-collection.
+| Permission | Purpose |
+| --- | --- |
+| Media and storage (`READ_MEDIA_*`, `READ_EXTERNAL_STORAGE`, `WRITE_EXTERNAL_STORAGE`, optional `MANAGE_EXTERNAL_STORAGE`) | Listing and playing your media, and file operations you request |
+| `INTERNET` | The network features listed above |
+| `RECORD_AUDIO` | Audio visualizers. Android's visualizer API requires this permission; the app does not record or send audio from the microphone. |
+| Notifications and foreground services | Playback controls, background playback and downloads |
+| `REQUEST_INSTALL_PACKAGES` | Installing an update you chose to download |
+| `USE_BIOMETRIC` | Optional biometric unlock for the Secure Folder |
+| `MODIFY_AUDIO_SETTINGS` | Audio focus handling during playback |
+
+No permission is used for data collection.
 
 ## Third parties
 
