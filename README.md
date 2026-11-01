@@ -14,8 +14,10 @@
 > **Support QuantumMPV**
 > **If QuantumMPV is useful to you, please consider supporting continued development.**
 >
-> **[Ko-fi · ko-fi.com/simplyfahim](https://ko-fi.com/simplyfahim)**<br>
-> **UPI ID: `SimplyFahim@sbi`** (payee SimplyFahim). In the app: **Settings → Support my work** shows a QR code generated on your device.<br>
+> **[Ko-fi · ko-fi.com/simplyfahim](https://ko-fi.com/simplyfahim)**
+>
+> **UPI ID: `SimplyFahim@sbi`** (payee SimplyFahim). In the app: **Settings → Support my work** shows a QR code generated on your device.
+>
 > More projects: [SimplyFahim.pages.dev](https://SimplyFahim.pages.dev)
 >
 > Use your UPI app to confirm the recipient before sending.
