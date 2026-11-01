@@ -1,0 +1,19 @@
+# Code owners are requested for review automatically.
+# @Fahimofficial is the repository owner and sole maintainer. Do not enable
+# "Require review from Code Owners" while there is only one maintainer: GitHub
+# does not let authors approve their own pull requests.
+
+* @Fahimofficial
+
+# CI/CD, release, signing and supply-chain controls.
+/.github/ @Fahimofficial
+/tools/ @Fahimofficial
+/config/security/ @Fahimofficial
+/native-artifacts.json @Fahimofficial
+/native-artifacts.properties @Fahimofficial
+/gradle/ @Fahimofficial
+
+# Security-sensitive Android configuration.
+/app/src/main/AndroidManifest.xml @Fahimofficial
+/app/src/main/res/xml/ @Fahimofficial
+/app/proguard-rules.pro @Fahimofficial

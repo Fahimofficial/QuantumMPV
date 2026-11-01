@@ -1,0 +1,49 @@
+{
+  "_comment": "Reviewed Android security baseline enforced by tools/check_android_security.py. Any change to exported components, permissions, or accepted exceptions must be reviewed in a pull request and justified here. See docs/SECURITY.md.",
+  "manifest": "app/src/main/AndroidManifest.xml",
+  "exported_components": {
+    ".MainActivity": "Launcher entry point (MAIN/LAUNCHER).",
+    ".TvLauncherActivity": "Android TV launcher alias (LEANBACK_LAUNCHER).",
+    ".ui.player.PlayerActivity": "Media player for VIEW/SEND intents from other apps. Incoming intents pass through PlayerIntentSanitizer, which blocks app-private paths, own content authorities and mpv pseudo-protocols.",
+    ".ui.player.WebStreamLinksActivityAlias": "Opens supported web video links (YouTube, Vimeo, Twitch, ...) in the player. Routed through PlayerActivity and PlayerIntentSanitizer.",
+    ".ui.downloads.QuickDownloadActivity": "Accepts shared http(s) links; downloads require an explicit user choice in the quality picker.",
+    ".ui.torrent.TorrentSelectionActivity": "Accepts magnet links and .torrent files; external launches require explicit user consent (TorrentConsentTest).",
+    ".ui.mediainfo.MediaInfoActivity": "Media information viewer. Incoming intents pass through PlayerIntentSanitizer.",
+    ".ui.mediainfo.MediaInfoActivityAlias": "SEND/VIEW entry point for MediaInfoActivity.",
+    "androidx.mediarouter.media.MediaTransferReceiver": "AndroidX MediaRouter library component required for Cast output switching.",
+    "androidx.media.session.MediaButtonReceiver": "AndroidX media button receiver (MEDIA_BUTTON).",
+    ".utils.media.MediaScanReceiver": "Listens for system media-scanner broadcasts; the only effect is a library refresh."
+  },
+  "permissions": {
+    "android.permission.INTERNET": "Network playback, network shares, subtitle search, updater.",
+    "android.permission.READ_EXTERNAL_STORAGE": "Local media library on Android 12L and lower (maxSdkVersion 32).",
+    "android.permission.READ_MEDIA_VIDEO": "Local video library on Android 13+.",
+    "android.permission.READ_MEDIA_AUDIO": "Local audio library on Android 13+.",
+    "android.permission.MODIFY_AUDIO_SETTINGS": "Audio output and effects used by the native player. No direct Kotlin reference; review if libmpv audio routing changes.",
+    "android.permission.WRITE_EXTERNAL_STORAGE": "File operations on Android 10 and lower (maxSdkVersion 29).",
+    "android.permission.MANAGE_EXTERNAL_STORAGE": "Built-in file manager (copy, move, rename, delete) and secure folder. Subject to Google Play all-files-access policy.",
+    "android.permission.FOREGROUND_SERVICE": "Download and playback foreground services.",
+    "android.permission.FOREGROUND_SERVICE_DATA_SYNC": "YtdlpDownloadService and DirectDownloadService.",
+    "android.permission.FOREGROUND_SERVICE_SPECIAL_USE": "No service currently declares foregroundServiceType=specialUse. Kept pending maintainer review; remove if unused.",
+    "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK": "MediaPlaybackService.",
+    "android.permission.WAKE_LOCK": "Keeps playback and downloads alive with the screen off.",
+    "android.permission.POST_NOTIFICATIONS": "Playback and download notifications.",
+    "android.permission.RECORD_AUDIO": "Optional audio visualizer, requested at runtime only when the user enables it.",
+    "android.permission.POST_PROMOTED_NOTIFICATIONS": "Android 16 promoted (live update) notifications for downloads.",
+    "android.permission.REQUEST_INSTALL_PACKAGES": "In-app updater installs SHA-256 verified update APKs.",
+    "android.permission.USE_BIOMETRIC": "Secure folder biometric unlock."
+  },
+  "accepted_exceptions": {
+    "nsc-base-cleartext": "Cleartext HTTP is permitted in base-config because the player must reach user-selected LAN servers, IPTV and WebDAV/HTTP shares whose hosts cannot be enumerated in a static network security config. Jellyfin enforces its own opt-in. Re-review if a per-feature opt-in becomes available for all clients."
+  },
+  "backup_exclusions": {
+    "app/src/main/res/xml/backup_rules.xml": [
+      ["file", "secure_media/"],
+      ["sharedpref", "secure_folder.xml"]
+    ],
+    "app/src/main/res/xml/data_extraction_rules.xml": [
+      ["file", "secure_media/"],
+      ["sharedpref", "secure_folder.xml"]
+    ]
+  }
+}

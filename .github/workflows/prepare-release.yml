@@ -1,113 +1,154 @@
 name: Prepare Release
 
+# Creates a release tag on the current master commit and starts the matching
+# release workflow. It does not commit to master: master is protected and only
+# changes through reviewed pull requests, so the version bump
+# (tools/prepare_release.py) and the CHANGELOG entry land in a PR first.
+# See docs/RELEASE.md.
+#
+# Tags created with GITHUB_TOKEN do not trigger push workflows, so this
+# workflow dispatches release.yml / pre-release.yml explicitly.
+
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: QuantumMPV version, for example 1.1.0 (do not use upstream mpvRx versions)
+        description: QuantumMPV version already set on master, for example 1.4.5 (do not use upstream mpvRx versions)
         required: true
         type: string
       prerelease:
-        description: Create a preview tag instead of a stable tag
+        description: Create the next v<version>-preview.N tag instead of the stable tag
         required: true
         default: false
         type: boolean
 
-permissions:
-  contents: read
+permissions: {}
+
+concurrency:
+  group: prepare-release
+  cancel-in-progress: false
 
 jobs:
   prepare:
-    name: Bump version and create release tag
+    name: Create release tag
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
     permissions:
       contents: write
-    runs-on: ubuntu-24.04
+      actions: write
+      checks: read
+    env:
+      VERSION: ${{ inputs.version }}
+      PRERELEASE: ${{ inputs.prerelease }}
     steps:
+      - name: Validate version input
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "$VERSION" =~ ^1\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Invalid version '${VERSION}'. Expected 1.MINOR.PATCH (QuantumMPV uses the 1.x line)."
+            exit 1
+          fi
+
       - name: Check out master
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: master
           fetch-depth: 0
+          persist-credentials: false
 
-      - name: Set up Python
-        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: '3.x'
-
-      - name: Update app version
-        run: python3 tools/prepare_release.py "${{ inputs.version }}"
-
-      - name: Commit version bump and create tag
-        env:
-          VERSION: ${{ inputs.version }}
-          PRERELEASE: ${{ inputs.prerelease }}
+      - name: Verify master is prepared for this version
+        id: source
+        shell: bash
         run: |
           set -euo pipefail
-
-          # 1. Validate version format
-          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Invalid version format: $VERSION. Expected X.Y.Z"
+          python3 tools/prepare_release.py "$VERSION"
+          if ! git diff --quiet -- app/build.gradle.kts; then
+            echo "::error::master is not prepared for ${VERSION}. Open a PR that runs 'python3 tools/prepare_release.py ${VERSION}' (versionName and releaseVersionCode) and updates CHANGELOG.md, merge it, then rerun this workflow."
+            git diff -- app/build.gradle.kts
             exit 1
           fi
-
-          # Fetch tags and read the current remote state. Keep matching as
-          # exact ref-string matching so the requested version cannot be
-          # interpreted as a regular expression.
-          git fetch origin --tags --quiet
-          REMOTE_TAGS="$(git ls-remote --tags origin)"
-          if [[ "$PRERELEASE" == "true" ]]; then
-            LATEST_PREVIEW="$(printf '%s\n' "$REMOTE_TAGS" | awk \
-              -v prefix="refs/tags/v${VERSION}-preview." '
-                index($2, prefix) == 1 {
-                  suffix = substr($2, length(prefix) + 1)
-                  if (suffix ~ /^[0-9]+$/) {
-                    number = suffix + 0
-                    if (!found || number > highest) highest = number
-                    found = 1
-                  }
-                }
-                END { if (found) printf "%.0f\n", highest }
-              ')"
-
-            if [[ -z "$LATEST_PREVIEW" ]]; then
-              NEXT_NUM=1
-            else
-              NEXT_NUM=$((LATEST_PREVIEW + 1))
+          if [[ "$PRERELEASE" != "true" ]]; then
+            first_heading="$(grep -m1 '^## ' CHANGELOG.md || true)"
+            if [[ "$first_heading" != "## ${VERSION}" ]]; then
+              echo "::error::The first CHANGELOG.md section must be '## ${VERSION}' for a stable release, found '${first_heading}'."
+              exit 1
             fi
-            TAG="v${VERSION}-preview.${NEXT_NUM}"
+          fi
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Choose tag
+        id: tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          # fetch-depth: 0 already fetched every tag.
+          if [[ "$PRERELEASE" == "true" ]]; then
+            latest="$(git tag --list "v${VERSION}-preview.*" | sed -n "s/^v${VERSION//./\\.}-preview\.\([0-9][0-9]*\)$/\1/p" | sort -n | tail -n 1)"
+            tag="v${VERSION}-preview.$(( ${latest:-0} + 1 ))"
+            workflow="pre-release.yml"
           else
-            TAG="v${VERSION}"
+            tag="v${VERSION}"
+            workflow="release.yml"
           fi
-
-          # 3. Refuse an existing stable/preview tag. The query itself is
-          # checked under set -e, so network failures cannot be mistaken for
-          # an unused tag.
-          if printf '%s\n' "$REMOTE_TAGS" | awk -v tag="refs/tags/${TAG}" '$2 == tag { found = 1 } END { exit !found }'; then
-            echo "Tag ${TAG} already exists on remote; refusing to overwrite it."
+          if git rev-parse --verify --quiet "refs/tags/${tag}" >/dev/null; then
+            echo "::error::Tag ${tag} already exists; refusing to move it."
             exit 1
           fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "workflow=$workflow" >> "$GITHUB_OUTPUT"
+          echo "Next tag: $tag"
 
-          git fetch origin master --quiet
-          if [[ "$(git rev-parse HEAD)" != "$(git rev-parse origin/master)" ]]; then
-            echo 'master changed after checkout; refusing to create a release from a stale branch.'
+      - name: Verify required checks passed on master
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TARGET_SHA: ${{ steps.source.outputs.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          checks=(
+            --check "Lint, test, and build debug APK"
+            --check "ktlint + detekt"
+            --check "Detect leaked secrets"
+            --check "Android security policy"
+          )
+          # Same list as the release workflow that will run on the tag:
+          # release.yml also requires CodeQL, pre-release.yml does not. Checking
+          # it here keeps a stable tag from being created for a commit that
+          # release.yml would then reject.
+          if [[ "$PRERELEASE" != "true" ]]; then
+            checks+=(--check "Analyze (java-kotlin)")
+          fi
+          python3 tools/verify_commit_checks.py --sha "$TARGET_SHA" "${checks[@]}"
+
+      # The ref is created through the API, so no Git credentials are written
+      # to disk. Creating a ref fails if it already exists, which makes a
+      # concurrent run fail safely instead of moving a tag.
+      - name: Create annotated tag
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+          TARGET_SHA: ${{ steps.source.outputs.sha }}
+        run: |
+          set -euo pipefail
+          tag_object="$(gh api "repos/${GITHUB_REPOSITORY}/git/tags" \
+            -f tag="$TAG" -f message="Release ${TAG}" -f object="$TARGET_SHA" -f type=commit --jq '.sha')"
+          gh api "repos/${GITHUB_REPOSITORY}/git/refs" -f ref="refs/tags/${TAG}" -f sha="$tag_object" >/dev/null
+          echo "Created ${TAG} at ${TARGET_SHA}"
+
+      # Dispatched on the tag ref, so the release runs the workflow file from
+      # the tagged commit and environment tag policies apply.
+      - name: Start the release workflow
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+          WORKFLOW: ${{ steps.tag.outputs.workflow }}
+        run: |
+          set -euo pipefail
+          if ! gh workflow run "$WORKFLOW" --repo "$GITHUB_REPOSITORY" --ref "$TAG" -f tag_name="$TAG"; then
+            echo "::error::Tag ${TAG} was created but ${WORKFLOW} could not be started. Start it manually: Actions -> ${WORKFLOW} -> Run workflow -> Use workflow from: tag ${TAG}."
             exit 1
           fi
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add app/build.gradle.kts
-          git diff --cached --quiet && { echo "No version change to commit"; exit 1; }
-          git commit -m "release: prepare ${TAG}"
-
-          # Refresh and check immediately before pushing to catch a competing
-          # run. The final atomic push also fails without changing either ref
-          # if another run wins the race after this check.
-          REMOTE_TAGS="$(git ls-remote --tags origin)"
-          if printf '%s\n' "$REMOTE_TAGS" | awk -v tag="refs/tags/${TAG}" '$2 == tag { found = 1 } END { exit !found }'; then
-            echo "Tag ${TAG} was created by someone else; failing safely."
-            exit 1
-          fi
-
-          git tag -a "${TAG}" -m "Release ${TAG}"
-          git push --atomic origin master "refs/tags/${TAG}"
-          echo "Created ${TAG}; the release workflow will now build and publish it."
+          echo "Dispatched ${WORKFLOW} on ${TAG}." >> "$GITHUB_STEP_SUMMARY"

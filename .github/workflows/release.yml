@@ -1,15 +1,30 @@
 name: Make release
 
+# Stable release pipeline. Stages run in separate jobs so that the stable
+# signing step never shares a runner with Gradle or other third-party build
+# code. (Preview builds use the same key in preview.yml / pre-release.yml,
+# which still sign inside the build job; see docs/RELEASE.md.)
+#
+#   resolve           validate the tag, its source and its required checks
+#   instrumented      emulator tests on the exact tagged source (reusable)
+#   build             unsigned release APKs, release-specific validation
+#   sign              production signing in the `production` environment
+#   publish           checksums, SBOM, provenance attestation, GitHub release
+#
+# See docs/RELEASE.md for the release procedure and required secrets.
+
 on:
   push:
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'
       - '!v[0-9]+.[0-9]+.[0-9]+-preview.[0-9]+'
+  # Run manually from the tag itself ("Use workflow from" -> Tags -> vX.Y.Z),
+  # so the production environment's tag deployment policy applies.
   workflow_dispatch:
     inputs:
       tag_name:
-        description: Stable tag to release (for example v1.2.0)
-        required: true
+        description: Optional; must equal the selected tag (for example v1.2.0)
+        required: false
         type: string
 
 env:
@@ -19,119 +34,178 @@ env:
     -Dorg.gradle.workers.max=1
     -Dorg.gradle.jvmargs=-Xmx4g -XX:+HeapDumpOnOutOfMemoryError
     -Dkotlin.daemon.jvm.options=-Xmx4g
+  BUILD_TOOLS: 37.0.0
+  # Expected number of published APKs: standard universal + 4 ABIs, FongMi, non-Vulkan.
+  EXPECTED_APK_COUNT: 7
 
-permissions:
-  contents: read
+permissions: {}
 
 concurrency:
-  group: production-release-${{ github.event.inputs.tag_name || github.ref_name }}
+  group: production-release-${{ github.ref_name }}
   cancel-in-progress: false
 
 jobs:
-  release-for-github:
-    name: Release for GitHub
+  resolve:
+    name: Resolve and verify release tag
     runs-on: ubuntu-24.04
-    environment: production
+    timeout-minutes: 45
     permissions:
-      contents: write
-    timeout-minutes: 60
-
+      contents: read
+      checks: read
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      sha: ${{ steps.tag.outputs.sha }}
+      version: ${{ steps.tag.outputs.version }}
     steps:
-      - name: Checkout repository
+      - name: Checkout repository history
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
 
-      - name: Resolve and validate release tag
-        id: resolve-tag
+      - name: Validate tag and tagged source
+        id: tag
+        shell: bash
+        env:
+          INPUT_TAG: ${{ inputs.tag_name }}
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF" != refs/tags/* ]]; then
+            echo "::error::Run this workflow on the release tag (Use workflow from -> Tags), not on ${GITHUB_REF}."
+            exit 1
+          fi
+          tag_name="${GITHUB_REF#refs/tags/}"
+          if [[ -n "$INPUT_TAG" && "$INPUT_TAG" != "$tag_name" ]]; then
+            echo "::error::Input tag_name '${INPUT_TAG}' does not match the selected tag '${tag_name}'."
+            exit 1
+          fi
+
+          if [[ ! "$tag_name" =~ ^v1\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Invalid stable release tag '${tag_name}'. Expected v1.MINOR.PATCH (QuantumMPV uses the v1.x line; preview tags use pre-release.yml)."
+            exit 1
+          fi
+
+          # fetch-depth: 0 already fetched every tag and origin/* branch.
+          tag_sha="$(git rev-parse --verify --quiet "refs/tags/${tag_name}^{commit}" || true)"
+          if [[ -z "$tag_sha" ]]; then
+            echo "::error::Tag ${tag_name} does not exist on origin or does not point to a commit."
+            exit 1
+          fi
+
+          # Releases may only be cut from commits that are part of master, i.e.
+          # that went through pull request review and branch protection.
+          if ! git merge-base --is-ancestor "$tag_sha" refs/remotes/origin/master; then
+            echo "::error::Tag ${tag_name} (${tag_sha}) is not on master. Release only from merged commits."
+            exit 1
+          fi
+
+          version="${tag_name#v}"
+          build_version="$(git show "${tag_sha}:app/build.gradle.kts" | sed -n 's/^[[:space:]]*versionName = "\([^"]*\)".*/\1/p' | head -n 1)"
+          if [[ "$build_version" != "$version" ]]; then
+            echo "::error::versionName at ${tag_name} is '${build_version}', expected '${version}'. Bump it in a PR with tools/prepare_release.py first."
+            exit 1
+          fi
+
+          first_heading="$(git show "${tag_sha}:CHANGELOG.md" | grep -m1 '^## ' || true)"
+          if [[ "$first_heading" != "## ${version}" ]]; then
+            echo "::error::The first CHANGELOG.md section at ${tag_name} must be '## ${version}', found '${first_heading}'."
+            exit 1
+          fi
+
+          {
+            echo "tag=$tag_name"
+            echo "sha=$tag_sha"
+            echo "version=$version"
+          } >> "$GITHUB_OUTPUT"
+          echo "Release ${tag_name} -> ${tag_sha}"
+
+      # The same checks that branch protection requires for merging, plus the
+      # security gates. They ran on master for this commit; a missing,
+      # failed or cancelled check blocks the release.
+      - name: Verify required checks passed on the tagged commit
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TAG_SHA: ${{ steps.tag.outputs.sha }}
+        run: >-
+          python3 tools/verify_commit_checks.py --sha "$TAG_SHA"
+          --check "Lint, test, and build debug APK"
+          --check "ktlint + detekt"
+          --check "Detect leaked secrets"
+          --check "Analyze (java-kotlin)"
+          --check "Android security policy"
+
+  instrumented:
+    name: Instrumented tests
+    needs: resolve
+    permissions:
+      contents: read
+    uses: ./.github/workflows/instrumented-tests.yml
+
+  build:
+    name: Build unsigned release APKs
+    needs: resolve
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    permissions:
+      contents: read
+    env:
+      VERSION_TAG: ${{ needs.resolve.outputs.tag }}
+      EXPECTED_VERSION_NAME: ${{ needs.resolve.outputs.version }}
+      TARGET_SHA: ${{ needs.resolve.outputs.sha }}
+    steps:
+      # This workflow only runs on tag refs (checked in resolve), so the default
+      # checkout is the tagged commit; the next step proves it.
+      - name: Checkout tagged source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Full history: versionCode and BuildConfig use the commit count.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify checkout state
         shell: bash
         run: |
           set -euo pipefail
-          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
-            tag_name="${GITHUB_REF#refs/tags/}"
-          else
-            tag_name="${{ inputs.tag_name }}"
-          fi
-
-          # 1. Validate format strictly as vX.Y.Z
-          if [[ ! "$tag_name" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Invalid release tag: $tag_name. Expected vX.Y.Z"
-            exit 1
-          fi
-
-          # 2. Reject preview tags
-          if [[ "$tag_name" == *-preview.* ]]; then
-            echo "Preview tags are not allowed in this stable release workflow: $tag_name"
-            exit 1
-          fi
-
-          # 3. Reject versions outside v1.x
-          if [[ "$tag_name" != v1.* ]]; then
-            echo "QuantumMPV currently uses the v1.x release line: $tag_name"
-            exit 1
-          fi
-
-          # 4. Verify tag exists remotely and resolve to SHA
-          git fetch origin --tags --quiet
-          tag_sha=$(git rev-parse "refs/tags/${tag_name}^{commit}" 2>/dev/null || echo "")
-          if [[ -z "$tag_sha" ]]; then
-            echo "Tag ${tag_name} does not exist on origin or is not a commit tag."
-            exit 1
-          fi
-
-          echo "VERSION_TAG=$tag_name" >> "$GITHUB_ENV"
-          echo "EXPECTED_VERSION_NAME=${tag_name#v}" >> "$GITHUB_ENV"
-          echo "TARGET_SHA=$tag_sha" >> "$GITHUB_OUTPUT"
-
-      - name: Verify checkout state
-        run: |
-          # Verify that the tag points to the expected commit
-          current_sha=$(git rev-parse HEAD)
-          if [[ "$current_sha" != "${{ steps.resolve-tag.outputs.TARGET_SHA }}" ]]; then
-            echo "Checkout SHA $current_sha does not match target SHA ${{ steps.resolve-tag.outputs.TARGET_SHA }}"
+          current_sha="$(git rev-parse HEAD)"
+          if [[ "$current_sha" != "$TARGET_SHA" ]]; then
+            echo "::error::Checkout SHA ${current_sha} does not match tag SHA ${TARGET_SHA}."
             exit 1
           fi
 
       - name: Fetch and verify pinned native artifacts
         run: python3 tools/verify_native_artifacts.py --download
+
+      # No Gradle cache: release builds must not restore state that another
+      # workflow wrote (cache poisoning). Releases are rare, so the extra
+      # download time is acceptable.
       - name: Set up JDK 17
         uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: temurin
           java-version: '17'
-          cache: gradle
+
       - name: Set up Android SDK
-        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
         with:
           accept-android-sdk-licenses: true
+
       - name: Install Android build toolchain
         shell: bash
         run: |
           set -euo pipefail
           yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager --install "platforms;android-37.0" "build-tools;37.0.0" "cmake;3.22.1" "ndk;27.3.13750724"
-          test -x "$ANDROID_HOME/build-tools/37.0.0/apksigner"
+          sdkmanager --install "platforms;android-37.0" "build-tools;${BUILD_TOOLS}" "cmake;3.22.1" "ndk;27.3.13750724"
+          test -x "$ANDROID_HOME/build-tools/${BUILD_TOOLS}/aapt"
           test -d "$ANDROID_HOME/platforms/android-37.0"
           test -d "$ANDROID_HOME/ndk/27.3.13750724"
 
-      - name: Verify checked-out source
-        shell: bash
-        run: |
-          set -euo pipefail
-          # 8. Read "versionName" from checked-out tag and verify it matches
-          build_version="$(sed -n 's/^[[:space:]]*versionName = "\([^"]*\)".*/\1/p' app/build.gradle.kts | head -n 1)"
-          if [[ "$build_version" != "$EXPECTED_VERSION_NAME" ]]; then
-            echo "Checked-out versionName $build_version does not match expected $EXPECTED_VERSION_NAME"
-            exit 1
-          fi
-          echo "Verified checked-out source matches $VERSION_TAG"
-
       - name: Make Gradle wrapper executable
         run: chmod +x ./gradlew
-      - name: Validate Gradle wrapper
-        uses: gradle/actions/wrapper-validation@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6
 
-      - name: Build selected release APKs
+      - name: Validate Gradle wrapper
+        uses: gradle/actions/wrapper-validation@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+
+      - name: Build release APKs
         shell: bash
         run: |
           set -euo pipefail
@@ -139,7 +213,122 @@ jobs:
           ./gradlew assembleFongmiRelease --stacktrace --no-daemon --max-workers=1
           ./gradlew assembleNoVulkanRelease --stacktrace --no-daemon --max-workers=1
 
-      - name: Sign and verify release APKs
+      - name: Stage and validate unsigned APKs
+        shell: bash
+        run: |
+          set -euo pipefail
+          aapt="$ANDROID_HOME/build-tools/${BUILD_TOOLS}/aapt"
+          release_code="$(sed -n 's/^val releaseVersionCode = \([0-9]*\)$/\1/p' app/build.gradle.kts)"
+          [[ "$release_code" =~ ^[0-9]+$ ]] || { echo "::error::Could not read releaseVersionCode"; exit 1; }
+          stable_code=$(( release_code * 10000 + 9999 ))
+          mkdir -p unsigned
+
+          stage() {
+            local source="$1" public_name="$2" abi_code="$3"
+            if [[ ! -f "$source" ]]; then
+              echo "::error::Missing expected APK ${source}"
+              find app/build/outputs/apk -type f -name '*.apk' -print || true
+              exit 1
+            fi
+            local badging package_line version_code version_name
+            badging="$("$aapt" dump badging "$source")"
+            package_line="$(sed -n '1p' <<< "$badging")"
+            grep -q "package: name='com.quantummpv.app'" <<< "$package_line" || {
+              echo "::error::Unexpected application ID in ${source}: ${package_line}"; exit 1; }
+            version_code="$(sed -n "s/.*versionCode='\([^']*\)'.*/\1/p" <<< "$package_line")"
+            version_name="$(sed -n "s/.*versionName='\([^']*\)'.*/\1/p" <<< "$package_line")"
+            [[ "$version_name" == "$EXPECTED_VERSION_NAME" ]] || {
+              echo "::error::${source} has versionName ${version_name}, expected ${EXPECTED_VERSION_NAME}"; exit 1; }
+            [[ "$version_code" == "$(( stable_code * 10 + abi_code ))" ]] || {
+              echo "::error::${source} has versionCode ${version_code}, expected $(( stable_code * 10 + abi_code ))"; exit 1; }
+            if grep -q '^application-debuggable' <<< "$badging"; then
+              echo "::error::${source} is debuggable; refusing to release it."
+              exit 1
+            fi
+            cp "$source" "unsigned/QuantumMPV-${public_name}-${VERSION_TAG}.apk"
+            echo "OK ${public_name}: versionCode ${version_code}, versionName ${version_name}, not debuggable"
+          }
+
+          release_dir="app/build/outputs/apk/standard/release"
+          stage "$release_dir/app-standard-universal-release-unsigned.apk" universal 0
+          stage "$release_dir/app-standard-armeabi-v7a-release-unsigned.apk" armeabi-v7a 1
+          stage "$release_dir/app-standard-arm64-v8a-release-unsigned.apk" arm64-v8a 2
+          stage "$release_dir/app-standard-x86-release-unsigned.apk" x86 3
+          stage "$release_dir/app-standard-x86_64-release-unsigned.apk" x86_64 4
+          stage "app/build/outputs/apk/fongmi/release/app-fongmi-universal-release-unsigned.apk" fongmi 0
+          stage "app/build/outputs/apk/noVulkan/release/app-noVulkan-universal-release-unsigned.apk" no-vulkan 0
+
+          count="$(find unsigned -maxdepth 1 -name '*.apk' | wc -l)"
+          [[ "$count" -eq "$EXPECTED_APK_COUNT" ]] || { echo "::error::Staged ${count} APKs, expected ${EXPECTED_APK_COUNT}"; exit 1; }
+
+      - name: Verify native contents of release APKs
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' apk; do
+            python3 tools/verify_native_artifacts.py --apk "$apk"
+          done < <(find unsigned -type f -name '*.apk' -print0)
+
+      - name: Upload unsigned APKs for signing
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: unsigned-release-apks
+          path: unsigned/*.apk
+          if-no-files-found: error
+          # Short-lived, but long enough to re-run a failed later job.
+          retention-days: 5
+          compression-level: 0
+
+  sign:
+    name: Sign release APKs
+    needs: [resolve, build, instrumented]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    # Holds the production signing secrets. Configure required reviewers and a
+    # deployment policy allowing only tags v1.*.* (docs/RELEASE.md).
+    environment: production
+    permissions: {}
+    env:
+      VERSION_TAG: ${{ needs.resolve.outputs.tag }}
+      EXPECTED_VERSION_NAME: ${{ needs.resolve.outputs.version }}
+      # Public SHA-256 fingerprint of the release signing certificate. Not a
+      # secret. Required: every signed APK must match it.
+      EXPECTED_CERT_SHA256: ${{ vars.RELEASE_SIGNING_CERT_SHA256 }}
+    steps:
+      # Runs first, so nothing is signed or published without a pinned key.
+      - name: Require the expected signing certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="$(tr -d ':[:space:]' <<< "$EXPECTED_CERT_SHA256" | tr '[:upper:]' '[:lower:]')"
+          if [[ -z "$expected" ]]; then
+            echo "::error::Variable RELEASE_SIGNING_CERT_SHA256 is not set. Set it to the SHA-256 digest of the release signing certificate (docs/RELEASE.md). Nothing was signed or published."
+            exit 1
+          fi
+          if [[ ! "$expected" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "::error::RELEASE_SIGNING_CERT_SHA256 must be a SHA-256 digest (64 hex digits, colons optional). Nothing was signed or published."
+            exit 1
+          fi
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
+        with:
+          accept-android-sdk-licenses: true
+
+      - name: Install apksigner
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager --install "build-tools;${BUILD_TOOLS}"
+          test -x "$ANDROID_HOME/build-tools/${BUILD_TOOLS}/apksigner"
+
+      - name: Download unsigned APKs
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: unsigned-release-apks
+          path: unsigned
+
+      - name: Sign and verify APKs
         shell: bash
         env:
           SIGNING_KEYSTORE: ${{ secrets.SIGNING_KEYSTORE }}
@@ -148,122 +337,150 @@ jobs:
           KEY_PASS: ${{ secrets.KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          apksigner="$ANDROID_HOME/build-tools/37.0.0/apksigner"
-          aapt="$ANDROID_HOME/build-tools/37.0.0/aapt"
-
+          tools="$ANDROID_HOME/build-tools/${BUILD_TOOLS}"
           if [[ -z "$SIGNING_KEYSTORE" || -z "$SIGNING_KEY_ALIAS" || -z "$KS_PASS" || -z "$KEY_PASS" ]]; then
-            echo "Stable releases require all signing secrets."
+            echo "::error::Stable releases require SIGNING_KEYSTORE, SIGNING_KEY_ALIAS, SIGNING_STORE_PASSWORD and KEY_PASSWORD. Nothing was published."
             exit 1
           fi
-          test -x "$apksigner"
-          test -x "$aapt"
 
           umask 077
-          keystore="$(mktemp "${RUNNER_TEMP:-/tmp}/quantummpv-keystore.XXXXXX")"
+          keystore="$(mktemp "${RUNNER_TEMP}/quantummpv-keystore.XXXXXX")"
           trap 'rm -f "$keystore"' EXIT
           printf '%s' "$SIGNING_KEYSTORE" | base64 --decode > "$keystore"
 
-          sign_apk() {
-            local unsigned="$1"
-            local signed="$2"
-            local label="$3"
-            if [[ ! -f "$unsigned" ]]; then
-              echo "Missing expected $label APK: $unsigned"
-              find app/build/outputs/apk -type f -name '*.apk' -print || true
-              exit 1
-            fi
+          # apksigner prints lowercase hex without separators; keytool and the
+          # Play Console show uppercase, colon-separated hex. Normalize both
+          # sides so the comparison does not depend on either format.
+          normalize_fingerprint() { tr -d ':[:space:]' | tr '[:upper:]' '[:lower:]'; }
 
-            "$apksigner" sign \
+          mkdir -p signed
+          fingerprints=""
+          for unsigned in unsigned/*.apk; do
+            name="$(basename "$unsigned")"
+            "$tools/apksigner" sign \
               --ks "$keystore" \
               --ks-key-alias "$SIGNING_KEY_ALIAS" \
               --ks-pass env:KS_PASS \
               --key-pass env:KEY_PASS \
-              --out "$signed" \
+              --out "signed/$name" \
               "$unsigned"
-            "$apksigner" verify --verbose "$signed"
-            package_line=$("$aapt" dump badging "$signed" | sed -n '1p')
-            grep -q "package: name='com.quantummpv.app'" <<< "$package_line" || {
-              echo "Unexpected application ID in $label: $package_line"
-              exit 1
-            }
-            version_code=$(sed -n "s/.*versionCode='\([^']*\)'.*/\1/p" <<< "$package_line")
-            [[ "$version_code" =~ ^[0-9]+$ ]] || {
-              echo "Missing or invalid versionCode in $label: $package_line"
-              exit 1
-            }
-            version_name=$(sed -n "s/.*versionName='\([^']*\)'.*/\1/p" <<< "$package_line")
-            [[ "$version_name" == "$EXPECTED_VERSION_NAME" ]] || {
-              echo "Unexpected versionName in $label: expected $EXPECTED_VERSION_NAME, got $version_name"
-              exit 1
-            }
-            rm -f "$unsigned"
-          }
-
-          release_dir="app/build/outputs/apk/standard/release"
-          test -d "$release_dir"
-          architectures=(universal arm64-v8a armeabi-v7a x86 x86_64)
-          for abi in "${architectures[@]}"; do
-            sign_apk \
-              "$release_dir/app-standard-${abi}-release-unsigned.apk" \
-              "$release_dir/app-standard-${abi}-release.apk" \
-              "standard $abi release"
+            "$tools/apksigner" verify --verbose "signed/$name" >/dev/null
+            cert="$("$tools/apksigner" verify --print-certs "signed/$name" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | normalize_fingerprint)"
+            [[ "$cert" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::Could not read the SHA-256 signing certificate digest of $name"; exit 1; }
+            fingerprints="$fingerprints $cert"
+            package_line="$("$tools/aapt" dump badging "signed/$name" | sed -n '1p')"
+            grep -q "package: name='com.quantummpv.app'" <<< "$package_line" || { echo "::error::Unexpected package in $name"; exit 1; }
+            grep -q "versionName='${EXPECTED_VERSION_NAME}'" <<< "$package_line" || { echo "::error::Unexpected versionName in $name"; exit 1; }
+            echo "Signed and verified $name"
           done
 
-          flavor_dir="app/build/outputs/apk/fongmi/release"
-          test -d "$flavor_dir"
-          sign_apk \
-            "$flavor_dir/app-fongmi-universal-release-unsigned.apk" \
-            "$flavor_dir/app-fongmi-universal-release.apk" \
-            "fongmi universal release"
+          unique="$(tr ' ' '\n' <<< "$fingerprints" | sed '/^$/d' | sort -u)"
+          if [[ "$(wc -l <<< "$unique")" -ne 1 ]]; then
+            echo "::error::APKs were signed with different certificates."
+            exit 1
+          fi
+          # Presence and format were checked in the first step of this job.
+          expected="$(normalize_fingerprint <<< "$EXPECTED_CERT_SHA256")"
+          if [[ "$unique" != "$expected" ]]; then
+            echo "::error::Signing certificate ${unique} does not match RELEASE_SIGNING_CERT_SHA256. Existing users could not update; nothing was published."
+            exit 1
+          fi
+          echo "Signing certificate matches RELEASE_SIGNING_CERT_SHA256."
 
-          flavor_dir="app/build/outputs/apk/noVulkan/release"
-          test -d "$flavor_dir"
-          sign_apk \
-            "$flavor_dir/app-noVulkan-universal-release-unsigned.apk" \
-            "$flavor_dir/app-noVulkan-universal-release.apk" \
-            "non-Vulkan universal release"
+          count="$(find signed -maxdepth 1 -name '*.apk' | wc -l)"
+          [[ "$count" -eq "$EXPECTED_APK_COUNT" ]] || { echo "::error::Signed ${count} APKs, expected ${EXPECTED_APK_COUNT}"; exit 1; }
 
-      - name: Verify final APK native contents
+      - name: Upload signed APKs
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: signed-release-apks
+          path: signed/*.apk
+          if-no-files-found: error
+          retention-days: 5
+          compression-level: 0
+
+  publish:
+    name: Publish GitHub release
+    needs: [resolve, sign]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    env:
+      VERSION_TAG: ${{ needs.resolve.outputs.tag }}
+    steps:
+      - name: Checkout tagged source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Verify checkout state
+        shell: bash
+        env:
+          TARGET_SHA: ${{ needs.resolve.outputs.sha }}
+        run: |
+          set -euo pipefail
+          if [[ "$(git rev-parse HEAD)" != "$TARGET_SHA" ]]; then
+            echo "::error::Checkout does not match tag SHA ${TARGET_SHA}."
+            exit 1
+          fi
+
+      - name: Download signed APKs
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: signed-release-apks
+          path: release-assets
+
+      # Re-checks the APKs after the artifact round trip and signing. The pinned
+      # AARs are needed as the reference, so they are fetched (and their
+      # checksums verified) first.
+      - name: Verify native contents of signed APKs
         shell: bash
         run: |
           set -euo pipefail
+          python3 tools/verify_native_artifacts.py --download
+          count=0
           while IFS= read -r -d '' apk; do
             python3 tools/verify_native_artifacts.py --apk "$apk"
-          done < <(find app/build/outputs/apk -type f -name '*.apk' ! -name '*unsigned.apk' -print0)
-      - name: Stage release assets and checksums
+            count=$((count + 1))
+          done < <(find release-assets -type f -name '*.apk' -print0)
+          [[ "$count" -eq "$EXPECTED_APK_COUNT" ]] || { echo "::error::Found ${count} signed APKs, expected ${EXPECTED_APK_COUNT}"; exit 1; }
+
+      - name: Generate checksums
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p release-assets
-          : > checksums.txt
+          (cd release-assets && sha256sum -- *.apk) > checksums.txt
+          cp checksums.txt "release-assets/QuantumMPV-${VERSION_TAG}-SHA256SUMS.txt"
+          cat checksums.txt
 
-          release_dir="app/build/outputs/apk/standard/release"
-          architectures=(universal arm64-v8a armeabi-v7a x86 x86_64)
-          for abi in "${architectures[@]}"; do
-            src="$release_dir/app-standard-${abi}-release.apk"
-            dst="release-assets/QuantumMPV-${abi}-${VERSION_TAG}.apk"
-            test -f "$src"
-            cp "$src" "$dst"
-            sha256sum "$dst" | tee -a checksums.txt
-          done
+      # The dependency graph SBOM is generated by GitHub from the submitted
+      # Gradle graph of the default branch (dependency-submission.yml). Release
+      # tags are cut from master, so it describes the released dependencies as
+      # of publication time.
+      - name: Export SBOM from the dependency graph
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api "repos/${GITHUB_REPOSITORY}/dependency-graph/sbom" --jq '.sbom' \
+            > "release-assets/QuantumMPV-${VERSION_TAG}-sbom.spdx.json"
+          python3 -m json.tool "release-assets/QuantumMPV-${VERSION_TAG}-sbom.spdx.json" >/dev/null
 
-          src="app/build/outputs/apk/fongmi/release/app-fongmi-universal-release.apk"
-          dst="release-assets/QuantumMPV-fongmi-${VERSION_TAG}.apk"
-          test -f "$src"
-          cp "$src" "$dst"
-          sha256sum "$dst" | tee -a checksums.txt
-
-          src="app/build/outputs/apk/noVulkan/release/app-noVulkan-universal-release.apk"
-          dst="release-assets/QuantumMPV-no-vulkan-${VERSION_TAG}.apk"
-          test -f "$src"
-          cp "$src" "$dst"
-          sha256sum "$dst" | tee -a checksums.txt
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: release-assets/*.apk
 
       - name: Prepare release notes
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
+          import os
           from pathlib import Path
 
           changelog = Path('CHANGELOG.md').read_text(encoding='utf-8').splitlines()
@@ -278,20 +495,9 @@ jobs:
                   section.append(line)
 
           latest = '\n'.join(section).strip()
-          if not latest:
-              raise SystemExit('Could not find latest changelog section')
-          expected_heading = f"## {__import__('os').environ['VERSION_TAG'][1:]}"
-          first_heading = next((line for line in section if line.startswith('## ')), '')
-          accepted_headings = {expected_heading}
-          if expected_heading.startswith('## 1.0.0-preview.'):
-              accepted_headings.add('## Initial release 1.0.0')
-          if expected_heading == '## 1.0.0':
-              accepted_headings.add('## Initial release 1.0.0')
-          if first_heading not in accepted_headings:
-              raise SystemExit(
-                  f'Latest CHANGELOG.md section must start with one of {sorted(accepted_headings)!r}; '
-                  f'found {first_heading!r}'
-              )
+          expected_heading = f"## {os.environ['VERSION_TAG'][1:]}"
+          if not latest or section[0] != expected_heading:
+              raise SystemExit(f'Latest CHANGELOG.md section must start with {expected_heading!r}')
           variant_guide = """
           ### APK variants
 
@@ -300,6 +506,10 @@ jobs:
           - **Standard** (`QuantumMPV-<architecture>-<version>.apk`): Recommended for most devices. Available as Universal and architecture-specific APKs with the standard Vulkan-capable playback backend.
           - **FongMi** (`QuantumMPV-fongmi-<version>.apk`): Universal package using the FongMi native profile for Vulkan, direct MediaCodec, and Dolby Vision playback.
           - **Non-Vulkan** (`QuantumMPV-no-vulkan-<version>.apk`): Universal OpenGL-only package for devices without compatible Vulkan support or with unstable legacy GPU drivers.
+
+          ### Verifying downloads
+
+          Each APK has a build provenance attestation. Verify with `gh attestation verify <apk> --repo Fahimofficial/QuantumMPV`, and compare the SHA-256 below. The SPDX SBOM is attached as `QuantumMPV-<version>-sbom.spdx.json`.
           """.strip()
           Path('release-notes.md').write_text(
               latest + '\n\n---\n' + variant_guide + '\n\n### SHA-256 checksums\n\n```text\n',
@@ -317,8 +527,11 @@ jobs:
           body_path: release-notes.md
           generate_release_notes: true
           draft: false
-          prerelease: ${{ contains(env.VERSION_TAG, '-preview.') }}
+          prerelease: false
           fail_on_unmatched_files: true
-          files: release-assets/*.apk
+          files: |
+            release-assets/*.apk
+            release-assets/*-SHA256SUMS.txt
+            release-assets/*-sbom.spdx.json
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
