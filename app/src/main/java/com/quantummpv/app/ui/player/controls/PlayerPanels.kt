@@ -11,6 +11,8 @@ package com.quantummpv.app.ui.player.controls
 
 import androidx.activity.compose.LocalActivity
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -22,11 +24,14 @@ import androidx.compose.material3.CardColors
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.preferences.MpvConfigControlledFeatures
+import com.quantummpv.app.preferences.PlayerPreferences
+import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.ui.player.Panels
 import com.quantummpv.app.ui.player.PlayerActivity
 import com.quantummpv.app.ui.player.PlayerViewModel
@@ -38,8 +43,10 @@ import com.quantummpv.app.ui.player.controls.components.panels.LuaScriptsPanel
 import com.quantummpv.app.ui.player.controls.components.panels.SubtitleDelayPanel
 import com.quantummpv.app.ui.player.controls.components.panels.SubtitleSettingsPanel
 import com.quantummpv.app.ui.player.controls.components.panels.VideoSettingsPanel
+import com.quantummpv.app.ui.theme.AppMotion
 import com.quantummpv.app.ui.utils.isAnyMpvOptionOwnedByConfig
 import com.quantummpv.app.ui.utils.isMpvOptionOwnedByConfig
+import org.koin.compose.koinInject
 
 @Composable
 fun PlayerPanels(
@@ -48,13 +55,27 @@ fun PlayerPanels(
   onDismissRequest: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
+  val disableMotion = AppMotion.shouldDisableAnimations()
+  // The player's own Reduce motion setting is not part of the app motion policy; honour either.
+  val playerReduceMotion by koinInject<PlayerPreferences>().reduceMotion.collectAsState()
+  val reduceMotion = AppMotion.shouldReduceMotion() || playerReduceMotion
   AnimatedContent(
     targetState = panelShown,
     label = "panels",
     contentAlignment = Alignment.CenterEnd,
     contentKey = { it.name },
     transitionSpec = {
-      fadeIn() + slideInHorizontally { it / 3 } togetherWith fadeOut() + slideOutHorizontally { it / 2 }
+      when {
+        disableMotion -> EnterTransition.None togetherWith ExitTransition.None
+        // Reduced motion keeps the hand-off legible without lateral travel.
+        reduceMotion ->
+          fadeIn(AppMotion.ReducedAlpha) togetherWith fadeOut(AppMotion.ReducedAlpha)
+        // Panels arrive from and leave toward the same edge over the same distance, on critically
+        // damped springs, so a panel dismissed mid-entry reverses along its own path.
+        else ->
+          (fadeIn(AppMotion.Effect.Alpha) + slideInHorizontally(AppMotion.Spatial.StandardOffset) { it / 4 }) togetherWith
+            (fadeOut(AppMotion.Effect.Alpha) + slideOutHorizontally(AppMotion.Spatial.StandardOffset) { it / 4 })
+      }
     },
     modifier = modifier,
   ) { currentPanel ->

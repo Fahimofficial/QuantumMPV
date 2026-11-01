@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.ui.theme.AppMotion
 import com.quantummpv.app.ui.theme.ElevationTokens
 
 private val dpExpressiveSpring = spring<Dp>(dampingRatio = 0.9f, stiffness = 700f)
@@ -132,7 +133,7 @@ fun ExpressiveSwitch(
         isInitialState = false
       } else {
         toggleBlur.snapTo(6f)
-        toggleBlur.animateTo(0f, animationSpec = tween(durationMillis = 320))
+        toggleBlur.animateTo(0f, animationSpec = tween(durationMillis = AppMotion.Duration.MEDIUM2))
       }
     }
 

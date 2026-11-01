@@ -206,17 +206,17 @@ fun SeekbarWavyVisualizerOverlay(
 
   val amp1 by animateFloatAsState(
     targetValue = if (!wavesActive) 0f else baseAmp1Px,
-    animationSpec = tween(durationMillis = 280),
+    animationSpec = tween(durationMillis = AppMotion.Duration.MEDIUM2),
     label = "WavyOverlay_Amp1",
   )
   val amp2 by animateFloatAsState(
     targetValue = if (!wavesActive) 0f else baseAmp2Px,
-    animationSpec = tween(durationMillis = 280),
+    animationSpec = tween(durationMillis = AppMotion.Duration.MEDIUM2),
     label = "WavyOverlay_Amp2",
   )
   val amp3 by animateFloatAsState(
     targetValue = if (!wavesActive) 0f else baseAmp3Px,
-    animationSpec = tween(durationMillis = 280),
+    animationSpec = tween(durationMillis = AppMotion.Duration.MEDIUM2),
     label = "WavyOverlay_Amp3",
   )
 

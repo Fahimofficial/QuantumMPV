@@ -71,6 +71,7 @@ import com.quantummpv.app.ui.player.controls.components.LocalHidePlayerButtonsBa
 import com.quantummpv.app.ui.player.controls.components.panels.DraggablePanel
 import com.quantummpv.app.ui.player.controls.components.tvFocusGroup
 import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
+import com.quantummpv.app.ui.theme.AppMotion
 import com.quantummpv.app.ui.theme.controlColor
 import com.quantummpv.app.ui.theme.spacing
 
@@ -98,11 +99,11 @@ internal fun PlayerControlDrawer(
       visible = controlsVisible && buttons.isNotEmpty() && !panelVisible,
       modifier = Modifier.align(Alignment.CenterEnd),
       enter =
-        fadeIn(animationSpec = tween(160)) +
-          slideInHorizontally(animationSpec = tween(180)) { it / 2 },
+        fadeIn(animationSpec = tween(AppMotion.Duration.SHORT3)) +
+          slideInHorizontally(animationSpec = tween(AppMotion.Duration.SHORT4)) { it / 2 },
       exit =
-        fadeOut(animationSpec = tween(140)) +
-          slideOutHorizontally(animationSpec = tween(160)) { it / 2 },
+        fadeOut(animationSpec = tween(AppMotion.Duration.SHORT3)) +
+          slideOutHorizontally(animationSpec = tween(AppMotion.Duration.SHORT3)) { it / 2 },
     ) {
       PlayerControlEdgeHandle(
         enabled = controlsVisible,
@@ -114,13 +115,13 @@ internal fun PlayerControlDrawer(
       visible = panelVisible,
       modifier = Modifier.fillMaxSize(),
       enter =
-        fadeIn(animationSpec = tween(180)) +
+        fadeIn(animationSpec = tween(AppMotion.Duration.SHORT4)) +
           slideInHorizontally(
             animationSpec = spring(dampingRatio = 0.88f, stiffness = 520f),
           ) { it / 3 },
       exit =
-        fadeOut(animationSpec = tween(140)) +
-          slideOutHorizontally(animationSpec = tween(180)) { it / 3 },
+        fadeOut(animationSpec = tween(AppMotion.Duration.SHORT3)) +
+          slideOutHorizontally(animationSpec = tween(AppMotion.Duration.SHORT4)) { it / 3 },
     ) {
       PlayerControlPanel(
         buttons = buttons,
@@ -352,7 +353,7 @@ private fun PlayerControlTile(
         } else {
           MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.78f)
         },
-      animationSpec = tween(durationMillis = 180),
+      animationSpec = tween(durationMillis = AppMotion.Duration.SHORT4),
       label = "PlayerControlTileContainer",
     )
   val contentColor by
@@ -363,7 +364,7 @@ private fun PlayerControlTile(
         } else {
           MaterialTheme.colorScheme.onSurfaceVariant
         },
-      animationSpec = tween(durationMillis = 180),
+      animationSpec = tween(durationMillis = AppMotion.Duration.SHORT4),
       label = "PlayerControlTileContent",
     )
 

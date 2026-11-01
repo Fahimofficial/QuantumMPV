@@ -65,6 +65,7 @@ import com.quantummpv.app.ui.components.themedSegmentedButtonColors
 import com.quantummpv.app.ui.icons.AppIcon
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.ui.theme.AppMotion
 import com.quantummpv.app.ui.theme.AppShapeScale
 import kotlin.math.roundToInt
 
@@ -232,7 +233,7 @@ fun SortDialog(
               modifier =
                 Modifier
                   .fillMaxWidth()
-                  .animateContentSize(animationSpec = tween(durationMillis = 250)),
+                  .animateContentSize(animationSpec = tween(durationMillis = AppMotion.Duration.MEDIUM1)),
             ) {
               Row(
                 modifier =

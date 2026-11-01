@@ -946,6 +946,10 @@ fun GestureHandler(
                                 ).coerceIn(100..volumeBoostingCap + 100)
 
                               if (newMPVVolume != lastMPVVolumeValue) {
+                                // One tick on arriving at the boost cap: the drag keeps going but the value can't.
+                                if (newMPVVolume == volumeBoostingCap + 100) {
+                                  haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                                }
                                 viewModel.changeMPVVolumeTo(newMPVVolume)
                                 lastMPVVolumeValue = newMPVVolume
                               }
@@ -964,6 +968,10 @@ fun GestureHandler(
                                 ).coerceIn(0, 100)
 
                               if (newVolumePercent != lastVolumePercentValue) {
+                                // One tick on arriving at mute or full volume, the limits a finger can't see.
+                                if (newVolumePercent == 0 || newVolumePercent == 100) {
+                                  haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                                }
                                 viewModel.changeVolumePercentTo(newVolumePercent)
                                 lastVolumePercentValue = newVolumePercent
                               }
@@ -1291,6 +1299,9 @@ fun GestureHandler(
             var hasStartedSeeking = false
             var initialVideoPosition = 0f
             var pendingSeekPosition: Float? = null
+            // Finger travel already spent crossing the activation slop. Measuring the seek from here
+            // keeps the preview at +0:00 when seeking engages instead of jumping by the slop distance.
+            var seekActivationDeltaX = 0f
             // Stored as seconds per reference pixel; scaled so a drag covers the same media time everywhere.
             val seekSensitivity = TapClassifier.seekSecondsPerPixel(horizontalSwipeSensitivity, density.density)
             val startsInEdgeDeadZone =
@@ -1366,6 +1377,7 @@ fun GestureHandler(
                         hasStartedSeeking = true
                         initialVideoPosition = position?.toFloat() ?: 0f
                         pendingSeekPosition = initialVideoPosition
+                        seekActivationDeltaX = deltaX
 
                         // Show seekbar and start seeking mode (same as seekbar scrubbing)
                         viewModel.showSeekBar()
@@ -1375,7 +1387,7 @@ fun GestureHandler(
 
                     if (gestureType == "horizontal_seek" && hasStartedSeeking) {
                       // Calculate seek amount based on horizontal movement
-                      val seekAmount = deltaX * seekSensitivity
+                      val seekAmount = (deltaX - seekActivationDeltaX) * seekSensitivity
                       val targetPosition = (initialVideoPosition + seekAmount).coerceAtLeast(0f)
                       val maxDuration = duration?.toFloat() ?: 0f
                       val clampedPosition = targetPosition.coerceAtMost(maxDuration)

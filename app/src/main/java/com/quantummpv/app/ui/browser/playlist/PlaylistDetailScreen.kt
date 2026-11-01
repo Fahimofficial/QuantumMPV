@@ -33,7 +33,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
@@ -59,6 +58,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -206,17 +206,45 @@ data class PlaylistDetailScreen(
       }
     }
 
+    val snackbarHostState = remember { androidx.compose.material3.SnackbarHostState() }
+    val resources = androidx.compose.ui.platform.LocalResources.current
+
     // Selection manager - use playlist item ID as unique key, work with filtered items
     val selectionManager =
       rememberSelectionManager(
         items = filteredVideoItems,
         getId = { it.playlistItem.id },
         onDeleteItems = { itemsToDelete, _ ->
-          val videosToRemove = itemsToDelete.map { it.video }
-          viewModel.removeVideosFromPlaylist(videosToRemove)
-          Pair(itemsToDelete.size, 0)
+          val removed = viewModel.removePlaylistItems(itemsToDelete.map { it.playlistItem.id })
+          val removedItems = removed.rows
+          if (removedItems.isNotEmpty()) {
+            // Removing from a playlist never touches the files, so offer Undo instead of a toast.
+            coroutineScope.launch {
+              snackbarHostState.currentSnackbarData?.dismiss()
+              val result =
+                snackbarHostState.showSnackbar(
+                  message =
+                    resources.getQuantityString(
+                      com.quantummpv.app.R.plurals.playlist_items_removed,
+                      removedItems.size,
+                      removedItems.size,
+                    ),
+                  actionLabel = resources.getString(com.quantummpv.app.R.string.generic_undo),
+                  withDismissAction = true,
+                  duration = androidx.compose.material3.SnackbarDuration.Long,
+                )
+              if (result == androidx.compose.material3.SnackbarResult.ActionPerformed) {
+                viewModel.restorePlaylistItems(removed)
+              }
+            }
+          }
+          // Anything not removed is reported by SelectionManager's failure toast.
+          Pair(removedItems.size, itemsToDelete.size - removedItems.size)
         },
-        onOperationComplete = { viewModel.refresh() },
+        // The observed item flow already republishes the list; an extra refresh could finish after
+        // Undo and overwrite the restored rows with a stale read.
+        onOperationComplete = { },
+        announceDeleteSuccess = false,
       )
 
     // UI State
@@ -272,6 +300,7 @@ data class PlaylistDetailScreen(
     }
 
     Scaffold(
+      snackbarHost = { androidx.compose.material3.SnackbarHost(snackbarHostState) },
       topBar = {
         if (isSearching) {
           // Search mode - show search bar
@@ -727,15 +756,12 @@ private fun PlaylistVideoListContent(
 
   when {
     isLoading -> {
-      Box(
-        modifier = modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center,
-      ) {
-        CircularProgressIndicator(
-          modifier = Modifier.size(48.dp),
-          color = MaterialTheme.colorScheme.primary,
-        )
-      }
+      com.quantummpv.app.ui.browser.states.LoadingState(
+        icon = Icons.RoundedFilled.PlaylistPlay,
+        title = androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.loading_state_playlist_title),
+        message = null,
+        modifier = modifier,
+      )
     }
 
     videoItems.isEmpty() -> {
@@ -788,10 +814,14 @@ private fun PlaylistVideoListContent(
         label = "scrollbarAlpha",
       )
 
-      // Reorderable state
+      // Reorderable state. Haptics follow the drag: a pickup on grab, a tick per slot crossed,
+      // and a confirm on drop only when the order actually changed.
+      val reorderFeedback = com.quantummpv.app.ui.utils.rememberReorderFeedback()
+      val reduceMotion = com.quantummpv.app.ui.theme.AppMotion.shouldReduceMotion()
       val reorderableLazyListState =
         rememberReorderableLazyListState(listState) { from, to ->
           if (isReorderMode) {
+            reorderFeedback.move(from.index, to.index)
             onReorder(from.index, to.index)
           }
         }
@@ -806,8 +836,18 @@ private fun PlaylistVideoListContent(
             count = videoItems.size,
             key = { index -> videoItems[index].playlistItem.id },
           ) { index ->
-            ReorderableItem(reorderableLazyListState, key = videoItems[index].playlistItem.id) {
+            ReorderableItem(reorderableLazyListState, key = videoItems[index].playlistItem.id) { isDragging ->
               val item = videoItems[index]
+              // The held row lifts slightly so it reads as picked up, above the rows moving under it.
+              val liftScale by androidx.compose.animation.core.animateFloatAsState(
+                targetValue = if (isDragging && !reduceMotion) 1.02f else 1f,
+                animationSpec =
+                  com.quantummpv.app.ui.theme.AppMotion.spatial(
+                    com.quantummpv.app.ui.theme.AppMotion.Spatial.Snappy,
+                    com.quantummpv.app.ui.theme.AppMotion.ReducedAlpha,
+                  ),
+                label = "playlist_reorder_lift",
+              )
 
               val progressPercentage =
                 if (item.playlistItem.lastPosition > 0 && item.video.duration > 0) {
@@ -817,7 +857,13 @@ private fun PlaylistVideoListContent(
                 }
 
               Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier =
+                  Modifier
+                    .fillMaxWidth()
+                    .graphicsLayer {
+                      scaleX = liftScale
+                      scaleY = liftScale
+                    },
                 verticalAlignment = Alignment.CenterVertically,
               ) {
                 if (isM3uPlaylist) {
@@ -866,7 +912,12 @@ private fun PlaylistVideoListContent(
                     modifier =
                       Modifier
                         .size(48.dp)
-                        .draggableHandle(),
+                        .draggableHandle(
+                          interactionSource = reorderFeedback.interactions,
+                          onDragStarted = { reorderFeedback.start() },
+                          // finish() is idempotent, so this and the Stop interaction can't double-confirm.
+                          onDragStopped = { reorderFeedback.finish(cancelled = false) },
+                        ),
                   ) {
                     Icon(
                       imageVector = Icons.RoundedFilled.DragHandle,
@@ -1024,13 +1075,11 @@ private fun RemoveFromPlaylistDialog(
 ) {
   if (!isOpen) return
 
-  val itemText = if (itemCount == 1) "video" else "videos"
-
   androidx.compose.material3.AlertDialog(
     onDismissRequest = onDismiss,
     title = {
       Text(
-        text = "Remove $itemCount $itemText from playlist?",
+        text = pluralStringResource(com.quantummpv.app.R.plurals.playlist_remove_title, itemCount, itemCount),
         style = MaterialTheme.typography.headlineMedium,
         fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
       )
@@ -1049,7 +1098,7 @@ private fun RemoveFromPlaylistDialog(
           shape = MaterialTheme.shapes.extraLarge,
         ) {
           Text(
-            text = "The selected $itemText will be removed from this playlist. The original ${if (itemCount == 1) "file" else "files"} will not be deleted.",
+            text = pluralStringResource(com.quantummpv.app.R.plurals.playlist_remove_message, itemCount),
             style = MaterialTheme.typography.bodyLarge,
             fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
             color = MaterialTheme.colorScheme.onSecondaryContainer,

@@ -52,6 +52,15 @@ interface RecentlyPlayedRepository {
 
   suspend fun deleteByPlaylistId(playlistId: Int)
 
+  /** Every history row for these files or playlists, captured before a removal so it can be undone. */
+  suspend fun snapshotEntries(
+    filePaths: List<String>,
+    playlistIds: List<Int>,
+  ): List<RecentlyPlayedEntity>
+
+  /** Re-inserts rows from [snapshotEntries] unchanged (same ids and timestamps). */
+  suspend fun restoreEntries(entries: List<RecentlyPlayedEntity>)
+
   suspend fun updateFilePath(
     oldPath: String,
     newPath: String,
