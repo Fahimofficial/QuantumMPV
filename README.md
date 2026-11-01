@@ -496,11 +496,8 @@ Distributed under **GNU Affero General Public License v3.0 (AGPL-3.0-or-later)**
 </a>
 
 ---
-<div align="center">
-  <a href="https://ko-fi.com/simplyfahim">
-    <img src="https://img.shields.io/badge/Support_on-Ko--fi-FF5E5B?style=for-the-badge" alt="Support SimplyFahim on Ko-fi" />
-  </a>
-  <br>
-  <h2><code>SimplyFahim@sbi</code></h2>
-  <p><strong>UPI ID · Select and copy</strong></p>
-</div>
+[![Support SimplyFahim on Ko-fi](https://img.shields.io/badge/Support_on-Ko--fi-FF5E5B?style=for-the-badge)](https://ko-fi.com/simplyfahim)
+
+## `SimplyFahim@sbi`
+
+**UPI ID · Select and copy**
