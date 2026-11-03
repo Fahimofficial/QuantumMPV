@@ -65,3 +65,10 @@ test('blocked storage writes do not prevent a visible theme change', () => {
   assert.equal(page.root.dataset.theme, 'dark');
   assert.equal(page.elements.themeToggle['aria-label'], 'Switch to light theme');
 });
+
+test('theme toggle remains visible and interactive on touch-only devices', () => {
+  const touchRule = html.match(/@media\s*\(hover\s*:\s*none\)\s*\{\s*\.theme-float\s*\{([^}]*)\}\s*\}/);
+  assert.ok(touchRule, 'touch devices need an explicit theme-toggle rule');
+  assert.match(touchRule[1], /opacity\s*:\s*1/);
+  assert.match(touchRule[1], /pointer-events\s*:\s*auto/);
+});
