@@ -945,15 +945,25 @@ private fun ExpressivePillNavigationBar(
         (maxWidth - com.quantummpv.app.ui.browser.components.FloatingMenuButtonSize).coerceAtLeast(0.dp)
       // Keyed on the selection (not settledPage) so the strip starts moving with the tap instead of
       // after the pager settles.
-      LaunchedEffect(showLabels, tabViewportWidth, selectedTabIndex) {
+      LaunchedEffect(
+        showLabels,
+        tabViewportWidth,
+        selectedTabIndex,
+        followPager,
+        disableMotion,
+        visibleTabs,
+        density,
+      ) {
         val index = selectedTabIndex.coerceIn(visibleTabs.indices)
-        // Geometry as it will be once `index` is the expanded tab, independent of the tapped target.
-        val expandedOnly = { i: Int -> if (i == index) 1f else 0f }
-        val selectedCenter = offsetFor(index, expandedOnly) + widthFor(index, 1f) / 2
-        // maxValue moves while tab widths animate; restart the scroll only when that actually moves
-        // the clamped target, so a running animation is not cancelled and restarted every frame.
+        // Tab widths move during selection and pager animations. Observe their live fractions here
+        // so the centered scroll target follows the actual tab geometry, not a stale pre-animation
+        // center captured when this effect started.
         snapshotFlow {
-          with(density) { (selectedCenter - tabViewportWidth / 2).roundToPx().coerceIn(0, scrollState.maxValue) }
+          val fractionOf: (Int) -> Float = { tabIndex -> activeFraction(tabIndex).coerceIn(0f, 1f) }
+          val selectedCenter = offsetFor(index, fractionOf) + widthFor(index, fractionOf(index)) / 2
+          with(density) {
+            (selectedCenter - tabViewportWidth / 2).roundToPx().coerceIn(0, scrollState.maxValue)
+          }
         }.distinctUntilChanged()
           .collectLatest { target ->
             if (disableMotion) scrollState.scrollTo(target) else scrollState.animateScrollTo(target, scrollSpec)
