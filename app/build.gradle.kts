@@ -272,8 +272,8 @@ dependencies {
     add("implementation", "org.apache.httpcomponents:httpclient:4.5.14")
     add("implementation", "org.bitbucket.b_c:jose4j:0.9.6")
     add("implementation", "org.jdom:jdom2:2.0.6.1")
-    add("implementation", "ch.qos.logback:logback-core:1.5.34")
-    add("implementation", "ch.qos.logback:logback-classic:1.5.34")
+    add("implementation", "ch.qos.logback:logback-core:1.6.5")
+    add("implementation", "ch.qos.logback:logback-classic:1.6.5")
   }
 
   implementation(libs.androidx.activity.compose)
@@ -342,6 +342,7 @@ dependencies {
   implementation(libs.mediainfo.lib)
   implementation(libs.androidx.profileinstaller)
   implementation(libs.google.cast.framework)
+  implementation(libs.zxing.core)
 
   testImplementation(libs.kotlin.test)
   testImplementation(libs.junit)

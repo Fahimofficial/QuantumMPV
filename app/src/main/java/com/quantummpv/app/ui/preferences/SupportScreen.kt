@@ -168,7 +168,7 @@ object SupportScreen : Screen {
               IconButton(onClick = { backstack.popSafely() }) {
                 Icon(
                   imageVector = Icons.RoundedFilled.ArrowBack,
-                  contentDescription = null,
+                  contentDescription = stringResource(R.string.ui_go_back),
                   tint = MaterialTheme.colorScheme.secondary,
                 )
               }
