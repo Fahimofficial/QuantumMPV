@@ -13,6 +13,8 @@
 
 ### Fixes
 
+- **Website**: Keep floating controls visible when keyboard-focused and the theme switch available on touch screens. Theme switching and release information continue working when browser storage is blocked.
+
 - **Player**: The top and bottom shading behind the player controls now fades out with them instead of staying over the video.
 - **Haptic feedback setting**: Turning off Haptic feedback now silences every in-app haptic, including player gestures, tab taps and long-press.
 - **Reduced motion in the player**: Every controls animation style, the side panels, the buffering indicator and the video-open animation fall back to a simple fade.
