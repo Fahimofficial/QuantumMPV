@@ -13,6 +13,10 @@
 
 ### Fixes
 
+- **Accessibility**: Back arrows in Settings and other screens, the password visibility toggle, Navidrome favourite toggles, subtitle delete and the Secure Folder menu now have TalkBack labels.
+- **Text**: Music library menus and the create-playlist dialog are now translatable.
+- **Artwork**: Remote images are capped at 20 MB and an interrupted download can no longer leave a broken thumbnail cached.
+- **Music**: Opening the Music tab no longer rescans the whole library each time.
 - **Player**: The top and bottom shading behind the player controls now fades out with them instead of staying over the video.
 - **Haptic feedback setting**: Turning off Haptic feedback now silences every in-app haptic, including player gestures, tab taps and long-press.
 - **Reduced motion in the player**: Every controls animation style, the side panels, the buffering indicator and the video-open animation fall back to a simple fade.

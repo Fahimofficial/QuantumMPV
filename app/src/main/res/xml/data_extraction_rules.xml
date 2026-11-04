@@ -6,8 +6,8 @@
   decrypted and the app asks the user to sign in again.
 -->
 <data-extraction-rules>
-    <!-- Secure Folder media and its PIN state never leave the device: the media is encrypted with a
-         device-bound key that does not transfer, so a copy would be unreadable anyway. -->
+    <!-- Secure Folder media and its PIN state never leave the device. The media is stored unencrypted
+         in app-private storage, so excluding it here is what keeps it out of backups and transfers. -->
     <cloud-backup>
         <exclude domain="file" path="secure_media/" />
         <exclude domain="file" path="thumbnails/" />

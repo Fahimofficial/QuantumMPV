@@ -130,7 +130,7 @@ object MediaServersPreferencesScreen : Screen {
               IconButton(onClick = { backStack.popSafely() }) {
                 Icon(
                   Icons.RoundedFilled.ArrowBack,
-                  contentDescription = null,
+                  contentDescription = stringResource(R.string.back),
                   tint = MaterialTheme.colorScheme.secondary,
                 )
               }

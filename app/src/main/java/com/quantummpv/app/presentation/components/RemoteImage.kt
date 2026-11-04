@@ -40,6 +40,8 @@ import okhttp3.Request
 import org.koin.compose.koinInject
 import java.io.File
 import java.io.FileOutputStream
+import java.io.InputStream
+import java.io.OutputStream
 import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 
@@ -75,6 +77,7 @@ fun RemoteImage(
 
 internal object RemoteImageLoader {
   private const val MAX_IMAGE_DIMENSION = 1024
+  internal const val MAX_DOWNLOAD_BYTES = 20L * 1024L * 1024L
   private const val CACHE_DIRECTORY = "remote_images"
   private const val FAILURE_RETRY_MS = 30_000L
   private val loaderScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -177,9 +180,18 @@ internal object RemoteImageLoader {
 
     return runCatching {
       client.newCall(request).awaitResponse().use { response ->
-        if (!response.isSuccessful) return@use null
-        val bytes = response.body.bytes()
-        FileOutputStream(cacheFile).use { it.write(bytes) }
+        if (!response.isSuccessful || response.body.contentLength() > MAX_DOWNLOAD_BYTES) return@use null
+        // Write to a temp file and rename so an interrupted download never becomes a cached image.
+        val tempFile = File(cacheDirectory, "${cacheFile.name}.part")
+        val complete =
+          try {
+            response.body.byteStream().use { input ->
+              FileOutputStream(tempFile).use { output -> copyBounded(input, output) }
+            } && tempFile.renameTo(cacheFile)
+          } finally {
+            tempFile.delete()
+          }
+        if (!complete) return@use null
         decodeSampled(cacheFile)?.also { bitmap ->
           synchronized(memoryCache) { memoryCache.put(url, bitmap) }
         }
@@ -231,6 +243,23 @@ internal object RemoteImageLoader {
         inPreferredConfig = Bitmap.Config.RGB_565
       },
     )
+  }
+
+  /** Copies at most [MAX_DOWNLOAD_BYTES]; returns false when the source is larger. */
+  internal fun copyBounded(
+    input: InputStream,
+    output: OutputStream,
+    limit: Long = MAX_DOWNLOAD_BYTES,
+  ): Boolean {
+    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+    var total = 0L
+    while (true) {
+      val read = input.read(buffer)
+      if (read < 0) return true
+      total += read
+      if (total > limit) return false
+      output.write(buffer, 0, read)
+    }
   }
 
   private fun hash(value: String): String =

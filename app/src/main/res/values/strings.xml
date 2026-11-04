@@ -683,6 +683,8 @@
   <string name="notification_channel_description">Media playback controls</string>
   <string name="notification_playing">Playing</string>
   <string name="notification_add_to_favorites">Add to Favorites</string>
+  <string name="favorites_add">Add to favorites</string>
+  <string name="favorites_remove">Remove from favorites</string>
   <string name="notification_saved_to_favorites">Saved to Favorites</string>
   <string name="notification_close">Close</string>
   <string name="notification_repeat_off">Repeat off</string>
@@ -2710,4 +2712,19 @@
 
   <!-- Floating menu -->
   <string name="ui_menu">Menu</string>
+  <!-- Music library actions -->
+  <string name="music_play_all_songs">Play All Songs</string>
+  <string name="music_shuffle_songs">Shuffle Songs</string>
+  <string name="music_delete_song">Delete Song</string>
+  <string name="music_view_album_tracks">View Album Tracks</string>
+  <string name="music_play_album">Play Album</string>
+  <string name="music_shuffle_album">Shuffle Album</string>
+  <string name="music_add_album_to_playlist">Add Album to Playlist</string>
+  <string name="music_view_artist_songs">View Artist Songs</string>
+  <string name="music_play_artist_songs">Play Artist Songs</string>
+  <string name="music_shuffle_artist_songs">Shuffle Artist Songs</string>
+  <string name="music_add_artist_songs_to_playlist">Add Artist Songs to Playlist</string>
+  <string name="music_open_playlist">Open Playlist</string>
+  <string name="music_delete_playlist">Delete Playlist</string>
+  <string name="music_play_all">Play All</string>
 </resources>
