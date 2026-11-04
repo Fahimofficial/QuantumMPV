@@ -13,8 +13,10 @@
 
 ### Fixes
 
+- **Website**: Keep floating controls visible when keyboard-focused and the theme switch available on touch screens. Theme switching and release information continue working when browser storage is blocked.
 - **Navigation bar**: The selected-tab pill now moves in lockstep with the page during tab taps and after a swipe is released, instead of springing separately and trailing or overshooting behind the content. When the tab row scrolls, it starts moving toward the new tab right away instead of after the page settles, and no longer restarts its scroll every frame.
 - **Website**: The landing page's main showcase image and two carousel screenshots pointed at files that no longer exist; they now show existing screenshots, and the showcase reserves the image's real aspect ratio. The site now sends a Content Security Policy and standard security headers.
+
 - **Player**: The top and bottom shading behind the player controls now fades out with them instead of staying over the video.
 - **Haptic feedback setting**: Turning off Haptic feedback now silences every in-app haptic, including player gestures, tab taps and long-press.
 - **Reduced motion in the player**: Every controls animation style, the side panels, the buffering indicator and the video-open animation fall back to a simple fade.
