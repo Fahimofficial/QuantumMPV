@@ -1354,12 +1354,12 @@ object SearchablePreferences {
         screen = AppearancePreferencesScreen,
         anchorItemIndex = 9,
         SearchEntrySpec(R.string.pref_nav_music_title, listOf("music", "audio", "tab", "navigation")),
-        SearchEntrySpec(R.string.pref_nav_recents_title, listOf("recent", "history", "tab", "navigation")),
-        SearchEntrySpec(R.string.pref_nav_playlists_title, listOf("playlist", "tab", "navigation")),
+        SearchEntrySpec(R.string.pref_nav_profile_title, listOf("profile", "recent", "history", "playlist", "tab", "navigation")),
         SearchEntrySpec(R.string.pref_nav_network_title, listOf("network", "stream", "tab", "navigation")),
         SearchEntrySpec(R.string.pref_nav_jellyfin_title, listOf("jellyfin", "server", "tab", "navigation")),
         SearchEntrySpec(R.string.pref_quick_play_fab_title, listOf("quick play", "fab", "floating button", "random")),
         SearchEntrySpec(R.string.pref_quick_play_fab_direct_title, listOf("quick play", "direct", "random", "chooser")),
+        SearchEntrySpec(R.string.pref_more_menu_title, listOf("more", "menu", "overflow", "three dot", "shortcut", "customize")),
       )
       addSearchEntries(
         category = "Appearance",

@@ -168,8 +168,15 @@ class AppearancePreferences(
   val portraitPlaybackControlsPosition =
     preferenceStore.getEnum("portrait_playback_controls_position", PortraitPlaybackControlsPosition.Center)
   val showMusicTab = preferenceStore.getBoolean("show_music_tab", true)
-  val showRecentsTab = preferenceStore.getBoolean("show_recents_tab", true)
-  val showPlaylistsTab = preferenceStore.getBoolean("show_playlists_tab", true)
+
+  // Recents and Playlists live in the Profile hub (ported from mpvRx 3.x) instead of their own tabs.
+  val showProfileTab = preferenceStore.getBoolean("show_profile_tab", true)
+  val profileName = preferenceStore.getString("profile_name", "")
+  val profileImagePath = preferenceStore.getString("profile_image_path", "")
+
+  /** Optional dock overflow shortcuts; Settings and Support are always shown and never stored here. */
+  val moreMenuShortcuts =
+    preferenceStore.getStringSet("more_menu_shortcuts", MoreMenuShortcut.DEFAULT.mapTo(HashSet()) { it.name })
   val showNetworkTab = preferenceStore.getBoolean("show_network_tab", false)
   val showJellyfinTab = preferenceStore.getBoolean("show_jellyfin_tab", false)
   val showQuickPlayFab = preferenceStore.getBoolean("show_quick_play_fab", true)
@@ -223,6 +230,27 @@ class AppearancePreferences(
       }.filter { it != PlayerButton.NONE }
       .filter { usedButtons.add(it) }
       .toList()
+}
+
+/** Optional rows of the dock's More menu, shown below the fixed Settings and Support rows in this order. */
+enum class MoreMenuShortcut {
+  APPEARANCE,
+  PLAYER,
+  DECODER,
+  AUDIO,
+  SUBTITLES,
+  GESTURES,
+  LIBRARY_INSIGHTS,
+  RECENTS,
+  PLAYLISTS,
+  ;
+
+  companion object {
+    val DEFAULT = setOf(APPEARANCE)
+
+    /** Stored names to rows in a stable order; names from older or newer builds are ignored. */
+    fun resolve(stored: Set<String>): List<MoreMenuShortcut> = entries.filter { it.name in stored }
+  }
 }
 
 enum class PortraitPlaybackControlsPosition(

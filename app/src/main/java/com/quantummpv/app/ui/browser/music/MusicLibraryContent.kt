@@ -453,196 +453,170 @@ fun MusicLibraryContent(
             if (MaterialTheme.colorScheme.background == Color.Black) Color.Black else MaterialTheme.colorScheme.surfaceContainer
           )
       ) {
-        if (isSearchActive) {
-          InlineSearchBar(
-            query = searchQuery,
-            onQueryChange = musicViewModel::setSearchQuery,
-            onSearch = { },
-            modifier = Modifier
-              .fillMaxWidth()
-              .padding(horizontal = 16.dp, vertical = 8.dp),
-            placeholder = { Text(if (selectedTab == MusicTab.FOLDERS) "Search folders & songs..." else "Search songs, albums, artists...") },
-            leadingIcon = {
-              IconButton(onClick = {
-                isSearchActive = false
-                musicViewModel.setSearchQuery("")
-              }) {
-                Icon(imageVector = Icons.RoundedFilled.ArrowBack, contentDescription = "Back")
-              }
-            },
-            trailingIcon = {
-              if (searchQuery.isNotEmpty()) {
-                IconButton(onClick = { musicViewModel.setSearchQuery("") }) {
-                  Icon(imageVector = Icons.RoundedFilled.Close, contentDescription = "Clear search")
-                }
-              }
-            },
-            shape = RoundedCornerShape(28.dp),
-            tonalElevation = 6.dp,
-          )
-        } else {
-          Box {
-            BrowserTopBar(
-              title = stringResource(R.string.ui_music),
-              isInSelectionMode = activeSelectionManager.isInSelectionMode,
-              selectedCount = activeSelectionManager.selectedCount,
-              totalCount = totalCount,
-              onBackClick = null,
-              onCancelSelection = { activeSelectionManager.clear() },
-              onSortClick = { isSortMenuExpanded = true },
-              onSearchClick = topBarSearchAction,
-              onSettingsClick = {
-                backStack.navigateTo(PreferencesScreen)
-              },
-              onSelectAll = { activeSelectionManager.selectAll() },
-              onInvertSelection = { activeSelectionManager.invertSelection() },
-              onDeselectAll = { activeSelectionManager.clear() },
-              onDeleteClick = null,
-              onShareClick = if (selectedTab == MusicTab.SONGS) {
-                {
-                  @Suppress("UNCHECKED_CAST")
-                  val selected = activeSelectionManager.getSelectedItems() as List<MusicSong>
-                  if (selected.isNotEmpty()) {
-                    MediaUtils.shareVideos(context, selected.map { it.toVideo() })
-                  }
-                }
-              } else null,
-              onPlayClick = {
-                val items = activeSelectionManager.getSelectedItems()
-                when (selectedTab) {
-                  MusicTab.SONGS -> {
-                    @Suppress("UNCHECKED_CAST")
-                    musicViewModel.playAllSongs(context, items as List<MusicSong>, shuffle = false)
-                  }
-                  MusicTab.ALBUMS -> {
-                    @Suppress("UNCHECKED_CAST")
-                    val selAlbums = items as List<MusicAlbum>
-                    val albumSongs = songs.filter { s -> selAlbums.any { a -> s.albumId == a.id || s.album.equals(a.title, ignoreCase = true) } }
-                    musicViewModel.playAllSongs(context, albumSongs, shuffle = false)
-                  }
-                  MusicTab.ARTISTS -> {
-                    @Suppress("UNCHECKED_CAST")
-                    val selArtists = items as List<MusicArtist>
-                    val artistSongs = songs.filter { s -> selArtists.any { ar -> s.artist.equals(ar.name, ignoreCase = true) } }
-                    musicViewModel.playAllSongs(context, artistSongs, shuffle = false)
-                  }
-                  MusicTab.PLAYLISTS -> { }
-                  MusicTab.FOLDERS -> { }
+        com.quantummpv.app.ui.browser.DockSearchTopBarSwitcher(
+          searchActive = isSearchActive,
+          searchBar = {
+            InlineSearchBar(
+              query = searchQuery,
+              onQueryChange = musicViewModel::setSearchQuery,
+              onSearch = { },
+              modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+              placeholder = { Text(if (selectedTab == MusicTab.FOLDERS) "Search folders & songs..." else "Search songs, albums, artists...") },
+              leadingIcon = {
+                IconButton(onClick = {
+                  isSearchActive = false
+                  musicViewModel.setSearchQuery("")
+                }) {
+                  Icon(imageVector = Icons.RoundedFilled.ArrowBack, contentDescription = "Back")
                 }
               },
-              onPinClick = null,
-              onBlacklistClick = {
-                val selectedItems = activeSelectionManager.getSelectedItems()
-                val selectedPaths = selectedItems.mapNotNull { item ->
-                  when (item) {
-                    is MusicSong -> java.io.File(item.path).parent
-                    else -> null
+              trailingIcon = {
+                if (searchQuery.isNotEmpty()) {
+                  IconButton(onClick = { musicViewModel.setSearchQuery("") }) {
+                    Icon(imageVector = Icons.RoundedFilled.Close, contentDescription = "Clear search")
                   }
-                }.toSet()
-                if (selectedPaths.isNotEmpty()) {
-                  foldersPreferences.addBlacklistedFolders(selectedPaths, com.quantummpv.app.preferences.BlacklistScope.AUDIO_ONLY)
-                  activeSelectionManager.clear()
                 }
               },
-              onRenameClick = null,
-              isSingleSelection = activeSelectionManager.isSingleSelection,
-              onInfoClick = null,
-              onAddToPlaylistClick = null,
-              preSearchActions = {
-                if (!activeSelectionManager.isInSelectionMode && (hasJellyfinMusicLibrary || hasNavidromeServer)) {
-                  var isSourceDropdownOpen by remember { mutableStateOf(false) }
-                  Box {
-                    Surface(
-                      shape = RoundedCornerShape(16.dp),
-                      color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.8f),
-                      modifier = Modifier
-                        .padding(horizontal = 4.dp, vertical = 6.dp)
-                        .clickable { isSourceDropdownOpen = true },
-                    ) {
-                      Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                      ) {
-                        when (currentMusicSource) {
-                          MusicSourceProvider.JELLYFIN -> {
-                            androidx.compose.material3.Icon(
-                              painter = painterResource(R.drawable.ic_jellyfin),
-                              contentDescription = null,
-                              modifier = Modifier.size(16.dp),
-                              tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                            )
-                          }
-                          MusicSourceProvider.NAVIDROME -> {
-                            androidx.compose.material3.Icon(
-                              painter = painterResource(R.drawable.ic_navidrome),
-                              contentDescription = null,
-                              modifier = Modifier.size(16.dp),
-                              tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                            )
-                          }
-                          else -> {
-                            Icon(
-                              Icons.RoundedFilled.Folder,
-                              contentDescription = null,
-                              modifier = Modifier.size(16.dp),
-                              tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                            )
-                          }
-                        }
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                          text = when (currentMusicSource) {
-                            MusicSourceProvider.JELLYFIN -> stringResource(R.string.pref_jellyfin_title)
-                            MusicSourceProvider.NAVIDROME -> stringResource(R.string.music_source_navidrome)
-                            else -> stringResource(R.string.music_source_local)
-                          },
-                          style = MaterialTheme.typography.labelMedium,
-                          fontWeight = FontWeight.Bold,
-                          color = MaterialTheme.colorScheme.onSecondaryContainer,
-                        )
-                        Spacer(Modifier.width(2.dp))
-                        Icon(
-                          Icons.RoundedFilled.ArrowDropDown,
-                          contentDescription = null,
-                          modifier = Modifier.size(16.dp),
-                          tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                        )
-                      }
+              shape = RoundedCornerShape(28.dp),
+              tonalElevation = 6.dp,
+            )
+          },
+          topBar = {
+            Box {
+              BrowserTopBar(
+                title = stringResource(R.string.ui_music),
+                isInSelectionMode = activeSelectionManager.isInSelectionMode,
+                selectedCount = activeSelectionManager.selectedCount,
+                totalCount = totalCount,
+                onBackClick = null,
+                onCancelSelection = { activeSelectionManager.clear() },
+                onSortClick = { isSortMenuExpanded = true },
+                onSearchClick = topBarSearchAction,
+                onSettingsClick = {
+                  backStack.navigateTo(PreferencesScreen)
+                },
+                onSelectAll = { activeSelectionManager.selectAll() },
+                onInvertSelection = { activeSelectionManager.invertSelection() },
+                onDeselectAll = { activeSelectionManager.clear() },
+                onDeleteClick = null,
+                onShareClick = if (selectedTab == MusicTab.SONGS) {
+                  {
+                    @Suppress("UNCHECKED_CAST")
+                    val selected = activeSelectionManager.getSelectedItems() as List<MusicSong>
+                    if (selected.isNotEmpty()) {
+                      MediaUtils.shareVideos(context, selected.map { it.toVideo() })
                     }
-
-                    DropdownMenu(
-                      expanded = isSourceDropdownOpen,
-                      onDismissRequest = { isSourceDropdownOpen = false },
-                    ) {
-                      DropdownMenuItem(
-                        text = {
-                          Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            modifier = Modifier.fillMaxWidth(),
-                          ) {
-                            Text(stringResource(R.string.music_source_local))
-                            if (currentMusicSource == MusicSourceProvider.LOCAL) {
-                              Spacer(Modifier.width(12.dp))
-                              Icon(
-                                Icons.RoundedFilled.Check,
+                  }
+                } else null,
+                onPlayClick = {
+                  val items = activeSelectionManager.getSelectedItems()
+                  when (selectedTab) {
+                    MusicTab.SONGS -> {
+                      @Suppress("UNCHECKED_CAST")
+                      musicViewModel.playAllSongs(context, items as List<MusicSong>, shuffle = false)
+                    }
+                    MusicTab.ALBUMS -> {
+                      @Suppress("UNCHECKED_CAST")
+                      val selAlbums = items as List<MusicAlbum>
+                      val albumSongs = songs.filter { s -> selAlbums.any { a -> s.albumId == a.id || s.album.equals(a.title, ignoreCase = true) } }
+                      musicViewModel.playAllSongs(context, albumSongs, shuffle = false)
+                    }
+                    MusicTab.ARTISTS -> {
+                      @Suppress("UNCHECKED_CAST")
+                      val selArtists = items as List<MusicArtist>
+                      val artistSongs = songs.filter { s -> selArtists.any { ar -> s.artist.equals(ar.name, ignoreCase = true) } }
+                      musicViewModel.playAllSongs(context, artistSongs, shuffle = false)
+                    }
+                    MusicTab.PLAYLISTS -> { }
+                    MusicTab.FOLDERS -> { }
+                  }
+                },
+                onPinClick = null,
+                onBlacklistClick = {
+                  val selectedItems = activeSelectionManager.getSelectedItems()
+                  val selectedPaths = selectedItems.mapNotNull { item ->
+                    when (item) {
+                      is MusicSong -> java.io.File(item.path).parent
+                      else -> null
+                    }
+                  }.toSet()
+                  if (selectedPaths.isNotEmpty()) {
+                    foldersPreferences.addBlacklistedFolders(selectedPaths, com.quantummpv.app.preferences.BlacklistScope.AUDIO_ONLY)
+                    activeSelectionManager.clear()
+                  }
+                },
+                onRenameClick = null,
+                isSingleSelection = activeSelectionManager.isSingleSelection,
+                onInfoClick = null,
+                onAddToPlaylistClick = null,
+                preSearchActions = {
+                  if (!activeSelectionManager.isInSelectionMode && (hasJellyfinMusicLibrary || hasNavidromeServer)) {
+                    var isSourceDropdownOpen by remember { mutableStateOf(false) }
+                    Box {
+                      Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.8f),
+                        modifier = Modifier
+                          .padding(horizontal = 4.dp, vertical = 6.dp)
+                          .clickable { isSourceDropdownOpen = true },
+                      ) {
+                        Row(
+                          verticalAlignment = Alignment.CenterVertically,
+                          modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        ) {
+                          when (currentMusicSource) {
+                            MusicSourceProvider.JELLYFIN -> {
+                              androidx.compose.material3.Icon(
+                                painter = painterResource(R.drawable.ic_jellyfin),
                                 contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                              )
+                            }
+                            MusicSourceProvider.NAVIDROME -> {
+                              androidx.compose.material3.Icon(
+                                painter = painterResource(R.drawable.ic_navidrome),
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                              )
+                            }
+                            else -> {
+                              Icon(
+                                Icons.RoundedFilled.Folder,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.onSecondaryContainer,
                               )
                             }
                           }
-                        },
-                        leadingIcon = {
-                          Icon(Icons.RoundedFilled.Folder, contentDescription = null)
-                        },
-                        onClick = {
-                          mediaServerPreferences.musicSourceProvider.set(MusicSourceProvider.LOCAL)
-                          isSourceDropdownOpen = false
-                        },
-                      )
+                          Spacer(Modifier.width(6.dp))
+                          Text(
+                            text = when (currentMusicSource) {
+                              MusicSourceProvider.JELLYFIN -> stringResource(R.string.pref_jellyfin_title)
+                              MusicSourceProvider.NAVIDROME -> stringResource(R.string.music_source_navidrome)
+                              else -> stringResource(R.string.music_source_local)
+                            },
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                          )
+                          Spacer(Modifier.width(2.dp))
+                          Icon(
+                            Icons.RoundedFilled.ArrowDropDown,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                          )
+                        }
+                      }
 
-                      if (hasJellyfinMusicLibrary) {
+                      DropdownMenu(
+                        expanded = isSourceDropdownOpen,
+                        onDismissRequest = { isSourceDropdownOpen = false },
+                      ) {
                         DropdownMenuItem(
                           text = {
                             Row(
@@ -650,8 +624,8 @@ fun MusicLibraryContent(
                               horizontalArrangement = Arrangement.SpaceBetween,
                               modifier = Modifier.fillMaxWidth(),
                             ) {
-                              Text(stringResource(R.string.music_source_jellyfin))
-                              if (currentMusicSource == MusicSourceProvider.JELLYFIN) {
+                              Text(stringResource(R.string.music_source_local))
+                              if (currentMusicSource == MusicSourceProvider.LOCAL) {
                                 Spacer(Modifier.width(12.dp))
                                 Icon(
                                   Icons.RoundedFilled.Check,
@@ -663,74 +637,104 @@ fun MusicLibraryContent(
                             }
                           },
                           leadingIcon = {
-                            androidx.compose.material3.Icon(
-                              painter = painterResource(R.drawable.ic_jellyfin),
-                              contentDescription = null,
-                              modifier = Modifier.size(20.dp),
-                              tint = MaterialTheme.colorScheme.primary,
-                            )
+                            Icon(Icons.RoundedFilled.Folder, contentDescription = null)
                           },
                           onClick = {
-                            mediaServerPreferences.musicSourceProvider.set(MusicSourceProvider.JELLYFIN)
+                            mediaServerPreferences.musicSourceProvider.set(MusicSourceProvider.LOCAL)
                             isSourceDropdownOpen = false
                           },
                         )
-                      }
 
-                      if (hasNavidromeServer) {
-                        DropdownMenuItem(
-                          text = {
-                            Row(
-                              verticalAlignment = Alignment.CenterVertically,
-                              horizontalArrangement = Arrangement.SpaceBetween,
-                              modifier = Modifier.fillMaxWidth(),
-                            ) {
-                              Text(stringResource(R.string.music_source_navidrome))
-                              if (currentMusicSource == MusicSourceProvider.NAVIDROME) {
-                                Spacer(Modifier.width(12.dp))
-                                Icon(
-                                  Icons.RoundedFilled.Check,
-                                  contentDescription = null,
-                                  modifier = Modifier.size(18.dp),
-                                  tint = MaterialTheme.colorScheme.primary,
-                                )
+                        if (hasJellyfinMusicLibrary) {
+                          DropdownMenuItem(
+                            text = {
+                              Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier.fillMaxWidth(),
+                              ) {
+                                Text(stringResource(R.string.music_source_jellyfin))
+                                if (currentMusicSource == MusicSourceProvider.JELLYFIN) {
+                                  Spacer(Modifier.width(12.dp))
+                                  Icon(
+                                    Icons.RoundedFilled.Check,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                    tint = MaterialTheme.colorScheme.primary,
+                                  )
+                                }
                               }
-                            }
-                          },
+                            },
+                            leadingIcon = {
+                              androidx.compose.material3.Icon(
+                                painter = painterResource(R.drawable.ic_jellyfin),
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp),
+                                tint = MaterialTheme.colorScheme.primary,
+                              )
+                            },
+                            onClick = {
+                              mediaServerPreferences.musicSourceProvider.set(MusicSourceProvider.JELLYFIN)
+                              isSourceDropdownOpen = false
+                            },
+                          )
+                        }
+
+                        if (hasNavidromeServer) {
+                          DropdownMenuItem(
+                            text = {
+                              Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier.fillMaxWidth(),
+                              ) {
+                                Text(stringResource(R.string.music_source_navidrome))
+                                if (currentMusicSource == MusicSourceProvider.NAVIDROME) {
+                                  Spacer(Modifier.width(12.dp))
+                                  Icon(
+                                    Icons.RoundedFilled.Check,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                    tint = MaterialTheme.colorScheme.primary,
+                                  )
+                                }
+                              }
+                            },
+                            leadingIcon = {
+                              androidx.compose.material3.Icon(
+                                painter = painterResource(R.drawable.ic_navidrome),
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp),
+                                tint = MaterialTheme.colorScheme.primary,
+                              )
+                            },
+                            onClick = {
+                              mediaServerPreferences.musicSourceProvider.set(MusicSourceProvider.NAVIDROME)
+                              isSourceDropdownOpen = false
+                            },
+                          )
+                        }
+
+                        HorizontalDivider()
+
+                        DropdownMenuItem(
+                          text = { Text(stringResource(R.string.pref_media_servers_title)) },
                           leadingIcon = {
-                            androidx.compose.material3.Icon(
-                              painter = painterResource(R.drawable.ic_navidrome),
-                              contentDescription = null,
-                              modifier = Modifier.size(20.dp),
-                              tint = MaterialTheme.colorScheme.primary,
-                            )
+                            Icon(Icons.RoundedFilled.Settings, contentDescription = null)
                           },
                           onClick = {
-                            mediaServerPreferences.musicSourceProvider.set(MusicSourceProvider.NAVIDROME)
                             isSourceDropdownOpen = false
+                            backStack.navigateTo(com.quantummpv.app.ui.preferences.MediaServersPreferencesScreen)
                           },
                         )
                       }
-
-                      HorizontalDivider()
-
-                      DropdownMenuItem(
-                        text = { Text(stringResource(R.string.pref_media_servers_title)) },
-                        leadingIcon = {
-                          Icon(Icons.RoundedFilled.Settings, contentDescription = null)
-                        },
-                        onClick = {
-                          isSourceDropdownOpen = false
-                          backStack.navigateTo(com.quantummpv.app.ui.preferences.MediaServersPreferencesScreen)
-                        },
-                      )
                     }
                   }
-                }
-              },
-            )
-          }
-        }
+                },
+              )
+            }
+          },
+        )
 
         if (selectedTab == MusicTab.FOLDERS) {
           FolderSortDialog(

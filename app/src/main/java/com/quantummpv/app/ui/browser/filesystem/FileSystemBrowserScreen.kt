@@ -169,6 +169,8 @@ fun FileSystemBrowserScreen(path: String? = null) {
   val backstack = LocalBackStack.current
   val coroutineScope = rememberCoroutineScope()
   val browserPreferences = koinInject<BrowserPreferences>()
+  val folderSortType by browserPreferences.folderSortType.collectAsState()
+  val folderSortOrder by browserPreferences.folderSortOrder.collectAsState()
   val appearancePreferences = koinInject<com.quantummpv.app.preferences.AppearancePreferences>()
   val showQuickPlayFab by appearancePreferences.showQuickPlayFab.collectAsState()
   val quickPlayFabDirect by appearancePreferences.quickPlayFabDirect.collectAsState()
@@ -486,122 +488,136 @@ fun FileSystemBrowserScreen(path: String? = null) {
   Box(modifier = Modifier.fillMaxSize()) {
     Scaffold(
       topBar = {
-        if (isSearching) {
-          // Search mode - show search bar instead of top bar
-          InlineSearchBar(
-            query = searchQuery,
-            onQueryChange = { searchQuery = it },
-            onSearch = { },
-            modifier =
-              Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            inputFieldModifier = Modifier.focusRequester(focusRequester),
-            placeholder = {
-              Text(
-                if (isAtRoot) {
-                  "Search in all storage volumes..."
-                } else {
-                  "Search in ${breadcrumbs.lastOrNull()?.name ?: "folder"}..."
-                },
-              )
-            },
-            leadingIcon = {
-              Icon(
-                imageVector = Icons.RoundedFilled.Search,
-                contentDescription =
-                  androidx.compose.ui.res.stringResource(
-                    com.quantummpv.app.R.string.settings_search_title,
-                  ),
-              )
-            },
-            trailingIcon = {
-              IconButton(
-                onClick = {
-                  isSearching = false
-                  searchQuery = ""
-                },
-              ) {
+        com.quantummpv.app.ui.browser.DockSearchTopBarSwitcher(
+          searchActive = isSearching,
+          searchBar = {
+            // Search mode - show search bar instead of top bar
+            InlineSearchBar(
+              query = searchQuery,
+              onQueryChange = { searchQuery = it },
+              onSearch = { },
+              modifier =
+                Modifier
+                  .fillMaxWidth()
+                  .padding(horizontal = 16.dp),
+              inputFieldModifier = Modifier.focusRequester(focusRequester),
+              placeholder = {
+                Text(
+                  if (isAtRoot) {
+                    "Search in all storage volumes..."
+                  } else {
+                    "Search in ${breadcrumbs.lastOrNull()?.name ?: "folder"}..."
+                  },
+                )
+              },
+              leadingIcon = {
                 Icon(
-                  imageVector = Icons.RoundedFilled.Close,
+                  imageVector = Icons.RoundedFilled.Search,
                   contentDescription =
                     androidx.compose.ui.res.stringResource(
-                      com.quantummpv.app.R.string.generic_cancel,
+                      com.quantummpv.app.R.string.settings_search_title,
                     ),
                 )
-              }
-            },
-            shape = RoundedCornerShape(28.dp),
-            tonalElevation = 6.dp,
-          )
-        } else {
-          BrowserTopBar(
-            title =
-              if (isAtRoot) {
-                stringResource(com.quantummpv.app.R.string.app_name)
-              } else {
-                breadcrumbs.lastOrNull()?.name ?: "Tree View"
               },
-            isInSelectionMode = isInSelectionMode,
-            selectedCount = selectedCount,
-            totalCount = totalCount,
-            onBackClick =
-              if (isAtRoot) {
-                null
-              } else {
-                { backstack.popSafely() }
+              trailingIcon = {
+                IconButton(
+                  onClick = {
+                    isSearching = false
+                    searchQuery = ""
+                  },
+                ) {
+                  Icon(
+                    imageVector = Icons.RoundedFilled.Close,
+                    contentDescription =
+                      androidx.compose.ui.res.stringResource(
+                        com.quantummpv.app.R.string.generic_cancel,
+                      ),
+                  )
+                }
               },
-            onCancelSelection = { selectionManager.clear() },
-            onSortClick = { sortDialogOpen.value = true },
-            onSearchClick = topBarSearchAction,
-            onSettingsClick = {
-              backstack.navigateTo(com.quantummpv.app.ui.preferences.PreferencesScreen)
-            },
-            isSingleSelection = selectionManager.isSingleSelection,
-            onInfoClick =
-              if (selectedVideos.size == 1 && selectedFolders.isEmpty()) {
-                {
-                  val video = selectedVideos.firstOrNull()
-                  if (video != null) {
-                    val intent = Intent(context, com.quantummpv.app.ui.mediainfo.MediaInfoActivity::class.java)
-                    intent.action = Intent.ACTION_VIEW
-                    intent.data = video.uri
-                    context.startActivity(intent)
-                    selectionManager.clear()
+              shape = RoundedCornerShape(28.dp),
+              tonalElevation = 6.dp,
+            )
+          },
+          topBar = {
+            BrowserTopBar(
+              title =
+                if (isAtRoot) {
+                  stringResource(com.quantummpv.app.R.string.app_name)
+                } else {
+                  breadcrumbs.lastOrNull()?.name ?: "Tree View"
+                },
+              isInSelectionMode = isInSelectionMode,
+              selectedCount = selectedCount,
+              totalCount = totalCount,
+              onBackClick =
+                if (isAtRoot) {
+                  null
+                } else {
+                  { backstack.popSafely() }
+                },
+              onCancelSelection = { selectionManager.clear() },
+              additionalActions = {
+                com.quantummpv.app.ui.browser.components.FolderQuickSortButton(
+                  sortType = folderSortType,
+                  sortOrder = folderSortOrder,
+                  onSortChange = { type, order ->
+                    browserPreferences.folderSortType.set(type)
+                    browserPreferences.folderSortOrder.set(order)
+                  },
+                  onMoreOptions = { sortDialogOpen.value = true },
+                )
+              },
+              onSearchClick = topBarSearchAction,
+              onSettingsClick = {
+                backstack.navigateTo(com.quantummpv.app.ui.preferences.PreferencesScreen)
+              },
+              isSingleSelection = selectionManager.isSingleSelection,
+              onInfoClick =
+                if (selectedVideos.size == 1 && selectedFolders.isEmpty()) {
+                  {
+                    val video = selectedVideos.firstOrNull()
+                    if (video != null) {
+                      val intent = Intent(context, com.quantummpv.app.ui.mediainfo.MediaInfoActivity::class.java)
+                      intent.action = Intent.ACTION_VIEW
+                      intent.data = video.uri
+                      context.startActivity(intent)
+                      selectionManager.clear()
+                    }
+                  }
+                } else {
+                  null
+                },
+              onShareClick = {
+                coroutineScope.launch {
+                  val videosToShare = selectedPlayableVideos()
+                  if (videosToShare.isNotEmpty()) {
+                    MediaUtils.shareVideos(context, videosToShare)
                   }
                 }
-              } else {
-                null
               },
-            onShareClick = {
-              coroutineScope.launch {
-                val videosToShare = selectedPlayableVideos()
-                if (videosToShare.isNotEmpty()) {
-                  MediaUtils.shareVideos(context, videosToShare)
+              onPlayClick = {
+                coroutineScope.launch {
+                  val videosToPlay = selectedPlayableVideos()
+                  if (videosToPlay.isNotEmpty()) {
+                    playVideosAsPlaylist(context, videosToPlay)
+                  }
+                  selectionManager.clear()
                 }
-              }
-            },
-            onPlayClick = {
-              coroutineScope.launch {
-                val videosToPlay = selectedPlayableVideos()
-                if (videosToPlay.isNotEmpty()) {
-                  playVideosAsPlaylist(context, videosToPlay)
-                }
-                selectionManager.clear()
-              }
-            },
-            onDeleteClick = { deleteDialogOpen = true },
-            onSelectAll = { selectionManager.selectAll() },
-            onInvertSelection = { selectionManager.invertSelection() },
-            onDeselectAll = { selectionManager.clear() },
-            onAddToPlaylistClick =
-              if (onlyVideosSelected) {
-                { addToPlaylistDialogOpen.value = true }
-              } else {
-                null
               },
-          )
-        }
+              onDeleteClick = { deleteDialogOpen = true },
+              onSelectAll = { selectionManager.selectAll() },
+              onInvertSelection = { selectionManager.invertSelection() },
+              onDeselectAll = { selectionManager.clear() },
+              onAddToPlaylistClick =
+                if (onlyVideosSelected) {
+                  { addToPlaylistDialogOpen.value = true }
+                } else {
+                  null
+                },
+            )
+          },
+        )
       },
       floatingActionButton = {
         val navigationBarHeight = com.quantummpv.app.ui.browser.LocalNavigationBarHeight.current

@@ -32,7 +32,8 @@ class NavigationDockMeasureTest {
 
     assertFalse(measure.showLabels)
     assertTrue(measure.dockWidth <= 360.dp - 32.dp)
-    assertTrue(measure.navWidth < 48.dp * allTabs.size)
+    // The pill also holds the 48 dp overflow button, so the tab viewport is narrower than the tabs: it scrolls.
+    assertTrue(measure.navWidth - 48.dp < 48.dp * allTabs.size)
   }
 
   @Test
@@ -45,7 +46,7 @@ class NavigationDockMeasureTest {
 
   @Test
   fun userHiddenTabsShrinkThePillWithoutRemovingSearch() {
-    val tabs = listOf(MainScreen.MainTab.HOME, MainScreen.MainTab.RECENTS)
+    val tabs = listOf(MainScreen.MainTab.HOME, MainScreen.MainTab.PROFILE)
 
     val measure = measureNavigationDock(containerWidth = 360.dp, tabs = tabs)
 

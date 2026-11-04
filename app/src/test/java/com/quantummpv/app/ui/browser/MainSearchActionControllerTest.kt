@@ -27,11 +27,11 @@ class MainSearchActionControllerTest {
     val controller = MainSearchActionController()
     val owner = Any()
 
-    assertFalse(controller.isAvailable(MainScreen.MainTab.PLAYLISTS))
-    controller.register(MainScreen.MainTab.PLAYLISTS, owner, isSearchActive = true) { }
+    assertFalse(controller.isAvailable(MainScreen.MainTab.PROFILE))
+    controller.register(MainScreen.MainTab.PROFILE, owner, isSearchActive = true) { }
 
-    assertTrue(controller.isAvailable(MainScreen.MainTab.PLAYLISTS))
-    assertTrue(controller.isSearchActive(MainScreen.MainTab.PLAYLISTS))
+    assertTrue(controller.isAvailable(MainScreen.MainTab.PROFILE))
+    assertTrue(controller.isSearchActive(MainScreen.MainTab.PROFILE))
   }
 
   @Test
@@ -60,5 +60,30 @@ class MainSearchActionControllerTest {
 
     assertFalse(controller.isAvailable(MainScreen.MainTab.NETWORK))
     assertFalse(controller.request(MainScreen.MainTab.NETWORK))
+  }
+
+  @Test
+  fun inlineRequestHidesTheButtonUntilTheTabReportsItsSearch() {
+    val controller = MainSearchActionController()
+    val owner = Any()
+    controller.register(MainScreen.MainTab.MUSIC, owner, isSearchActive = false) { }
+
+    // Hidden in the same snapshot as the request, so the morph never sees two visible ends.
+    assertTrue(controller.request(MainScreen.MainTab.MUSIC))
+    assertTrue(controller.isSearchActive(MainScreen.MainTab.MUSIC))
+
+    controller.register(MainScreen.MainTab.MUSIC, owner, isSearchActive = true) { }
+    assertTrue(controller.isSearchActive(MainScreen.MainTab.MUSIC))
+    controller.register(MainScreen.MainTab.MUSIC, owner, isSearchActive = false) { }
+    assertFalse(controller.isSearchActive(MainScreen.MainTab.MUSIC))
+  }
+
+  @Test
+  fun screenRequestKeepsTheButtonForTheNavigationMorph() {
+    val controller = MainSearchActionController()
+    controller.register(MainScreen.MainTab.HOME, Any(), isSearchActive = false, opensScreen = true) { }
+
+    assertTrue(controller.request(MainScreen.MainTab.HOME))
+    assertFalse(controller.isSearchActive(MainScreen.MainTab.HOME))
   }
 }

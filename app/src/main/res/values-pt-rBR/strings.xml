@@ -48,10 +48,6 @@
   <string name="pref_appearance_category_navigation">Navegação</string>
   <string name="pref_nav_home_title">Mostrar aba Início</string>
   <string name="pref_nav_home_summary">Mostrar ou ocultar Início na barra de navegação inferior</string>
-  <string name="pref_nav_recents_title">Mostrar aba Recentes</string>
-  <string name="pref_nav_recents_summary">Mostrar ou ocultar Recentes na barra de navegação inferior</string>
-  <string name="pref_nav_playlists_title">Mostrar aba Playlists</string>
-  <string name="pref_nav_playlists_summary">Mostrar ou ocultar Playlists na barra de navegação inferior</string>
   <string name="pref_nav_network_title">Mostrar aba Rede</string>
   <string name="pref_nav_network_summary">Mostrar ou ocultar Rede na barra de navegação inferior</string>
   <string name="pref_quick_play_fab_title">FAB de reprodução rápida</string>

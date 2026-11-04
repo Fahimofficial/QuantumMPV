@@ -53,10 +53,6 @@
   <string name="pref_nav_home_summary">Show or hide Home in the bottom navigation bar</string>
   <string name="pref_nav_music_title">Show Music tab</string>
   <string name="pref_nav_music_summary">Show or hide Music in the bottom navigation bar</string>
-  <string name="pref_nav_recents_title">Show Recents tab</string>
-  <string name="pref_nav_recents_summary">Show or hide Recents in the bottom navigation bar</string>
-  <string name="pref_nav_playlists_title">Show Playlists tab</string>
-  <string name="pref_nav_playlists_summary">Show or hide Playlists in the bottom navigation bar</string>
   <string name="pref_nav_network_title">Show Network tab</string>
   <string name="pref_nav_network_summary">Show or hide Network in the bottom navigation bar</string>
   <string name="pref_nav_jellyfin_title">Show Jellyfin tab</string>
@@ -2710,4 +2706,34 @@
 
   <!-- Floating menu -->
   <string name="ui_menu">Menu</string>
+  <string name="more_menu_support">Support</string>
+  <string name="pref_more_menu_title">Customize More menu</string>
+  <string name="pref_more_menu_summary">Choose the shortcuts shown in the navigation bar\'s ⋮ menu</string>
+  <string name="pref_more_menu_fixed_summary">Always shown</string>
+  <string name="pref_more_menu_optional_header">Optional shortcuts</string>
+  <string name="pref_more_menu_reset">Reset to default</string>
+  <string name="pref_more_menu_reset_summary">Show Settings, Support and Appearance only</string>
+
+  <!-- Profile hub (ported from mpvRx) -->
+  <string name="ui_profile">Profile</string>
+  <string name="pref_nav_profile_title">Show Profile tab</string>
+  <string name="pref_nav_profile_summary">Recents, playlists and your profile in one tab</string>
+  <string name="profile_view_all">View all</string>
+  <string name="profile_edit">Edit profile</string>
+  <string name="profile_display_name">Display name</string>
+  <string name="profile_choose_photo">Choose photo</string>
+  <string name="profile_remove_photo">Remove photo</string>
+  <string name="profile_remove_from_history">Remove from history</string>
+  <string name="profile_recents_empty_message">Items you play will appear here</string>
+  <string name="profile_playlists_empty_message">Playlists you create will appear here</string>
+  <string name="profile_rotate_left">Left</string>
+  <string name="profile_rotate_right">Right</string>
+
+  <!-- Home folder quick sort -->
+  <string name="sort_name_a_z">Name: A–Z</string>
+  <string name="sort_name_z_a">Name: Z–A</string>
+  <string name="sort_size_largest">Folder size: Largest first</string>
+  <string name="sort_size_smallest">Folder size: Smallest first</string>
+  <string name="sort_more_options">More sort and view options</string>
+  <string name="sort_current">Sort: %1$s</string>
 </resources>

@@ -76,6 +76,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -84,7 +85,6 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
@@ -101,6 +101,7 @@ import androidx.navigation3.ui.LocalNavAnimatedContentScope
 import com.quantummpv.app.R
 import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.MediaServerPreferences
+import com.quantummpv.app.preferences.MoreMenuShortcut
 import com.quantummpv.app.preferences.MusicSourceProvider
 import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.preferences.preference.collectAsState
@@ -111,8 +112,6 @@ import com.quantummpv.app.ui.browser.components.ServerSetupCard
 import com.quantummpv.app.ui.browser.folderlist.FolderListScreen
 import com.quantummpv.app.ui.browser.music.MusicLibraryContent
 import com.quantummpv.app.ui.browser.networkstreaming.NetworkStreamingScreen
-import com.quantummpv.app.ui.browser.playlist.PlaylistScreen
-import com.quantummpv.app.ui.browser.recentlyplayed.RecentlyPlayedScreen
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.NavigationAnimStyle
@@ -124,6 +123,8 @@ import com.quantummpv.app.ui.theme.DesignTokens.SurfaceStyle
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.LocalSharedTransitionScope
 import com.quantummpv.app.ui.utils.NavigationPager
+import com.quantummpv.app.ui.utils.SEARCH_MORPH_KEY
+import com.quantummpv.app.ui.utils.inlineSearchMorphKey
 import com.quantummpv.app.ui.utils.navigateTo
 import com.quantummpv.app.ui.utils.navigationDurationMillis
 import com.quantummpv.app.ui.utils.rememberMorphingCornerShape
@@ -167,10 +168,9 @@ object MainScreen : Screen {
   internal enum class MainTab {
     HOME,
     MUSIC,
-    RECENTS,
-    PLAYLISTS,
     NETWORK,
     JELLYFIN,
+    PROFILE,
   }
 
   /**
@@ -225,17 +225,15 @@ object MainScreen : Screen {
     val animSpeed by playerPreferences.animationSpeed.collectAsState()
     val duration = navigationDurationMillis(animSpeed)
     val mainSearchController = remember { MainSearchActionController() }
-    val searchFlight = remember { com.quantummpv.app.ui.browser.components.SearchLaunchTransition<MainTab>() }
-    var searchButtonCenter by remember { mutableStateOf<androidx.compose.ui.geometry.Offset?>(null) }
     var menuButtonCenter by remember { mutableStateOf<androidx.compose.ui.geometry.Offset?>(null) }
-    var screenCenter by remember { mutableStateOf<androidx.compose.ui.geometry.Offset?>(null) }
     var menuExpanded by rememberSaveable { mutableStateOf(false) }
     var persistentSelectedTab by rememberSaveable { mutableStateOf(MainTab.HOME) }
     val mediaServerPreferences = koinInject<MediaServerPreferences>()
     val musicSourceProvider by mediaServerPreferences.musicSourceProvider.collectAsState()
     val showMusicTab by appearancePreferences.showMusicTab.collectAsState()
-    val showRecentsTab by appearancePreferences.showRecentsTab.collectAsState()
-    val showPlaylistsTab by appearancePreferences.showPlaylistsTab.collectAsState()
+    val showProfileTab by appearancePreferences.showProfileTab.collectAsState()
+    val moreMenuShortcutNames by appearancePreferences.moreMenuShortcuts.collectAsState()
+    val moreMenuShortcuts = remember(moreMenuShortcutNames) { MoreMenuShortcut.resolve(moreMenuShortcutNames) }
     val showNetworkTab by appearancePreferences.showNetworkTab.collectAsState()
     val showJellyfinTab by appearancePreferences.showJellyfinTab.collectAsState()
     val legacyGlassBottomNavigation by appearancePreferences.legacyGlassBottomNavigation.collectAsState()
@@ -254,8 +252,7 @@ object MainScreen : Screen {
     val visibleTabs =
       remember(
         showMusicTab,
-        showRecentsTab,
-        showPlaylistsTab,
+        showProfileTab,
         showNetworkTab,
         showJellyfinTab,
       ) {
@@ -263,10 +260,10 @@ object MainScreen : Screen {
           // Home is the permanent root so Back never exits directly from another tab.
           add(MainTab.HOME)
           if (showMusicTab) add(MainTab.MUSIC)
-          if (showRecentsTab) add(MainTab.RECENTS)
-          if (showPlaylistsTab) add(MainTab.PLAYLISTS)
           if (showNetworkTab) add(MainTab.NETWORK)
           if (showJellyfinTab) add(MainTab.JELLYFIN)
+          // Last, next to the overflow button, as in mpvRx. Recents and Playlists live inside it.
+          if (showProfileTab) add(MainTab.PROFILE)
         }
       }
 
@@ -411,8 +408,7 @@ object MainScreen : Screen {
       BoxWithConstraints(
         modifier =
           Modifier
-            .fillMaxSize()
-            .onGloballyPositioned { screenCenter = it.boundsInRoot().center },
+            .fillMaxSize(),
       ) {
         // One width source decides whether the mini player sits beside or above the dock. The
         // content clearance, overflow menu and MainActivity's mini player all reuse this result.
@@ -437,7 +433,7 @@ object MainScreen : Screen {
             LocalMainSearchActionController provides mainSearchController,
             LocalMainSearchDockVisible provides showDock,
             LocalMainSearchTab provides MainTab.HOME,
-            com.quantummpv.app.ui.components.LocalSearchFieldIconAnchor provides searchFlight.anchorFor(MainTab.HOME),
+            LocalIsMainTabPage provides true,
           ) {
             FolderListScreen.Content()
           }
@@ -458,7 +454,7 @@ object MainScreen : Screen {
               val tab = visibleTabs.getOrNull(page) ?: return@NavigationPager
               CompositionLocalProvider(
                 LocalMainSearchTab provides tab,
-                com.quantummpv.app.ui.components.LocalSearchFieldIconAnchor provides searchFlight.anchorFor(tab),
+                LocalIsMainTabPage provides true,
               ) {
                 when (tab) {
                 MainTab.HOME -> FolderListScreen.Content()
@@ -531,8 +527,7 @@ object MainScreen : Screen {
                     )
                   }
                 }
-                MainTab.RECENTS -> RecentlyPlayedScreen.Content()
-                MainTab.PLAYLISTS -> PlaylistScreen.Content()
+                MainTab.PROFILE -> com.quantummpv.app.ui.browser.profile.ProfileScreen.Content()
                 MainTab.NETWORK -> NetworkStreamingScreen.Content()
                 MainTab.JELLYFIN -> com.quantummpv.app.ui.browser.jellyfin.JellyfinContent(viewModel = jellyfinViewModel)
               }
@@ -596,25 +591,8 @@ object MainScreen : Screen {
 
         LaunchedEffect(selectedTab, showDock) {
           menuExpanded = false
-          searchFlight.cancel()
         }
         BackHandler(enabled = menuExpanded && showDock) { menuExpanded = false }
-        // Back while the icon is still travelling (search not opened yet) simply calls it off.
-        BackHandler(enabled = searchFlight.phase == com.quantummpv.app.ui.browser.components.SearchFlightPhase.ToCenter) {
-          searchFlight.cancel()
-        }
-        val searchMotionEnabled = !com.quantummpv.app.ui.theme.AppMotion.shouldReduceMotion()
-        // When the active tab closes its search (Back, Cancel), the icon travels home to the button.
-        LaunchedEffect(selectedTab, showDock, searchMotionEnabled) {
-          var wasActive = mainSearchController.isSearchActive(selectedTab)
-          snapshotFlow { mainSearchController.isSearchActive(selectedTab) }.collect { active ->
-            val target = searchButtonCenter
-            if (wasActive && !active && showDock && searchMotionEnabled && target != null) {
-              searchFlight.returnTo(coroutineScope, selectedTab, target)
-            }
-            wasActive = active
-          }
-        }
 
         // Dismissal/scrim is below the dock and its in-window menu, so menu rows remain tappable.
         AnimatedVisibility(
@@ -636,16 +614,14 @@ object MainScreen : Screen {
           )
         }
 
+        val openFromMenu: (Screen) -> Unit = { screen ->
+          menuExpanded = false
+          backStack.navigateTo(screen)
+        }
         com.quantummpv.app.ui.browser.components.FloatingGlassMenuPanel(
           visible = menuExpanded && showDock,
-          onSettingsClick = {
-            menuExpanded = false
-            backStack.navigateTo(com.quantummpv.app.ui.preferences.PreferencesScreen)
-          },
-          onLibraryInsightsClick = {
-            menuExpanded = false
-            backStack.navigateTo(com.quantummpv.app.ui.browser.insights.LibraryInsightsScreen)
-          },
+          primaryItems = fixedMoreMenuItems(openFromMenu),
+          shortcutItems = moreMenuShortcuts.map { moreMenuShortcutItem(it, openFromMenu) },
           glass = glassBottomNavigation,
           anchorCenterInRoot = { menuButtonCenter },
           // The top safe-area inset and bottom clearance bound the panel's height, so short windows
@@ -712,34 +688,21 @@ object MainScreen : Screen {
                   ContextualSearchSlot(
                     visible = showContextualSearch,
                     glass = glassBottomNavigation,
-                    hideIcon = searchFlight.hidesButtonIcon,
+                    selectedTab = selectedTab,
+                    opensScreen = mainSearchController.opensScreen(selectedTab),
                     sharedTransitionScope = sharedTransitionScope,
                     animatedVisibilityScope = animatedVisibilityScope,
-                    onButtonPositioned = { searchButtonCenter = it },
                     onSearchClick = {
                       menuExpanded = false
-                      val from = searchButtonCenter
-                      val center = screenCenter
-                      val tab = selectedTab
-                      if (searchFlight.isRunning) {
-                        // Ignore repeated taps; the running flight already opens this search.
-                      } else if (mainSearchController.opensScreen(tab)) {
-                        // A Search destination: the button itself morphs into its bar (shared element).
-                        mainSearchController.request(tab)
-                      } else if (searchMotionEnabled && from != null && center != null) {
-                        searchFlight.launch(coroutineScope, tab, from, center) { mainSearchController.request(tab) }
-                      } else {
-                        mainSearchController.request(tab)
-                      }
+                      // Every tab morphs this button into its search bar: a separate Search screen
+                      // through the navigation transition, an inline bar through DockSearchTopBarSwitcher.
+                      mainSearchController.request(selectedTab)
                     },
                   )
                 }
               }
             }
         }
-
-        // Topmost: the single travelling magnifier of the Search launch transition.
-        com.quantummpv.app.ui.browser.components.SearchFlightOverlay(searchFlight)
       }
     }
   }
@@ -1133,11 +1096,81 @@ private fun mainTabLabel(tab: MainScreen.MainTab): String =
   when (tab) {
     MainScreen.MainTab.HOME -> stringResource(R.string.ui_home)
     MainScreen.MainTab.MUSIC -> stringResource(R.string.ui_music)
-    MainScreen.MainTab.RECENTS -> stringResource(R.string.ui_recents)
-    MainScreen.MainTab.PLAYLISTS -> stringResource(R.string.ui_playlists)
+    MainScreen.MainTab.PROFILE -> stringResource(R.string.ui_profile)
     MainScreen.MainTab.NETWORK -> stringResource(R.string.ui_network)
     MainScreen.MainTab.JELLYFIN -> stringResource(R.string.ui_jellyfin)
   }
+
+/** Settings and Support: always first in the More menu and not configurable. */
+@Composable
+private fun fixedMoreMenuItems(open: (Screen) -> Unit): List<com.quantummpv.app.ui.browser.components.FloatingMenuItem> =
+  listOf(
+    com.quantummpv.app.ui.browser.components.FloatingMenuItem(
+      key = "settings",
+      icon = Icons.RoundedFilled.Settings,
+      label = stringResource(R.string.ui_settings),
+      onClick = { open(com.quantummpv.app.ui.preferences.PreferencesScreen) },
+    ),
+    com.quantummpv.app.ui.browser.components.FloatingMenuItem(
+      key = "support",
+      icon = Icons.RoundedFilled.Favorite,
+      label = stringResource(R.string.more_menu_support),
+      onClick = { open(com.quantummpv.app.ui.preferences.SupportScreen) },
+    ),
+  )
+
+@Composable
+internal fun moreMenuShortcutLabel(shortcut: MoreMenuShortcut): String =
+  stringResource(
+    when (shortcut) {
+      MoreMenuShortcut.APPEARANCE -> R.string.pref_appearance_title
+      MoreMenuShortcut.PLAYER -> R.string.pref_player
+      MoreMenuShortcut.DECODER -> R.string.pref_decoder
+      MoreMenuShortcut.AUDIO -> R.string.pref_audio
+      MoreMenuShortcut.SUBTITLES -> R.string.pref_subtitles
+      MoreMenuShortcut.GESTURES -> R.string.pref_gesture
+      MoreMenuShortcut.LIBRARY_INSIGHTS -> R.string.library_insights_title
+      MoreMenuShortcut.RECENTS -> R.string.ui_recents
+      MoreMenuShortcut.PLAYLISTS -> R.string.ui_playlists
+    },
+  )
+
+internal fun moreMenuShortcutIcon(shortcut: MoreMenuShortcut) =
+  when (shortcut) {
+    MoreMenuShortcut.APPEARANCE -> Icons.RoundedFilled.Palette
+    MoreMenuShortcut.PLAYER -> Icons.RoundedFilled.Slideshow
+    MoreMenuShortcut.DECODER -> Icons.RoundedFilled.DeveloperBoard
+    MoreMenuShortcut.AUDIO -> Icons.RoundedFilled.Audiotrack
+    MoreMenuShortcut.SUBTITLES -> Icons.RoundedFilled.Subtitles
+    MoreMenuShortcut.GESTURES -> Icons.RoundedFilled.Gesture
+    MoreMenuShortcut.LIBRARY_INSIGHTS -> Icons.RoundedFilled.Insights
+    MoreMenuShortcut.RECENTS -> Icons.RoundedFilled.History
+    MoreMenuShortcut.PLAYLISTS -> Icons.RoundedFilled.PlaylistPlay
+  }
+
+private fun moreMenuShortcutScreen(shortcut: MoreMenuShortcut): Screen =
+  when (shortcut) {
+    MoreMenuShortcut.APPEARANCE -> com.quantummpv.app.ui.preferences.AppearancePreferencesScreen
+    MoreMenuShortcut.PLAYER -> com.quantummpv.app.ui.preferences.PlayerPreferencesScreen
+    MoreMenuShortcut.DECODER -> com.quantummpv.app.ui.preferences.DecoderPreferencesScreen
+    MoreMenuShortcut.AUDIO -> com.quantummpv.app.ui.preferences.AudioPreferencesScreen
+    MoreMenuShortcut.SUBTITLES -> com.quantummpv.app.ui.preferences.SubtitlesPreferencesScreen
+    MoreMenuShortcut.GESTURES -> com.quantummpv.app.ui.preferences.GesturePreferencesScreen
+    MoreMenuShortcut.LIBRARY_INSIGHTS -> com.quantummpv.app.ui.browser.insights.LibraryInsightsScreen
+    MoreMenuShortcut.RECENTS -> com.quantummpv.app.ui.browser.recentlyplayed.RecentlyPlayedScreen
+    MoreMenuShortcut.PLAYLISTS -> com.quantummpv.app.ui.browser.playlist.PlaylistScreen
+  }
+
+@Composable
+private fun moreMenuShortcutItem(
+  shortcut: MoreMenuShortcut,
+  open: (Screen) -> Unit,
+) = com.quantummpv.app.ui.browser.components.FloatingMenuItem(
+  key = shortcut.name,
+  icon = moreMenuShortcutIcon(shortcut),
+  label = moreMenuShortcutLabel(shortcut),
+  onClick = { open(moreMenuShortcutScreen(shortcut)) },
+)
 
 internal data class NavigationDockMeasure(
   val horizontalMargin: androidx.compose.ui.unit.Dp,
@@ -1235,8 +1268,7 @@ private fun activeTabWidth(tab: MainScreen.MainTab) =
   when (tab) {
     MainScreen.MainTab.HOME -> 92.dp
     MainScreen.MainTab.MUSIC -> 92.dp
-    MainScreen.MainTab.RECENTS -> 104.dp
-    MainScreen.MainTab.PLAYLISTS -> 108.dp
+    MainScreen.MainTab.PROFILE -> 100.dp
     MainScreen.MainTab.NETWORK -> 106.dp
     MainScreen.MainTab.JELLYFIN -> 100.dp
   }
@@ -1311,10 +1343,10 @@ private fun navigationDockExit(
 private fun ContextualSearchSlot(
   visible: Boolean,
   glass: Boolean,
-  hideIcon: Boolean,
+  selectedTab: MainScreen.MainTab,
+  opensScreen: Boolean,
   sharedTransitionScope: SharedTransitionScope?,
   animatedVisibilityScope: AnimatedVisibilityScope,
-  onButtonPositioned: (androidx.compose.ui.geometry.Offset) -> Unit,
   onSearchClick: () -> Unit,
 ) {
   AnimatedVisibility(
@@ -1322,19 +1354,23 @@ private fun ContextualSearchSlot(
     enter = contextualSearchEnter(),
     exit = contextualSearchExit(),
   ) {
+    // One morph for every tab. A Search destination (Home, Profile) is matched through the
+    // navigation transition that swaps MainScreen for MediaSearchScreen; an inline bar (Music,
+    // Network, ...) is matched through this button's own visibility, which hides in the same frame
+    // the bar appears. Previously only Home morphed and other tabs flew a lone icon while their bar
+    // popped in without any transition.
+    val morphScope = if (opensScreen) animatedVisibilityScope else this
     com.quantummpv.app.ui.browser.components.FloatingSearchButton(
       onSearchClick = onSearchClick,
-      // Shares SEARCH_MORPH_KEY with MediaSearchScreen's bar. Its outline goes from the bar's 24 dp
-      // corners back to a full circle (half of the 52 dp button) as Search closes.
-      modifier = rememberSearchMorphModifier(sharedTransitionScope, animatedVisibilityScope),
-      shape =
-        animatedVisibilityScope.rememberMorphingCornerShape(
-          visible = FloatingSearchButtonSize / 2,
-          hidden = 24.dp,
+      modifier =
+        rememberSearchMorphModifier(
+          sharedTransitionScope,
+          morphScope,
+          if (opensScreen) SEARCH_MORPH_KEY else inlineSearchMorphKey(selectedTab.name),
         ),
+      // Its outline goes from the bar's 24 dp corners back to a full circle as Search closes.
+      shape = morphScope.rememberMorphingCornerShape(visible = FloatingSearchButtonSize / 2, hidden = 24.dp),
       glass = glass,
-      hideIcon = hideIcon,
-      onIconPositioned = onButtonPositioned,
     )
   }
 }
@@ -1370,8 +1406,7 @@ private fun MainTabIcon(
   val icon = when (tab) {
     MainScreen.MainTab.HOME -> Icons.RoundedFilled.Home
     MainScreen.MainTab.MUSIC -> Icons.RoundedFilled.Audiotrack
-    MainScreen.MainTab.RECENTS -> Icons.RoundedFilled.History
-    MainScreen.MainTab.PLAYLISTS -> Icons.RoundedFilled.PlaylistPlay
+    MainScreen.MainTab.PROFILE -> Icons.RoundedFilled.AccountCircle
     MainScreen.MainTab.NETWORK -> Icons.RoundedFilled.BringYourOwnIp
     MainScreen.MainTab.JELLYFIN -> null
   }
@@ -1393,6 +1428,9 @@ private fun MainTabIcon(
 }
 
 val LocalNavigationBarHeight = compositionLocalOf { 0.dp }
+
+/** True for pages hosted by MainScreen's pager; the same screens pushed on the back stack show Back. */
+val LocalIsMainTabPage = staticCompositionLocalOf { false }
 
 // CompositionLocal for main navigation bar
 val LocalMainNavigationBar =
