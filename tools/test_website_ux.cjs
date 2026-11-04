@@ -9,12 +9,18 @@ const scripts = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)].map(m
 
 function loadPage({ storedTheme = null, blockReads = false, blockWrites = false } = {}) {
   const listeners = {};
+  const windowListeners = {};
   const elements = {};
   const root = { dataset: {} };
   for (const id of ['themeToggle', 'themeColor', 'infoFloat', 'developerSection', 'releaseVersion', 'releaseMeta']) {
     const children = {};
+    const classes = new Set();
     elements[id] = {
-      classList: { add() {}, remove() {}, contains: () => false },
+      classList: {
+        add(name) { classes.add(name); },
+        remove(name) { classes.delete(name); },
+        contains(name) { return classes.has(name); },
+      },
       setAttribute(name, value) { this[name] = value; },
       querySelector(selector) { return children[selector] ??= {}; },
       addEventListener(name, callback) { listeners[name] = callback; },
@@ -22,7 +28,7 @@ function loadPage({ storedTheme = null, blockReads = false, blockWrites = false 
   }
   const context = {
     document: { documentElement: root, getElementById: id => elements[id] },
-    window: { scrollY: 0, addEventListener() {} },
+    window: { scrollY: 0, addEventListener(name, callback) { windowListeners[name] = callback; } },
     matchMedia: () => ({ matches: false }),
     localStorage: {
       getItem() {
@@ -38,7 +44,13 @@ function loadPage({ storedTheme = null, blockReads = false, blockWrites = false 
     fetch: async () => ({ ok: true, json: async () => ({ name: 'Test release' }) }),
   };
   for (const script of scripts) runInNewContext(script, context);
-  return { root, elements, toggle: () => listeners.click(), savedTheme: () => storedTheme };
+  return {
+    root,
+    elements,
+    toggle: () => listeners.click(),
+    scrollTo: y => { context.window.scrollY = y; windowListeners.scroll(); },
+    savedTheme: () => storedTheme,
+  };
 }
 
 test('restores the saved theme and persists theme changes', () => {
@@ -69,6 +81,19 @@ test('blocked storage writes do not prevent a visible theme change', () => {
 test('theme toggle remains visible and interactive on touch-only devices', () => {
   const touchRule = html.match(/@media\s*\(hover\s*:\s*none\)\s*\{\s*\.theme-float\s*\{([^}]*)\}\s*\}/);
   assert.ok(touchRule, 'touch devices need an explicit theme-toggle rule');
-  assert.match(touchRule[1], /opacity\s*:\s*1/);
-  assert.match(touchRule[1], /pointer-events\s*:\s*auto/);
+  assert.match(touchRule[1], /opacity\s*:\s*1\s*!important/);
+  assert.match(touchRule[1], /pointer-events\s*:\s*auto\s*!important/);
+
+  const page = loadPage();
+  page.scrollTo(100);
+  assert.equal(page.elements.themeToggle.classList.contains('is-visible'), false);
+  // The media-query override keeps the control visible and hit-testable after the
+  // scroll handler removes is-visible on touch devices.
+});
+
+test('keyboard-focused floating controls override hidden-state styling', () => {
+  const focusRule = html.match(/\.floating-pill:focus-visible\s*\{([^}]*)\}/);
+  assert.ok(focusRule, 'keyboard focus must reveal floating controls');
+  assert.match(focusRule[1], /opacity\s*:\s*1\s*!important/);
+  assert.match(focusRule[1], /pointer-events\s*:\s*auto\s*!important/);
 });
