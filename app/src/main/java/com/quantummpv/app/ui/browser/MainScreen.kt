@@ -18,11 +18,9 @@ import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.VectorConverter
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -797,26 +795,20 @@ private fun ExpressivePillNavigationBar(
       { selectedTabIndex.toFloat() }
     }
 
-  // While the finger drags the pager the dock tracks it 1:1. Otherwise (tap, programmatic jump,
-  // fling settle) the pill and the tab sizes spring to the selected tab, so non-adjacent jumps
-  // slide instead of snapping.
+  // While the pager moves (finger drag, the fling after it, or an adjacent tap's animated scroll)
+  // the dock tracks it 1:1, so the pill can never trail or wobble behind the content. Only
+  // non-adjacent jumps (instant scrollToPage) spring the pill to the selected tab.
   val pagerInteractions = pagerState?.interactionSource ?: remember { MutableInteractionSource() }
   val isDraggingPager by pagerInteractions.collectIsDraggedAsState()
-  val followPager = isDraggingPager || disableMotion
+  val followPager = isDraggingPager || pagerState?.isScrollInProgress == true || disableMotion
   val pillSpringDp =
     com.quantummpv.app.ui.theme.AppMotion.spatial(
-      spring<androidx.compose.ui.unit.Dp>(
-        dampingRatio = Spring.DampingRatioLowBouncy,
-        stiffness = Spring.StiffnessMediumLow,
-      ),
+      com.quantummpv.app.ui.theme.AppMotion.Spatial.SnappyDp,
       com.quantummpv.app.ui.theme.AppMotion.ReducedDp,
     )
   val pillSpringFloat =
     com.quantummpv.app.ui.theme.AppMotion.spatial(
-      spring<Float>(
-        dampingRatio = Spring.DampingRatioLowBouncy,
-        stiffness = Spring.StiffnessMediumLow,
-      ),
+      com.quantummpv.app.ui.theme.AppMotion.Spatial.Snappy,
       com.quantummpv.app.ui.theme.AppMotion.ReducedAlpha,
     )
 
@@ -951,21 +943,27 @@ private fun ExpressivePillNavigationBar(
       val density = LocalDensity.current
       val tabViewportWidth =
         (maxWidth - com.quantummpv.app.ui.browser.components.FloatingMenuButtonSize).coerceAtLeast(0.dp)
-      val settledPage = pagerState?.settledPage ?: selectedTabIndex
-
-      LaunchedEffect(settledPage, showLabels, tabViewportWidth, selectedTabIndex) {
-        val index = settledPage.coerceIn(visibleTabs.indices)
-        // Geometry as it will be once `index` is the expanded tab, independent of the tapped target.
-        val expandedOnly = { i: Int -> if (i == index) 1f else 0f }
-        val selectedCenter = offsetFor(index, expandedOnly) + widthFor(index, 1f) / 2
-        // maxValue moves while tab widths animate; follow it here rather than recomposing for it.
-        snapshotFlow { scrollState.maxValue }
-          .distinctUntilChanged()
-          .collectLatest { maxScroll ->
-            val target =
-              with(density) {
-                (selectedCenter - tabViewportWidth / 2).roundToPx().coerceIn(0, maxScroll)
-              }
+      // Keyed on the selection (not settledPage) so the strip starts moving with the tap instead of
+      // after the pager settles.
+      LaunchedEffect(
+        showLabels,
+        tabViewportWidth,
+        selectedTabIndex,
+        followPager,
+        disableMotion,
+        visibleTabs,
+        density,
+      ) {
+        val index = selectedTabIndex.coerceIn(visibleTabs.indices)
+        // Tab widths move during selection and pager animations. Observe their live fractions here
+        // so the centered scroll target follows the actual tab geometry, not a stale pre-animation
+        // center captured when this effect started.
+        snapshotFlow {
+          val fractionOf: (Int) -> Float = { tabIndex -> activeFraction(tabIndex).coerceIn(0f, 1f) }
+          val liveWidths = visibleTabs.indices.map { tabIndex -> widthFor(tabIndex, fractionOf(tabIndex)) }
+          centeredNavigationScrollTarget(index, liveWidths, tabViewportWidth, scrollState.maxValue, density)
+        }.distinctUntilChanged()
+          .collectLatest { target ->
             if (disableMotion) scrollState.scrollTo(target) else scrollState.animateScrollTo(target, scrollSpec)
           }
       }
@@ -1147,6 +1145,22 @@ internal data class NavigationDockMeasure(
   val dockWidth: androidx.compose.ui.unit.Dp,
   val showLabels: Boolean,
 )
+
+/** Centers the selected tab using the current animated widths, clamped to the scrollable range. */
+internal fun centeredNavigationScrollTarget(
+  selectedIndex: Int,
+  tabWidths: List<androidx.compose.ui.unit.Dp>,
+  viewportWidth: androidx.compose.ui.unit.Dp,
+  maxScrollPx: Int,
+  density: androidx.compose.ui.unit.Density,
+): Int {
+  require(selectedIndex in tabWidths.indices) { "selectedIndex must identify a tab" }
+  require(maxScrollPx >= 0) { "maxScrollPx cannot be negative" }
+  var selectedStart = NavigationContentPadding
+  for (index in 0 until selectedIndex) selectedStart += tabWidths[index] + NavigationItemSpacing
+  val selectedCenter = selectedStart + tabWidths[selectedIndex] / 2
+  return with(density) { (selectedCenter - viewportWidth / 2).roundToPx().coerceIn(0, maxScrollPx) }
+}
 
 /**
  * Chooses expanded labels when possible and a scrollable compact viewport otherwise. Margins shrink
