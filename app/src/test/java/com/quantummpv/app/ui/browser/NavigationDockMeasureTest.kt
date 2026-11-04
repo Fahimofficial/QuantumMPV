@@ -1,5 +1,6 @@
 package com.quantummpv.app.ui.browser
 
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -8,6 +9,22 @@ import org.junit.Test
 
 class NavigationDockMeasureTest {
   private val allTabs = MainScreen.MainTab.entries
+
+  @Test
+  fun selectedTabScrollTargetTracksAnimatedWidthsAndClampsToRange() {
+    val viewport = 100.dp
+    val density = Density(1f)
+    val compactWidths = listOf(48.dp, 48.dp, 48.dp)
+    val expandedWidths = listOf(60.dp, 120.dp, 120.dp)
+
+    val compactTarget = centeredNavigationScrollTarget(2, compactWidths, viewport, 1_000, density)
+    val expandedTarget = centeredNavigationScrollTarget(2, expandedWidths, viewport, 1_000, density)
+
+    assertEquals(80, compactTarget)
+    assertEquals(200, expandedTarget)
+    assertEquals(150, centeredNavigationScrollTarget(2, expandedWidths, viewport, 150, density))
+    assertEquals(0, centeredNavigationScrollTarget(0, compactWidths, 300.dp, 150, density))
+  }
 
   @Test
   fun narrowPhoneUsesScrollableCompactTabsAndFitsMargins() {

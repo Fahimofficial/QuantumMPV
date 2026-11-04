@@ -960,10 +960,8 @@ private fun ExpressivePillNavigationBar(
         // center captured when this effect started.
         snapshotFlow {
           val fractionOf: (Int) -> Float = { tabIndex -> activeFraction(tabIndex).coerceIn(0f, 1f) }
-          val selectedCenter = offsetFor(index, fractionOf) + widthFor(index, fractionOf(index)) / 2
-          with(density) {
-            (selectedCenter - tabViewportWidth / 2).roundToPx().coerceIn(0, scrollState.maxValue)
-          }
+          val liveWidths = visibleTabs.indices.map { tabIndex -> widthFor(tabIndex, fractionOf(tabIndex)) }
+          centeredNavigationScrollTarget(index, liveWidths, tabViewportWidth, scrollState.maxValue, density)
         }.distinctUntilChanged()
           .collectLatest { target ->
             if (disableMotion) scrollState.scrollTo(target) else scrollState.animateScrollTo(target, scrollSpec)
@@ -1147,6 +1145,22 @@ internal data class NavigationDockMeasure(
   val dockWidth: androidx.compose.ui.unit.Dp,
   val showLabels: Boolean,
 )
+
+/** Centers the selected tab using the current animated widths, clamped to the scrollable range. */
+internal fun centeredNavigationScrollTarget(
+  selectedIndex: Int,
+  tabWidths: List<androidx.compose.ui.unit.Dp>,
+  viewportWidth: androidx.compose.ui.unit.Dp,
+  maxScrollPx: Int,
+  density: androidx.compose.ui.unit.Density,
+): Int {
+  require(selectedIndex in tabWidths.indices) { "selectedIndex must identify a tab" }
+  require(maxScrollPx >= 0) { "maxScrollPx cannot be negative" }
+  var selectedStart = NavigationContentPadding
+  for (index in 0 until selectedIndex) selectedStart += tabWidths[index] + NavigationItemSpacing
+  val selectedCenter = selectedStart + tabWidths[selectedIndex] / 2
+  return with(density) { (selectedCenter - viewportWidth / 2).roundToPx().coerceIn(0, maxScrollPx) }
+}
 
 /**
  * Chooses expanded labels when possible and a scrollable compact viewport otherwise. Margins shrink
