@@ -129,6 +129,10 @@ internal class AppHaptics(private val feedback: HapticFeedback) {
     feedback.performHapticFeedback(HapticFeedbackType.Confirm)
   }
 
+  fun reject() {
+    feedback.performHapticFeedback(HapticFeedbackType.Reject)
+  }
+
   fun tick() {
     feedback.performHapticFeedback(HapticFeedbackType.SegmentTick)
   }
