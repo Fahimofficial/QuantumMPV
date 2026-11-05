@@ -456,81 +456,16 @@ object MainScreen : Screen {
                 LocalMainSearchTab provides tab,
                 LocalIsMainTabPage provides true,
               ) {
-                when (tab) {
-                MainTab.HOME -> FolderListScreen.Content()
-                MainTab.MUSIC -> {
-                  if (musicSourceProvider == MusicSourceProvider.JELLYFIN) {
-                    val jellyfinUiState by jellyfinViewModel.uiState.collectAsStateWithLifecycle()
-                    if (jellyfinUiState.activeServer == null) {
-                      ServerSetupCard(
-                        icon = R.drawable.ic_jellyfin,
-                        title = stringResource(R.string.music_source_jellyfin),
-                        message = stringResource(R.string.pref_jellyfin_no_server),
-                        primary =
-                          ServerSetupAction(stringResource(R.string.generic_configure)) {
-                            backStack.navigateTo(com.quantummpv.app.ui.preferences.MediaServersPreferencesScreen)
-                          },
-                        secondary =
-                          ServerSetupAction(stringResource(R.string.music_source_local)) {
-                            mediaServerPreferences.musicSourceProvider.set(MusicSourceProvider.LOCAL)
-                          },
-                      )
-                    } else if (!jellyfinUiState.isLoading && !jellyfinUiState.hasMusicLibrary && jellyfinUiState.libraries.isNotEmpty()) {
-                      ServerSetupCard(
-                        icon = R.drawable.ic_jellyfin,
-                        title = stringResource(R.string.music_source_jellyfin),
-                        message = stringResource(R.string.jellyfin_no_music_library),
-                        primary =
-                          ServerSetupAction(stringResource(R.string.music_source_local)) {
-                            mediaServerPreferences.musicSourceProvider.set(MusicSourceProvider.LOCAL)
-                          },
-                        secondary =
-                          ServerSetupAction(stringResource(R.string.generic_configure)) {
-                            backStack.navigateTo(com.quantummpv.app.ui.preferences.MediaServersPreferencesScreen)
-                          },
-                      )
-                    } else {
-                      LaunchedEffect(jellyfinUiState.libraries) {
-                        jellyfinViewModel.ensureMusicLibraryOpened()
-                      }
-                      com.quantummpv.app.ui.browser.jellyfin.JellyfinContent(
-                        viewModel = jellyfinViewModel,
-                        isMusicOnlyMode = true,
-                      )
-                    }
-                  } else if (musicSourceProvider == MusicSourceProvider.NAVIDROME) {
-                    val navidromeUiState by navidromeViewModel.uiState.collectAsStateWithLifecycle()
-                    if (navidromeUiState.activeServer == null) {
-                      ServerSetupCard(
-                        icon = R.drawable.ic_navidrome,
-                        title = stringResource(R.string.music_source_navidrome),
-                        message = stringResource(R.string.pref_navidrome_no_server),
-                        primary =
-                          ServerSetupAction(stringResource(R.string.generic_configure)) {
-                            backStack.navigateTo(com.quantummpv.app.ui.preferences.MediaServersPreferencesScreen)
-                          },
-                        secondary =
-                          ServerSetupAction(stringResource(R.string.music_source_local)) {
-                            mediaServerPreferences.musicSourceProvider.set(MusicSourceProvider.LOCAL)
-                          },
-                      )
-                    } else {
-                      com.quantummpv.app.ui.browser.navidrome.NavidromeContent(
-                        viewModel = navidromeViewModel,
-                        isMusicOnlyMode = true,
-                      )
-                    }
-                  } else {
-                    MusicLibraryContent(
-                      jellyfinViewModel = jellyfinViewModel,
-                      navidromeViewModel = navidromeViewModel,
-                    )
-                  }
-                }
-                MainTab.PROFILE -> com.quantummpv.app.ui.browser.profile.ProfileScreen.Content()
-                MainTab.NETWORK -> NetworkStreamingScreen.Content()
-                MainTab.JELLYFIN -> com.quantummpv.app.ui.browser.jellyfin.JellyfinContent(viewModel = jellyfinViewModel)
-              }
+                MainTabContent(
+                  tab = tab,
+                  musicSourceProvider = musicSourceProvider,
+                  jellyfinViewModel = jellyfinViewModel,
+                  navidromeViewModel = navidromeViewModel,
+                  onConfigureMediaServers = {
+                    backStack.navigateTo(com.quantummpv.app.ui.preferences.MediaServersPreferencesScreen)
+                  },
+                  onUseLocalMusic = { mediaServerPreferences.musicSourceProvider.set(MusicSourceProvider.LOCAL) },
+                )
               }
             }
           }
@@ -1088,6 +1023,72 @@ private fun NavigationLabelSlot(
         constraints.copy(minWidth = 0, maxWidth = (constraints.maxWidth - gap).coerceAtLeast(0)),
       )
     layout(gap + placeable.width, placeable.height) { placeable.place(gap, 0) }
+  }
+}
+
+@Composable
+private fun MainTabContent(
+  tab: MainScreen.MainTab,
+  musicSourceProvider: MusicSourceProvider,
+  jellyfinViewModel: com.quantummpv.app.ui.browser.jellyfin.JellyfinViewModel,
+  navidromeViewModel: com.quantummpv.app.ui.browser.navidrome.NavidromeViewModel,
+  onConfigureMediaServers: () -> Unit,
+  onUseLocalMusic: () -> Unit,
+) {
+  when (tab) {
+    MainScreen.MainTab.HOME -> FolderListScreen.Content()
+    MainScreen.MainTab.MUSIC -> {
+      if (musicSourceProvider == MusicSourceProvider.JELLYFIN) {
+        val jellyfinUiState by jellyfinViewModel.uiState.collectAsStateWithLifecycle()
+        if (jellyfinUiState.activeServer == null) {
+          ServerSetupCard(
+            icon = R.drawable.ic_jellyfin,
+            title = stringResource(R.string.music_source_jellyfin),
+            message = stringResource(R.string.pref_jellyfin_no_server),
+            primary = ServerSetupAction(stringResource(R.string.generic_configure), onConfigureMediaServers),
+            secondary = ServerSetupAction(stringResource(R.string.music_source_local), onUseLocalMusic),
+          )
+        } else if (!jellyfinUiState.isLoading && !jellyfinUiState.hasMusicLibrary && jellyfinUiState.libraries.isNotEmpty()) {
+          ServerSetupCard(
+            icon = R.drawable.ic_jellyfin,
+            title = stringResource(R.string.music_source_jellyfin),
+            message = stringResource(R.string.jellyfin_no_music_library),
+            primary = ServerSetupAction(stringResource(R.string.music_source_local), onUseLocalMusic),
+            secondary = ServerSetupAction(stringResource(R.string.generic_configure), onConfigureMediaServers),
+          )
+        } else {
+          LaunchedEffect(jellyfinUiState.libraries) { jellyfinViewModel.ensureMusicLibraryOpened() }
+          com.quantummpv.app.ui.browser.jellyfin.JellyfinContent(
+            viewModel = jellyfinViewModel,
+            isMusicOnlyMode = true,
+          )
+        }
+      } else if (musicSourceProvider == MusicSourceProvider.NAVIDROME) {
+        val navidromeUiState by navidromeViewModel.uiState.collectAsStateWithLifecycle()
+        if (navidromeUiState.activeServer == null) {
+          ServerSetupCard(
+            icon = R.drawable.ic_navidrome,
+            title = stringResource(R.string.music_source_navidrome),
+            message = stringResource(R.string.pref_navidrome_no_server),
+            primary = ServerSetupAction(stringResource(R.string.generic_configure), onConfigureMediaServers),
+            secondary = ServerSetupAction(stringResource(R.string.music_source_local), onUseLocalMusic),
+          )
+        } else {
+          com.quantummpv.app.ui.browser.navidrome.NavidromeContent(
+            viewModel = navidromeViewModel,
+            isMusicOnlyMode = true,
+          )
+        }
+      } else {
+        MusicLibraryContent(
+          jellyfinViewModel = jellyfinViewModel,
+          navidromeViewModel = navidromeViewModel,
+        )
+      }
+    }
+    MainScreen.MainTab.PROFILE -> com.quantummpv.app.ui.browser.profile.ProfileScreen.Content()
+    MainScreen.MainTab.NETWORK -> NetworkStreamingScreen.Content()
+    MainScreen.MainTab.JELLYFIN -> com.quantummpv.app.ui.browser.jellyfin.JellyfinContent(viewModel = jellyfinViewModel)
   }
 }
 

@@ -2723,6 +2723,7 @@
   <string name="profile_display_name">Display name</string>
   <string name="profile_choose_photo">Choose photo</string>
   <string name="profile_remove_photo">Remove photo</string>
+  <string name="profile_save_failed">Couldn’t save your profile. Please try again.</string>
   <string name="profile_remove_from_history">Remove from history</string>
   <string name="profile_recents_empty_message">Items you play will appear here</string>
   <string name="profile_playlists_empty_message">Playlists you create will appear here</string>

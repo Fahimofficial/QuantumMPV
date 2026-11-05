@@ -9,12 +9,9 @@
 
 package com.quantummpv.app.ui.browser.profile
 
-import android.app.Application
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.graphics.Matrix
-import android.media.ExifInterface
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -111,6 +108,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.quantummpv.app.App
 import com.quantummpv.app.R
 import com.quantummpv.app.database.entities.PlaylistEntity
 import com.quantummpv.app.domain.media.model.Video
@@ -145,6 +143,7 @@ import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.navigateTo
 import com.quantummpv.app.ui.utils.rememberAppHaptics
 import com.quantummpv.app.utils.media.MediaUtils
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -153,8 +152,6 @@ import org.koin.compose.koinInject
 import java.io.File
 
 private const val SHELF_LIMIT = 15
-private const val AVATAR_FILE_PREFIX = "profile_avatar_"
-private const val AVATAR_SIZE_PX = 512
 private val SHELF_VIDEO_CARD_WIDTH = 214.dp
 private val SHELF_AUDIO_CARD_WIDTH = 120.dp
 
@@ -171,7 +168,7 @@ object ProfileScreen : Screen {
   @Composable
   override fun Content() {
     val context = LocalContext.current
-    val application = context.applicationContext as Application
+    val application = context.applicationContext as App
     val backStack = LocalBackStack.current
     val scope = rememberCoroutineScope()
     val haptics = rememberAppHaptics()
@@ -198,6 +195,8 @@ object ProfileScreen : Screen {
     var activeVideoItem by remember { mutableStateOf<RecentlyPlayedItem.VideoItem?>(null) }
     var playlistToDelete by remember { mutableStateOf<PlaylistEntity?>(null) }
     var showProfileDialog by rememberSaveable { mutableStateOf(false) }
+    var isSavingProfile by remember { mutableStateOf(false) }
+    var profileSaveFailed by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
     val missingFileMessage = stringResource(R.string.ui_recent_file_no_longer_exists)
     val heroCollapseProgress by remember {
@@ -381,15 +380,39 @@ object ProfileScreen : Screen {
       ProfileEditDialog(
         initialName = profileName,
         hasPhoto = profileImagePath.isNotBlank(),
-        onDismiss = { showProfileDialog = false },
+        isSaving = isSavingProfile,
+        showSaveError = profileSaveFailed,
+        onDismiss = { if (!isSavingProfile) showProfileDialog = false },
         onSave = { name, newPhoto, removePhoto ->
-          showProfileDialog = false
-          appearancePreferences.profileName.set(name.trim())
-          if (newPhoto != null || removePhoto) {
-            scope.launch {
-              // On a failed write (e.g. full storage) the old avatar and its preference stay as they were.
-              withContext(Dispatchers.IO) { runCatching { storeProfileAvatar(context, newPhoto) } }
-                .onSuccess { appearancePreferences.profileImagePath.set(it) }
+          profileSaveFailed = false
+          isSavingProfile = true
+          application.applicationScope.launch(Dispatchers.Main.immediate) {
+            var newAvatarPath: String? = null
+            var avatarPreferenceUpdated = false
+            try {
+              if (newPhoto != null || removePhoto) {
+                // Retain the previous file until the new path is durably stored.
+                val avatarPath = withContext(Dispatchers.IO) { storeProfileAvatar(context, newPhoto) }
+                newAvatarPath = avatarPath
+                appearancePreferences.profileImagePath.set(avatarPath)
+                avatarPreferenceUpdated = true
+              }
+              appearancePreferences.profileName.set(name.trim())
+              if (newPhoto != null || removePhoto) {
+                withContext(Dispatchers.IO) { deleteStoredProfileAvatars(context, keepPath = newAvatarPath.orEmpty()) }
+              }
+              showProfileDialog = false
+            } catch (cancelled: CancellationException) {
+              throw cancelled
+            } catch (_: Exception) {
+              if (!avatarPreferenceUpdated) {
+                newAvatarPath?.takeIf(String::isNotBlank)?.let { path ->
+                  withContext(Dispatchers.IO) { File(path).delete() }
+                }
+              }
+              profileSaveFailed = true
+            } finally {
+              isSavingProfile = false
             }
           }
         },
@@ -817,39 +840,66 @@ private fun RecentVideoCard(
   }
 
   ShelfCard(title = video.displayName, onClick = onClick, onLongClick = onLongClick, isAudio = isAudio) {
-    val bitmap = thumbnail
-    if (bitmap != null) {
-      Image(bitmap.asImageBitmap(), contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-    } else {
-      Icon(
-        if (isAudio) Icons.RoundedFilled.Audiotrack else Icons.RoundedFilled.PlayArrow,
-        contentDescription = null,
-        tint = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.size(if (isAudio) 36.dp else 32.dp),
+    RecentVideoFrame(thumbnail, isAudio, video.durationFormatted, progress)
+  }
+}
+
+@Composable
+private fun BoxScope.RecentVideoFrame(
+  thumbnail: Bitmap?,
+  isAudio: Boolean,
+  duration: String,
+  progress: Float?,
+) {
+  RecentVideoArtwork(thumbnail, isAudio)
+  RecentVideoDuration(duration)
+  RecentVideoProgress(progress)
+}
+
+@Composable
+private fun BoxScope.RecentVideoArtwork(
+  thumbnail: Bitmap?,
+  isAudio: Boolean,
+) {
+  if (thumbnail != null) {
+    Image(thumbnail.asImageBitmap(), contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+  } else {
+    Icon(
+      if (isAudio) Icons.RoundedFilled.Audiotrack else Icons.RoundedFilled.PlayArrow,
+      contentDescription = null,
+      tint = MaterialTheme.colorScheme.primary,
+      modifier = Modifier.align(Alignment.Center).size(if (isAudio) 36.dp else 32.dp),
+    )
+  }
+}
+
+@Composable
+private fun BoxScope.RecentVideoDuration(duration: String) {
+  if (duration.isNotBlank() && duration != "--:--") {
+    Surface(
+      shape = RoundedCornerShape(6.dp),
+      color = Color.Black.copy(alpha = 0.75f),
+      contentColor = Color.White,
+      modifier = Modifier.align(Alignment.BottomEnd).padding(6.dp),
+    ) {
+      Text(
+        text = duration,
+        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, fontWeight = FontWeight.SemiBold),
+        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
       )
     }
-    if (video.durationFormatted.isNotBlank() && video.durationFormatted != "--:--") {
-      Surface(
-        shape = RoundedCornerShape(6.dp),
-        color = Color.Black.copy(alpha = 0.75f),
-        contentColor = Color.White,
-        modifier = Modifier.align(Alignment.BottomEnd).padding(6.dp),
-      ) {
-        Text(
-          text = video.durationFormatted,
-          style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, fontWeight = FontWeight.SemiBold),
-          modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-        )
-      }
-    }
-    if (progress != null && progress > 0f) {
-      LinearProgressIndicator(
-        progress = { progress },
-        modifier = Modifier.fillMaxWidth().height(3.dp).align(Alignment.BottomCenter),
-        color = MaterialTheme.colorScheme.primary,
-        trackColor = Color.Black.copy(alpha = 0.35f),
-      )
-    }
+  }
+}
+
+@Composable
+private fun BoxScope.RecentVideoProgress(progress: Float?) {
+  if (progress != null && progress > 0f) {
+    LinearProgressIndicator(
+      progress = { progress },
+      modifier = Modifier.fillMaxWidth().height(3.dp).align(Alignment.BottomCenter),
+      color = MaterialTheme.colorScheme.primary,
+      trackColor = Color.Black.copy(alpha = 0.35f),
+    )
   }
 }
 
@@ -918,6 +968,8 @@ private fun SheetAction(
 private fun ProfileEditDialog(
   initialName: String,
   hasPhoto: Boolean,
+  isSaving: Boolean,
+  showSaveError: Boolean,
   onDismiss: () -> Unit,
   onSave: (name: String, newPhoto: Bitmap?, removePhoto: Boolean) -> Unit,
 ) {
@@ -955,7 +1007,7 @@ private fun ProfileEditDialog(
   }
 
   AlertDialog(
-    onDismissRequest = onDismiss,
+    onDismissRequest = { if (!isSaving) onDismiss() },
     title = { Text(stringResource(R.string.profile_edit)) },
     text = {
       Column(
@@ -965,6 +1017,7 @@ private fun ProfileEditDialog(
       ) {
         Surface(
           onClick = { picker.launch("image/*") },
+          enabled = !isSaving,
           shape = CircleShape,
           color = MaterialTheme.colorScheme.primaryContainer,
           modifier = Modifier.size(96.dp),
@@ -988,11 +1041,12 @@ private fun ProfileEditDialog(
           verticalArrangement = Arrangement.spacedBy(8.dp),
           modifier = Modifier.fillMaxWidth(),
         ) {
-          OutlinedButton(onClick = { picker.launch("image/*") }) {
+          OutlinedButton(enabled = !isSaving, onClick = { picker.launch("image/*") }) {
             Text(stringResource(R.string.profile_choose_photo), maxLines = 1)
           }
           if (showsPhoto) {
             OutlinedButton(
+              enabled = !isSaving,
               onClick = {
                 scope.launch {
                   val toCrop =
@@ -1007,6 +1061,7 @@ private fun ProfileEditDialog(
               Text(stringResource(R.string.clip_crop), maxLines = 1)
             }
             OutlinedButton(
+              enabled = !isSaving,
               onClick = {
                 pendingPhoto = null
                 removePhoto = true
@@ -1023,15 +1078,26 @@ private fun ProfileEditDialog(
           onValueChange = { name = it.take(40) },
           label = { Text(stringResource(R.string.profile_display_name)) },
           singleLine = true,
+          enabled = !isSaving,
           modifier = Modifier.fillMaxWidth(),
         )
+        if (showSaveError) {
+          Text(
+            text = stringResource(R.string.profile_save_failed),
+            color = MaterialTheme.colorScheme.error,
+            style = MaterialTheme.typography.bodySmall,
+          )
+        }
+        if (isSaving) LinearProgressIndicator(Modifier.fillMaxWidth())
       }
     },
     confirmButton = {
-      TextButton(onClick = { onSave(name, pendingPhoto, removePhoto) }) { Text(stringResource(R.string.ui_save)) }
+      TextButton(enabled = !isSaving, onClick = { onSave(name, pendingPhoto, removePhoto) }) {
+        Text(stringResource(R.string.ui_save))
+      }
     },
     dismissButton = {
-      TextButton(onClick = onDismiss) { Text(stringResource(R.string.generic_cancel)) }
+      TextButton(enabled = !isSaving, onClick = onDismiss) { Text(stringResource(R.string.generic_cancel)) }
     },
   )
 }
@@ -1192,91 +1258,4 @@ private fun CropToolButton(
     Spacer(Modifier.width(4.dp))
     Text(label, style = MaterialTheme.typography.labelMedium)
   }
-}
-
-private fun rotateBitmap(
-  bitmap: Bitmap,
-  degrees: Int,
-): Bitmap =
-  if (degrees % 360 == 0) {
-    bitmap
-  } else {
-    val matrix = Matrix().apply { postRotate(degrees.toFloat()) }
-    Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
-  }
-
-/** Maps the on-screen circular viewport back onto the rotated source and scales it to the avatar size. */
-private fun performCrop(
-  bitmap: Bitmap,
-  rotation: Int,
-  userScale: Float,
-  userOffset: Offset,
-  viewportSizePx: Float,
-): Bitmap {
-  val rotated = rotateBitmap(bitmap, rotation)
-  val bw = rotated.width.toFloat()
-  val bh = rotated.height.toFloat()
-  val totalScale = maxOf(viewportSizePx / bw, viewportSizePx / bh) * userScale
-  val cropSize = (viewportSizePx / totalScale).coerceAtMost(minOf(bw, bh))
-  val cropCenterX = bw / 2f - userOffset.x / totalScale
-  val cropCenterY = bh / 2f - userOffset.y / totalScale
-  val srcX = (cropCenterX - cropSize / 2f).toInt().coerceIn(0, (bw - cropSize).toInt().coerceAtLeast(0))
-  val srcY = (cropCenterY - cropSize / 2f).toInt().coerceIn(0, (bh - cropSize).toInt().coerceAtLeast(0))
-  val side = minOf(cropSize.toInt().coerceAtMost(rotated.width - srcX), cropSize.toInt().coerceAtMost(rotated.height - srcY)).coerceAtLeast(1)
-  val scale = AVATAR_SIZE_PX.toFloat() / side
-  return Bitmap.createBitmap(rotated, srcX, srcY, side, side, Matrix().apply { postScale(scale, scale) }, true)
-}
-
-/** Decodes [uri] into an upright, downsampled bitmap for cropping. */
-private fun decodeRawProfileAvatar(
-  context: Context,
-  uri: Uri,
-): Bitmap? =
-  runCatching {
-    val resolver = context.contentResolver
-    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-    resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
-    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
-
-    var sampleSize = 1
-    val maxDim = maxOf(bounds.outWidth, bounds.outHeight)
-    while (maxDim / (sampleSize * 2) >= 2048) sampleSize *= 2
-    val decoded =
-      resolver.openInputStream(uri)?.use {
-        BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply { inSampleSize = sampleSize })
-      } ?: return null
-
-    val rotation =
-      resolver.openInputStream(uri)?.use {
-        when (ExifInterface(it).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)) {
-          ExifInterface.ORIENTATION_ROTATE_90 -> 90
-          ExifInterface.ORIENTATION_ROTATE_180 -> 180
-          ExifInterface.ORIENTATION_ROTATE_270 -> 270
-          else -> 0
-        }
-      } ?: 0
-    rotateBitmap(decoded, rotation)
-  }.getOrNull()
-
-/** Replaces the stored avatar with [bitmap] (or clears it when null) and returns the new path. */
-private fun storeProfileAvatar(
-  context: Context,
-  bitmap: Bitmap?,
-): String {
-  val old = context.filesDir.listFiles { file -> file.name.startsWith(AVATAR_FILE_PREFIX) }.orEmpty()
-  if (bitmap == null) {
-    old.forEach(File::delete)
-    return ""
-  }
-  // A fresh name per save changes the preference value, so every avatar observer reloads.
-  val file = File(context.filesDir, "$AVATAR_FILE_PREFIX${System.currentTimeMillis()}.png")
-  try {
-    file.outputStream().use { if (!bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) throw java.io.IOException("PNG encode failed") }
-  } catch (e: Exception) {
-    file.delete()
-    throw e
-  }
-  // Only now that the new avatar is on disk is it safe to drop the previous ones.
-  old.forEach(File::delete)
-  return file.absolutePath
 }
