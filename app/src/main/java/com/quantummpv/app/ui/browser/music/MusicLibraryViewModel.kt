@@ -80,6 +80,7 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
   // Keep the unfiltered MediaStore result so changing the minimum-duration preference can update
   // Songs, Albums and Artists immediately without rescanning storage on every slider movement.
   private val allSongs = MutableStateFlow<List<MusicSong>>(emptyList())
+  private val scanMutex = Mutex()
   private val filterMutex = Mutex()
 
   private val _songs = MutableStateFlow<List<MusicSong>>(emptyList())
@@ -216,16 +217,18 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
     .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
   suspend fun refreshLibrary(context: Context) {
-    _isLoading.value = true
-    try {
-      allSongs.value = MusicLibraryScanner.scanSongs(context)
-      applyFilters()
-    } catch (e: CancellationException) {
-      throw e
-    } catch (e: Exception) {
-      Log.e(TAG, "Failed to refresh music library", e)
-    } finally {
-      _isLoading.value = false
+    scanMutex.withLock {
+      _isLoading.value = true
+      try {
+        allSongs.value = MusicLibraryScanner.scanSongs(context)
+        applyFilters()
+      } catch (e: CancellationException) {
+        throw e
+      } catch (e: Exception) {
+        Log.e(TAG, "Failed to refresh music library", e)
+      } finally {
+        _isLoading.value = false
+      }
     }
   }
 
