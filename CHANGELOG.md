@@ -12,6 +12,7 @@
 - **Support My Work**: About now opens a dedicated Support My Work screen with Ko-fi, a UPI QR code generated on the device (scan, enlarge, share or save), Copy UPI ID and Open UPI app, kept separate from the project's GitHub repository and the developer's website. The UPI ID is now `SimplyFahim@sbi` with payee SimplyFahim, and the old bundled QR image and unused upstream Ko-fi/PayPal/UPI strings are gone.
 
 ### Fixes
+
 - **Accessibility**: Back arrows in Settings and other screens, the password visibility toggle, Navidrome favourite toggles, subtitle delete and the Secure Folder menu now have TalkBack labels.
 - **Text**: Music library menus and the create-playlist dialog are now translatable.
 - **Artwork**: Remote images are capped at 20 MB and an interrupted download can no longer leave a broken thumbnail cached.
