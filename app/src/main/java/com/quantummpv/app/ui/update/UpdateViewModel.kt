@@ -14,6 +14,7 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import androidx.core.content.FileProvider
+import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.quantummpv.app.BuildConfig
@@ -64,7 +65,7 @@ class UpdateViewModel(
 
   private fun markChecked() {
     val now = System.currentTimeMillis()
-    prefs.edit().putLong(LAST_CHECKED_AT_KEY, now).apply()
+    prefs.edit { putLong(LAST_CHECKED_AT_KEY, now) }
     _lastCheckedAt.value = now
   }
 

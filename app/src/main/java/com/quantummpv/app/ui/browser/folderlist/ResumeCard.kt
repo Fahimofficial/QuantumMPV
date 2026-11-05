@@ -48,7 +48,9 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
@@ -58,11 +60,11 @@ import com.quantummpv.app.domain.media.model.Video
 import com.quantummpv.app.domain.playbackstate.repository.PlaybackStateRepository
 import com.quantummpv.app.domain.thumbnail.ThumbnailRepository
 import com.quantummpv.app.preferences.PlayerPreferences
-import com.quantummpv.app.ui.player.ResumePlaybackMode
 import com.quantummpv.app.repository.MediaFileRepository
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.PlaybackIdentity
+import com.quantummpv.app.ui.player.ResumePlaybackMode
 import com.quantummpv.app.ui.theme.AppMotion
 import com.quantummpv.app.ui.theme.AppShapeScale
 import com.quantummpv.app.ui.theme.Dimens
@@ -190,6 +192,7 @@ internal fun ResumeCard(
         onClick = {
           MediaUtils.playFile(current.filePath, context, "recently_played_button", title = current.title)
         },
+        onDismiss = { dismissedResumeKey = current.dismissKey },
       )
     }
   }
@@ -199,7 +202,9 @@ internal fun ResumeCard(
 private fun ResumeCardContent(
   model: ResumeCardModel,
   onClick: () -> Unit,
+  onDismiss: () -> Unit,
 ) {
+  val dismissLabel = stringResource(R.string.ui_resume_card_dismiss)
   val interactionSource = remember { MutableInteractionSource() }
   val shape = AppShapeScale.large
   ElevatedCard(
@@ -211,7 +216,17 @@ private fun ResumeCardContent(
         .fillMaxWidth()
         .padding(horizontal = 4.dp, vertical = 6.dp)
         .pressScale(interactionSource)
-        .semantics { role = Role.Button },
+        // Swipe has no TalkBack equivalent, so dismissal is also offered as a custom action.
+        .semantics {
+          role = Role.Button
+          customActions =
+            listOf(
+              CustomAccessibilityAction(dismissLabel) {
+                onDismiss()
+                true
+              },
+            )
+        },
   ) {
     Row(
       modifier = Modifier.padding(12.dp),

@@ -38,7 +38,7 @@ import kotlinx.coroutines.flow.filterIsInstance
 fun Modifier.pressScale(
   interactionSource: InteractionSource,
   shape: Shape = RectangleShape,
-  pressedScale: Float = Dimens.PressedScale,
+  pressedScale: Float = Dimens.PRESSED_SCALE,
   pressedLift: Dp = 0.dp,
 ): Modifier {
   if (LocalReduceMotion.current) return this

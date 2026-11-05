@@ -68,12 +68,12 @@ import org.koin.compose.koinInject
 @Composable
 fun BrowserTopBar(
   title: String,
-  titleModifier: Modifier = Modifier,
   isInSelectionMode: Boolean,
   selectedCount: Int,
   totalCount: Int,
   onCancelSelection: () -> Unit,
   modifier: Modifier = Modifier,
+  titleModifier: Modifier = Modifier,
   onBackClick: (() -> Unit)? = null,
   onSortClick: (() -> Unit)? = null,
   onSearchClick: (() -> Unit)? = null,
@@ -156,7 +156,6 @@ fun BrowserTopBar(
 @Composable
 private fun NormalTopBar(
   title: String,
-  titleModifier: Modifier = Modifier,
   onBackClick: (() -> Unit)?,
   onSortClick: (() -> Unit)?,
   onSearchClick: (() -> Unit)?,
@@ -166,6 +165,7 @@ private fun NormalTopBar(
   postSearchActions: @Composable RowScope.() -> Unit = { },
   additionalActions: @Composable RowScope.() -> Unit,
   modifier: Modifier = Modifier,
+  titleModifier: Modifier = Modifier,
   onTitleLongPress: (() -> Unit)?,
   onTitleDoubleTap: (() -> Unit)? = null,
   colors: TopAppBarColors? = null,

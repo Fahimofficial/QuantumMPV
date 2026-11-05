@@ -48,9 +48,9 @@ data class VideoWithPlaybackInfo(
   val progressPercentage: Float? = null, // 0.0 to 1.0
   val isOldAndUnplayed: Boolean = false, // true while the NEW badge is eligible
   val isWatched: Boolean = false, // true once the configured watched threshold is reached
-  /** Display title with the downloader id split off; null until built off the main thread. */
+  // Display title with the downloader id split off; null until built off the main thread.
   val cleanTitle: com.quantummpv.app.utils.media.CleanTitle? = null,
-  /** Remaining time ("3:20") for an in-progress video, preformatted for the Resume label. */
+  // Remaining time ("3:20") for an in-progress video, preformatted for the Resume label.
   val remainingFormatted: String? = null,
 )
 

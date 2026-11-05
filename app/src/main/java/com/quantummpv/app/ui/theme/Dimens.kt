@@ -8,7 +8,7 @@ import androidx.compose.ui.unit.dp
 
 /** Sizes used by the motion and list-polish work; general spacing stays in [Spacing]. */
 object Dimens {
-  const val PressedScale = 0.98f
+  const val PRESSED_SCALE = 0.98f
   val PressedLift = 2.dp
   val MinTouchTarget = 48.dp
 
@@ -28,8 +28,8 @@ object Dimens {
   val SelectionGlow = 8.dp
 
   /** Header parallax factor on About: the header moves at half the scroll speed. */
-  const val AboutHeaderParallax = 0.5f
+  const val ABOUT_HEADER_PARALLAX = 0.5f
 
   /** Dim behind the home overflow popup menu. */
-  const val MenuScrimAlpha = 0.32f
+  const val MENU_SCRIM_ALPHA = 0.32f
 }

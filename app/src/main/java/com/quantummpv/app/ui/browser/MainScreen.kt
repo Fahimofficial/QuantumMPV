@@ -303,6 +303,8 @@ object MainScreen : Screen {
     val tabFadeOut = remember { androidx.compose.animation.core.Animatable(1f) }
     val tabFadeIn = remember { androidx.compose.animation.core.Animatable(1f) }
     val tabReduceMotion = com.quantummpv.app.ui.theme.LocalReduceMotion.current
+    // The tapped tab, while its fade-through runs, so the pill starts sliding on the tap itself.
+    var fadeThroughTarget by remember { mutableStateOf<Int?>(null) }
 
     LaunchedEffect(pagerState, visibleTabs) {
       tabNavigationJob?.cancelAndJoin()
@@ -332,7 +334,7 @@ object MainScreen : Screen {
         }
     }
 
-    val targetPage = pagerState.targetPage.coerceIn(0, (visibleTabs.size - 1).coerceAtLeast(0))
+    val targetPage = (fadeThroughTarget ?: pagerState.targetPage).coerceIn(0, (visibleTabs.size - 1).coerceAtLeast(0))
     val selectedTab = visibleTabs.getOrNull(targetPage) ?: visibleTabs.firstOrNull() ?: MainTab.HOME
 
     val onTabSelected: (MainScreen.MainTab) -> Unit = { tab ->
@@ -357,6 +359,7 @@ object MainScreen : Screen {
                 pagerState.scrollToPage(targetIndex)
               } else {
                 try {
+                  fadeThroughTarget = targetIndex
                   val timing = com.quantummpv.app.ui.theme.AppMotion.Timing
                   val outMillis = if (tabReduceMotion) timing.FADE_THROUGH_OUT / 2 else timing.FADE_THROUGH_OUT
                   val inMillis = if (tabReduceMotion) com.quantummpv.app.ui.theme.AppMotion.Duration.MICRO else timing.FADE_THROUGH_IN
@@ -367,6 +370,7 @@ object MainScreen : Screen {
                   tabFadeIn.animateTo(1f, tween(inMillis, easing = androidx.compose.animation.core.LinearOutSlowInEasing))
                 } finally {
                   // A cancelled switch must never leave the content invisible.
+                  fadeThroughTarget = null
                   kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
                     tabFadeOut.snapTo(1f)
                     tabFadeIn.snapTo(1f)
@@ -657,7 +661,7 @@ object MainScreen : Screen {
             modifier =
               Modifier
                 .fillMaxSize()
-                .background(MaterialTheme.colorScheme.scrim.copy(alpha = com.quantummpv.app.ui.theme.Dimens.MenuScrimAlpha))
+                .background(MaterialTheme.colorScheme.scrim.copy(alpha = com.quantummpv.app.ui.theme.Dimens.MENU_SCRIM_ALPHA))
                 .clickable(
                   interactionSource = remember { MutableInteractionSource() },
                   indication = null,

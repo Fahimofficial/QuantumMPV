@@ -9,6 +9,7 @@
 
 package com.quantummpv.app.ui.browser.cards
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -29,10 +30,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
-import androidx.compose.animation.core.Animatable
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -63,14 +64,14 @@ import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.ui.theme.AppMotion
 import com.quantummpv.app.ui.theme.AppShapeScale
+import com.quantummpv.app.ui.theme.DesignTokens.LocalGlassConfig
+import com.quantummpv.app.ui.theme.DesignTokens.SurfaceStyle
 import com.quantummpv.app.ui.theme.Dimens
+import com.quantummpv.app.ui.theme.GlassComponents
 import com.quantummpv.app.ui.theme.LocalReduceMotion
 import com.quantummpv.app.ui.utils.SharedNavigation
 import com.quantummpv.app.ui.utils.pressScale
 import com.quantummpv.app.ui.utils.sharedNavBounds
-import com.quantummpv.app.ui.theme.DesignTokens.LocalGlassConfig
-import com.quantummpv.app.ui.theme.DesignTokens.SurfaceStyle
-import com.quantummpv.app.ui.theme.GlassComponents
 import com.quantummpv.app.utils.FormatUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -623,7 +624,7 @@ private fun NewCountBadge(
 ) {
   val reduceMotion = LocalReduceMotion.current
   val scale = remember { Animatable(1f) }
-  var shownCount by remember { mutableStateOf(count) }
+  var shownCount by remember { mutableIntStateOf(count) }
   LaunchedEffect(count) {
     if (count == shownCount) return@LaunchedEffect
     shownCount = count
