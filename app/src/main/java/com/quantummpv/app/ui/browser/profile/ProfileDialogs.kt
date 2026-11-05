@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
@@ -318,7 +319,7 @@ private fun ProfileAvatarCropDialog(
             contentScale = ContentScale.Crop,
             modifier =
               Modifier
-                .size(
+                .requiredSize(
                   width = with(density) { (rotatedImageBitmap.width * baseScale).toDp() },
                   height = with(density) { (rotatedImageBitmap.height * baseScale).toDp() },
                 ).graphicsLayer {
