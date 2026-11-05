@@ -109,7 +109,7 @@ fun NavidromeDetailSheet(
                 IconButton(onClick = { viewModel.toggleAlbumFavorite(album) }) {
                   Icon(
                     imageVector = if (album.isFavorite) Icons.RoundedFilled.Favorite else Icons.RoundedFilled.FavoriteBorder,
-                    contentDescription = null,
+                    contentDescription = androidx.compose.ui.res.stringResource(if (album.isFavorite) com.quantummpv.app.R.string.favorites_remove else com.quantummpv.app.R.string.favorites_add),
                     tint = if (album.isFavorite) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
                   )
                 }
@@ -216,7 +216,7 @@ fun NavidromeDetailSheet(
                 IconButton(onClick = { viewModel.toggleArtistFavorite(artist) }) {
                   Icon(
                     imageVector = if (artist.isFavorite) Icons.RoundedFilled.Favorite else Icons.RoundedFilled.FavoriteBorder,
-                    contentDescription = null,
+                    contentDescription = androidx.compose.ui.res.stringResource(if (artist.isFavorite) com.quantummpv.app.R.string.favorites_remove else com.quantummpv.app.R.string.favorites_add),
                     tint = if (artist.isFavorite) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
                   )
                 }

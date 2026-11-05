@@ -435,7 +435,7 @@ fun SeerrConnectionDialog(
             IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
               Icon(
                 if (isPasswordVisible) Icons.RoundedFilled.VisibilityOff else Icons.RoundedFilled.Visibility,
-                contentDescription = null,
+                contentDescription = stringResource(if (isPasswordVisible) R.string.playlist_xtream_hide_password else R.string.playlist_xtream_show_password),
               )
             }
           },

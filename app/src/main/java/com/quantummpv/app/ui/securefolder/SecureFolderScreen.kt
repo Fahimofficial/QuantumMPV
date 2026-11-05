@@ -282,7 +282,7 @@ data object SecureFolderScreen : Screen {
                 IconButton(onClick = { menuExpanded = true }) {
                   Icon(
                     Icons.RoundedFilled.MoreVert,
-                    contentDescription = null,
+                    contentDescription = stringResource(R.string.pref_server_more_options),
                     modifier = Modifier.size(24.dp),
                     tint = MaterialTheme.colorScheme.secondary,
                   )

@@ -233,6 +233,7 @@ fun PlayerControls(
     appearancePreferences.portraitPlaybackControlsPosition.collectAsState()
   val playerPreferences = koinInject<PlayerPreferences>()
   val motionPolicy = rememberMotionPolicy()
+  val playerReduceMotion by playerPreferences.reduceMotion.collectAsState()
   val audioPreferences = koinInject<AudioPreferences>()
   val showSystemStatusBar by playerPreferences.showSystemStatusBar.collectAsState()
   val showSystemNavigationBar by playerPreferences.showSystemNavigationBar.collectAsState()
@@ -615,7 +616,7 @@ fun PlayerControls(
       speedMultiplier = animSpeed,
       animationState = videoOpenAnimState,
       animationsDisabled = motionPolicy.shouldDisableAnimations,
-      reduceMotion = motionPolicy.shouldReduceAnimations || playerPreferences.reduceMotion.collectAsState().value,
+      reduceMotion = motionPolicy.shouldReduceAnimations || playerReduceMotion,
     )
     if (brightness < 0) {
       Box(
@@ -695,7 +696,6 @@ fun PlayerControls(
           // Overlay visibility — Group 1
           val showVolumeGestureOverlay by playerPreferences.showVolumeGestureOverlay.collectAsState()
           val showBrightnessGestureOverlay by playerPreferences.showBrightnessGestureOverlay.collectAsState()
-          val playerReduceMotion by playerPreferences.reduceMotion.collectAsState()
           val reduceMotion = playerReduceMotion || motionPolicy.shouldReduceAnimations
           val selectedControlsAnimStyle by playerPreferences.controlsAnimStyle.collectAsState()
           val controlsAnimStyle =
