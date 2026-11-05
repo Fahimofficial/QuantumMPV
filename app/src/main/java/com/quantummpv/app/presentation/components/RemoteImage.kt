@@ -40,6 +40,9 @@ import okhttp3.Request
 import org.koin.compose.koinInject
 import java.io.File
 import java.io.FileOutputStream
+import java.io.IOException
+import java.io.InputStream
+import java.io.OutputStream
 import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 
@@ -75,6 +78,7 @@ fun RemoteImage(
 
 internal object RemoteImageLoader {
   private const val MAX_IMAGE_DIMENSION = 1024
+  internal const val MAX_DOWNLOAD_BYTES = 20L * 1024L * 1024L
   private const val CACHE_DIRECTORY = "remote_images"
   private const val FAILURE_RETRY_MS = 30_000L
   private val loaderScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -177,9 +181,9 @@ internal object RemoteImageLoader {
 
     return runCatching {
       client.newCall(request).awaitResponse().use { response ->
-        if (!response.isSuccessful) return@use null
-        val bytes = response.body.bytes()
-        FileOutputStream(cacheFile).use { it.write(bytes) }
+        if (!response.isSuccessful || response.body.contentLength() > MAX_DOWNLOAD_BYTES) return@use null
+        // Write to a temp file and rename so an interrupted download never becomes a cached image.
+        if (!writeBoundedAtomically(response.body.byteStream(), cacheFile)) return@use null
         decodeSampled(cacheFile)?.also { bitmap ->
           synchronized(memoryCache) { memoryCache.put(url, bitmap) }
         }
@@ -231,6 +235,42 @@ internal object RemoteImageLoader {
         inPreferredConfig = Bitmap.Config.RGB_565
       },
     )
+  }
+
+  /** Copies at most [MAX_DOWNLOAD_BYTES]; returns false when the source is larger. */
+  internal fun copyBounded(
+    input: InputStream,
+    output: OutputStream,
+    limit: Long = MAX_DOWNLOAD_BYTES,
+  ): Boolean {
+    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+    var total = 0L
+    while (true) {
+      val read = input.read(buffer)
+      if (read < 0) return true
+      total += read
+      if (total > limit) return false
+      output.write(buffer, 0, read)
+    }
+  }
+
+  /** Writes a bounded response to a temporary sibling, publishing it only after a complete copy. */
+  internal fun writeBoundedAtomically(
+    input: InputStream,
+    cacheFile: File,
+    limit: Long = MAX_DOWNLOAD_BYTES,
+  ): Boolean {
+    val directory = cacheFile.parentFile ?: return false
+    if (!directory.isDirectory && !directory.mkdirs()) return false
+    val tempFile = File.createTempFile("${cacheFile.name}.", ".part", directory)
+    return try {
+      val copied = input.use { source -> FileOutputStream(tempFile).use { copyBounded(source, it, limit) } }
+      copied && tempFile.renameTo(cacheFile)
+    } catch (_: IOException) {
+      false
+    } finally {
+      tempFile.delete()
+    }
   }
 
   private fun hash(value: String): String =

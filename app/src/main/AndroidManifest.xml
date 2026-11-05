@@ -485,7 +485,7 @@
 
         <activity
             android:name=".ui.mediainfo.MediaInfoActivity"
-            android:exported="true"
+            android:exported="false"
             android:theme="@style/Theme.QuantumMPV"
             android:label="@string/ui_media_info" />
 
@@ -556,7 +556,6 @@
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MEDIA_SCANNER_FINISHED" />
-                <action android:name="android.intent.action.MEDIA_SCANNER_SCAN_FILE" />
                 <data android:scheme="file" />
             </intent-filter>
         </receiver>

@@ -54,9 +54,6 @@ import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.theme.AppShapeScale
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 @Composable
 fun AddToPlaylistDialog(
@@ -411,9 +408,4 @@ private fun CreatePlaylistDialog(
     tonalElevation = 6.dp,
     shape = MaterialTheme.shapes.extraLarge,
   )
-}
-
-private fun formatDate(timestamp: Long): String {
-  val sdf = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
-  return sdf.format(Date(timestamp))
 }

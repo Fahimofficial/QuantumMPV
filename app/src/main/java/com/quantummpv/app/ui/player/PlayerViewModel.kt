@@ -2360,6 +2360,8 @@ val isBrightnessSliderShown = MutableStateFlow(false)
               deactivateLegacyCustomButtonsScript()
             }
           }
+        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+          throw e
         } catch (e: Exception) {
           android.util.Log.e("PlayerViewModel", "Error setting up custom buttons", e)
         }

@@ -344,16 +344,6 @@ fun MusicLibraryContent(
     onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
   }
 
-  LaunchedEffect(Unit) {
-    musicViewModel.scanLibrary(context)
-  }
-
-  LaunchedEffect(selectedTab) {
-    if (songs.isEmpty() && !isLoading) {
-      musicViewModel.scanLibrary(context)
-    }
-  }
-
   LaunchedEffect(pagerState, visibleTabs) {
     if (visibleTabs.isEmpty()) return@LaunchedEffect
     // Restore by tab identity before publishing page indices after tabs are hidden/reordered.
@@ -864,7 +854,7 @@ fun MusicLibraryContent(
                 musicViewModel.playAllSongs(context, songs, shuffle = false)
               },
               icon = { Icon(Icons.RoundedFilled.PlayArrow, contentDescription = null) },
-              text = { Text("Play All Songs") },
+              text = { Text(stringResource(R.string.music_play_all_songs)) },
             )
             FloatingActionButtonMenuItem(
               onClick = {
@@ -872,7 +862,7 @@ fun MusicLibraryContent(
                 musicViewModel.playAllSongs(context, songs, shuffle = true)
               },
               icon = { Icon(Icons.RoundedFilled.Shuffle, contentDescription = null) },
-              text = { Text("Shuffle Songs") },
+              text = { Text(stringResource(R.string.music_shuffle_songs)) },
             )
           }
         }
@@ -1080,7 +1070,7 @@ fun MusicLibraryContent(
               HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
 
               ListItem(
-                content = { Text("Play") },
+                content = { Text(stringResource(R.string.ui_play)) },
                 leadingContent = { Icon(Icons.RoundedFilled.PlayArrow, contentDescription = null) },
                 modifier = Modifier.clickable {
                   val target = song
@@ -1089,7 +1079,7 @@ fun MusicLibraryContent(
                 }
               )
               ListItem(
-                content = { Text("Add to Playlist") },
+                content = { Text(stringResource(R.string.ui_add_to_playlist)) },
                 leadingContent = { Icon(Icons.RoundedFilled.PlaylistAdd, contentDescription = null) },
                 modifier = Modifier.clickable {
                   val target = song
@@ -1098,7 +1088,7 @@ fun MusicLibraryContent(
                 }
               )
               ListItem(
-                content = { Text("Share") },
+                content = { Text(stringResource(R.string.generic_share)) },
                 leadingContent = { Icon(Icons.RoundedFilled.Share, contentDescription = null) },
                 modifier = Modifier.clickable {
                   val target = song
@@ -1107,7 +1097,7 @@ fun MusicLibraryContent(
                 }
               )
               ListItem(
-                content = { Text("Delete Song", color = MaterialTheme.colorScheme.error) },
+                content = { Text(stringResource(R.string.music_delete_song), color = MaterialTheme.colorScheme.error) },
                 leadingContent = { Icon(Icons.RoundedFilled.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
                 modifier = Modifier.clickable {
                   val target = song
@@ -1204,7 +1194,7 @@ fun MusicLibraryContent(
               HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
 
               ListItem(
-                content = { Text("View Album Tracks") },
+                content = { Text(stringResource(R.string.music_view_album_tracks)) },
                 leadingContent = { Icon(Icons.RoundedFilled.Audiotrack, contentDescription = null) },
                 modifier = Modifier.clickable {
                   val target = album
@@ -1213,7 +1203,7 @@ fun MusicLibraryContent(
                 }
               )
               ListItem(
-                content = { Text("Play Album") },
+                content = { Text(stringResource(R.string.music_play_album)) },
                 leadingContent = { Icon(Icons.RoundedFilled.PlayArrow, contentDescription = null) },
                 modifier = Modifier.clickable {
                   val list = albumSongs
@@ -1222,7 +1212,7 @@ fun MusicLibraryContent(
                 }
               )
               ListItem(
-                content = { Text("Shuffle Album") },
+                content = { Text(stringResource(R.string.music_shuffle_album)) },
                 leadingContent = { Icon(Icons.RoundedFilled.Shuffle, contentDescription = null) },
                 modifier = Modifier.clickable {
                   val list = albumSongs
@@ -1231,7 +1221,7 @@ fun MusicLibraryContent(
                 }
               )
               ListItem(
-                content = { Text("Add Album to Playlist") },
+                content = { Text(stringResource(R.string.music_add_album_to_playlist)) },
                 leadingContent = { Icon(Icons.RoundedFilled.PlaylistAdd, contentDescription = null) },
                 modifier = Modifier.clickable {
                   val list = albumSongs
@@ -1273,7 +1263,7 @@ fun MusicLibraryContent(
               HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
 
               ListItem(
-                content = { Text("View Artist Songs") },
+                content = { Text(stringResource(R.string.music_view_artist_songs)) },
                 leadingContent = { Icon(Icons.RoundedFilled.Person, contentDescription = null) },
                 modifier = Modifier.clickable {
                   val target = artist
@@ -1282,7 +1272,7 @@ fun MusicLibraryContent(
                 }
               )
               ListItem(
-                content = { Text("Play Artist Songs") },
+                content = { Text(stringResource(R.string.music_play_artist_songs)) },
                 leadingContent = { Icon(Icons.RoundedFilled.PlayArrow, contentDescription = null) },
                 modifier = Modifier.clickable {
                   val list = artistSongs
@@ -1291,7 +1281,7 @@ fun MusicLibraryContent(
                 }
               )
               ListItem(
-                content = { Text("Shuffle Artist Songs") },
+                content = { Text(stringResource(R.string.music_shuffle_artist_songs)) },
                 leadingContent = { Icon(Icons.RoundedFilled.Shuffle, contentDescription = null) },
                 modifier = Modifier.clickable {
                   val list = artistSongs
@@ -1300,7 +1290,7 @@ fun MusicLibraryContent(
                 }
               )
               ListItem(
-                content = { Text("Add Artist Songs to Playlist") },
+                content = { Text(stringResource(R.string.music_add_artist_songs_to_playlist)) },
                 leadingContent = { Icon(Icons.RoundedFilled.PlaylistAdd, contentDescription = null) },
                 modifier = Modifier.clickable {
                   val list = artistSongs
@@ -1336,7 +1326,7 @@ fun MusicLibraryContent(
               HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
 
               ListItem(
-                content = { Text("Open Playlist") },
+                content = { Text(stringResource(R.string.music_open_playlist)) },
                 leadingContent = { Icon(Icons.RoundedFilled.PlaylistPlay, contentDescription = null) },
                 modifier = Modifier.clickable {
                   val target = playlist
@@ -1346,7 +1336,7 @@ fun MusicLibraryContent(
               )
               if (!playlist.name.equals(PlaylistRepository.FAVORITES_PLAYLIST_NAME, ignoreCase = true)) {
                 ListItem(
-                  content = { Text("Delete Playlist", color = MaterialTheme.colorScheme.error) },
+                  content = { Text(stringResource(R.string.music_delete_playlist), color = MaterialTheme.colorScheme.error) },
                   leadingContent = { Icon(Icons.RoundedFilled.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
                   modifier = Modifier.clickable {
                     val target = playlist
@@ -2617,7 +2607,7 @@ private fun AlbumDetailSheet(
         Button(onClick = onPlayAlbum) {
           Icon(imageVector = Icons.RoundedFilled.PlayArrow, contentDescription = null)
           Spacer(modifier = Modifier.width(4.dp))
-          Text("Play")
+          Text(stringResource(R.string.ui_play))
         }
       }
 
@@ -2701,7 +2691,7 @@ private fun ArtistDetailSheet(
         Button(onClick = onPlayArtist) {
           Icon(imageVector = Icons.RoundedFilled.PlayArrow, contentDescription = null)
           Spacer(modifier = Modifier.width(4.dp))
-          Text("Play All")
+          Text(stringResource(R.string.music_play_all))
         }
       }
 
@@ -2742,12 +2732,12 @@ private fun CreatePlaylistDialog(
 
   androidx.compose.material3.AlertDialog(
     onDismissRequest = onDismiss,
-    title = { Text("Create Playlist") },
+    title = { Text(stringResource(R.string.ui_create_playlist)) },
     text = {
       OutlinedTextField(
         value = playlistName,
         onValueChange = { playlistName = it },
-        label = { Text("Playlist Name") },
+        label = { Text(stringResource(R.string.ui_playlist_name)) },
         singleLine = true,
         modifier = Modifier.fillMaxWidth()
       )
@@ -2757,12 +2747,12 @@ private fun CreatePlaylistDialog(
         onClick = { onCreate(playlistName) },
         enabled = playlistName.isNotBlank()
       ) {
-        Text("Create")
+        Text(stringResource(R.string.ui_create))
       }
     },
     dismissButton = {
       TextButton(onClick = onDismiss) {
-        Text("Cancel")
+        Text(stringResource(R.string.generic_cancel))
       }
     }
   )

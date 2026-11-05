@@ -13,6 +13,11 @@
 
 ### Fixes
 
+- **Accessibility**: Back arrows in Settings and other screens, the password visibility toggle, Navidrome favourite toggles, subtitle delete and the Secure Folder menu now have TalkBack labels.
+- **Text**: Music library menus and the create-playlist dialog are now translatable.
+- **Artwork**: Remote images are capped at 20 MB and an interrupted download can no longer leave a broken thumbnail cached.
+- **Music**: Opening the Music tab no longer rescans the whole library each time.
+
 - **Website**: Keep floating controls visible when keyboard-focused and the theme switch available on touch screens. Theme switching and release information continue working when browser storage is blocked.
 - **Navigation bar**: The selected-tab pill now moves in lockstep with the page during tab taps and after a swipe is released, instead of springing separately and trailing or overshooting behind the content. When the tab row scrolls, it starts moving toward the new tab right away instead of after the page settles, and no longer restarts its scroll every frame.
 - **Website**: The landing page's main showcase image and two carousel screenshots pointed at files that no longer exist; they now show existing screenshots, and the showcase reserves the image's real aspect ratio. The site now sends a Content Security Policy and standard security headers.
