@@ -9,34 +9,21 @@
 
 package com.quantummpv.app.ui.browser.profile
 
-import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.net.Uri
 import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -47,55 +34,30 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -103,15 +65,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.quantummpv.app.App
 import com.quantummpv.app.R
 import com.quantummpv.app.database.entities.PlaylistEntity
 import com.quantummpv.app.domain.media.model.Video
-import com.quantummpv.app.domain.thumbnail.ThumbnailRepository
 import com.quantummpv.app.preferences.AdvancedPreferences
 import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.preference.collectAsState
@@ -157,8 +115,8 @@ private fun playlistDeleteAction(
 ): (() -> Unit)? = if (isProtectedPlaylist(playlist)) null else ({ onDelete(playlist) })
 
 private const val SHELF_LIMIT = 15
-private val SHELF_VIDEO_CARD_WIDTH = 214.dp
-private val SHELF_AUDIO_CARD_WIDTH = 120.dp
+internal val SHELF_VIDEO_CARD_WIDTH = 214.dp
+internal val SHELF_AUDIO_CARD_WIDTH = 120.dp
 
 /**
  * Personal hub that folds Recents and Playlists into one bottom-navigation tab.
@@ -777,216 +735,5 @@ private fun ShelfEmptyCard(
         Text(message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
       }
     }
-  }
-}
-
-/** 16:9 frame for video or 1:1 frame for audio plus a caption. */
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun ShelfCard(
-  title: String,
-  onClick: () -> Unit,
-  onLongClick: () -> Unit,
-  isAudio: Boolean,
-  frame: @Composable BoxScope.() -> Unit,
-) {
-  val cardWidth = if (isAudio) SHELF_AUDIO_CARD_WIDTH else SHELF_VIDEO_CARD_WIDTH
-  val cardShape = if (isAudio) RoundedCornerShape(16.dp) else RoundedCornerShape(14.dp)
-  Column(
-    modifier =
-      Modifier
-        .width(cardWidth)
-        .tvFocusHighlight(cardShape)
-        .clip(cardShape)
-        .combinedClickable(onClick = onClick, onLongClick = onLongClick),
-  ) {
-    Box(
-      modifier =
-        Modifier
-          .fillMaxWidth()
-          .aspectRatio(if (isAudio) 1f else 16f / 9f)
-          .clip(cardShape)
-          .background(MaterialTheme.colorScheme.surfaceContainerHighest),
-      contentAlignment = Alignment.Center,
-      content = frame,
-    )
-    Text(
-      text = title,
-      style = MaterialTheme.typography.bodyMedium,
-      fontWeight = FontWeight.SemiBold,
-      color = MaterialTheme.colorScheme.onSurface,
-      maxLines = 2,
-      overflow = TextOverflow.Ellipsis,
-      modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
-    )
-  }
-}
-
-@Composable
-private fun RecentVideoCard(
-  video: Video,
-  progress: Float?,
-  onClick: () -> Unit,
-  onLongClick: () -> Unit,
-) {
-  val thumbnailRepository = koinInject<ThumbnailRepository>()
-  val density = LocalDensity.current
-  val isAudio = video.isAudio
-  val widthPx = with(density) { (if (isAudio) SHELF_AUDIO_CARD_WIDTH else SHELF_VIDEO_CARD_WIDTH).roundToPx() }
-  val heightPx = if (isAudio) widthPx else widthPx * 9 / 16
-
-  var thumbnail by remember(video.path) {
-    mutableStateOf(thumbnailRepository.getThumbnailFromMemory(video, widthPx, heightPx))
-  }
-  LaunchedEffect(video.path) {
-    if (thumbnail == null) thumbnail = thumbnailRepository.getThumbnail(video, widthPx, heightPx)
-  }
-
-  ShelfCard(title = video.displayName, onClick = onClick, onLongClick = onLongClick, isAudio = isAudio) {
-    RecentVideoFrame(thumbnail, isAudio, video.durationFormatted, progress)
-  }
-}
-
-@Composable
-private fun BoxScope.RecentVideoFrame(
-  thumbnail: Bitmap?,
-  isAudio: Boolean,
-  duration: String,
-  progress: Float?,
-) {
-  val presentation = recentVideoFramePresentation(thumbnail != null, isAudio, duration, progress)
-  RecentVideoArtwork(thumbnail, presentation.fallback)
-  RecentVideoDuration(presentation.durationLabel)
-  RecentVideoProgress(presentation.progress)
-}
-
-internal enum class RecentMediaFallback {
-  AUDIO,
-  VIDEO,
-}
-
-internal data class RecentVideoFramePresentation(
-  val fallback: RecentMediaFallback?,
-  val durationLabel: String?,
-  val progress: Float?,
-)
-
-/** Maps media and playback state to the visible placeholder, duration badge, and progress bar. */
-internal fun recentVideoFramePresentation(
-  hasThumbnail: Boolean,
-  isAudio: Boolean,
-  duration: String,
-  progress: Float?,
-): RecentVideoFramePresentation =
-  RecentVideoFramePresentation(
-    fallback = if (hasThumbnail) null else if (isAudio) RecentMediaFallback.AUDIO else RecentMediaFallback.VIDEO,
-    durationLabel = duration.takeIf { it.isNotBlank() && it != "--:--" },
-    progress = progress?.takeIf { it > 0f },
-  )
-
-@Composable
-private fun BoxScope.RecentVideoArtwork(
-  thumbnail: Bitmap?,
-  fallback: RecentMediaFallback?,
-) {
-  if (thumbnail != null) {
-    Image(thumbnail.asImageBitmap(), contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-  } else {
-    Icon(
-      if (fallback == RecentMediaFallback.AUDIO) Icons.RoundedFilled.Audiotrack else Icons.RoundedFilled.PlayArrow,
-      contentDescription = null,
-      tint = MaterialTheme.colorScheme.primary,
-      modifier = Modifier.align(Alignment.Center).size(if (fallback == RecentMediaFallback.AUDIO) 36.dp else 32.dp),
-    )
-  }
-}
-
-@Composable
-private fun BoxScope.RecentVideoDuration(duration: String?) {
-  if (duration != null) {
-    Surface(
-      shape = RoundedCornerShape(6.dp),
-      color = Color.Black.copy(alpha = 0.75f),
-      contentColor = Color.White,
-      modifier = Modifier.align(Alignment.BottomEnd).padding(6.dp),
-    ) {
-      Text(
-        text = duration,
-        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, fontWeight = FontWeight.SemiBold),
-        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-      )
-    }
-  }
-}
-
-@Composable
-private fun BoxScope.RecentVideoProgress(progress: Float?) {
-  if (progress != null && progress > 0f) {
-    LinearProgressIndicator(
-      progress = { progress },
-      modifier = Modifier.fillMaxWidth().height(3.dp).align(Alignment.BottomCenter),
-      color = MaterialTheme.colorScheme.primary,
-      trackColor = Color.Black.copy(alpha = 0.35f),
-    )
-  }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun RecentVideoActionsSheet(
-  video: Video,
-  onDismiss: () -> Unit,
-  onPlay: () -> Unit,
-  onShare: () -> Unit,
-  onRemove: () -> Unit,
-) {
-  ModalBottomSheet(
-    onDismissRequest = onDismiss,
-    sheetState =
-      rememberBottomSheetState(
-        initialValue = SheetValue.Hidden,
-        enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded),
-      ),
-    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-  ) {
-    Column(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
-      Text(
-        text = video.displayName,
-        style = MaterialTheme.typography.titleMedium,
-        fontWeight = FontWeight.Bold,
-        maxLines = 2,
-        overflow = TextOverflow.Ellipsis,
-        modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
-      )
-      HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-      SheetAction(Icons.RoundedFilled.PlayArrow, stringResource(R.string.ui_play), MaterialTheme.colorScheme.onSurface, onPlay)
-      if (!video.path.contains("://")) {
-        SheetAction(Icons.RoundedFilled.Share, stringResource(R.string.generic_share), MaterialTheme.colorScheme.onSurface, onShare)
-      }
-      SheetAction(Icons.RoundedFilled.Delete, stringResource(R.string.profile_remove_from_history), MaterialTheme.colorScheme.error, onRemove)
-    }
-  }
-}
-
-@Composable
-private fun SheetAction(
-  icon: AppIcon,
-  label: String,
-  tint: Color,
-  onClick: () -> Unit,
-) {
-  Row(
-    modifier =
-      Modifier
-        .fillMaxWidth()
-        .padding(horizontal = 12.dp)
-        .clip(AppShapeScale.medium)
-        .clickable(onClick = onClick)
-        .padding(horizontal = 12.dp, vertical = 14.dp),
-    verticalAlignment = Alignment.CenterVertically,
-    horizontalArrangement = Arrangement.spacedBy(16.dp),
-  ) {
-    Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(24.dp))
-    Text(label, style = MaterialTheme.typography.bodyLarge, color = tint)
   }
 }
