@@ -344,13 +344,6 @@ fun MusicLibraryContent(
     onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
   }
 
-  // The ViewModel scans in init and on MediaLibraryEvents; rescanning on every page entry was redundant.
-  LaunchedEffect(selectedTab) {
-    if (songs.isEmpty() && !isLoading) {
-      musicViewModel.scanLibrary(context)
-    }
-  }
-
   LaunchedEffect(pagerState, visibleTabs) {
     if (visibleTabs.isEmpty()) return@LaunchedEffect
     // Restore by tab identity before publishing page indices after tabs are hidden/reordered.

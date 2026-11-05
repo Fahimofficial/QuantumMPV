@@ -40,6 +40,7 @@ import okhttp3.Request
 import org.koin.compose.koinInject
 import java.io.File
 import java.io.FileOutputStream
+import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 import java.security.MessageDigest
@@ -182,16 +183,7 @@ internal object RemoteImageLoader {
       client.newCall(request).awaitResponse().use { response ->
         if (!response.isSuccessful || response.body.contentLength() > MAX_DOWNLOAD_BYTES) return@use null
         // Write to a temp file and rename so an interrupted download never becomes a cached image.
-        val tempFile = File(cacheDirectory, "${cacheFile.name}.part")
-        val complete =
-          try {
-            response.body.byteStream().use { input ->
-              FileOutputStream(tempFile).use { output -> copyBounded(input, output) }
-            } && tempFile.renameTo(cacheFile)
-          } finally {
-            tempFile.delete()
-          }
-        if (!complete) return@use null
+        if (!writeBoundedAtomically(response.body.byteStream(), cacheFile)) return@use null
         decodeSampled(cacheFile)?.also { bitmap ->
           synchronized(memoryCache) { memoryCache.put(url, bitmap) }
         }
@@ -259,6 +251,25 @@ internal object RemoteImageLoader {
       total += read
       if (total > limit) return false
       output.write(buffer, 0, read)
+    }
+  }
+
+  /** Writes a bounded response to a temporary sibling, publishing it only after a complete copy. */
+  internal fun writeBoundedAtomically(
+    input: InputStream,
+    cacheFile: File,
+    limit: Long = MAX_DOWNLOAD_BYTES,
+  ): Boolean {
+    val directory = cacheFile.parentFile ?: return false
+    if (!directory.isDirectory && !directory.mkdirs()) return false
+    val tempFile = File.createTempFile("${cacheFile.name}.", ".part", directory)
+    return try {
+      val copied = input.use { source -> FileOutputStream(tempFile).use { copyBounded(source, it, limit) } }
+      copied && tempFile.renameTo(cacheFile)
+    } catch (_: IOException) {
+      false
+    } finally {
+      tempFile.delete()
     }
   }
 

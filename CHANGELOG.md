@@ -12,11 +12,15 @@
 - **Support My Work**: About now opens a dedicated Support My Work screen with Ko-fi, a UPI QR code generated on the device (scan, enlarge, share or save), Copy UPI ID and Open UPI app, kept separate from the project's GitHub repository and the developer's website. The UPI ID is now `SimplyFahim@sbi` with payee SimplyFahim, and the old bundled QR image and unused upstream Ko-fi/PayPal/UPI strings are gone.
 
 ### Fixes
-
 - **Accessibility**: Back arrows in Settings and other screens, the password visibility toggle, Navidrome favourite toggles, subtitle delete and the Secure Folder menu now have TalkBack labels.
 - **Text**: Music library menus and the create-playlist dialog are now translatable.
 - **Artwork**: Remote images are capped at 20 MB and an interrupted download can no longer leave a broken thumbnail cached.
 - **Music**: Opening the Music tab no longer rescans the whole library each time.
+
+- **Website**: Keep floating controls visible when keyboard-focused and the theme switch available on touch screens. Theme switching and release information continue working when browser storage is blocked.
+- **Navigation bar**: The selected-tab pill now moves in lockstep with the page during tab taps and after a swipe is released, instead of springing separately and trailing or overshooting behind the content. When the tab row scrolls, it starts moving toward the new tab right away instead of after the page settles, and no longer restarts its scroll every frame.
+- **Website**: The landing page's main showcase image and two carousel screenshots pointed at files that no longer exist; they now show existing screenshots, and the showcase reserves the image's real aspect ratio. The site now sends a Content Security Policy and standard security headers.
+
 - **Player**: The top and bottom shading behind the player controls now fades out with them instead of staying over the video.
 - **Haptic feedback setting**: Turning off Haptic feedback now silences every in-app haptic, including player gestures, tab taps and long-press.
 - **Reduced motion in the player**: Every controls animation style, the side panels, the buffering indicator and the video-open animation fall back to a simple fade.
