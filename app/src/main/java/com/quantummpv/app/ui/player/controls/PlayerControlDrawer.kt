@@ -157,6 +157,23 @@ private fun PlayerControlEdgeHandle(
     )
   val pullProgress = (animatedPull / thresholdPx).coerceIn(0f, 1f)
 
+  // First run only: slide the chevron ~12 dp toward the content twice so the handle is discoverable.
+  val playerPreferences = org.koin.compose.koinInject<com.quantummpv.app.preferences.PlayerPreferences>()
+  val reduceMotion = com.quantummpv.app.ui.theme.LocalReduceMotion.current
+  val nudge = remember { androidx.compose.animation.core.Animatable(0f) }
+  val nudgePx = with(density) { com.quantummpv.app.ui.theme.Dimens.HandleNudge.toPx() }
+  val towardContent = if (androidx.compose.ui.platform.LocalLayoutDirection.current == androidx.compose.ui.unit.LayoutDirection.Rtl) 1f else -1f
+  val nudgeSpec = AppMotion.defaultSpatial<Float>()
+  androidx.compose.runtime.LaunchedEffect(Unit) {
+    if (reduceMotion || playerPreferences.playlistHandleNudgeShown.get()) return@LaunchedEffect
+    kotlinx.coroutines.delay(NUDGE_START_DELAY_MS)
+    repeat(2) {
+      nudge.animateTo(nudgePx * towardContent, nudgeSpec)
+      nudge.animateTo(0f, nudgeSpec)
+    }
+    playerPreferences.playlistHandleNudgeShown.set(true)
+  }
+
   Box(
     modifier =
       modifier
@@ -215,7 +232,7 @@ private fun PlayerControlEdgeHandle(
           .padding(end = 4.dp)
           .size(28.dp)
           .graphicsLayer {
-            translationX = -animatedPull * 0.72f
+            translationX = -animatedPull * 0.72f + nudge.value
             scaleX = 1f + pullProgress * 0.16f
             scaleY = 1f + pullProgress * 0.16f
           },
@@ -419,3 +436,4 @@ private val PanelTileSpacing = 8.dp
 private const val PANEL_ICON_SCALE = 1.24f
 private const val EDGE_TOUCH_HEIGHT_FRACTION = 0.34f
 private const val PANEL_COLUMN_COUNT = 3
+private const val NUDGE_START_DELAY_MS = 600L

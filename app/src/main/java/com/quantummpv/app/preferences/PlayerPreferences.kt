@@ -81,6 +81,9 @@ class PlayerPreferences(
   val showLoadingCircle = preferenceStore.getBoolean("show_loading_circle", true)
   val savePositionOnQuit = preferenceStore.getBoolean("save_position", true)
 
+  /** Set after the playlist edge handle has shown its one-time "pull me" nudge. */
+  val playlistHandleNudgeShown = preferenceStore.getBoolean("playlist_handle_nudge_shown", false)
+
   val closeAfterReachingEndOfVideo = preferenceStore.getBoolean("close_after_eof", true)
 
   val rememberBrightness = preferenceStore.getBoolean("remember_brightness")
