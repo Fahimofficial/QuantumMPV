@@ -1037,58 +1037,83 @@ private fun MainTabContent(
 ) {
   when (tab) {
     MainScreen.MainTab.HOME -> FolderListScreen.Content()
-    MainScreen.MainTab.MUSIC -> {
-      if (musicSourceProvider == MusicSourceProvider.JELLYFIN) {
-        val jellyfinUiState by jellyfinViewModel.uiState.collectAsStateWithLifecycle()
-        if (jellyfinUiState.activeServer == null) {
-          ServerSetupCard(
-            icon = R.drawable.ic_jellyfin,
-            title = stringResource(R.string.music_source_jellyfin),
-            message = stringResource(R.string.pref_jellyfin_no_server),
-            primary = ServerSetupAction(stringResource(R.string.generic_configure), onConfigureMediaServers),
-            secondary = ServerSetupAction(stringResource(R.string.music_source_local), onUseLocalMusic),
-          )
-        } else if (!jellyfinUiState.isLoading && !jellyfinUiState.hasMusicLibrary && jellyfinUiState.libraries.isNotEmpty()) {
-          ServerSetupCard(
-            icon = R.drawable.ic_jellyfin,
-            title = stringResource(R.string.music_source_jellyfin),
-            message = stringResource(R.string.jellyfin_no_music_library),
-            primary = ServerSetupAction(stringResource(R.string.music_source_local), onUseLocalMusic),
-            secondary = ServerSetupAction(stringResource(R.string.generic_configure), onConfigureMediaServers),
-          )
-        } else {
-          LaunchedEffect(jellyfinUiState.libraries) { jellyfinViewModel.ensureMusicLibraryOpened() }
-          com.quantummpv.app.ui.browser.jellyfin.JellyfinContent(
-            viewModel = jellyfinViewModel,
-            isMusicOnlyMode = true,
-          )
-        }
-      } else if (musicSourceProvider == MusicSourceProvider.NAVIDROME) {
-        val navidromeUiState by navidromeViewModel.uiState.collectAsStateWithLifecycle()
-        if (navidromeUiState.activeServer == null) {
-          ServerSetupCard(
-            icon = R.drawable.ic_navidrome,
-            title = stringResource(R.string.music_source_navidrome),
-            message = stringResource(R.string.pref_navidrome_no_server),
-            primary = ServerSetupAction(stringResource(R.string.generic_configure), onConfigureMediaServers),
-            secondary = ServerSetupAction(stringResource(R.string.music_source_local), onUseLocalMusic),
-          )
-        } else {
-          com.quantummpv.app.ui.browser.navidrome.NavidromeContent(
-            viewModel = navidromeViewModel,
-            isMusicOnlyMode = true,
-          )
-        }
-      } else {
-        MusicLibraryContent(
-          jellyfinViewModel = jellyfinViewModel,
-          navidromeViewModel = navidromeViewModel,
-        )
-      }
-    }
+    MainScreen.MainTab.MUSIC ->
+      MusicTabContent(
+        musicSourceProvider = musicSourceProvider,
+        jellyfinViewModel = jellyfinViewModel,
+        navidromeViewModel = navidromeViewModel,
+        onConfigureMediaServers = onConfigureMediaServers,
+        onUseLocalMusic = onUseLocalMusic,
+      )
     MainScreen.MainTab.PROFILE -> com.quantummpv.app.ui.browser.profile.ProfileScreen.Content()
     MainScreen.MainTab.NETWORK -> NetworkStreamingScreen.Content()
     MainScreen.MainTab.JELLYFIN -> com.quantummpv.app.ui.browser.jellyfin.JellyfinContent(viewModel = jellyfinViewModel)
+  }
+}
+
+@Composable
+private fun MusicTabContent(
+  musicSourceProvider: MusicSourceProvider,
+  jellyfinViewModel: com.quantummpv.app.ui.browser.jellyfin.JellyfinViewModel,
+  navidromeViewModel: com.quantummpv.app.ui.browser.navidrome.NavidromeViewModel,
+  onConfigureMediaServers: () -> Unit,
+  onUseLocalMusic: () -> Unit,
+) {
+  when (musicSourceProvider) {
+    MusicSourceProvider.JELLYFIN -> JellyfinMusicTabContent(jellyfinViewModel, onConfigureMediaServers, onUseLocalMusic)
+    MusicSourceProvider.NAVIDROME -> NavidromeMusicTabContent(navidromeViewModel, onConfigureMediaServers, onUseLocalMusic)
+    else -> MusicLibraryContent(jellyfinViewModel = jellyfinViewModel, navidromeViewModel = navidromeViewModel)
+  }
+}
+
+@Composable
+private fun JellyfinMusicTabContent(
+  viewModel: com.quantummpv.app.ui.browser.jellyfin.JellyfinViewModel,
+  onConfigureMediaServers: () -> Unit,
+  onUseLocalMusic: () -> Unit,
+) {
+  val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+  when {
+    uiState.activeServer == null ->
+      ServerSetupCard(
+        icon = R.drawable.ic_jellyfin,
+        title = stringResource(R.string.music_source_jellyfin),
+        message = stringResource(R.string.pref_jellyfin_no_server),
+        primary = ServerSetupAction(stringResource(R.string.generic_configure), onConfigureMediaServers),
+        secondary = ServerSetupAction(stringResource(R.string.music_source_local), onUseLocalMusic),
+      )
+    !uiState.isLoading && !uiState.hasMusicLibrary && uiState.libraries.isNotEmpty() ->
+      ServerSetupCard(
+        icon = R.drawable.ic_jellyfin,
+        title = stringResource(R.string.music_source_jellyfin),
+        message = stringResource(R.string.jellyfin_no_music_library),
+        primary = ServerSetupAction(stringResource(R.string.music_source_local), onUseLocalMusic),
+        secondary = ServerSetupAction(stringResource(R.string.generic_configure), onConfigureMediaServers),
+      )
+    else -> {
+      LaunchedEffect(uiState.libraries) { viewModel.ensureMusicLibraryOpened() }
+      com.quantummpv.app.ui.browser.jellyfin.JellyfinContent(viewModel = viewModel, isMusicOnlyMode = true)
+    }
+  }
+}
+
+@Composable
+private fun NavidromeMusicTabContent(
+  viewModel: com.quantummpv.app.ui.browser.navidrome.NavidromeViewModel,
+  onConfigureMediaServers: () -> Unit,
+  onUseLocalMusic: () -> Unit,
+) {
+  val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+  if (uiState.activeServer == null) {
+    ServerSetupCard(
+      icon = R.drawable.ic_navidrome,
+      title = stringResource(R.string.music_source_navidrome),
+      message = stringResource(R.string.pref_navidrome_no_server),
+      primary = ServerSetupAction(stringResource(R.string.generic_configure), onConfigureMediaServers),
+      secondary = ServerSetupAction(stringResource(R.string.music_source_local), onUseLocalMusic),
+    )
+  } else {
+    com.quantummpv.app.ui.browser.navidrome.NavidromeContent(viewModel = viewModel, isMusicOnlyMode = true)
   }
 }
 
