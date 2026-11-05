@@ -13,7 +13,6 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.RectangleShape
@@ -64,8 +63,8 @@ fun Modifier.pressScale(
 
 /**
  * Decides once per screen whether the first-open stagger runs. It is active only for the first
- * composition after [ready] turns true (data loaded), never after back navigation, rotation, re-sort
- * or scrolling, because the "played" flag is saveable and the window closes after the stagger ends.
+ * composition after [ready] turns true (data loaded) and never again in this process: not after back
+ * navigation, tab switches (pager pages are disposed off-screen), rotation, re-sort or scrolling.
  */
 @Stable
 class EntranceStagger internal constructor(active: Boolean, val stepMillis: Int, val maxItems: Int) {
@@ -73,21 +72,24 @@ class EntranceStagger internal constructor(active: Boolean, val stepMillis: Int,
     internal set
 }
 
+// Main-thread only (composition and LaunchedEffect), so a plain set is enough.
+private val playedStaggers = mutableSetOf<String>()
+
 @Composable
 fun rememberEntranceStagger(
+  key: String,
   ready: Boolean,
   stepMillis: Int = AppMotion.Timing.HOME_STAGGER_STEP,
   maxItems: Int = AppMotion.Timing.HOME_STAGGER_ITEMS,
 ): EntranceStagger {
-  var played by rememberSaveable { mutableStateOf(false) }
   val reduceMotion = LocalReduceMotion.current
-  val stagger = remember { EntranceStagger(!played && !reduceMotion, stepMillis, maxItems) }
-  LaunchedEffect(ready) {
+  val stagger = remember(key) { EntranceStagger(key !in playedStaggers && !reduceMotion, stepMillis, maxItems) }
+  LaunchedEffect(stagger, ready) {
     if (!ready || !stagger.isActive) return@LaunchedEffect
+    playedStaggers += key
     // Enough for the last staggered row to start and settle; later rows appear without motion.
     delay(stepMillis.toLong() * maxItems + STAGGER_SETTLE_MILLIS)
     stagger.isActive = false
-    played = true
   }
   return stagger
 }

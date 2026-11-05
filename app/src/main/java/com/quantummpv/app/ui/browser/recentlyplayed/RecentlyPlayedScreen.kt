@@ -601,6 +601,8 @@ object RecentlyPlayedScreen : Screen {
               icon = Icons.RoundedFilled.History,
               title = stringResource(R.string.ui_recently_played_disabled),
               message = stringResource(R.string.recents_disabled_message),
+              actionLabel = stringResource(R.string.ui_enable_history),
+              onAction = { advancedPreferences.enableRecentlyPlayed.set(true) },
             )
           }
         }

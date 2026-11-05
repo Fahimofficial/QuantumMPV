@@ -2727,4 +2727,13 @@
   <string name="music_open_playlist">Open Playlist</string>
   <string name="music_delete_playlist">Delete Playlist</string>
   <string name="music_play_all">Play All</string>
+  <!-- UI motion and list polish -->
+  <string name="ui_enable_history">Turn on history</string>
+  <string name="ui_pin">Pin</string>
+  <string name="ui_unpin">Unpin</string>
+  <string name="ui_folders_section">Folders</string>
+  <string name="ui_folder_actions">Folder actions</string>
+  <string name="ui_resume_card_label">Continue watching</string>
+  <string name="ui_resume_from">Resume from %1$s</string>
+  <string name="ui_play_again">Play again</string>
 </resources>

@@ -299,6 +299,10 @@ object MainScreen : Screen {
         pageCount = { visibleTabs.size },
       )
     var tabNavigationJob by remember { mutableStateOf<Job?>(null) }
+    // Dock taps fade through (out 90 ms, in 210 ms with 0.92 -> 1 scale); swipes keep the pager.
+    val tabFadeOut = remember { androidx.compose.animation.core.Animatable(1f) }
+    val tabFadeIn = remember { androidx.compose.animation.core.Animatable(1f) }
+    val tabReduceMotion = com.quantummpv.app.ui.theme.LocalReduceMotion.current
 
     LaunchedEffect(pagerState, visibleTabs) {
       tabNavigationJob?.cancelAndJoin()
@@ -339,23 +343,35 @@ object MainScreen : Screen {
           !pagerState.isScrollInProgress &&
           pagerState.currentPageOffsetFraction == 0f
       if (targetIndex >= 0) {
-        tabNavigationJob?.cancel()
+        val previousTabJob = tabNavigationJob
+        previousTabJob?.cancel()
         if (!isAlreadySettled) {
-          // Distinguish adjacent from non-adjacent tab changes to avoid jitter through
-          // intermediate pages. Adjacent changes use the animated pager transition so
-          // the moving indicator follows the swipe naturally. Non-adjacent jumps use
-          // instant scrollToPage so the indicator animates directly to the destination
-          // while the pager content changes without traversing intermediate browser pages.
-          val isAdjacent = kotlin.math.abs(pagerState.settledPage - targetIndex) <= 1
+          // Dock taps fade through: the content fades out, the pager jumps with scrollToPage (no
+          // traversal of intermediate pages), then the new page fades and scales in. The indicator
+          // springs to the destination on its own. Swipes keep the live pager motion.
           tabNavigationJob =
             coroutineScope.launch {
-              if (navStyle == NavigationAnimStyle.None || !isAdjacent || disablePagerMotion) {
+              // Let the cancelled switch run its cleanup first so it can't cancel this one's animation.
+              previousTabJob?.join()
+              if (navStyle == NavigationAnimStyle.None || disablePagerMotion) {
                 pagerState.scrollToPage(targetIndex)
               } else {
-                pagerState.animateScrollToPage(
-                  page = targetIndex,
-                  animationSpec = tween(duration, easing = FastOutSlowInEasing),
-                )
+                try {
+                  val timing = com.quantummpv.app.ui.theme.AppMotion.Timing
+                  val outMillis = if (tabReduceMotion) timing.FADE_THROUGH_OUT / 2 else timing.FADE_THROUGH_OUT
+                  val inMillis = if (tabReduceMotion) com.quantummpv.app.ui.theme.AppMotion.Duration.MICRO else timing.FADE_THROUGH_IN
+                  tabFadeOut.animateTo(0f, tween(outMillis, easing = androidx.compose.animation.core.FastOutLinearInEasing))
+                  tabFadeIn.snapTo(0f)
+                  tabFadeOut.snapTo(1f)
+                  pagerState.scrollToPage(targetIndex)
+                  tabFadeIn.animateTo(1f, tween(inMillis, easing = androidx.compose.animation.core.LinearOutSlowInEasing))
+                } finally {
+                  // A cancelled switch must never leave the content invisible.
+                  kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+                    tabFadeOut.snapTo(1f)
+                    tabFadeIn.snapTo(1f)
+                  }
+                }
               }
             }
         }
@@ -450,7 +466,21 @@ object MainScreen : Screen {
           ) {
             NavigationPager(
               state = pagerState,
-              modifier = Modifier.fillMaxSize().clipToBounds(),
+              modifier =
+                Modifier
+                  .fillMaxSize()
+                  .clipToBounds()
+                  .graphicsLayer {
+                    val incoming = tabFadeIn.value
+                    alpha = tabFadeOut.value * incoming
+                    if (!tabReduceMotion) {
+                      val scale =
+                        com.quantummpv.app.ui.theme.AppMotion.Timing.FADE_THROUGH_SCALE +
+                          (1f - com.quantummpv.app.ui.theme.AppMotion.Timing.FADE_THROUGH_SCALE) * incoming
+                      scaleX = scale
+                      scaleY = scale
+                    }
+                  },
               key = { page -> visibleTabs[page].name },
               beyondViewportPageCount = 1,
               userScrollEnabled = !isPermissionDenied,
@@ -1055,7 +1085,7 @@ private fun ExpressivePillNavigationBar(
                       verticalAlignment = Alignment.CenterVertically,
                     ) {
                       // Drawn opaque white and recoloured above, so the colour can follow the drag.
-                      MainTabIcon(tab, Color.White, label)
+                      MainTabIcon(tab, Color.White, label, selected)
                       if (showLabels) {
                         NavigationLabelSlot(fraction) {
                           Text(
@@ -1366,7 +1396,42 @@ private fun MainTabIcon(
   tab: MainScreen.MainTab,
   tint: Color,
   contentDescription: String?,
+  selected: Boolean,
 ) {
+  // Becoming selected pops the icon 0.85 -> 1 with a little overshoot; the first frame never pops.
+  val reduceMotion = com.quantummpv.app.ui.theme.LocalReduceMotion.current
+  val popScale = remember { androidx.compose.animation.core.Animatable(1f) }
+  var wasSelected by remember { mutableStateOf(selected) }
+  LaunchedEffect(selected) {
+    if (selected && !wasSelected && !reduceMotion) {
+      popScale.snapTo(0.85f)
+      popScale.animateTo(1f, com.quantummpv.app.ui.theme.AppMotion.PopSpring)
+    }
+    wasSelected = selected
+  }
+  val iconModifier =
+    Modifier
+      .size(22.dp)
+      .graphicsLayer {
+        scaleX = popScale.value
+        scaleY = popScale.value
+      }
+  // Only these two glyphs differ between outlined and filled; the others are identical shapes.
+  val outlined =
+    when (tab) {
+      MainScreen.MainTab.HOME -> R.drawable.materialsymbols_ic_home_rounded
+      MainScreen.MainTab.NETWORK -> R.drawable.materialsymbols_ic_bring_your_own_ip_rounded
+      else -> null
+    }
+  if (!selected && outlined != null) {
+    androidx.compose.material3.Icon(
+      painter = painterResource(outlined),
+      contentDescription = contentDescription,
+      tint = tint,
+      modifier = iconModifier,
+    )
+    return
+  }
   val icon = when (tab) {
     MainScreen.MainTab.HOME -> Icons.RoundedFilled.Home
     MainScreen.MainTab.MUSIC -> Icons.RoundedFilled.Audiotrack
@@ -1380,14 +1445,14 @@ private fun MainTabIcon(
       painter = painterResource(R.drawable.ic_jellyfin),
       contentDescription = contentDescription,
       tint = tint,
-      modifier = Modifier.size(22.dp),
+      modifier = iconModifier,
     )
   } else {
     Icon(
       icon,
       contentDescription = contentDescription,
       tint = tint,
-      modifier = Modifier.size(22.dp),
+      modifier = iconModifier,
     )
   }
 }

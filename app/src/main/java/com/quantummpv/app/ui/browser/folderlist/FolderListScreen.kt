@@ -19,6 +19,13 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import com.quantummpv.app.ui.utils.appItemMotion
+import com.quantummpv.app.ui.utils.rememberEntranceStagger
+import com.quantummpv.app.ui.utils.staggeredEntrance
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -729,6 +736,12 @@ object FolderListScreen : Screen {
                 )
               } else {
                 FolderListContent(
+                  resumeCard =
+                    if (!embedded && !audioOnly && !selectionManager.isInSelectionMode) {
+                      { ResumeCard(model = rememberResumeCardModel().value) }
+                    } else {
+                      null
+                    },
                   folders = filteredFolders,
                   foldersWithNewCount = foldersWithNewCount,
                   pinnedFolderPaths = pinnedFolderPaths,
@@ -1054,6 +1067,7 @@ object FolderListScreen : Screen {
 
 @Composable
 private fun FolderListContent(
+  resumeCard: (@Composable () -> Unit)?,
   folders: List<VideoFolder>,
   foldersWithNewCount: List<com.quantummpv.app.ui.browser.folderlist.FolderWithNewCount>,
   pinnedFolderPaths: Set<String>,
@@ -1127,12 +1141,15 @@ private fun FolderListContent(
               stringResource(
                 if (audioOnly) R.string.ui_no_song_folders_message else R.string.ui_no_video_folders_message,
               ),
+            actionLabel = stringResource(R.string.ui_refresh),
+            onAction = { retryScope.launch { onRefresh() } },
           )
         }
       }
     } else {
       if (isGridMode) {
         GridContent(
+          resumeCard = resumeCard,
           folders = folders,
           foldersWithNewCount = foldersWithNewCount,
           pinnedFolderPaths = pinnedFolderPaths,
@@ -1150,6 +1167,7 @@ private fun FolderListContent(
         )
       } else {
         ListContent(
+          resumeCard = resumeCard,
           folders = folders,
           foldersWithNewCount = foldersWithNewCount,
           pinnedFolderPaths = pinnedFolderPaths,
@@ -1172,6 +1190,7 @@ private fun FolderListContent(
 
 @Composable
 private fun GridContent(
+  resumeCard: (@Composable () -> Unit)?,
   folders: List<VideoFolder>,
   foldersWithNewCount: List<com.quantummpv.app.ui.browser.folderlist.FolderWithNewCount>,
   pinnedFolderPaths: Set<String>,
@@ -1219,6 +1238,7 @@ private fun GridContent(
         (usableWidth / folderMinWidth).toInt().coerceAtLeast(1)
       }
 
+    val stagger = rememberEntranceStagger(key = "home-folders-$audioOnly", ready = folders.isNotEmpty())
     LazyVerticalGrid(
       columns = GridCells.Fixed(computedColumns),
       state = gridState,
@@ -1232,19 +1252,44 @@ private fun GridContent(
       horizontalArrangement = Arrangement.spacedBy(2.dp),
       verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-      items(count = folders.size, key = { index -> folders[index].bucketId }) { index ->
+      if (resumeCard != null) {
+        item(key = RESUME_CARD_KEY, contentType = RESUME_CARD_KEY, span = { GridItemSpan(maxLineSpan) }) { resumeCard() }
+      }
+      val pinnedCount = folders.count { it.path in pinnedFolderPaths }
+      fun androidx.compose.foundation.lazy.grid.LazyGridScope.section(key: String, title: Int) {
+        item(key = key, contentType = SECTION_CONTENT_TYPE, span = { GridItemSpan(maxLineSpan) }) {
+          FolderSectionHeader(stringResource(title), appItemMotion())
+        }
+      }
+      for ((sectionStart, sectionEnd) in folderSections(pinnedCount, folders.size)) {
+      if (pinnedCount > 0) {
+        if (sectionStart == 0) section(PINNED_SECTION_KEY, R.string.ui_pinned) else section(FOLDERS_SECTION_KEY, R.string.ui_folders_section)
+      }
+      items(
+        count = sectionEnd - sectionStart,
+        key = { offset -> folders[sectionStart + offset].bucketId },
+        contentType = { FOLDER_CONTENT_TYPE },
+      ) { offset ->
+        val index = sectionStart + offset
         val folder = folders[index]
         val isRecentlyPlayed = recentlyPlayedParent == folder.path
         val newCount = newCountByBucketId[folder.bucketId] ?: 0
 
         val isActive = isDualPaneActive && folder.bucketId == selectedFolderBucketId
 
+        FolderItemWithMenu(
+          isPinned = folder.path in pinnedFolderPaths,
+          isInSelectionMode = selectionManager.isInSelectionMode,
+          onSelect = { onFolderLongClick(folder) },
+          onTogglePin = { onTogglePin(folder) },
+          modifier = appItemMotion().staggeredEntrance(index, stagger),
+        ) { onLongClick ->
         FolderCard(
           folder = folder,
           isSelected = selectionManager.isSelected(folder),
           isRecentlyPlayed = isRecentlyPlayed,
           onClick = { onFolderClick(folder) },
-          onLongClick = { onFolderLongClick(folder) },
+          onLongClick = onLongClick,
           onThumbClick =
             if (tapThumbnailToSelect) {
               { selectionManager.toggle(folder) }
@@ -1264,6 +1309,8 @@ private fun GridContent(
           isActive = isActive,
           isAudioOnly = audioOnly,
         )
+        }
+      }
       }
     }
 
@@ -1272,7 +1319,7 @@ private fun GridContent(
       ExpressiveScrollBar(
         gridState = gridState,
         dragLabelProvider = { index ->
-          fastScrollGlyph(folders.getOrNull(index)?.name)
+          fastScrollGlyph(folderAtLazyIndex(folders, pinnedFolderPaths, resumeCard != null, index)?.name)
         },
         modifier =
           Modifier
@@ -1286,6 +1333,7 @@ private fun GridContent(
 
 @Composable
 private fun ListContent(
+  resumeCard: (@Composable () -> Unit)?,
   folders: List<VideoFolder>,
   foldersWithNewCount: List<FolderWithNewCount>,
   pinnedFolderPaths: Set<String>,
@@ -1312,6 +1360,7 @@ private fun ListContent(
     }
   val recentlyPlayedParent = remember(recentlyPlayedFilePath) { recentlyPlayedFilePath?.let(::File)?.parent }
 
+  val stagger = rememberEntranceStagger(key = "home-folders-$audioOnly", ready = folders.isNotEmpty())
   Box(modifier = Modifier.fillMaxSize()) {
     LazyColumn(
       state = listState,
@@ -1323,18 +1372,40 @@ private fun ListContent(
           bottom = navigationBarHeight,
         ),
     ) {
-      items(folders, key = { it.bucketId }) { folder ->
+      if (resumeCard != null) {
+        item(key = RESUME_CARD_KEY, contentType = RESUME_CARD_KEY) { resumeCard() }
+      }
+      val pinnedCount = folders.count { it.path in pinnedFolderPaths }
+      for ((sectionStart, sectionEnd) in folderSections(pinnedCount, folders.size)) {
+      if (pinnedCount > 0) {
+        val (key, title) = if (sectionStart == 0) PINNED_SECTION_KEY to R.string.ui_pinned else FOLDERS_SECTION_KEY to R.string.ui_folders_section
+        item(key = key, contentType = SECTION_CONTENT_TYPE) { FolderSectionHeader(stringResource(title), appItemMotion()) }
+      }
+      items(
+        count = sectionEnd - sectionStart,
+        key = { offset -> folders[sectionStart + offset].bucketId },
+        contentType = { FOLDER_CONTENT_TYPE },
+      ) { offset ->
+        val index = sectionStart + offset
+        val folder = folders[index]
         val isRecentlyPlayed = recentlyPlayedParent == folder.path
         val newCount = newCountByBucketId[folder.bucketId] ?: 0
 
         val isActive = isDualPaneActive && folder.bucketId == selectedFolderBucketId
 
+        FolderItemWithMenu(
+          isPinned = folder.path in pinnedFolderPaths,
+          isInSelectionMode = selectionManager.isInSelectionMode,
+          onSelect = { onFolderLongClick(folder) },
+          onTogglePin = { onTogglePin(folder) },
+          modifier = appItemMotion().staggeredEntrance(index, stagger),
+        ) { onLongClick ->
         FolderCard(
           folder = folder,
           isSelected = selectionManager.isSelected(folder),
           isRecentlyPlayed = isRecentlyPlayed,
           onClick = { onFolderClick(folder) },
-          onLongClick = { onFolderLongClick(folder) },
+          onLongClick = onLongClick,
           onThumbClick =
             if (tapThumbnailToSelect) {
               { selectionManager.toggle(folder) }
@@ -1350,29 +1421,12 @@ private fun ListContent(
             } else {
               null
             },
-          customChipContent =
-            if (folder.path in pinnedFolderPaths) {
-              {
-                Text(
-                  androidx.compose.ui.res
-                    .stringResource(com.quantummpv.app.R.string.ui_pinned),
-                  style = MaterialTheme.typography.labelSmall,
-                  modifier =
-                    Modifier
-                      .background(
-                        MaterialTheme.colorScheme.primaryContainer,
-                        RoundedCornerShape(8.dp),
-                      ).padding(horizontal = 8.dp, vertical = 4.dp),
-                  color = MaterialTheme.colorScheme.onPrimaryContainer,
-                )
-              }
-            } else {
-              null
-            },
           isDualPane = isDualPaneActive && selectedFolderBucketId != null,
           isActive = isActive,
           isAudioOnly = audioOnly,
         )
+        }
+      }
       }
     }
 
@@ -1381,13 +1435,102 @@ private fun ListContent(
       ExpressiveScrollBar(
         listState = listState,
         dragLabelProvider = { index ->
-          fastScrollGlyph(folders.getOrNull(index)?.name)
+          fastScrollGlyph(folderAtLazyIndex(folders, pinnedFolderPaths, resumeCard != null, index)?.name)
         },
         modifier =
           Modifier
             .align(Alignment.CenterEnd)
             .padding(end = 2.dp, top = 6.dp, bottom = navigationBarHeight + 6.dp)
             .graphicsLayer { alpha = scrollbarAlpha },
+      )
+    }
+  }
+}
+
+private const val RESUME_CARD_KEY = "resume-card"
+private const val PINNED_SECTION_KEY = "section-pinned"
+private const val FOLDERS_SECTION_KEY = "section-folders"
+private const val SECTION_CONTENT_TYPE = "section"
+private const val FOLDER_CONTENT_TYPE = "folder"
+
+/** Lazy item index -> folder, skipping the resume card and section headers (headers map to the next folder). */
+private fun folderAtLazyIndex(
+  folders: List<VideoFolder>,
+  pinnedFolderPaths: Set<String>,
+  hasResumeCard: Boolean,
+  lazyIndex: Int,
+): VideoFolder? {
+  var i = lazyIndex - if (hasResumeCard) 1 else 0
+  val pinnedCount = folders.count { it.path in pinnedFolderPaths }
+  if (pinnedCount > 0) i = if (i <= pinnedCount) i - 1 else maxOf(i - 2, pinnedCount)
+  return folders.getOrNull(i.coerceAtLeast(0))
+}
+
+/** [start, end) ranges: pinned folders first (already sorted to the front), then the rest. */
+internal fun folderSections(pinnedCount: Int, total: Int): List<Pair<Int, Int>> =
+  listOf(0 to pinnedCount, pinnedCount to total).filter { (start, end) -> end > start }
+
+@Composable
+private fun FolderSectionHeader(
+  title: String,
+  modifier: Modifier = Modifier,
+) {
+  Text(
+    text = title,
+    style = MaterialTheme.typography.titleSmall,
+    color = MaterialTheme.colorScheme.primary,
+    modifier =
+      modifier
+        .fillMaxWidth()
+        .padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 4.dp)
+        .semantics { heading() },
+  )
+}
+
+/**
+ * Long-press outside selection mode opens a small Pin/Unpin + Select menu (confirm haptic). Inside
+ * selection mode long-press keeps toggling selection as before.
+ */
+@Composable
+private fun FolderItemWithMenu(
+  isPinned: Boolean,
+  isInSelectionMode: Boolean,
+  onSelect: () -> Unit,
+  onTogglePin: () -> Unit,
+  modifier: Modifier = Modifier,
+  card: @Composable (onLongClick: () -> Unit) -> Unit,
+) {
+  var menuOpen by remember { mutableStateOf(false) }
+  val haptics = com.quantummpv.app.ui.utils.rememberAppHaptics()
+  Box(modifier = modifier) {
+    card {
+      if (isInSelectionMode) {
+        onSelect()
+      } else {
+        haptics.confirm()
+        menuOpen = true
+      }
+    }
+    androidx.compose.material3.DropdownMenu(
+      expanded = menuOpen && !isInSelectionMode,
+      onDismissRequest = { menuOpen = false },
+      shape = com.quantummpv.app.ui.theme.AppShapeScale.large,
+    ) {
+      androidx.compose.material3.DropdownMenuItem(
+        text = { Text(stringResource(if (isPinned) R.string.ui_unpin else R.string.ui_pin)) },
+        leadingIcon = { Icon(Icons.RoundedFilled.PushPin, contentDescription = null) },
+        onClick = {
+          menuOpen = false
+          onTogglePin()
+        },
+      )
+      androidx.compose.material3.DropdownMenuItem(
+        text = { Text(stringResource(R.string.ui_select)) },
+        leadingIcon = { Icon(Icons.RoundedFilled.CheckCircle, contentDescription = null) },
+        onClick = {
+          menuOpen = false
+          onSelect()
+        },
       )
     }
   }
