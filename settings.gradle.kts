@@ -35,3 +35,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "QuantumMPV"
 include(":app")
+include(":baselineprofile")
