@@ -42,3 +42,27 @@ Port each of these as its own PR with device validation:
 2. Lyrics providers, after a privacy review.
 3. Snapshots, together with its Room migration. The Profile screen already has a slot where its shelf would go.
 4. DLNA and SMB discovery.
+
+## Owner decisions (November 2026)
+
+- **Launcher icon and icon builder:** keep the QuantumMPV launcher icon. Do not port mpvRx's purple icon
+  or its mpvRx logo assets. The icon builder may be ported only if it offers QuantumMPV artwork.
+- **Liquid Glass:** port it as a separate, experimental option for player controls. Keep the app-wide
+  surface-style picker limited to Classic and Clear Glass, as `tools/test_quantummpv_custom_features.py` requires.
+
+## Porting plan for the rest of 3.0.0–3.0.2
+
+A trial merge of v2.7.2 → v3.0.2, with packages mapped to `com.quantummpv.app`, merged about 470 files
+cleanly and left 224 files with 1,664 conflicts plus 58 delete/modify conflicts. The rest is ported one area
+per PR, each passing ktlint, lint, unit tests and the debug build:
+
+1. Performance and loading (thumbnail policy, instant reopen, live library updates, range-chunk cache, SMB).
+2. Player (two-finger speed, persistent status bar, TV-style volume/brightness capsule, orientation,
+   landscape layout, mini player expanding to the full player).
+3. mpvlib 1.1.4 and hdr-toys.
+4. Snapshots and watch statistics, with a Room migration (fills the Profile tab).
+5. Lyrics rework.
+6. Ambient modes and subtitle gestures.
+7. Material 3 Expressive restyle, colour picker, animated backgrounds, Liquid Glass (experimental, player only),
+   icon builder (QuantumMPV artwork only).
+8. Image viewer, ZIP media, DLNA discovery, media widget.
