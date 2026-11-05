@@ -2737,4 +2737,8 @@
   <string name="ui_resume_from">Resume from %1$s</string>
   <string name="ui_play_again">Play again</string>
   <string name="ui_resume_remaining">Resume · %1$s left</string>
+  <string name="ui_copy_device_info">Copy device info</string>
+  <string name="ui_device_info_copied">Device info copied</string>
+  <string name="ui_last_checked">Last checked: %1$s</string>
+  <string name="ui_last_checked_never">Never</string>
 </resources>

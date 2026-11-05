@@ -9,6 +9,8 @@
 
 package com.quantummpv.app.ui.preferences
 
+import com.quantummpv.app.ui.utils.appItemMotion
+import androidx.compose.foundation.lazy.items
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -38,6 +40,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -67,6 +70,10 @@ import com.quantummpv.app.ui.theme.LocalEmphasizedTypography
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.navigateTo
 import com.quantummpv.app.ui.utils.popSafely
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -82,11 +89,17 @@ object SettingsSearchScreen : Screen {
 
     var searchQuery by rememberSaveable { mutableStateOf("") }
 
-    val searchResults by remember(searchQuery, resources) {
-      derivedStateOf {
-        SearchablePreferences.search(searchQuery) { resId ->
-          resources.getString(resId)
-        }
+    // Debounced and computed on Dispatchers.Default; keys are stable so animateItem can track rows.
+    var searchResults by remember { mutableStateOf<List<Pair<String, SettingsSearchResult>>>(emptyList()) }
+    var resultsQuery by remember { mutableStateOf("") }
+    LaunchedEffect(resources) {
+      snapshotFlow { searchQuery }.collectLatest { query ->
+        if (query.isNotBlank()) delay(com.quantummpv.app.ui.theme.AppMotion.Timing.SEARCH_DEBOUNCE)
+        searchResults =
+          withContext(Dispatchers.Default) {
+            keyedSearchResults(SearchablePreferences.search(query) { resId -> resources.getString(resId) })
+          }
+        resultsQuery = query
       }
     }
 
@@ -312,8 +325,8 @@ object SettingsSearchScreen : Screen {
               }
             }
           }
-        } else if (searchResults.isEmpty()) {
-          // No results
+        } else if (searchResults.isEmpty() && resultsQuery == searchQuery) {
+          // No results (only once the debounced search for this exact query has finished)
           Box(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center,
@@ -341,16 +354,13 @@ object SettingsSearchScreen : Screen {
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
           ) {
-            itemsIndexed(
+            items(
               items = searchResults,
-              key = {
-                index,
-                result,
-                ->
-                "${result.preference.searchTargetKey}_${result.preference.screen}_$index"
-              },
-            ) { _, result ->
+              key = { (key, _) -> key },
+              contentType = { "settings_result" },
+            ) { (_, result) ->
               SearchResultItem(
+                modifier = appItemMotion(),
                 result = result,
                 onClick = {
                   keyboardController?.hide()
@@ -511,3 +521,14 @@ private fun localizedSearchCategory(category: String): String =
       else -> R.string.search_category_advanced
     },
   )
+
+/** Stable per-result keys; repeated target/screen pairs get an occurrence suffix instead of an index. */
+private fun keyedSearchResults(results: List<SettingsSearchResult>): List<Pair<String, SettingsSearchResult>> {
+  val seen = HashMap<String, Int>()
+  return results.map { result ->
+    val base = "${result.preference.searchTargetKey}_${result.preference.screen}"
+    val occurrence = (seen[base] ?: 0) + 1
+    seen[base] = occurrence
+    (if (occurrence == 1) base else "$base#$occurrence") to result
+  }
+}

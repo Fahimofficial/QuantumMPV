@@ -67,7 +67,13 @@ fun Modifier.pressScale(
  * navigation, tab switches (pager pages are disposed off-screen), rotation, re-sort or scrolling.
  */
 @Stable
-class EntranceStagger internal constructor(active: Boolean, val stepMillis: Int, val maxItems: Int) {
+class EntranceStagger internal constructor(
+  active: Boolean,
+  val stepMillis: Int,
+  val maxItems: Int,
+  /** Uses the fast spatial spec, for dense lists that must finish quickly (settings). */
+  val fast: Boolean,
+) {
   var isActive by mutableStateOf(active)
     internal set
 }
@@ -75,15 +81,19 @@ class EntranceStagger internal constructor(active: Boolean, val stepMillis: Int,
 // Main-thread only (composition and LaunchedEffect), so a plain set is enough.
 private val playedStaggers = mutableSetOf<String>()
 
+/** True only the first time [key] is claimed in this process; for one-shot motion like a pulse. */
+fun claimOneShot(key: String): Boolean = playedStaggers.add(key)
+
 @Composable
 fun rememberEntranceStagger(
   key: String,
   ready: Boolean,
   stepMillis: Int = AppMotion.Timing.HOME_STAGGER_STEP,
   maxItems: Int = AppMotion.Timing.HOME_STAGGER_ITEMS,
+  fast: Boolean = false,
 ): EntranceStagger {
   val reduceMotion = LocalReduceMotion.current
-  val stagger = remember(key) { EntranceStagger(key !in playedStaggers && !reduceMotion, stepMillis, maxItems) }
+  val stagger = remember(key) { EntranceStagger(key !in playedStaggers && !reduceMotion, stepMillis, maxItems, fast) }
   LaunchedEffect(stagger, ready) {
     if (!ready || !stagger.isActive) return@LaunchedEffect
     playedStaggers += key
@@ -107,7 +117,7 @@ fun Modifier.staggeredEntrance(
   val animate = remember { stagger.isActive && index < stagger.maxItems }
   if (!animate) return this
   val progress = remember { Animatable(0f) }
-  val spec = AppMotion.defaultSpatial<Float>()
+  val spec = if (stagger.fast) AppMotion.fastSpatial<Float>() else AppMotion.defaultSpatial()
   val offsetPx = with(LocalDensity.current) { Dimens.StaggerOffset.toPx() }
   LaunchedEffect(Unit) {
     delay(stagger.stepMillis.toLong() * index)

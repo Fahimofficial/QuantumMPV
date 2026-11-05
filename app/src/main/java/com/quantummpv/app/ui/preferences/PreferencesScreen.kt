@@ -9,6 +9,11 @@
 
 package com.quantummpv.app.ui.preferences
 
+import com.quantummpv.app.ui.utils.staggeredEntrance
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -157,14 +162,27 @@ object PreferencesScreen : Screen {
     val colorScheme = MaterialTheme.colorScheme
     val emphasizedTypography = LocalEmphasizedTypography.current
     val initialFocusRequester = rememberTvInitialFocusRequester()
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    val stagger =
+      com.quantummpv.app.ui.utils.rememberEntranceStagger(
+        key = "settings-root",
+        ready = true,
+        stepMillis = com.quantummpv.app.ui.theme.AppMotion.Timing.SETTINGS_STAGGER_STEP,
+        maxItems = com.quantummpv.app.ui.theme.AppMotion.Timing.SETTINGS_STAGGER_ITEMS,
+        fast = true,
+      )
+    // Global row index per section, so stagger order and tonal colours run across the whole list.
+    val firstRowIndex = sections.runningFold(0) { acc, section -> acc + section.items.size }
 
     Scaffold(
+      modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
       topBar = {
-        TopAppBar(
+        LargeTopAppBar(
+          scrollBehavior = scrollBehavior,
           title = {
             Text(
               text = stringResource(R.string.pref_preferences),
-              style = emphasizedTypography.headlineSmall,
+              fontWeight = emphasizedTypography.headlineSmall.fontWeight,
             )
           },
           navigationIcon = {
@@ -198,11 +216,13 @@ object PreferencesScreen : Screen {
           )
         }
 
-        items(sections, key = { it.title }) { section ->
+        itemsIndexed(sections, key = { _, section -> section.title }) { sectionIndex, section ->
           SettingsSectionBlock(
             section = section,
             selectedScreen = selectedScreen,
             onItemClick = { destination -> onScreenSelected(destination.screen) },
+            firstRowIndex = firstRowIndex[sectionIndex],
+            stagger = stagger,
           )
         }
       }
@@ -444,6 +464,8 @@ private fun SettingsSectionBlock(
   section: SettingsSection,
   selectedScreen: Screen?,
   onItemClick: (SettingsDestination) -> Unit,
+  firstRowIndex: Int,
+  stagger: com.quantummpv.app.ui.utils.EntranceStagger,
 ) {
   val emphasizedTypography = LocalEmphasizedTypography.current
 
@@ -469,6 +491,8 @@ private fun SettingsSectionBlock(
       section = section,
       selectedScreen = selectedScreen,
       onItemClick = onItemClick,
+      firstRowIndex = firstRowIndex,
+      stagger = stagger,
       modifier = Modifier.padding(horizontal = 16.dp),
     )
   }
@@ -479,6 +503,8 @@ private fun SettingsDestinationGroup(
   section: SettingsSection,
   selectedScreen: Screen?,
   onItemClick: (SettingsDestination) -> Unit,
+  firstRowIndex: Int,
+  stagger: com.quantummpv.app.ui.utils.EntranceStagger,
   modifier: Modifier = Modifier,
 ) {
   Surface(
@@ -491,9 +517,10 @@ private fun SettingsDestinationGroup(
       section.items.forEachIndexed { index, item ->
         SettingsDestinationRow(
           item = item,
-          tint = section.tint,
+          rowIndex = firstRowIndex + index,
           isSelected = selectedScreen == item.screen,
           onClick = { onItemClick(item) },
+          modifier = Modifier.staggeredEntrance(firstRowIndex + index, stagger),
         )
         if (index < section.items.lastIndex) {
           HorizontalDivider(
@@ -509,10 +536,19 @@ private fun SettingsDestinationGroup(
 @Composable
 private fun SettingsDestinationRow(
   item: SettingsDestination,
-  tint: Color,
+  rowIndex: Int,
   isSelected: Boolean,
   onClick: () -> Unit,
+  modifier: Modifier = Modifier,
 ) {
+  // Tonal containers cycle primary -> secondary -> tertiary so the list follows dynamic color.
+  val colors = MaterialTheme.colorScheme
+  val (iconContainer, iconContent) =
+    when (rowIndex % 3) {
+      0 -> colors.primaryContainer to colors.onPrimaryContainer
+      1 -> colors.secondaryContainer to colors.onSecondaryContainer
+      else -> colors.tertiaryContainer to colors.onTertiaryContainer
+    }
   val rowBgColor =
     if (isSelected) {
       MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
@@ -521,7 +557,7 @@ private fun SettingsDestinationRow(
     }
   Row(
     modifier =
-      Modifier
+      modifier
         .fillMaxWidth()
         // Container transform into the sub-screen; the corner radius morphs on the way.
         .sharedNavBounds(com.quantummpv.app.ui.utils.SharedNavigation.screenKey(item.screen), MaterialTheme.shapes.medium)
@@ -533,7 +569,7 @@ private fun SettingsDestinationRow(
   ) {
     Surface(
       shape = MaterialTheme.shapes.largeIncreased,
-      color = tint.copy(alpha = 0.18f),
+      color = iconContainer,
     ) {
       Box(
         modifier = Modifier.size(48.dp),
@@ -543,7 +579,7 @@ private fun SettingsDestinationRow(
           imageVector = item.icon,
           contentDescription = null,
           modifier = Modifier.size(26.dp),
-          tint = tint,
+          tint = iconContent,
         )
       }
     }

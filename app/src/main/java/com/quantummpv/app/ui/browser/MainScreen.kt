@@ -657,7 +657,7 @@ object MainScreen : Screen {
             modifier =
               Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.12f))
+                .background(MaterialTheme.colorScheme.scrim.copy(alpha = com.quantummpv.app.ui.theme.Dimens.MenuScrimAlpha))
                 .clickable(
                   interactionSource = remember { MutableInteractionSource() },
                   indication = null,
