@@ -54,7 +54,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.roundToPx
 import androidx.compose.ui.unit.sp
 import com.quantummpv.app.R
 import com.quantummpv.app.domain.media.model.Video
@@ -65,6 +64,7 @@ import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.ui.theme.AppShapeScale
 import org.koin.compose.koinInject
+import kotlin.math.roundToInt
 
 /** 16:9 frame for video or 1:1 frame for audio plus a caption. */
 @OptIn(ExperimentalFoundationApi::class)
@@ -118,7 +118,7 @@ private fun RecentVideoCard(
   val thumbnailRepository = koinInject<ThumbnailRepository>()
   val density = LocalDensity.current
   val isAudio = video.isAudio
-  val widthPx = with(density) { (if (isAudio) SHELF_AUDIO_CARD_WIDTH else SHELF_VIDEO_CARD_WIDTH).roundToPx() }
+  val widthPx = with(density) { (if (isAudio) SHELF_AUDIO_CARD_WIDTH else SHELF_VIDEO_CARD_WIDTH).toPx().roundToInt() }
   val heightPx = if (isAudio) widthPx else widthPx * 9 / 16
 
   var thumbnail by remember(video.path) {

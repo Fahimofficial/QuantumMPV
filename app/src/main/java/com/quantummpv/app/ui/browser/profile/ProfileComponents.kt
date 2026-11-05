@@ -50,6 +50,7 @@ import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.ui.browser.cards.PlaylistCard
 import com.quantummpv.app.ui.icons.AppIcon
+import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.ui.theme.AppShapeScale
@@ -136,7 +137,7 @@ private data class ProfileShortcutDestination(
 )
 
 @Composable
-private fun ProfileOverviewCard(
+internal fun ProfileOverviewCard(
   name: String,
   recentCount: Int,
   playlistCount: Int,
@@ -323,7 +324,7 @@ private fun ProfileShortcutTile(
 }
 
 @Composable
-private fun SectionHeader(
+internal fun SectionHeader(
   title: String,
   count: Int?,
   onViewAll: () -> Unit,
@@ -369,7 +370,7 @@ private fun SectionHeader(
 }
 
 @Composable
-private fun ShelfEmptyCard(
+internal fun ShelfEmptyCard(
   icon: AppIcon,
   title: String,
   message: String,
