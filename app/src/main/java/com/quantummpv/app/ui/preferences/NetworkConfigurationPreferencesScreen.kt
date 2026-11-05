@@ -55,7 +55,7 @@ object NetworkConfigurationPreferencesScreen : Screen {
           navigationIcon = {
             if (LocalShowSettingsBackArrow.current) {
               IconButton(onClick = { backStack.popSafely() }) {
-                Icon(Icons.RoundedFilled.ArrowBack, contentDescription = null)
+                Icon(Icons.RoundedFilled.ArrowBack, contentDescription = stringResource(R.string.back))
               }
             }
           },

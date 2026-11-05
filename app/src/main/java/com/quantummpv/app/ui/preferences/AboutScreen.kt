@@ -191,7 +191,7 @@ object AboutScreen : Screen {
               IconButton(onClick = { backstack.popSafely() }) {
                 Icon(
                   imageVector = Icons.RoundedFilled.ArrowBack,
-                  contentDescription = null,
+                  contentDescription = stringResource(R.string.back),
                   tint = MaterialTheme.colorScheme.secondary,
                 )
               }
@@ -722,7 +722,7 @@ object LibrariesScreen : Screen {
             IconButton(onClick = { backstack.popSafely() }) {
               Icon(
                 imageVector = Icons.RoundedFilled.ArrowBack,
-                contentDescription = null,
+                contentDescription = stringResource(R.string.back),
                 tint = MaterialTheme.colorScheme.primary,
               )
             }

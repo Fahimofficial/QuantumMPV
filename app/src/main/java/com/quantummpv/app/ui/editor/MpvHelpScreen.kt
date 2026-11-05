@@ -158,7 +158,7 @@ data class MpvHelpScreen(
             IconButton(onClick = { backstack.popSafely() }) {
               Icon(
                 Icons.RoundedFilled.ArrowBack,
-                contentDescription = null,
+                contentDescription = androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.back),
                 tint = MaterialTheme.colorScheme.secondary,
               )
             }

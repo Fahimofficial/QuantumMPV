@@ -626,7 +626,7 @@ fun SubtitleTrackRow(
           )
         }
       }
-      IconButton(onClick = onRemove) { Icon(Icons.RoundedFilled.Delete, contentDescription = null) }
+      IconButton(onClick = onRemove) { Icon(Icons.RoundedFilled.Delete, contentDescription = stringResource(R.string.delete)) }
     }
   }
 }
