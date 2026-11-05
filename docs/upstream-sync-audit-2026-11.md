@@ -16,7 +16,7 @@ QuantumMPV: `master` at `d0b97b76`.
 
 | Area | Status | Notes |
 | --- | --- | --- |
-| mpv core fixes (runtime properties, timing reads, secondary-subtitle ASS, WebDAV NFD, TheIntroDB v4, tree loading state) | Already integrated | Ported in #108 and earlier commits. Guarded by `tools/test_upstream_release_ports.py`. |
+| mpv core fixes (runtime properties, timing reads, secondary-subtitle ASS, WebDAV NFD, TheIntroDB v4, tree loading state) | Already integrated | Ported in #108 and earlier commits. `tools/test_upstream_release_ports.py` guards the runtime-property, secondary-subtitle and TheIntroDB v4 ports. The timing-read, WebDAV NFD and tree loading-state ports have no regression check. |
 | Profile hub tab (`ui/browser/profile/ProfileScreen.kt`) | Integrated in this change, adapted | Ports the hero, avatar picker, crop and rotate, display name, Recents and Playlists shelves, shortcut tiles, and the recent-item action sheet. The Snapshots shelf and watch-statistics bento are replaced with a Library Insights tile (see exclusions). |
 | Recents and Playlists folded into Profile | Integrated in this change | Same as upstream `MainTab { HOME, MUSIC, NETWORK, JELLYFIN, PROFILE }`. The screens remain reachable from Profile, the More menu and Music › Playlists. |
 | `LocalIsMainTabPage` (Back button when a tab screen is pushed standalone) | Integrated in this change | Used by Recents and Playlists. |

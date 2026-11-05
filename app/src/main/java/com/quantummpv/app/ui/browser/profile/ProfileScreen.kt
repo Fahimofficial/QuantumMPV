@@ -387,8 +387,9 @@ object ProfileScreen : Screen {
           appearancePreferences.profileName.set(name.trim())
           if (newPhoto != null || removePhoto) {
             scope.launch {
-              val path = withContext(Dispatchers.IO) { storeProfileAvatar(context, newPhoto) }
-              appearancePreferences.profileImagePath.set(path)
+              // On a failed write (e.g. full storage) the old avatar and its preference stay as they were.
+              withContext(Dispatchers.IO) { runCatching { storeProfileAvatar(context, newPhoto) } }
+                .onSuccess { appearancePreferences.profileImagePath.set(it) }
             }
           }
         },
@@ -1044,7 +1045,13 @@ private fun ProfileAvatarCropDialog(
   val configuration = LocalConfiguration.current
   val density = LocalDensity.current
   val isTablet = configuration.smallestScreenWidthDp >= 600
-  val cropBoxDp = minOf(configuration.screenWidthDp.dp - 64.dp, if (isTablet) 360.dp else 280.dp)
+  // Height cap leaves room for the title, rotate and action rows (~220 dp) so Crop stays reachable in landscape.
+  val cropBoxDp =
+    minOf(
+      configuration.screenWidthDp.dp - 64.dp,
+      configuration.screenHeightDp.dp - 220.dp,
+      if (isTablet) 360.dp else 280.dp,
+    ).coerceAtLeast(120.dp)
   val cropBoxPx = with(density) { cropBoxDp.toPx() }
 
   var rotation by remember { mutableIntStateOf(0) }
@@ -1256,10 +1263,20 @@ private fun storeProfileAvatar(
   context: Context,
   bitmap: Bitmap?,
 ): String {
-  context.filesDir.listFiles { file -> file.name.startsWith(AVATAR_FILE_PREFIX) }?.forEach(File::delete)
-  if (bitmap == null) return ""
+  val old = context.filesDir.listFiles { file -> file.name.startsWith(AVATAR_FILE_PREFIX) }.orEmpty()
+  if (bitmap == null) {
+    old.forEach(File::delete)
+    return ""
+  }
   // A fresh name per save changes the preference value, so every avatar observer reloads.
   val file = File(context.filesDir, "$AVATAR_FILE_PREFIX${System.currentTimeMillis()}.png")
-  file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+  try {
+    file.outputStream().use { if (!bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) throw java.io.IOException("PNG encode failed") }
+  } catch (e: Exception) {
+    file.delete()
+    throw e
+  }
+  // Only now that the new avatar is on disk is it safe to drop the previous ones.
+  old.forEach(File::delete)
   return file.absolutePath
 }

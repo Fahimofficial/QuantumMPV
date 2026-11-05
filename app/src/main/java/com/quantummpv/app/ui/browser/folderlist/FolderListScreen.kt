@@ -490,7 +490,7 @@ object FolderListScreen : Screen {
               onBackClick = null,
               onCancelSelection = { selectionManager.clear() },
               additionalActions = {
-                com.quantummpv.app.ui.browser.components.FolderQuickSortButton(
+                if (!selectionManager.isInSelectionMode) com.quantummpv.app.ui.browser.components.FolderQuickSortButton(
                   sortType = folderSortType,
                   sortOrder = folderSortOrder,
                   onSortChange = { type, order ->

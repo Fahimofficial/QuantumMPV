@@ -558,7 +558,7 @@ fun FileSystemBrowserScreen(path: String? = null) {
                 },
               onCancelSelection = { selectionManager.clear() },
               additionalActions = {
-                com.quantummpv.app.ui.browser.components.FolderQuickSortButton(
+                if (!isInSelectionMode) com.quantummpv.app.ui.browser.components.FolderQuickSortButton(
                   sortType = folderSortType,
                   sortOrder = folderSortOrder,
                   onSortChange = { type, order ->
