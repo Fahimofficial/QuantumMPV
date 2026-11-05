@@ -107,7 +107,7 @@ object PlayerPreferencesScreen : Screen {
               IconButton(onClick = { backstack.popSafely() }) {
                 Icon(
                   Icons.RoundedFilled.ArrowBack,
-                  contentDescription = null,
+                  contentDescription = stringResource(R.string.back),
                   tint = MaterialTheme.colorScheme.secondary,
                 )
               }

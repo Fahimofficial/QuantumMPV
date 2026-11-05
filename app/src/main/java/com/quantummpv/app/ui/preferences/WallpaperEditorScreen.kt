@@ -131,7 +131,7 @@ data class WallpaperEditorScreen(
           title = { Text(stringResource(R.string.pref_appearance_custom_wallpaper_crop_title)) },
           navigationIcon = {
             IconButton(enabled = !isSaving, onClick = { backStack.popSafely() }) {
-              Icon(Icons.RoundedFilled.ArrowBack, contentDescription = null)
+              Icon(Icons.RoundedFilled.ArrowBack, contentDescription = stringResource(R.string.back))
             }
           },
           actions = {

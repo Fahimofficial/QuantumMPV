@@ -75,7 +75,7 @@ object LibraryInsightsScreen : Screen {
           navigationIcon = { androidx.compose.material3.IconButton(onClick = { backStack.popSafely() }) {
             Icon(
               Icons.RoundedFilled.ArrowBack,
-              contentDescription = null,
+              contentDescription = androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.back),
             )
           } },
           actions = {

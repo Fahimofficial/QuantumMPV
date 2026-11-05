@@ -6,6 +6,11 @@ package com.quantummpv.app.ui.browser.music
 
 import android.content.Context
 import android.content.Intent
+import android.database.ContentObserver
+import android.net.Uri
+import android.os.Handler
+import android.os.Looper
+import android.provider.MediaStore
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -47,6 +52,20 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
   private val browserPreferences: com.quantummpv.app.preferences.BrowserPreferences by inject()
   private val audioPreferences: com.quantummpv.app.preferences.AudioPreferences by inject()
   private val foldersPreferences: com.quantummpv.app.preferences.FoldersPreferences by inject()
+  private val mediaStoreHandler = Handler(Looper.getMainLooper())
+  private var pendingMediaStoreScan: Runnable? = null
+  private val mediaStoreObserver =
+    object : ContentObserver(mediaStoreHandler) {
+      override fun onChange(
+        selfChange: Boolean,
+        uri: Uri?,
+      ) {
+        pendingMediaStoreScan?.let(mediaStoreHandler::removeCallbacks)
+        val scan = Runnable { scanLibrary() }
+        pendingMediaStoreScan = scan
+        mediaStoreHandler.postDelayed(scan, MEDIA_STORE_SCAN_DEBOUNCE_MS)
+      }
+    }
 
   val visibleTabs: StateFlow<List<MusicTab>> = combine(
     audioPreferences.musicTabOrder.changes(),
@@ -60,7 +79,8 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
 
   // Keep the unfiltered MediaStore result so changing the minimum-duration preference can update
   // Songs, Albums and Artists immediately without rescanning storage on every slider movement.
-  private val _allSongs = MutableStateFlow<List<MusicSong>>(emptyList())
+  private val allSongs = MutableStateFlow<List<MusicSong>>(emptyList())
+  private val scanMutex = Mutex()
   private val filterMutex = Mutex()
 
   private val _songs = MutableStateFlow<List<MusicSong>>(emptyList())
@@ -107,6 +127,11 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
       .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
   init {
+    context.applicationContext.contentResolver.registerContentObserver(
+      MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+      true,
+      mediaStoreObserver,
+    )
     viewModelScope.launch {
       playlistRepository.getOrCreateFavoritesPlaylist(isAudio = true)
     }
@@ -192,16 +217,18 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
     .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
   suspend fun refreshLibrary(context: Context) {
-    _isLoading.value = true
-    try {
-      _allSongs.value = MusicLibraryScanner.scanSongs(context)
-      applyFilters()
-    } catch (e: CancellationException) {
-      throw e
-    } catch (e: Exception) {
-      Log.e(TAG, "Failed to refresh music library", e)
-    } finally {
-      _isLoading.value = false
+    scanMutex.withLock {
+      _isLoading.value = true
+      try {
+        allSongs.value = MusicLibraryScanner.scanSongs(context)
+        applyFilters()
+      } catch (e: CancellationException) {
+        throw e
+      } catch (e: Exception) {
+        Log.e(TAG, "Failed to refresh music library", e)
+      } finally {
+        _isLoading.value = false
+      }
     }
   }
 
@@ -213,7 +240,7 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
   private suspend fun applyFilters() = filterMutex.withLock {
     // A scan and a preference change can arrive together. Serialize publication and take the
     // latest inputs inside the lock so an older background calculation cannot win the race.
-    val allSongs = _allSongs.value
+    val allSongs = allSongs.value
     val minimumSeconds = browserPreferences.minimumAudioDurationSeconds.get()
     val blacklist = foldersPreferences.blacklistedAudioFolders.get()
     val (visibleSongs, albums, artists) = withContext(Dispatchers.Default) {
@@ -272,6 +299,13 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
     viewModelScope.launch {
       refreshLibrary(context ?: this@MusicLibraryViewModel.context)
     }
+  }
+
+  override fun onCleared() {
+    context.applicationContext.contentResolver.unregisterContentObserver(mediaStoreObserver)
+    pendingMediaStoreScan?.let(mediaStoreHandler::removeCallbacks)
+    pendingMediaStoreScan = null
+    super.onCleared()
   }
 
   fun setTab(tab: MusicTab) {
@@ -429,3 +463,5 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
     return result
   }
 }
+
+private const val MEDIA_STORE_SCAN_DEBOUNCE_MS = 500L
