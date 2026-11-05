@@ -851,31 +851,56 @@ private fun BoxScope.RecentVideoFrame(
   duration: String,
   progress: Float?,
 ) {
-  RecentVideoArtwork(thumbnail, isAudio)
-  RecentVideoDuration(duration)
-  RecentVideoProgress(progress)
+  val presentation = recentVideoFramePresentation(thumbnail != null, isAudio, duration, progress)
+  RecentVideoArtwork(thumbnail, presentation.fallback)
+  RecentVideoDuration(presentation.durationLabel)
+  RecentVideoProgress(presentation.progress)
 }
+
+internal enum class RecentMediaFallback {
+  AUDIO,
+  VIDEO,
+}
+
+internal data class RecentVideoFramePresentation(
+  val fallback: RecentMediaFallback?,
+  val durationLabel: String?,
+  val progress: Float?,
+)
+
+/** Maps media and playback state to the visible placeholder, duration badge, and progress bar. */
+internal fun recentVideoFramePresentation(
+  hasThumbnail: Boolean,
+  isAudio: Boolean,
+  duration: String,
+  progress: Float?,
+): RecentVideoFramePresentation =
+  RecentVideoFramePresentation(
+    fallback = if (hasThumbnail) null else if (isAudio) RecentMediaFallback.AUDIO else RecentMediaFallback.VIDEO,
+    durationLabel = duration.takeIf { it.isNotBlank() && it != "--:--" },
+    progress = progress?.takeIf { it > 0f },
+  )
 
 @Composable
 private fun BoxScope.RecentVideoArtwork(
   thumbnail: Bitmap?,
-  isAudio: Boolean,
+  fallback: RecentMediaFallback?,
 ) {
   if (thumbnail != null) {
     Image(thumbnail.asImageBitmap(), contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
   } else {
     Icon(
-      if (isAudio) Icons.RoundedFilled.Audiotrack else Icons.RoundedFilled.PlayArrow,
+      if (fallback == RecentMediaFallback.AUDIO) Icons.RoundedFilled.Audiotrack else Icons.RoundedFilled.PlayArrow,
       contentDescription = null,
       tint = MaterialTheme.colorScheme.primary,
-      modifier = Modifier.align(Alignment.Center).size(if (isAudio) 36.dp else 32.dp),
+      modifier = Modifier.align(Alignment.Center).size(if (fallback == RecentMediaFallback.AUDIO) 36.dp else 32.dp),
     )
   }
 }
 
 @Composable
-private fun BoxScope.RecentVideoDuration(duration: String) {
-  if (duration.isNotBlank() && duration != "--:--") {
+private fun BoxScope.RecentVideoDuration(duration: String?) {
+  if (duration != null) {
     Surface(
       shape = RoundedCornerShape(6.dp),
       color = Color.Black.copy(alpha = 0.75f),
