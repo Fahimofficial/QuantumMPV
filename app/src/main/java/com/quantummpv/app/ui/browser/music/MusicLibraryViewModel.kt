@@ -6,6 +6,11 @@ package com.quantummpv.app.ui.browser.music
 
 import android.content.Context
 import android.content.Intent
+import android.database.ContentObserver
+import android.net.Uri
+import android.os.Handler
+import android.os.Looper
+import android.provider.MediaStore
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -47,6 +52,20 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
   private val browserPreferences: com.quantummpv.app.preferences.BrowserPreferences by inject()
   private val audioPreferences: com.quantummpv.app.preferences.AudioPreferences by inject()
   private val foldersPreferences: com.quantummpv.app.preferences.FoldersPreferences by inject()
+  private val mediaStoreHandler = Handler(Looper.getMainLooper())
+  private var pendingMediaStoreScan: Runnable? = null
+  private val mediaStoreObserver =
+    object : ContentObserver(mediaStoreHandler) {
+      override fun onChange(
+        selfChange: Boolean,
+        uri: Uri?,
+      ) {
+        pendingMediaStoreScan?.let(mediaStoreHandler::removeCallbacks)
+        val scan = Runnable { scanLibrary() }
+        pendingMediaStoreScan = scan
+        mediaStoreHandler.postDelayed(scan, MEDIA_STORE_SCAN_DEBOUNCE_MS)
+      }
+    }
 
   val visibleTabs: StateFlow<List<MusicTab>> = combine(
     audioPreferences.musicTabOrder.changes(),
@@ -107,6 +126,11 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
       .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
   init {
+    context.applicationContext.contentResolver.registerContentObserver(
+      MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+      true,
+      mediaStoreObserver,
+    )
     viewModelScope.launch {
       playlistRepository.getOrCreateFavoritesPlaylist(isAudio = true)
     }
@@ -274,6 +298,13 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
     }
   }
 
+  override fun onCleared() {
+    context.applicationContext.contentResolver.unregisterContentObserver(mediaStoreObserver)
+    pendingMediaStoreScan?.let(mediaStoreHandler::removeCallbacks)
+    pendingMediaStoreScan = null
+    super.onCleared()
+  }
+
   fun setTab(tab: MusicTab) {
     _selectedTab.value = tab
   }
@@ -429,3 +460,5 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
     return result
   }
 }
+
+private const val MEDIA_STORE_SCAN_DEBOUNCE_MS = 500L

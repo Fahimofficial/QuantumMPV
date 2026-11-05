@@ -5,12 +5,8 @@
 package com.quantummpv.app.ui.browser.music
 
 import android.app.Application
-import android.database.ContentObserver
 import android.graphics.BitmapFactory
 import android.net.Uri
-import android.os.Handler
-import android.os.Looper
-import android.provider.MediaStore
 import android.text.format.DateUtils
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
@@ -334,29 +330,6 @@ fun MusicLibraryContent(
     audioOnly = true,
     onPermissionGranted = { musicViewModel.scanLibrary(context) },
   )
-
-  // MediaStore changes from other apps do not always emit MediaLibraryEvents; debounce file bursts.
-  DisposableEffect(context.contentResolver, musicViewModel) {
-    val handler = Handler(Looper.getMainLooper())
-    var pendingScan: Runnable? = null
-    val observer =
-      object : ContentObserver(handler) {
-        override fun onChange(
-          selfChange: Boolean,
-          uri: Uri?,
-        ) {
-          pendingScan?.let(handler::removeCallbacks)
-          val scan = Runnable { musicViewModel.scanLibrary(context) }
-          pendingScan = scan
-          handler.postDelayed(scan, 500L)
-        }
-      }
-    context.contentResolver.registerContentObserver(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, true, observer)
-    onDispose {
-      context.contentResolver.unregisterContentObserver(observer)
-      pendingScan?.let(handler::removeCallbacks)
-    }
-  }
 
   // Rescan on resume if library is currently empty (e.g. after granting permissions)
   DisposableEffect(lifecycleOwner) {
