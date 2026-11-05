@@ -69,6 +69,7 @@ import com.quantummpv.app.ui.theme.Dimens
 import com.quantummpv.app.ui.utils.pressScale
 import com.quantummpv.app.utils.history.RecentlyPlayedOps
 import com.quantummpv.app.utils.media.MediaUtils
+import com.quantummpv.app.utils.media.cleanTitle
 import com.quantummpv.app.utils.storage.FileTypeUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -139,7 +140,7 @@ private suspend fun buildResumeCardModel(
   val rawTitle = videoTitle?.takeIf { it.isNotBlank() } ?: FileTypeUtils.stripExtension(fileName.ifBlank { File(path).name })
   return ResumeCardModel(
     filePath = path,
-    title = rawTitle,
+    title = cleanTitle(rawTitle).title,
     resumeAt = if (playerResumes) DateUtils.formatElapsedTime(position.toLong()) else null,
     progress = if (total > 0 && position > 0) (position.toFloat() / total).coerceIn(0f, 1f) else null,
     video = video,

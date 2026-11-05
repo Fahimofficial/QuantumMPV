@@ -11,6 +11,7 @@
 
 package com.quantummpv.app.ui.browser.videolist
 
+import com.quantummpv.app.ui.utils.appItemMotion
 import android.content.Intent
 import android.os.Environment
 import android.widget.Toast
@@ -224,6 +225,7 @@ data class VideoListScreen(
     val compressorDialogOpen = rememberSaveable { mutableStateOf(false) }
     var swipeRenameVideo by remember { mutableStateOf<Video?>(null) }
     var swipeDeleteVideo by remember { mutableStateOf<Video?>(null) }
+    val selectionHaptics = com.quantummpv.app.ui.utils.rememberAppHaptics()
 
     // Copy/Move state
     val folderPickerOpen = rememberSaveable { mutableStateOf(false) }
@@ -508,6 +510,7 @@ data class VideoListScreen(
           selectionManager = selectionManager,
           onVideoClick = { video ->
             if (selectionManager.isInSelectionMode) {
+              selectionHaptics.tick()
               selectionManager.toggle(video)
             } else {
               // Always use MediaUtils.playFile which lets PlayerActivity auto-generate playlist
@@ -516,7 +519,10 @@ data class VideoListScreen(
               MediaUtils.playFile(video, context, "video_list")
             }
           },
-          onVideoLongClick = { video -> selectionManager.handleLongClick(video) },
+          onVideoLongClick = { video ->
+            if (selectionManager.isInSelectionMode) selectionHaptics.tick() else selectionHaptics.confirm()
+            selectionManager.handleLongClick(video)
+          },
           onWatchedChange = viewModel::setWatched,
           onRename = { video -> swipeRenameVideo = video },
           onDelete = { video -> swipeDeleteVideo = video },
@@ -1184,6 +1190,7 @@ internal fun VideoListContent(
                   val videoWithInfo = videosWithInfo[index]
                   val isRecentlyPlayed = recentlyPlayedFilePath?.let { videoWithInfo.video.path == it } ?: false
 
+                  Box(modifier = appItemMotion()) {
                   SwipeableVideoActions(
                     itemKey = videoWithInfo.video.path,
                     enabled = !selectionManager.isInSelectionMode && onWatchedChange != null,
@@ -1215,7 +1222,11 @@ internal fun VideoListContent(
                       allowThumbnailGeneration = false,
                       allowThumbnailLoading = allowThumbnailLoading,
                       uiConfig = videoCardUiConfig,
+                      cleanTitle = videoWithInfo.cleanTitle,
+                      resumeRemaining = videoWithInfo.remainingFormatted,
+                      isInSelectionMode = selectionManager.isInSelectionMode,
                     )
+                  }
                   }
                 }
               }
@@ -1259,6 +1270,7 @@ internal fun VideoListContent(
                   val videoWithInfo = videosWithInfo[index]
                   val isRecentlyPlayed = recentlyPlayedFilePath?.let { videoWithInfo.video.path == it } ?: false
 
+                  Box(modifier = appItemMotion()) {
                   SwipeableVideoActions(
                     itemKey = videoWithInfo.video.path,
                     enabled = !selectionManager.isInSelectionMode && onWatchedChange != null,
@@ -1289,7 +1301,11 @@ internal fun VideoListContent(
                       uiConfig = videoCardUiConfig,
                       thumbnailWidthPx = if (isAudio) with(density) { musicCoverArtSize.dp.roundToPx() } else null,
                       thumbnailHeightPx = if (isAudio) with(density) { musicCoverArtSize.dp.roundToPx() } else null,
+                      cleanTitle = videoWithInfo.cleanTitle,
+                      resumeRemaining = videoWithInfo.remainingFormatted,
+                      isInSelectionMode = selectionManager.isInSelectionMode,
                     )
+                  }
                   }
                 }
               }

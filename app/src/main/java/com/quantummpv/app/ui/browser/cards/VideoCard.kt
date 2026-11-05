@@ -9,10 +9,26 @@
 
 package com.quantummpv.app.ui.browser.cards
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.ripple
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.drawOutline
+import androidx.compose.ui.graphics.drawscope.Stroke
+import com.quantummpv.app.ui.theme.AppMotion
+import com.quantummpv.app.ui.theme.Dimens
+import com.quantummpv.app.ui.theme.LocalReduceMotion
+import com.quantummpv.app.ui.utils.pressScale
+import com.quantummpv.app.utils.media.VideoCodecLabelCache
 import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -179,6 +195,9 @@ fun VideoCard(
   allowThumbnailGeneration: Boolean = true,
   allowThumbnailLoading: Boolean = true,
   uiConfig: VideoCardUiConfig? = null,
+  cleanTitle: com.quantummpv.app.utils.media.CleanTitle? = null,
+  resumeRemaining: String? = null,
+  isInSelectionMode: Boolean = false,
 ) {
   // Screens hoist this once and pass it down; collecting per card would register a dozen
   // preference observers for every visible item in a grid.
@@ -195,7 +214,13 @@ fun VideoCard(
   val unplayedOldVideoDays = resolvedUiConfig.unplayedOldVideoDays
   val showDurationField = resolvedUiConfig.showDurationField
   val displayName =
-    if (resolvedUiConfig.showExtensionField) {
+    if (cleanTitle != null) {
+      if (resolvedUiConfig.showExtensionField && !video.isAudio) {
+        cleanTitle.title + video.displayName.substringAfterLast('.', "").let { if (it.isEmpty()) "" else ".$it" }
+      } else {
+        cleanTitle.title
+      }
+    } else if (resolvedUiConfig.showExtensionField) {
       video.displayName
     } else if (video.isAudio && video.title.isNotBlank()) {
       video.title
@@ -242,14 +267,43 @@ fun VideoCard(
       null
     }
 
+  val cardInteractionSource = remember { MutableInteractionSource() }
+  // Read only inside draw/layer lambdas, so selecting animates without recomposing the card.
+  val selectionProgress by animateFloatAsState(
+    targetValue = if (isSelected) 1f else 0f,
+    animationSpec = AppMotion.fastEffects(),
+    label = "video_card_selection",
+  )
+  val selectionColor = MaterialTheme.colorScheme.primary
   Card(
     modifier =
       modifier
         .then(
           if (isGridMode) Modifier.fillMaxWidth() else Modifier.fillMaxWidth(),
         ).tvFocusHighlight(cardShape, focusedScale = 1.03f)
-        .clip(cardShape)
+        .pressScale(cardInteractionSource)
+        .graphicsLayer {
+          val p = selectionProgress
+          if (p > 0f) {
+            shape = cardShape
+            shadowElevation = Dimens.SelectionGlow.toPx() * p
+            ambientShadowColor = selectionColor
+            spotShadowColor = selectionColor
+          }
+        }.drawWithContent {
+          drawContent()
+          val p = selectionProgress
+          if (p > 0f) {
+            drawOutline(
+              outline = cardShape.createOutline(size, layoutDirection, this),
+              color = selectionColor.copy(alpha = p),
+              style = Stroke(width = Dimens.SelectionBorder.toPx() * 2f),
+            )
+          }
+        }.clip(cardShape)
         .combinedClickable(
+          interactionSource = cardInteractionSource,
+          indication = ripple(),
           onClick = onClick,
           onLongClick = onLongClick,
           onLongClickLabel =
@@ -417,7 +471,7 @@ fun VideoCard(
 
             // Show "NEW" label for recently added unplayed videos if enabled (top-left corner)
             // Like MX Player: show NEW for videos added within threshold days that haven't been played
-            if (showUnplayedOldVideoLabel && isOldAndUnplayed) {
+            if (showUnplayedOldVideoLabel && isOldAndUnplayed && !isInSelectionMode) {
               // Check if video is recently modified (within threshold days)
               val currentTime = System.currentTimeMillis()
               val videoAge = currentTime - (video.dateModified * 1000) // dateModified is in seconds
@@ -459,8 +513,13 @@ fun VideoCard(
                 modifier =
                   Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(6.dp)
-                    .clip(AppShapeScale.extraSmall)
+                    // Sits above the progress bar so the two never overlap.
+                    .padding(
+                      start = 6.dp,
+                      top = 6.dp,
+                      end = 6.dp,
+                      bottom = if (progressPercentage != null && showProgressBar) 8.dp + Dimens.ThumbnailProgressHeight else 6.dp,
+                    ).clip(AppShapeScale.extraSmall)
                     .background(Color.Black.copy(alpha = 0.65f))
                     .padding(horizontal = 6.dp, vertical = 2.dp),
               ) {
@@ -474,24 +533,11 @@ fun VideoCard(
               }
             }
 
-            // Progress bar
             if (progressPercentage != null && showProgressBar) {
-              Box(
-                modifier =
-                  Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .height(4.dp),
-              ) {
-                Box(modifier = Modifier.matchParentSize().background(Color.Black.copy(alpha = 0.6f)))
-                Box(
-                  modifier =
-                    Modifier
-                      .fillMaxHeight()
-                      .fillMaxWidth(progressPercentage)
-                      .background(MaterialTheme.colorScheme.primary),
-                )
-              }
+              ThumbnailProgressBar(progressPercentage, Modifier.align(Alignment.BottomCenter))
+            }
+            if (isInSelectionMode) {
+              SelectionCheck(isSelected, Modifier.align(Alignment.TopStart).padding(6.dp))
             }
           }
 
@@ -752,7 +798,7 @@ fun VideoCard(
 
             // Show "NEW" label for recently added unplayed videos if enabled (top-left corner)
             // Like MX Player: show NEW for videos added within threshold days that haven't been played
-            if (showUnplayedOldVideoLabel && isOldAndUnplayed) {
+            if (showUnplayedOldVideoLabel && isOldAndUnplayed && !isInSelectionMode) {
               // Check if video is recently modified (within threshold days)
               val currentTime = System.currentTimeMillis()
               val videoAge = currentTime - (video.dateModified * 1000) // dateModified is in seconds
@@ -786,8 +832,13 @@ fun VideoCard(
                 modifier =
                   Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(6.dp)
-                    .clip(AppShapeScale.extraSmall)
+                    // Sits above the progress bar so the two never overlap.
+                    .padding(
+                      start = 6.dp,
+                      top = 6.dp,
+                      end = 6.dp,
+                      bottom = if (progressPercentage != null && showProgressBar) 8.dp + Dimens.ThumbnailProgressHeight else 6.dp,
+                    ).clip(AppShapeScale.extraSmall)
                     .background(Color.Black.copy(alpha = 0.65f))
                     .padding(horizontal = 6.dp, vertical = 2.dp),
               ) {
@@ -801,31 +852,11 @@ fun VideoCard(
               }
             }
 
-            // Progress bar at bottom of thumbnail
             if (progressPercentage != null && showProgressBar) {
-              Box(
-                modifier =
-                  Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .height(4.dp),
-              ) {
-                // Background (unwatched portion)
-                Box(
-                  modifier =
-                    Modifier
-                      .matchParentSize()
-                      .background(Color.Black.copy(alpha = 0.6f)),
-                )
-                // Progress (watched portion)
-                Box(
-                  modifier =
-                    Modifier
-                      .fillMaxHeight()
-                      .fillMaxWidth(progressPercentage)
-                      .background(MaterialTheme.colorScheme.primary),
-                )
-              }
+              ThumbnailProgressBar(progressPercentage, Modifier.align(Alignment.BottomCenter))
+            }
+            if (isInSelectionMode) {
+              SelectionCheck(isSelected, Modifier.align(Alignment.TopStart).padding(6.dp))
             }
           }
           Spacer(modifier = Modifier.width(16.dp))
@@ -853,8 +884,27 @@ fun VideoCard(
               maxLines = maxLines,
               overflow = TextOverflow.Ellipsis,
             )
+            cleanTitle?.id?.let { sourceId ->
+              Text(
+                text = sourceId,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+              )
+            }
+            if (isRecentlyPlayed && resumeRemaining != null) {
+              Text(
+                text = stringResource(R.string.ui_resume_remaining, resumeRemaining),
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary,
+              )
+            }
             Spacer(modifier = Modifier.height(4.dp))
             FlowRow(
+              // Reserves one chip line so lazily loaded chips never shift the card height.
+              modifier = Modifier.heightIn(min = Dimens.MetadataChipRowHeight),
               horizontalArrangement =
                 androidx.compose.foundation.layout.Arrangement
                   .spacedBy(4.dp),
@@ -895,35 +945,9 @@ fun VideoCard(
                   color = MaterialTheme.colorScheme.onSurface,
                 )
               }
-              // Resolution and Framerate logic (List view)
-              val fpsOnly = video.resolution.substringAfter("@", "")
-              val hasFps = fpsOnly.isNotEmpty()
-
-              if (showResolutionChip && !video.isAudio) {
-                if (video.resolution != "--") {
-                  val displayResolution =
-                    if (showFramerateInResolution) {
-                      video.resolution
-                    } else {
-                      video.resolution.substringBefore("@")
-                    }
-
-                  Text(
-                    displayResolution,
-                    style = MaterialTheme.typography.labelSmall,
-                    modifier =
-                      Modifier
-                        .background(
-                          MaterialTheme.colorScheme.surfaceContainerHigh,
-                          AppShapeScale.small,
-                        ).padding(horizontal = 8.dp, vertical = 4.dp),
-                    color = MaterialTheme.colorScheme.onSurface,
-                  )
-                }
-              } else if (showFramerateInResolution && hasFps) {
-                // Resolution is hidden, but framerate is enabled -> show only framerate
+              if (showDateChip && video.dateModified > 0) {
                 Text(
-                  "$fpsOnly FPS",
+                  formatDate(video.dateModified),
                   style = MaterialTheme.typography.labelSmall,
                   modifier =
                     Modifier
@@ -934,10 +958,25 @@ fun VideoCard(
                   color = MaterialTheme.colorScheme.onSurface,
                 )
               }
-
-              if (showDateChip && video.dateModified > 0) {
+              // Resolution (+ codec) last: the lazily loaded codec only ever extends the row's end.
+              val fpsOnly = video.resolution.substringAfter("@", "")
+              val hasFps = fpsOnly.isNotEmpty()
+              if (showResolutionChip && !video.isAudio) {
+                val displayResolution =
+                  when {
+                    video.resolution == "--" -> null
+                    showFramerateInResolution -> video.resolution
+                    else -> video.resolution.substringBefore("@")
+                  }
+                MetadataChip(
+                  video = video,
+                  resolution = displayResolution,
+                  // The codec support chip already names the codec.
+                  includeCodec = !(showCodecSupportIndicator && video.videoCodec.isNotBlank()),
+                )
+              } else if (showFramerateInResolution && hasFps) {
                 Text(
-                  formatDate(video.dateModified),
+                  "$fpsOnly FPS",
                   style = MaterialTheme.typography.labelSmall,
                   modifier =
                     Modifier
@@ -1007,3 +1046,124 @@ private val CARD_DATE_FORMATTER: java.time.format.DateTimeFormatter =
 
 private fun formatDate(timestampSeconds: Long): String =
   CARD_DATE_FORMATTER.format(java.time.Instant.ofEpochSecond(timestampSeconds))
+
+/** Watched progress along the thumbnail's bottom edge; the fill has rounded ends. */
+@Composable
+private fun ThumbnailProgressBar(
+  progress: Float,
+  modifier: Modifier = Modifier,
+) {
+  Box(
+    modifier =
+      modifier
+        .fillMaxWidth()
+        .height(Dimens.ThumbnailProgressHeight)
+        .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.55f)),
+  ) {
+    Box(
+      modifier =
+        Modifier
+          .fillMaxHeight()
+          .fillMaxWidth(progress)
+          .clip(CircleShape)
+          .background(MaterialTheme.colorScheme.primary),
+    )
+  }
+}
+
+/**
+ * Selection-mode check: springs in when selection mode starts, then morphs from an empty ring to a
+ * filled primary circle with a check that pops in. Visual only; the card carries the selected state.
+ */
+@Composable
+private fun SelectionCheck(
+  selected: Boolean,
+  modifier: Modifier = Modifier,
+) {
+  val reduceMotion = LocalReduceMotion.current
+  val appear = remember { Animatable(if (reduceMotion) 1f else 0f) }
+  LaunchedEffect(Unit) { appear.animateTo(1f, if (reduceMotion) snap() else AppMotion.PopSpring) }
+  val fill by animateFloatAsState(
+    targetValue = if (selected) 1f else 0f,
+    animationSpec = if (reduceMotion) snap() else AppMotion.PopSpring,
+    label = "selection_check_fill",
+  )
+  val ring = MaterialTheme.colorScheme.onSurface
+  val primary = MaterialTheme.colorScheme.primary
+  val ringBackdrop = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f)
+  Box(
+    modifier =
+      modifier
+        .size(24.dp)
+        .graphicsLayer {
+          scaleX = appear.value
+          scaleY = appear.value
+        }.drawBehind {
+          val radius = size.minDimension / 2f
+          drawCircle(ringBackdrop, radius)
+          drawCircle(primary, radius * fill.coerceIn(0f, 1f))
+          drawCircle(ring.copy(alpha = 1f - fill.coerceIn(0f, 1f)), radius - 1.dp.toPx(), style = Stroke(2.dp.toPx()))
+        },
+    contentAlignment = Alignment.Center,
+  ) {
+    Icon(
+      imageVector = Icons.RoundedFilled.Check,
+      contentDescription = null,
+      tint = MaterialTheme.colorScheme.onPrimary,
+      modifier =
+        Modifier
+          .size(16.dp)
+          .graphicsLayer {
+            val f = fill
+            alpha = f.coerceIn(0f, 1f)
+            scaleX = f
+            scaleY = f
+          },
+    )
+  }
+}
+
+/**
+ * "1080p · HEVC". Resolution comes from the scan; the codec comes from the scan when known, otherwise
+ * from a header-only probe that runs off the main thread, only while the row is composed (visible),
+ * and is cached. The codec part fades in when it arrives.
+ */
+@Composable
+private fun MetadataChip(
+  video: Video,
+  resolution: String?,
+  includeCodec: Boolean,
+) {
+  val context = androidx.compose.ui.platform.LocalContext.current
+  val scannedCodec = video.videoCodec.takeIf { it.isNotBlank() }?.uppercase()
+  var codec by remember(video.path, includeCodec) {
+    mutableStateOf(if (includeCodec) scannedCodec ?: VideoCodecLabelCache.peek(video)?.ifEmpty { null } else null)
+  }
+  val codecAlpha = remember(video.path) { Animatable(if (codec != null) 1f else 0f) }
+  val fadeSpec = AppMotion.fastEffects<Float>()
+  LaunchedEffect(video.path, includeCodec) {
+    if (!includeCodec || codec != null || VideoCodecLabelCache.peek(video) != null) return@LaunchedEffect
+    val loaded = VideoCodecLabelCache.load(context, video) ?: return@LaunchedEffect
+    codec = loaded
+    codecAlpha.animateTo(1f, fadeSpec)
+  }
+  if (resolution == null && codec == null) return
+  Row(
+    modifier =
+      Modifier
+        .background(MaterialTheme.colorScheme.surfaceContainerHigh, AppShapeScale.small)
+        .padding(horizontal = 8.dp, vertical = 4.dp),
+  ) {
+    resolution?.let {
+      Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface)
+    }
+    codec?.let {
+      Text(
+        text = if (resolution != null) " · $it" else it,
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurface,
+        modifier = Modifier.graphicsLayer { alpha = codecAlpha.value },
+      )
+    }
+  }
+}

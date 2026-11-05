@@ -48,6 +48,10 @@ data class VideoWithPlaybackInfo(
   val progressPercentage: Float? = null, // 0.0 to 1.0
   val isOldAndUnplayed: Boolean = false, // true while the NEW badge is eligible
   val isWatched: Boolean = false, // true once the configured watched threshold is reached
+  /** Display title with the downloader id split off; null until built off the main thread. */
+  val cleanTitle: com.quantummpv.app.utils.media.CleanTitle? = null,
+  /** Remaining time ("3:20") for an in-progress video, preformatted for the Resume label. */
+  val remainingFormatted: String? = null,
 )
 
 internal fun videoPlaybackIdentifiers(video: Video): Set<String> =
@@ -80,10 +84,26 @@ internal fun buildVideoWithPlaybackInfo(
   val videoAgeMillis = currentTimeMillis - video.dateModified * 1000L
   val isWithinNewLabelWindow = newLabelDays == 0 || videoAgeMillis <= newLabelWindowMillis
 
+  val visibleProgress = progressValue?.takeIf { it in 0.01f..0.99f }
+  val remainingSeconds = playbackState?.timeRemaining?.toLong()
   return VideoWithPlaybackInfo(
     video = video,
-    timeRemaining = playbackState?.timeRemaining?.toLong(),
-    progressPercentage = progressValue?.takeIf { it in 0.01f..0.99f },
+    timeRemaining = remainingSeconds,
+    progressPercentage = visibleProgress,
+    cleanTitle =
+      com.quantummpv.app.utils.media.cleanTitle(
+        if (video.isAudio && video.title.isNotBlank()) {
+          video.title
+        } else {
+          com.quantummpv.app.utils.storage.FileTypeUtils.stripExtension(video.displayName)
+        },
+      ),
+    remainingFormatted =
+      if (visibleProgress != null && remainingSeconds != null && remainingSeconds > 0) {
+        android.text.format.DateUtils.formatElapsedTime(remainingSeconds)
+      } else {
+        null
+      },
     isOldAndUnplayed = !isWatched && isWithinNewLabelWindow,
     isWatched = isWatched,
   )
