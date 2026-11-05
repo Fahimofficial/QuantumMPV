@@ -79,7 +79,7 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
 
   // Keep the unfiltered MediaStore result so changing the minimum-duration preference can update
   // Songs, Albums and Artists immediately without rescanning storage on every slider movement.
-  private val _allSongs = MutableStateFlow<List<MusicSong>>(emptyList())
+  private val allSongs = MutableStateFlow<List<MusicSong>>(emptyList())
   private val filterMutex = Mutex()
 
   private val _songs = MutableStateFlow<List<MusicSong>>(emptyList())
@@ -218,7 +218,7 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
   suspend fun refreshLibrary(context: Context) {
     _isLoading.value = true
     try {
-      _allSongs.value = MusicLibraryScanner.scanSongs(context)
+      allSongs.value = MusicLibraryScanner.scanSongs(context)
       applyFilters()
     } catch (e: CancellationException) {
       throw e
@@ -237,7 +237,7 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
   private suspend fun applyFilters() = filterMutex.withLock {
     // A scan and a preference change can arrive together. Serialize publication and take the
     // latest inputs inside the lock so an older background calculation cannot win the race.
-    val allSongs = _allSongs.value
+    val allSongs = allSongs.value
     val minimumSeconds = browserPreferences.minimumAudioDurationSeconds.get()
     val blacklist = foldersPreferences.blacklistedAudioFolders.get()
     val (visibleSongs, albums, artists) = withContext(Dispatchers.Default) {
