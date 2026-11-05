@@ -69,6 +69,7 @@ import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.LocalShowSettingsBackArrow
 import com.quantummpv.app.ui.utils.ScreenNavDisplay
 import com.quantummpv.app.ui.utils.navigateTo
+import com.quantummpv.app.ui.utils.sharedNavBounds
 import com.quantummpv.app.ui.utils.popSafely
 import kotlinx.serialization.Serializable
 import org.koin.compose.koinInject
@@ -137,7 +138,10 @@ object PreferencesScreen : Screen {
       SettingsPane(
         sections = sections,
         selectedScreen = null,
-        onScreenSelected = { backstack.navigateTo(it) },
+        onScreenSelected = {
+          com.quantummpv.app.ui.utils.SharedNavigation.activeKey = com.quantummpv.app.ui.utils.SharedNavigation.screenKey(it)
+          backstack.navigateTo(it)
+        },
       )
     }
   }
@@ -519,6 +523,8 @@ private fun SettingsDestinationRow(
     modifier =
       Modifier
         .fillMaxWidth()
+        // Container transform into the sub-screen; the corner radius morphs on the way.
+        .sharedNavBounds(com.quantummpv.app.ui.utils.SharedNavigation.screenKey(item.screen), MaterialTheme.shapes.medium)
         .tvFocusHighlight(MaterialTheme.shapes.medium, focusedScale = 1.01f)
         .background(rowBgColor)
         .clickable(onClick = onClick)

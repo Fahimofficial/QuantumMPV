@@ -68,6 +68,7 @@ import org.koin.compose.koinInject
 @Composable
 fun BrowserTopBar(
   title: String,
+  titleModifier: Modifier = Modifier,
   isInSelectionMode: Boolean,
   selectedCount: Int,
   totalCount: Int,
@@ -129,6 +130,7 @@ fun BrowserTopBar(
   } else {
     NormalTopBar(
       title = title,
+      titleModifier = titleModifier,
       onBackClick = onBackClick,
       onSortClick = onSortClick,
       onSearchClick = onSearchClick,
@@ -154,6 +156,7 @@ fun BrowserTopBar(
 @Composable
 private fun NormalTopBar(
   title: String,
+  titleModifier: Modifier = Modifier,
   onBackClick: (() -> Unit)?,
   onSortClick: (() -> Unit)?,
   onSearchClick: (() -> Unit)?,
@@ -219,8 +222,8 @@ private fun NormalTopBar(
         } else {
           ""
         }
-      val titleModifier =
-        Modifier
+      val tapModifier =
+        titleModifier
           .onGloballyPositioned { coordinates ->
             titleBounds.value = coordinates.boundsInWindow()
           }.pointerInput(onTitleLongPress, onTitleDoubleTap) {
@@ -283,7 +286,7 @@ private fun NormalTopBar(
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         modifier =
-          titleModifier.then(
+          tapModifier.then(
             if (onBackClick == null) {
               Modifier.padding(start = 8.dp)
             } else {

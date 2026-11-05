@@ -767,6 +767,8 @@ object FolderListScreen : Screen {
                         selectedFolderBucketId = folder.bucketId
                         selectedFolderName = folder.name
                       } else {
+                        com.quantummpv.app.ui.utils.SharedNavigation.activeKey =
+                          com.quantummpv.app.ui.utils.SharedNavigation.folderKey(folder.bucketId)
                         backstack.navigateTo(
                           com.quantummpv.app.ui.browser.videolist
                             .VideoListScreen(folder.bucketId, folder.name, isAudio = audioOnly),

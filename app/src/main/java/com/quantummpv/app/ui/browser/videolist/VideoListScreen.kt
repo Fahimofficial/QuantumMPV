@@ -115,6 +115,7 @@ import com.quantummpv.app.ui.securefolder.SecureFolderProgressDialog
 import com.quantummpv.app.ui.theme.AppMotion
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.navigateTo
+import com.quantummpv.app.ui.utils.sharedNavBounds
 import com.quantummpv.app.ui.utils.popSafely
 import com.quantummpv.app.utils.history.RecentlyPlayedOps
 import com.quantummpv.app.utils.media.CopyPasteOps
@@ -376,6 +377,13 @@ data class VideoListScreen(
         } else {
           BrowserTopBar(
           title = displayFolderName,
+          titleModifier =
+            Modifier.sharedNavBounds(
+              key = com.quantummpv.app.ui.utils.SharedNavigation.folderTitleKey(bucketId),
+              shape = androidx.compose.ui.graphics.RectangleShape,
+              activeWhen = com.quantummpv.app.ui.utils.SharedNavigation.folderKey(bucketId),
+              scaleContent = true,
+            ),
           isInSelectionMode = selectionManager.isInSelectionMode,
           selectedCount = selectionManager.selectedCount,
           totalCount = sortedVideosWithInfo.size,

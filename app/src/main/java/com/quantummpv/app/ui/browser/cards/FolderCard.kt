@@ -65,7 +65,9 @@ import com.quantummpv.app.ui.theme.AppMotion
 import com.quantummpv.app.ui.theme.AppShapeScale
 import com.quantummpv.app.ui.theme.Dimens
 import com.quantummpv.app.ui.theme.LocalReduceMotion
+import com.quantummpv.app.ui.utils.SharedNavigation
 import com.quantummpv.app.ui.utils.pressScale
+import com.quantummpv.app.ui.utils.sharedNavBounds
 import com.quantummpv.app.ui.theme.DesignTokens.LocalGlassConfig
 import com.quantummpv.app.ui.theme.DesignTokens.SurfaceStyle
 import com.quantummpv.app.ui.theme.GlassComponents
@@ -215,6 +217,7 @@ fun FolderCard(
     modifier =
       modifier
         .fillMaxWidth()
+        .sharedNavBounds(SharedNavigation.folderKey(folder.bucketId), cardShape)
         .pressScale(cardInteractionSource, shape = cardShape, pressedLift = Dimens.PressedLift)
         .clip(cardShape)
         .combinedClickable(
@@ -475,6 +478,14 @@ fun FolderCard(
               color = if (isRecentlyPlayed) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurface,
               maxLines = maxLines,
               overflow = TextOverflow.Ellipsis,
+              // Morphs into the video list's top bar title.
+              modifier =
+                Modifier.sharedNavBounds(
+                  key = SharedNavigation.folderTitleKey(folder.bucketId),
+                  shape = androidx.compose.ui.graphics.RectangleShape,
+                  activeWhen = SharedNavigation.folderKey(folder.bucketId),
+                  scaleContent = true,
+                ),
             )
             if (showFolderPath && parentPath.isNotEmpty()) {
               Text(

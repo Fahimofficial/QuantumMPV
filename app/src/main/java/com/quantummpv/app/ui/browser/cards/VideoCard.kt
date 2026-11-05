@@ -22,6 +22,10 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import com.quantummpv.app.ui.theme.AppMotion
 import com.quantummpv.app.ui.theme.Dimens
 import com.quantummpv.app.ui.theme.LocalReduceMotion
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onPlaced
+import com.quantummpv.app.ui.utils.PlayerLaunchOrigin
 import com.quantummpv.app.ui.utils.pressScale
 import com.quantummpv.app.utils.media.VideoCodecLabelCache
 import android.graphics.Bitmap
@@ -268,6 +272,14 @@ fun VideoCard(
     }
 
   val cardInteractionSource = remember { MutableInteractionSource() }
+  // Plain holder (not state): only read when a tap launches the player.
+  val thumbnailCoordinates = remember { arrayOfNulls<LayoutCoordinates>(1) }
+  val reduceMotionForLaunch = LocalReduceMotion.current
+  val recordLaunchOrigin = {
+    if (!reduceMotionForLaunch) {
+      thumbnailCoordinates[0]?.takeIf { it.isAttached }?.let { PlayerLaunchOrigin.record(it.boundsInWindow()) }
+    }
+  }
   // Read only inside draw/layer lambdas, so selecting animates without recomposing the card.
   val selectionProgress by animateFloatAsState(
     targetValue = if (isSelected) 1f else 0f,
@@ -304,7 +316,10 @@ fun VideoCard(
         .combinedClickable(
           interactionSource = cardInteractionSource,
           indication = ripple(),
-          onClick = onClick,
+          onClick = {
+            recordLaunchOrigin()
+            onClick()
+          },
           onLongClick = onLongClick,
           onLongClickLabel =
             if (onLongClick != null) {
@@ -430,8 +445,12 @@ fun VideoCard(
                 .aspectRatio(aspect)
                 .clip(AppShapeScale.medium)
                 .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                .onPlaced { thumbnailCoordinates[0] = it }
                 .combinedClickable(
-                  onClick = onThumbClick,
+                  onClick = {
+                    recordLaunchOrigin()
+                    onThumbClick()
+                  },
                   onLongClick = onLongClick,
                 ),
             contentAlignment = Alignment.Center,
@@ -757,8 +776,12 @@ fun VideoCard(
                 .aspectRatio(aspect)
                 .clip(AppShapeScale.medium)
                 .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                .onPlaced { thumbnailCoordinates[0] = it }
                 .combinedClickable(
-                  onClick = onThumbClick,
+                  onClick = {
+                    recordLaunchOrigin()
+                    onThumbClick()
+                  },
                   onLongClick = onLongClick,
                 ),
             contentAlignment = Alignment.Center,

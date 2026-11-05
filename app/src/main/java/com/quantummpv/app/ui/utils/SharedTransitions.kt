@@ -17,14 +17,20 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDp
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
+import androidx.navigation3.ui.LocalNavAnimatedContentScope
 import com.quantummpv.app.ui.theme.AppMotion
+import com.quantummpv.app.ui.theme.LocalReduceMotion
 
 /**
  * The [SharedTransitionScope] around the app's root NavDisplay. Null outside it (previews, nested
@@ -61,6 +67,54 @@ fun rememberSearchMorphModifier(
       sharedContentState = rememberSharedContentState(key = SEARCH_MORPH_KEY),
       animatedVisibilityScope = animatedVisibilityScope,
       boundsTransform = SearchMorphBoundsTransform,
+    )
+  }
+}
+
+/**
+ * Container transforms between screens. Only the single tapped item shares: the tap sets
+ * [activeKey] right before navigating, both ends tag themselves only while their key is active, and
+ * the destination clears it when it leaves composition.
+ */
+object SharedNavigation {
+  var activeKey by mutableStateOf<String?>(null)
+
+  fun folderKey(bucketId: String) = "folder-$bucketId"
+
+  fun folderTitleKey(bucketId: String) = "folder-title-$bucketId"
+
+  /** Settings rows and other plain destinations share by destination type. */
+  fun screenKey(screen: Any) = "screen-${screen::class.java.name}"
+}
+
+/**
+ * Shares this layout's bounds as one end of a container transform when [activeWhen] is the active
+ * key. A no-op otherwise, under reduced motion, or outside the root shared-transition host.
+ */
+@Composable
+fun Modifier.sharedNavBounds(
+  key: String,
+  shape: Shape,
+  activeWhen: String = key,
+  scaleContent: Boolean = false,
+): Modifier {
+  if (SharedNavigation.activeKey != activeWhen || LocalReduceMotion.current) return this
+  val sharedScope = LocalSharedTransitionScope.current ?: return this
+  val visibilityScope = LocalNavAnimatedContentScope.current
+  val spec = MaterialTheme.motionScheme.defaultSpatialSpec<Rect>()
+  val boundsTransform = remember(spec) { BoundsTransform { _, _ -> spec } }
+  return with(sharedScope) {
+    this@sharedNavBounds.sharedBounds(
+      sharedContentState = rememberSharedContentState(key),
+      animatedVisibilityScope = visibilityScope,
+      boundsTransform = boundsTransform,
+      resizeMode =
+        if (scaleContent) {
+          SharedTransitionScope.ResizeMode.scaleToBounds()
+        } else {
+          SharedTransitionScope.ResizeMode.RemeasureToBounds
+        },
+      clipInOverlayDuringTransition = OverlayClip(shape),
     )
   }
 }
