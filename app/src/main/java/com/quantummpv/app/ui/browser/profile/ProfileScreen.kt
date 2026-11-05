@@ -9,7 +9,6 @@
 
 package com.quantummpv.app.ui.browser.profile
 
-import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
