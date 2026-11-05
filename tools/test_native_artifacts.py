@@ -26,8 +26,8 @@ wrapper_properties = (root / 'gradle/wrapper/gradle-wrapper.properties').read_te
 wrapper_match = re.search(r'distributionUrl=.*/gradle-(\d+)\.(\d+)(?:\.(\d+))?-bin\.zip$', wrapper_properties, re.MULTILINE)
 assert wrapper_match, 'Gradle wrapper must use a stable -bin distribution'
 assert tuple(int(part or 0) for part in wrapper_match.groups()) >= (9, 6, 0), 'Gradle wrapper is below the 9.6.0 floor'
-assert 'org.bouncycastle:bcprov-jdk18on:1.85' in app_gradle
-assert 'org.bouncycastle:bcpkix-jdk18on:1.85' in app_gradle
+assert 'org.bouncycastle:bcprov-jdk18on:1.86' in app_gradle
+assert 'org.bouncycastle:bcpkix-jdk18on:1.86' in app_gradle
 assert 'requested.group == "org.bouncycastle" -> useVersion("1.85")' in (root / 'build.gradle.kts').read_text()
 assert 'configurations.classpath' in (root / 'build.gradle.kts').read_text()
 assert 'standard.artifact_revision=mpvlib-v1.0.10' in (root / 'app/src/main/assets/native-build-metadata.properties').read_text()
