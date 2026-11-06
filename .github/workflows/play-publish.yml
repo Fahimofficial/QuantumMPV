@@ -67,7 +67,16 @@ jobs:
             exit 1
           fi
 
-          (cd "$release_dir" && sha256sum --check --strict --ignore-missing "$(basename "${checksum_files[0]}")")
+          aab_name="$(basename "${bundles[0]}")"
+          if ! awk -v target="$aab_name" '$2 == target { print; count++ } END { if (count != 1) exit 1 }' "${checksum_files[0]}" > "$release_dir/aab-checksum.txt"; then
+            echo "::error::SHA256SUMS must contain exactly one entry for $aab_name."
+            exit 1
+          fi
+          sha256sum --check --strict "$release_dir/aab-checksum.txt"
+
+          # Verify the signed GitHub build provenance, not merely a colocated checksum.
+          gh attestation verify "${bundles[0]}" --repo "$GITHUB_REPOSITORY" \
+            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release.yml"
           echo "aab_path=${bundles[0]}" >> "$GITHUB_OUTPUT"
           echo "tag=$TAG_INPUT" >> "$GITHUB_OUTPUT"
           echo "Verified release bundle for $TAG_INPUT."
