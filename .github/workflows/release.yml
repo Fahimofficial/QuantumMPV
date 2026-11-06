@@ -205,13 +205,14 @@ jobs:
       - name: Validate Gradle wrapper
         uses: gradle/actions/wrapper-validation@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
 
-      - name: Build release APKs
+      - name: Build release APKs and the Google Play App Bundle
         shell: bash
         run: |
           set -euo pipefail
           ./gradlew assembleStandardRelease --stacktrace --no-daemon --max-workers=1
           ./gradlew assembleFongmiRelease --stacktrace --no-daemon --max-workers=1
           ./gradlew assembleNoVulkanRelease --stacktrace --no-daemon --max-workers=1
+          ./gradlew bundleStandardRelease --stacktrace --no-daemon --max-workers=1
 
       - name: Stage and validate unsigned APKs
         shell: bash
@@ -258,6 +259,15 @@ jobs:
           stage "app/build/outputs/apk/fongmi/release/app-fongmi-universal-release-unsigned.apk" fongmi 0
           stage "app/build/outputs/apk/noVulkan/release/app-noVulkan-universal-release-unsigned.apk" no-vulkan 0
 
+          # The Standard App Bundle is the only Play artifact; Google Play generates device APKs.
+          play_bundle="app/build/outputs/bundle/standardRelease/app-standard-release.aab"
+          if [[ ! -f "$play_bundle" ]]; then
+            echo "::error::Missing Google Play bundle $play_bundle"
+            find app/build/outputs/bundle -type f -name '*.aab' -print || true
+            exit 1
+          fi
+          cp "$play_bundle" "unsigned/QuantumMPV-standard-${VERSION_TAG}.aab"
+
           count="$(find unsigned -maxdepth 1 -name '*.apk' | wc -l)"
           [[ "$count" -eq "$EXPECTED_APK_COUNT" ]] || { echo "::error::Staged ${count} APKs, expected ${EXPECTED_APK_COUNT}"; exit 1; }
 
@@ -269,11 +279,11 @@ jobs:
             python3 tools/verify_native_artifacts.py --apk "$apk"
           done < <(find unsigned -type f -name '*.apk' -print0)
 
-      - name: Upload unsigned APKs for signing
+      - name: Upload unsigned APKs and Play bundle for signing
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: unsigned-release-apks
-          path: unsigned/*.apk
+          name: unsigned-release-artifacts
+          path: unsigned/*
           if-no-files-found: error
           # Short-lived, but long enough to re-run a failed later job.
           retention-days: 5
