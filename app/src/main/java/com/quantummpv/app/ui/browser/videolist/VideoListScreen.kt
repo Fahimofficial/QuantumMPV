@@ -66,7 +66,10 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -505,7 +508,7 @@ data class VideoListScreen(
     ) { padding ->
       val autoScrollToLastPlayed by browserPreferences.autoScrollToLastPlayed.collectAsState()
 
-      Box(modifier = Modifier.fillMaxSize()) {
+      Box(modifier = Modifier.fillMaxSize().semantics { testTagsAsResourceId = true }.testTag("video_list_screen")) {
         VideoListContent(
           folderId = bucketId,
           videosWithInfo = displayedVideosWithInfo,
