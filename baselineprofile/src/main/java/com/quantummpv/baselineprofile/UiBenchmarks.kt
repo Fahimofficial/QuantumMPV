@@ -76,7 +76,9 @@ class UiBenchmarks {
         startActivityAndWait()
         waitForHome()
       },
-    ) { openFirstFolder() }
+    ) {
+      check(openFirstFolder()) { "Folder-open benchmark requires at least one folder" }
+    }
 
   private fun selection(mode: CompilationMode) =
     rule.measureRepeated(
@@ -89,7 +91,7 @@ class UiBenchmarks {
         pressHome()
         startActivityAndWait()
         waitForHome()
-        openFirstFolder()
+        check(openFirstFolder()) { "Selection benchmark requires at least one folder" }
       },
     ) { selectionMode() }
 }
