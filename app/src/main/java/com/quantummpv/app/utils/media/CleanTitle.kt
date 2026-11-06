@@ -15,6 +15,11 @@ data class CleanTitle(
 
 // One trailing "[id]" as written by yt-dlp style downloaders: no spaces, so "[Official Video]" stays.
 private val TRAILING_ID = Regex("""\s*\[([A-Za-z0-9_-]{6,24})]\s*$""")
+
+// Common downloader IDs are 11 characters or contain digits. Preserve ordinary labels such as
+// [Remastered], [Official], [Extended] and [Uncut-Edition].
+private fun looksLikeDownloaderId(candidate: String): Boolean =
+  candidate.length == 11 || candidate.any(Char::isDigit)
 private val PINTEREST_NUMBER = Regex("""(Pinterest video)\s*#\d+""", RegexOption.IGNORE_CASE)
 private const val PINTEREST_FALLBACK = "Pinterest video"
 
@@ -24,7 +29,7 @@ private const val PINTEREST_FALLBACK = "Pinterest video"
  * An empty result falls back to "Pinterest video" for Pinterest names and to the raw name otherwise.
  */
 fun cleanTitle(raw: String): CleanTitle {
-  val match = TRAILING_ID.find(raw)
+  val match = TRAILING_ID.find(raw)?.takeIf { looksLikeDownloaderId(it.groupValues[1]) }
   val id = match?.groupValues?.get(1)
   val withoutId = if (match != null) raw.substring(0, match.range.first) else raw
   val title = PINTEREST_NUMBER.replace(withoutId) { it.groupValues[1] }.trim()
