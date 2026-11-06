@@ -11,6 +11,8 @@ package com.quantummpv.app.ui.browser.states
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -68,6 +70,7 @@ fun EmptyState(
       modifier =
         Modifier
           .fillMaxWidth()
+          .verticalScroll(rememberScrollState())
           .padding(horizontal = 48.dp)
           .padding(bottom = 80.dp),
       // Account for bottom navigation bar
