@@ -38,11 +38,14 @@ object PlayerLaunchOrigin {
     if (SystemClock.uptimeMillis() - recordedAt > MAX_AGE_MS || rect.isEmpty) return null
     if (!ValueAnimator.areAnimatorsEnabled()) return null
     val activity = context.findActivity() ?: return null
+    val decorView = activity.window.decorView
+    val decorOrigin = IntArray(2)
+    decorView.getLocationInWindow(decorOrigin)
     return ActivityOptions
       .makeClipRevealAnimation(
-        activity.window.decorView,
-        rect.left.roundToInt(),
-        rect.top.roundToInt(),
+        decorView,
+        rect.left.roundToInt() - decorOrigin[0],
+        rect.top.roundToInt() - decorOrigin[1],
         rect.width.roundToInt(),
         rect.height.roundToInt(),
       ).toBundle()
