@@ -25,7 +25,9 @@ fun grantMediaAccess() {
 }
 
 fun MacrobenchmarkScope.waitForHome() {
-  device.wait(Until.hasObject(By.scrollable(true)), WAIT_MS)
+  check(device.wait(Until.hasObject(By.res(TARGET_PACKAGE, "home_folder_list")), WAIT_MS)) {
+    "Home folder list did not appear within ${WAIT_MS}ms"
+  }
   device.waitForIdle()
 }
 
@@ -43,7 +45,9 @@ fun MacrobenchmarkScope.scrollHome() {
 fun MacrobenchmarkScope.openFirstFolder(): Boolean {
   val folder = device.findObject(By.textEndsWith("Videos")) ?: device.findObject(By.textEndsWith("Video")) ?: return false
   folder.click()
-  device.wait(Until.hasObject(By.scrollable(true)), WAIT_MS)
+  check(device.wait(Until.hasObject(By.res(TARGET_PACKAGE, "video_list_screen")), WAIT_MS)) {
+    "Opening a folder did not navigate to its video list"
+  }
   device.waitForIdle()
   return true
 }
@@ -66,7 +70,9 @@ fun MacrobenchmarkScope.openPlayerAndBack() {
   val list = device.findObject(By.scrollable(true)) ?: return
   val first = list.children.firstOrNull() ?: return
   first.click()
-  device.wait(Until.hasObject(By.pkg(TARGET_PACKAGE).depth(0)), WAIT_MS)
+  check(device.wait(Until.hasObject(By.res(TARGET_PACKAGE, "controls")), WAIT_MS)) {
+    "Player controls did not appear after opening the first video"
+  }
   // Long enough for the first frame and the controls' fade-in.
   Thread.sleep(2_000)
   device.pressBack()
