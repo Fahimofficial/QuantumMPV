@@ -743,10 +743,13 @@ object FolderListScreen : Screen {
                   onMediaClick = { video -> MediaUtils.playFile(video, context) },
                 )
               } else {
+                // Keep this model in the screen composition so lazy-item disposal does not reload
+                // it and replay the resume card's entrance animation.
+                val resumeCardModel = rememberResumeCardModel()
                 FolderListContent(
                   resumeCard =
                     if (!embedded && !audioOnly && !selectionManager.isInSelectionMode) {
-                      { ResumeCard(model = rememberResumeCardModel().value) }
+                      { ResumeCard(model = resumeCardModel.value) }
                     } else {
                       null
                     },
