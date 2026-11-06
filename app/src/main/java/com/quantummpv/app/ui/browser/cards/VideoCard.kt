@@ -1158,19 +1158,36 @@ private fun MetadataChip(
   includeCodec: Boolean,
 ) {
   val context = androidx.compose.ui.platform.LocalContext.current
-  val scannedCodec = video.videoCodec.takeIf { it.isNotBlank() }?.uppercase()
   var codec by remember(video.path, includeCodec) {
-    mutableStateOf(if (includeCodec) scannedCodec ?: VideoCodecLabelCache.peek(video)?.ifEmpty { null } else null)
+    mutableStateOf(initialMetadataCodec(video, includeCodec))
   }
   val codecAlpha = remember(video.path) { Animatable(if (codec != null) 1f else 0f) }
   val fadeSpec = AppMotion.fastEffects<Float>()
   LaunchedEffect(video.path, includeCodec) {
-    if (!includeCodec || codec != null || VideoCodecLabelCache.peek(video) != null) return@LaunchedEffect
+    if (!shouldLoadMetadataCodec(video, includeCodec, codec)) return@LaunchedEffect
     val loaded = VideoCodecLabelCache.load(context, video) ?: return@LaunchedEffect
     codec = loaded
     codecAlpha.animateTo(1f, fadeSpec)
   }
   if (resolution == null && codec == null) return
+  MetadataChipContent(resolution, codec, codecAlpha.value)
+}
+
+private fun initialMetadataCodec(video: Video, includeCodec: Boolean): String? {
+  if (!includeCodec) return null
+  val scannedCodec = video.videoCodec.takeIf { it.isNotBlank() }?.uppercase()
+  return scannedCodec ?: VideoCodecLabelCache.peek(video)?.ifEmpty { null }
+}
+
+private fun shouldLoadMetadataCodec(video: Video, includeCodec: Boolean, codec: String?): Boolean =
+  includeCodec && codec == null && VideoCodecLabelCache.peek(video) == null
+
+@Composable
+private fun MetadataChipContent(
+  resolution: String?,
+  codec: String?,
+  codecAlpha: Float,
+) {
   Row(
     modifier =
       Modifier
@@ -1185,7 +1202,7 @@ private fun MetadataChip(
         text = if (resolution != null) " · $it" else it,
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.onSurface,
-        modifier = Modifier.graphicsLayer { alpha = codecAlpha.value },
+        modifier = Modifier.graphicsLayer { alpha = codecAlpha },
       )
     }
   }
