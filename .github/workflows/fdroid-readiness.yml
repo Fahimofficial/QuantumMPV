@@ -34,48 +34,49 @@ jobs:
         run: |
           set -euo pipefail
           blockers=0
+          summary() { printf '%s\n' "$@" >> "$GITHUB_STEP_SUMMARY"; }
           if [[ ! -f LICENSE && ! -f LICENSE.md && ! -f COPYING ]]; then
-            echo "::error::No root FOSS licence file found."
+            echo "::warning::No root FOSS licence file found."
             blockers=$((blockers + 1))
           fi
 
-          echo "## F-Droid readiness audit" >> "$GITHUB_STEP_SUMMARY"
-          echo "Repository: Fahimofficial/QuantumMPV" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "### Known policy-sensitive Gradle dependencies" >> "$GITHUB_STEP_SUMMARY"
+          summary "## F-Droid readiness audit"
+          summary "Repository: Fahimofficial/QuantumMPV"
+          summary ""
+          summary "### Known policy-sensitive Gradle dependencies"
           if grep -RniE --include='*.gradle' --include='*.gradle.kts' --include='*.toml' \
             '(com\.google\.android\.gms|com\.google\.firebase|play-services|firebase-|cast\.framework|coroutines-play-services)' \
             app gradle 2>/dev/null | tee "$RUNNER_TEMP/proprietary-deps.txt"; then
-            echo "::error::Potential Google Play Services / Firebase / Cast dependency found. Move it behind a FOSS-safe source set or replace it; do not remove it from Play/GitHub variants."
+            echo "::warning::Potential Google Play Services / Firebase / Cast dependency found. Move it behind a FOSS-safe source set or replace it; do not remove it from Play/GitHub variants."
             cat "$RUNNER_TEMP/proprietary-deps.txt" >> "$GITHUB_STEP_SUMMARY"
             blockers=$((blockers + 1))
           else
-            echo "No known Google Play Services/Firebase/Cast dependency pattern found." >> "$GITHUB_STEP_SUMMARY"
+            summary "No known Google Play Services/Firebase/Cast dependency pattern found."
           fi
 
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "### Prebuilt application binaries" >> "$GITHUB_STEP_SUMMARY"
+          summary ""
+          summary "### Prebuilt application binaries"
           find app -type f \( -iname '*.aar' -o -iname '*.jar' -o -iname '*.so' \) -not -path '*/build/*' -print > "$RUNNER_TEMP/app-binaries.txt"
           if [[ -s "$RUNNER_TEMP/app-binaries.txt" ]]; then
-            echo "::error::Prebuilt app binaries found. Verify each licence and replace opaque/non-rebuildable artifacts with source builds before official F-Droid submission."
+            echo "::warning::Prebuilt app binaries found. Verify each licence and replace opaque/non-rebuildable artifacts with source builds before official F-Droid submission."
             cat "$RUNNER_TEMP/app-binaries.txt" >> "$GITHUB_STEP_SUMMARY"
             blockers=$((blockers + 1))
           else
-            echo "No app-local AAR/JAR/SO files found." >> "$GITHUB_STEP_SUMMARY"
+            summary "No app-local AAR/JAR/SO files found."
           fi
 
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "### Build metadata" >> "$GITHUB_STEP_SUMMARY"
+          summary ""
+          summary "### Build metadata"
           if [[ ! -f fdroid/com.quantummpv.app.yml ]]; then
             echo "::warning::Missing fdroid/com.quantummpv.app.yml. Add and validate official fdroiddata metadata only after the FOSS build variant exists."
-            echo "Missing official fdroiddata metadata: fdroid/com.quantummpv.app.yml" >> "$GITHUB_STEP_SUMMARY"
+            summary "Missing official fdroiddata metadata: fdroid/com.quantummpv.app.yml"
             blockers=$((blockers + 1))
           fi
 
           if (( blockers > 0 )); then
-            echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "**Not ready:** $blockers blocker category/categories found. This audit intentionally does not build or publish a misleading APK." >> "$GITHUB_STEP_SUMMARY"
+            summary ""
+            summary "**Not ready:** $blockers blocker category/categories found. This audit intentionally does not build or publish a misleading APK."
             exit 1
           fi
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "**Static prerequisite audit passed.** This is not a substitute for fdroidserver build, scanner, licence review or F-Droid maintainer approval." >> "$GITHUB_STEP_SUMMARY"
+          summary ""
+          summary "**Static prerequisite audit passed.** This is not a substitute for fdroidserver build, scanner, licence review or F-Droid maintainer approval."
