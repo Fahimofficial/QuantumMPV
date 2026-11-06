@@ -48,10 +48,6 @@
   <string name="pref_appearance_category_navigation">Navigation</string>
   <string name="pref_nav_home_title">Start-Tab anzeigen</string>
   <string name="pref_nav_home_summary">Start in der unteren Navigationsleiste ein- oder ausblenden</string>
-  <string name="pref_nav_recents_title">Zuletzt-Tab anzeigen</string>
-  <string name="pref_nav_recents_summary">Zuletzt in der unteren Navigationsleiste ein- oder ausblenden</string>
-  <string name="pref_nav_playlists_title">Wiedergabelisten-Tab anzeigen</string>
-  <string name="pref_nav_playlists_summary">Wiedergabelisten in der unteren Navigationsleiste ein- oder ausblenden</string>
   <string name="pref_nav_network_title">Netzwerk-Tab anzeigen</string>
   <string name="pref_nav_network_summary">Netzwerk in der unteren Navigationsleiste ein- oder ausblenden</string>
   <string name="pref_quick_play_fab_title">Schnellwiedergabe-FAB</string>

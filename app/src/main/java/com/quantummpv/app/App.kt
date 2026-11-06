@@ -55,7 +55,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 class App :
   Application(),
   Application.ActivityLifecycleCallbacks {
-  private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+  /** Owns application-level work that must survive navigation away from an individual screen. */
+  internal val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
   private val networkAutoConnectStarted = AtomicBoolean(false)
   private val metadataMaintenanceStarted = AtomicBoolean(false)
   private val fastThumbnailsStarted = AtomicBoolean(false)

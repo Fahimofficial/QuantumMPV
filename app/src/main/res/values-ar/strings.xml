@@ -48,10 +48,6 @@
   <string name="pref_appearance_category_navigation">التنقل</string>
   <string name="pref_nav_home_title">إظهار علامة تبويب الرئيسية</string>
   <string name="pref_nav_home_summary">إظهار أو إخفاء الرئيسية في شريط التنقل السفلي</string>
-  <string name="pref_nav_recents_title">إظهار علامة تبويب الأخيرة</string>
-  <string name="pref_nav_recents_summary">إظهار أو إخفاء الأخيرة في شريط التنقل السفلي</string>
-  <string name="pref_nav_playlists_title">إظهار علامة تبويب قوائم التشغيل</string>
-  <string name="pref_nav_playlists_summary">إظهار أو إخفاء قوائم التشغيل في شريط التنقل السفلي</string>
   <string name="pref_nav_network_title">إظهار علامة تبويب الشبكة</string>
   <string name="pref_nav_network_summary">إظهار أو إخفاء الشبكة في شريط التنقل السفلي</string>
   <string name="pref_quick_play_fab_title">زر التشغيل السريع (FAB)</string>
