@@ -44,6 +44,7 @@ the uploaded AAB is the upload key. When enrolling, preserve QuantumMPV's existi
 certificate as the Play app-signing key if users who installed APKs from GitHub must be able to
 update through Play. Configure the accepted upload certificate in Play Console and verify the
 first release using internal testing before production.
+Before the first upload, verify in Play Console **App integrity** that the **App signing key certificate SHA-256** matches `RELEASE_SIGNING_CERT_SHA256`. The upload-key fingerprint alone is not sufficient. If the app-signing fingerprint differs, stop: GitHub-installed users may not be able to update through Play.
 
 
 ## F-Droid status
