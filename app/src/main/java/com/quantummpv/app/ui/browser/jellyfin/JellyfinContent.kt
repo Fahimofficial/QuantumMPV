@@ -339,228 +339,169 @@ fun JellyfinContent(
         .fillMaxWidth()
         .background(headerContainerColor),
     ) {
-      if (isSearching) {
-        Column(
-          modifier =
-            Modifier
-              .fillMaxWidth()
-              .padding(horizontal = 16.dp, vertical = 6.dp),
-          verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-          InlineSearchBar(
-            query = uiState.searchQuery,
-            onQueryChange = viewModel::onSearchQueryChanged,
-            onSearch = { query -> viewModel.performSearch(query, debounceMs = 0L) },
-            modifier = Modifier.fillMaxWidth(),
-            inputFieldModifier = Modifier.focusRequester(searchFocusRequester),
-            placeholder = { Text("Search movies, shows, episodes...") },
-            leadingIcon = {
-              Icon(
-                imageVector = Icons.RoundedFilled.Search,
-                contentDescription = stringResource(R.string.settings_search_title),
-              )
-            },
-            trailingIcon = {
-              IconButton(
-                onClick = {
-                  if (uiState.searchQuery.isNotEmpty()) {
-                    viewModel.onSearchQueryChanged("")
-                    viewModel.refresh()
-                  } else {
-                    isSearching = false
-                  }
-                },
-              ) {
-                Icon(
-                  imageVector = Icons.RoundedFilled.Close,
-                  contentDescription = stringResource(R.string.generic_cancel),
-                )
-              }
-            },
-            shape = RoundedCornerShape(28.dp),
-            tonalElevation = 6.dp,
-          )
-
-          // Category Filter Chips
-          Row(
+      com.quantummpv.app.ui.browser.DockSearchTopBarSwitcher(
+        searchActive = isSearching,
+        searchBar = {
+          Column(
             modifier =
               Modifier
                 .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
+                .padding(horizontal = 16.dp, vertical = 6.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
           ) {
-            JellyfinSearchCategory.entries.forEach { category ->
-              val isSelected = uiState.searchCategory == category
-              FilterChip(
-                selected = isSelected,
-                onClick = { viewModel.setSearchCategory(category) },
-                label = { Text(category.displayName, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
-                shape = RoundedCornerShape(12.dp),
-                colors =
-                  FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                  ),
-              )
+            InlineSearchBar(
+              query = uiState.searchQuery,
+              onQueryChange = viewModel::onSearchQueryChanged,
+              onSearch = { query -> viewModel.performSearch(query, debounceMs = 0L) },
+              modifier = Modifier.fillMaxWidth(),
+              inputFieldModifier = Modifier.focusRequester(searchFocusRequester),
+              placeholder = { Text("Search movies, shows, episodes...") },
+              leadingIcon = {
+                Icon(
+                  imageVector = Icons.RoundedFilled.Search,
+                  contentDescription = stringResource(R.string.settings_search_title),
+                )
+              },
+              trailingIcon = {
+                IconButton(
+                  onClick = {
+                    if (uiState.searchQuery.isNotEmpty()) {
+                      viewModel.onSearchQueryChanged("")
+                      viewModel.refresh()
+                    } else {
+                      isSearching = false
+                    }
+                  },
+                ) {
+                  Icon(
+                    imageVector = Icons.RoundedFilled.Close,
+                    contentDescription = stringResource(R.string.generic_cancel),
+                  )
+                }
+              },
+              shape = RoundedCornerShape(28.dp),
+              tonalElevation = 6.dp,
+            )
+
+            // Category Filter Chips
+            Row(
+              modifier =
+                Modifier
+                  .fillMaxWidth()
+                  .horizontalScroll(rememberScrollState()),
+              horizontalArrangement = Arrangement.spacedBy(8.dp),
+              verticalAlignment = Alignment.CenterVertically,
+            ) {
+              JellyfinSearchCategory.entries.forEach { category ->
+                val isSelected = uiState.searchCategory == category
+                FilterChip(
+                  selected = isSelected,
+                  onClick = { viewModel.setSearchCategory(category) },
+                  label = { Text(category.displayName, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
+                  shape = RoundedCornerShape(12.dp),
+                  colors =
+                    FilterChipDefaults.filterChipColors(
+                      selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                      selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    ),
+                )
+              }
             }
           }
-        }
-      } else {
-        BrowserTopBar(
-          title = pageTitle,
-          isInSelectionMode = selectionManager.isInSelectionMode,
-          selectedCount = selectionManager.selectedCount,
-          totalCount = uiState.currentItems.size,
-          onCancelSelection = { selectionManager.clear() },
-          onSelectAll = { selectionManager.selectAll() },
-          onInvertSelection = { selectionManager.invertSelection() },
-          onDeselectAll = { selectionManager.clear() },
-          onPlayClick = { viewModel.playSelected(context, selectionManager.getSelectedItems()) },
-          isSingleSelection = selectionManager.isSingleSelection,
-          onBackClick = if (!isMusicOnlyMode && uiState.openLibrary != null) { { viewModel.navigateBack() } } else null,
-          onSortClick = if (uiState.openLibrary != null && !(uiState.openLibrary?.isMusic == true && uiState.musicActiveTab == JellyfinMusicTab.HOME)) {
-            { isSortDialogOpen = true }
-          } else null,
-          onSearchClick = topBarSearchAction,
-          // Seerr requests only surface on the untouched Jellyfin home page.
-          onRequestClick = if (!isMusicOnlyMode && uiState.openLibrary == null && uiState.selectedLibraryId == null) {
-            { isSeerrRequestsOpen = true }
-          } else {
-            null
-          },
-          onSettingsClick = {
-            backstack.navigateTo(com.quantummpv.app.ui.preferences.PreferencesScreen)
-          },
-          preSearchActions = {
-            if (!selectionManager.isInSelectionMode) {
-              if (isMusicOnlyMode) {
-                var isSourceDropdownOpen by remember { mutableStateOf(false) }
-                Box {
-                  Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.8f),
-                    modifier = Modifier
-                      .padding(horizontal = 4.dp, vertical = 6.dp)
-                      .clickable { isSourceDropdownOpen = true },
-                  ) {
-                    Row(
-                      verticalAlignment = Alignment.CenterVertically,
-                      modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+        },
+        topBar = {
+          BrowserTopBar(
+            title = pageTitle,
+            isInSelectionMode = selectionManager.isInSelectionMode,
+            selectedCount = selectionManager.selectedCount,
+            totalCount = uiState.currentItems.size,
+            onCancelSelection = { selectionManager.clear() },
+            onSelectAll = { selectionManager.selectAll() },
+            onInvertSelection = { selectionManager.invertSelection() },
+            onDeselectAll = { selectionManager.clear() },
+            onPlayClick = { viewModel.playSelected(context, selectionManager.getSelectedItems()) },
+            isSingleSelection = selectionManager.isSingleSelection,
+            onBackClick = if (!isMusicOnlyMode && uiState.openLibrary != null) { { viewModel.navigateBack() } } else null,
+            onSortClick = if (uiState.openLibrary != null && !(uiState.openLibrary?.isMusic == true && uiState.musicActiveTab == JellyfinMusicTab.HOME)) {
+              { isSortDialogOpen = true }
+            } else null,
+            onSearchClick = topBarSearchAction,
+            // Seerr requests only surface on the untouched Jellyfin home page.
+            onRequestClick = if (!isMusicOnlyMode && uiState.openLibrary == null && uiState.selectedLibraryId == null) {
+              { isSeerrRequestsOpen = true }
+            } else {
+              null
+            },
+            onSettingsClick = {
+              backstack.navigateTo(com.quantummpv.app.ui.preferences.PreferencesScreen)
+            },
+            preSearchActions = {
+              if (!selectionManager.isInSelectionMode) {
+                if (isMusicOnlyMode) {
+                  var isSourceDropdownOpen by remember { mutableStateOf(false) }
+                  Box {
+                    Surface(
+                      shape = RoundedCornerShape(16.dp),
+                      color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.8f),
+                      modifier = Modifier
+                        .padding(horizontal = 4.dp, vertical = 6.dp)
+                        .clickable { isSourceDropdownOpen = true },
                     ) {
-                      when (currentMusicSource) {
-                        MusicSourceProvider.JELLYFIN -> {
-                          androidx.compose.material3.Icon(
-                            painter = painterResource(R.drawable.ic_jellyfin),
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                          )
-                        }
-                        MusicSourceProvider.NAVIDROME -> {
-                          androidx.compose.material3.Icon(
-                            painter = painterResource(R.drawable.ic_navidrome),
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                          )
-                        }
-                        else -> {
-                          Icon(
-                            Icons.RoundedFilled.Folder,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                          )
-                        }
-                      }
-                      Spacer(Modifier.width(6.dp))
-                      Text(
-                        text = when (currentMusicSource) {
-                          MusicSourceProvider.JELLYFIN -> stringResource(R.string.pref_jellyfin_title)
-                          MusicSourceProvider.NAVIDROME -> stringResource(R.string.music_source_navidrome)
-                          else -> stringResource(R.string.music_source_local)
-                        },
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer,
-                      )
-                      Spacer(Modifier.width(2.dp))
-                      Icon(
-                        Icons.RoundedFilled.ArrowDropDown,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                      )
-                    }
-                  }
-
-                  DropdownMenu(
-                    expanded = isSourceDropdownOpen,
-                    onDismissRequest = { isSourceDropdownOpen = false },
-                  ) {
-                    DropdownMenuItem(
-                      text = {
-                        Row(
-                          verticalAlignment = Alignment.CenterVertically,
-                          horizontalArrangement = Arrangement.SpaceBetween,
-                          modifier = Modifier.fillMaxWidth(),
-                        ) {
-                          Text(stringResource(R.string.music_source_local))
-                          if (currentMusicSource == MusicSourceProvider.LOCAL) {
-                            Spacer(Modifier.width(12.dp))
-                            Icon(
-                              Icons.RoundedFilled.Check,
+                      Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                      ) {
+                        when (currentMusicSource) {
+                          MusicSourceProvider.JELLYFIN -> {
+                            androidx.compose.material3.Icon(
+                              painter = painterResource(R.drawable.ic_jellyfin),
                               contentDescription = null,
-                              modifier = Modifier.size(18.dp),
-                              tint = MaterialTheme.colorScheme.primary,
+                              modifier = Modifier.size(16.dp),
+                              tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                            )
+                          }
+                          MusicSourceProvider.NAVIDROME -> {
+                            androidx.compose.material3.Icon(
+                              painter = painterResource(R.drawable.ic_navidrome),
+                              contentDescription = null,
+                              modifier = Modifier.size(16.dp),
+                              tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                            )
+                          }
+                          else -> {
+                            Icon(
+                              Icons.RoundedFilled.Folder,
+                              contentDescription = null,
+                              modifier = Modifier.size(16.dp),
+                              tint = MaterialTheme.colorScheme.onSecondaryContainer,
                             )
                           }
                         }
-                      },
-                      leadingIcon = {
-                        Icon(Icons.RoundedFilled.Folder, contentDescription = null)
-                      },
-                      onClick = {
-                        mediaServerPreferences.musicSourceProvider.set(MusicSourceProvider.LOCAL)
-                        isSourceDropdownOpen = false
-                      },
-                    )
-
-                    DropdownMenuItem(
-                      text = {
-                        Row(
-                          verticalAlignment = Alignment.CenterVertically,
-                          horizontalArrangement = Arrangement.SpaceBetween,
-                          modifier = Modifier.fillMaxWidth(),
-                        ) {
-                          Text(stringResource(R.string.music_source_jellyfin))
-                          if (currentMusicSource == MusicSourceProvider.JELLYFIN) {
-                            Spacer(Modifier.width(12.dp))
-                            Icon(
-                              Icons.RoundedFilled.Check,
-                              contentDescription = null,
-                              modifier = Modifier.size(18.dp),
-                              tint = MaterialTheme.colorScheme.primary,
-                            )
-                          }
-                        }
-                      },
-                      leadingIcon = {
-                        androidx.compose.material3.Icon(
-                          painter = painterResource(R.drawable.ic_jellyfin),
-                          contentDescription = null,
-                          modifier = Modifier.size(20.dp),
-                          tint = MaterialTheme.colorScheme.primary,
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                          text = when (currentMusicSource) {
+                            MusicSourceProvider.JELLYFIN -> stringResource(R.string.pref_jellyfin_title)
+                            MusicSourceProvider.NAVIDROME -> stringResource(R.string.music_source_navidrome)
+                            else -> stringResource(R.string.music_source_local)
+                          },
+                          style = MaterialTheme.typography.labelMedium,
+                          fontWeight = FontWeight.Bold,
+                          color = MaterialTheme.colorScheme.onSecondaryContainer,
                         )
-                      },
-                      onClick = {
-                        mediaServerPreferences.musicSourceProvider.set(MusicSourceProvider.JELLYFIN)
-                        isSourceDropdownOpen = false
-                      },
-                    )
+                        Spacer(Modifier.width(2.dp))
+                        Icon(
+                          Icons.RoundedFilled.ArrowDropDown,
+                          contentDescription = null,
+                          modifier = Modifier.size(16.dp),
+                          tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                        )
+                      }
+                    }
 
-                    if (navidromeServers.isNotEmpty()) {
+                    DropdownMenu(
+                      expanded = isSourceDropdownOpen,
+                      onDismissRequest = { isSourceDropdownOpen = false },
+                    ) {
                       DropdownMenuItem(
                         text = {
                           Row(
@@ -568,8 +509,36 @@ fun JellyfinContent(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             modifier = Modifier.fillMaxWidth(),
                           ) {
-                            Text(stringResource(R.string.music_source_navidrome))
-                            if (currentMusicSource == MusicSourceProvider.NAVIDROME) {
+                            Text(stringResource(R.string.music_source_local))
+                            if (currentMusicSource == MusicSourceProvider.LOCAL) {
+                              Spacer(Modifier.width(12.dp))
+                              Icon(
+                                Icons.RoundedFilled.Check,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.primary,
+                              )
+                            }
+                          }
+                        },
+                        leadingIcon = {
+                          Icon(Icons.RoundedFilled.Folder, contentDescription = null)
+                        },
+                        onClick = {
+                          mediaServerPreferences.musicSourceProvider.set(MusicSourceProvider.LOCAL)
+                          isSourceDropdownOpen = false
+                        },
+                      )
+
+                      DropdownMenuItem(
+                        text = {
+                          Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth(),
+                          ) {
+                            Text(stringResource(R.string.music_source_jellyfin))
+                            if (currentMusicSource == MusicSourceProvider.JELLYFIN) {
                               Spacer(Modifier.width(12.dp))
                               Icon(
                                 Icons.RoundedFilled.Check,
@@ -582,53 +551,88 @@ fun JellyfinContent(
                         },
                         leadingIcon = {
                           androidx.compose.material3.Icon(
-                            painter = painterResource(R.drawable.ic_navidrome),
+                            painter = painterResource(R.drawable.ic_jellyfin),
                             contentDescription = null,
                             modifier = Modifier.size(20.dp),
                             tint = MaterialTheme.colorScheme.primary,
                           )
                         },
                         onClick = {
-                          mediaServerPreferences.musicSourceProvider.set(MusicSourceProvider.NAVIDROME)
+                          mediaServerPreferences.musicSourceProvider.set(MusicSourceProvider.JELLYFIN)
                           isSourceDropdownOpen = false
                         },
                       )
+
+                      if (navidromeServers.isNotEmpty()) {
+                        DropdownMenuItem(
+                          text = {
+                            Row(
+                              verticalAlignment = Alignment.CenterVertically,
+                              horizontalArrangement = Arrangement.SpaceBetween,
+                              modifier = Modifier.fillMaxWidth(),
+                            ) {
+                              Text(stringResource(R.string.music_source_navidrome))
+                              if (currentMusicSource == MusicSourceProvider.NAVIDROME) {
+                                Spacer(Modifier.width(12.dp))
+                                Icon(
+                                  Icons.RoundedFilled.Check,
+                                  contentDescription = null,
+                                  modifier = Modifier.size(18.dp),
+                                  tint = MaterialTheme.colorScheme.primary,
+                                )
+                              }
+                            }
+                          },
+                          leadingIcon = {
+                            androidx.compose.material3.Icon(
+                              painter = painterResource(R.drawable.ic_navidrome),
+                              contentDescription = null,
+                              modifier = Modifier.size(20.dp),
+                              tint = MaterialTheme.colorScheme.primary,
+                            )
+                          },
+                          onClick = {
+                            mediaServerPreferences.musicSourceProvider.set(MusicSourceProvider.NAVIDROME)
+                            isSourceDropdownOpen = false
+                          },
+                        )
+                      }
+
+                      HorizontalDivider()
+
+                      DropdownMenuItem(
+                        text = { Text(stringResource(R.string.pref_media_servers_title)) },
+                        leadingIcon = {
+                          Icon(Icons.RoundedFilled.Settings, contentDescription = null)
+                        },
+                        onClick = {
+                          isSourceDropdownOpen = false
+                          backstack.navigateTo(com.quantummpv.app.ui.preferences.MediaServersPreferencesScreen)
+                        },
+                      )
                     }
-
-                    HorizontalDivider()
-
-                    DropdownMenuItem(
-                      text = { Text(stringResource(R.string.pref_media_servers_title)) },
-                      leadingIcon = {
-                        Icon(Icons.RoundedFilled.Settings, contentDescription = null)
-                      },
-                      onClick = {
-                        isSourceDropdownOpen = false
-                        backstack.navigateTo(com.quantummpv.app.ui.preferences.MediaServersPreferencesScreen)
-                      },
-                    )
                   }
                 }
               }
-            }
-          },
-          postSearchActions = {
-            if (!selectionManager.isInSelectionMode) {
-              IconButton(
-                onClick = { backstack.navigateTo(com.quantummpv.app.ui.downloads.DownloadsScreen) },
-                modifier = Modifier.padding(horizontal = 2.dp),
-              ) {
-                Icon(
-                  imageVector = Icons.RoundedFilled.Download,
-                  contentDescription = stringResource(R.string.downloads_open_downloads),
-                  modifier = Modifier.size(24.dp),
-                  tint = MaterialTheme.colorScheme.secondary,
-                )
+            },
+            postSearchActions = {
+              if (!selectionManager.isInSelectionMode) {
+                IconButton(
+                  onClick = { backstack.navigateTo(com.quantummpv.app.ui.downloads.DownloadsScreen) },
+                  modifier = Modifier.padding(horizontal = 2.dp),
+                ) {
+                  Icon(
+                    imageVector = Icons.RoundedFilled.Download,
+                    contentDescription = stringResource(R.string.downloads_open_downloads),
+                    modifier = Modifier.size(24.dp),
+                    tint = MaterialTheme.colorScheme.secondary,
+                  )
+                }
               }
-            }
-          },
-        )
-      }
+            },
+          )
+        },
+      )
 
       if (uiState.openLibrary != null && uiState.openLibrary?.isMusic != true && !isSearching) {
         JellyfinGenreChipRow(

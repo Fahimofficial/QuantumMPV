@@ -333,81 +333,85 @@ object NetworkStreamingScreen : Screen {
               .fillMaxWidth()
               .background(headerContainerColor),
         ) {
-          if (isSearching) {
-            InlineSearchBar(
-              query = searchQuery,
-              onQueryChange = { searchQuery = it },
-              onSearch = { },
-              modifier =
-                Modifier
-                  .fillMaxWidth()
-                  .padding(horizontal = 16.dp, vertical = 8.dp),
-              inputFieldModifier = Modifier.focusRequester(focusRequester),
-              placeholder = {
-                Text(stringResource(R.string.settings_search_title))
-              },
-              leadingIcon = {
-                Icon(
-                  imageVector = Icons.RoundedFilled.Search,
-                  contentDescription = stringResource(R.string.settings_search_title),
-                )
-              },
-              trailingIcon = {
-                IconButton(
-                  onClick = {
-                    keyboardController?.hide()
-                    isSearching = false
-                    searchQuery = ""
-                  },
-                ) {
-                  Icon(
-                    imageVector = Icons.RoundedFilled.Close,
-                    contentDescription = stringResource(R.string.generic_cancel),
-                  )
-                }
-              },
-              shape = RoundedCornerShape(28.dp),
-              tonalElevation = 6.dp,
-            )
-          } else {
-            Box {
-              BrowserTopBar(
-                title = stringResource(R.string.ui_network),
-                isInSelectionMode = false,
-                selectedCount = 0,
-                totalCount = connections.size + recentLinks.size + allMediaGroups.size + resolvedFolderBookmarks.size,
-                onBackClick = null,
-                onCancelSelection = { },
-                onSortClick = null,
-                onSearchClick = topBarSearchAction,
-                onSettingsClick = {
-                  backstack.navigateTo(com.quantummpv.app.ui.preferences.PreferencesScreen)
+          com.quantummpv.app.ui.browser.DockSearchTopBarSwitcher(
+            searchActive = isSearching,
+            searchBar = {
+              InlineSearchBar(
+                query = searchQuery,
+                onQueryChange = { searchQuery = it },
+                onSearch = { },
+                modifier =
+                  Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                inputFieldModifier = Modifier.focusRequester(focusRequester),
+                placeholder = {
+                  Text(stringResource(R.string.settings_search_title))
                 },
-                onDeleteClick = null,
-                onRenameClick = null,
-                isSingleSelection = false,
-                onInfoClick = null,
-                onShareClick = null,
-                onPlayClick = null,
-                onSelectAll = null,
-                onInvertSelection = null,
-                onDeselectAll = null,
-                additionalActions = {
+                leadingIcon = {
+                  Icon(
+                    imageVector = Icons.RoundedFilled.Search,
+                    contentDescription = stringResource(R.string.settings_search_title),
+                  )
+                },
+                trailingIcon = {
                   IconButton(
-                    onClick = { backstack.navigateTo(com.quantummpv.app.ui.downloads.DownloadsScreen) },
-                    modifier = Modifier.padding(horizontal = 2.dp),
+                    onClick = {
+                      keyboardController?.hide()
+                      isSearching = false
+                      searchQuery = ""
+                    },
                   ) {
                     Icon(
-                      imageVector = Icons.RoundedFilled.Download,
-                      contentDescription = stringResource(R.string.downloads_open_downloads),
-                      modifier = Modifier.size(24.dp),
-                      tint = MaterialTheme.colorScheme.secondary,
+                      imageVector = Icons.RoundedFilled.Close,
+                      contentDescription = stringResource(R.string.generic_cancel),
                     )
                   }
                 },
+                shape = RoundedCornerShape(28.dp),
+                tonalElevation = 6.dp,
               )
-            }
-          }
+            },
+            topBar = {
+              Box {
+                BrowserTopBar(
+                  title = stringResource(R.string.ui_network),
+                  isInSelectionMode = false,
+                  selectedCount = 0,
+                  totalCount = connections.size + recentLinks.size + allMediaGroups.size + resolvedFolderBookmarks.size,
+                  onBackClick = null,
+                  onCancelSelection = { },
+                  onSortClick = null,
+                  onSearchClick = topBarSearchAction,
+                  onSettingsClick = {
+                    backstack.navigateTo(com.quantummpv.app.ui.preferences.PreferencesScreen)
+                  },
+                  onDeleteClick = null,
+                  onRenameClick = null,
+                  isSingleSelection = false,
+                  onInfoClick = null,
+                  onShareClick = null,
+                  onPlayClick = null,
+                  onSelectAll = null,
+                  onInvertSelection = null,
+                  onDeselectAll = null,
+                  additionalActions = {
+                    IconButton(
+                      onClick = { backstack.navigateTo(com.quantummpv.app.ui.downloads.DownloadsScreen) },
+                      modifier = Modifier.padding(horizontal = 2.dp),
+                    ) {
+                      Icon(
+                        imageVector = Icons.RoundedFilled.Download,
+                        contentDescription = stringResource(R.string.downloads_open_downloads),
+                        modifier = Modifier.size(24.dp),
+                        tint = MaterialTheme.colorScheme.secondary,
+                      )
+                    }
+                  },
+                )
+              }
+            },
+          )
 
           PrimaryScrollableTabRow(
             selectedTabIndex = pagerState.currentPage.coerceIn(0, (NetworkTab.entries.size - 1).coerceAtLeast(0)),

@@ -72,6 +72,7 @@ import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.appItemMotion
 import com.quantummpv.app.ui.utils.navigateTo
+import com.quantummpv.app.ui.utils.popSafely
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import org.koin.compose.koinInject
@@ -232,7 +233,7 @@ object PlaylistScreen : Screen {
             isInSelectionMode = selectionManager.isInSelectionMode,
             selectedCount = selectionManager.selectedCount,
             totalCount = playlistsWithCount.size,
-            onBackClick = null,
+            onBackClick = if (com.quantummpv.app.ui.browser.LocalIsMainTabPage.current) null else ({ backStack.popSafely() }),
             onCancelSelection = { selectionManager.clear() },
             isSingleSelection = selectionManager.isSingleSelection,
             onSearchClick = topBarSearchAction,
