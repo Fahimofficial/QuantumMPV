@@ -35,6 +35,7 @@ jobs:
           set -euo pipefail
           blockers=0
           summary() { printf '%s\n' "$@" >> "$GITHUB_STEP_SUMMARY"; }
+          summary_file() { cat "$1" >> "$GITHUB_STEP_SUMMARY"; }
           if [[ ! -f LICENSE && ! -f LICENSE.md && ! -f COPYING ]]; then
             echo "::warning::No root FOSS licence file found."
             blockers=$((blockers + 1))
@@ -48,7 +49,7 @@ jobs:
             '(com\.google\.android\.gms|com\.google\.firebase|play-services|firebase-|cast\.framework|coroutines-play-services)' \
             app gradle 2>/dev/null | tee "$RUNNER_TEMP/proprietary-deps.txt"; then
             echo "::warning::Potential Google Play Services / Firebase / Cast dependency found. Move it behind a FOSS-safe source set or replace it; do not remove it from Play/GitHub variants."
-            cat "$RUNNER_TEMP/proprietary-deps.txt" >> "$GITHUB_STEP_SUMMARY"
+            summary_file "$RUNNER_TEMP/proprietary-deps.txt"
             blockers=$((blockers + 1))
           else
             summary "No known Google Play Services/Firebase/Cast dependency pattern found."
@@ -59,7 +60,7 @@ jobs:
           find app -type f \( -iname '*.aar' -o -iname '*.jar' -o -iname '*.so' \) -not -path '*/build/*' -print > "$RUNNER_TEMP/app-binaries.txt"
           if [[ -s "$RUNNER_TEMP/app-binaries.txt" ]]; then
             echo "::warning::Prebuilt app binaries found. Verify each licence and replace opaque/non-rebuildable artifacts with source builds before official F-Droid submission."
-            cat "$RUNNER_TEMP/app-binaries.txt" >> "$GITHUB_STEP_SUMMARY"
+            summary_file "$RUNNER_TEMP/app-binaries.txt"
             blockers=$((blockers + 1))
           else
             summary "No app-local AAR/JAR/SO files found."
