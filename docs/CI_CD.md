@@ -4,8 +4,7 @@ QuantumMPV is a single-module Android app (`:app`, Kotlin, Jetpack Compose, AGP 
 Gradle wrapper 9.6, JDK 17, compileSdk 37, targetSdk 36, minSdk 26) with native
 libmpv/FFmpeg AARs fetched from pinned, checksummed GitHub releases
 (`native-artifacts.json`). It ships three product flavors (`standard`, `noVulkan`,
-`fongmi`) and three build types (`debug`, `preview`, `release`). Releases are APKs
-published on GitHub, not AABs.
+`fongmi`) and three build types (`debug`, `preview`, `release`). Releases publish signed APKs and a signed Standard-flavor AAB on GitHub. The AAB is used for Google Play.
 
 The pipeline has three stages:
 
@@ -32,7 +31,7 @@ The pipeline has three stages:
 | Dependency review | `dependency-review.yml` | PR to master | Blocks newly added dependencies with high/critical advisories; advisory license report against an AGPL-compatible allow-list | Recommended required for merge |
 | Workflow audit | `workflow-audit.yml` | PR, push to master, weekly, manual | actionlint (checksum-verified) with shellcheck, zizmor, Dependabot and workflow JSON-schema validation, JSON config validation, version-floor checks | Recommended required for merge |
 | Dependency Submission | `dependency-submission.yml` | push to master, manual | Submits the resolved Gradle graph so Dependabot alerts, dependency review and the SBOM include Gradle dependencies | Not a gate |
-| CI/CD Build | `build.yml` | push to master, manual | Builds unsigned release APKs of the selected flavors and uploads them for 14 days | Not a gate |
+| CI/CD Build | `build.yml` | manual | Builds unsigned release APKs of the selected flavors and uploads them for 14 days | Not a gate |
 | Preview Build | `preview.yml` | push to master (app paths), manual | Signed preview APKs published to GitHub Pages and `latest.json` for the preview update channel | Not a gate |
 | Prepare Release | `prepare-release.yml` | manual | Verifies master is prepared for a version, verifies its checks, creates the tag through the API and dispatches the release workflow | Release entry point |
 | Make release | `release.yml` | `v1.X.Y` tag push, manual | Stable release pipeline (see below) | Release |
@@ -66,7 +65,7 @@ resolve ──► instrumented (API 30, 34) ──┐
 | `publish` | `contents: write`, `id-token: write`, `attestations: write` | Re-verifies native contents, writes `SHA256SUMS`, exports the SPDX SBOM from the dependency graph, creates build provenance attestations and creates the GitHub release |
 
 Published assets: `QuantumMPV-{universal,arm64-v8a,armeabi-v7a,x86,x86_64}-vX.Y.Z.apk`,
-`QuantumMPV-fongmi-vX.Y.Z.apk`, `QuantumMPV-no-vulkan-vX.Y.Z.apk`,
+`QuantumMPV-fongmi-vX.Y.Z.apk`, `QuantumMPV-no-vulkan-vX.Y.Z.apk`, `QuantumMPV-vX.Y.Z.aab`,
 `QuantumMPV-vX.Y.Z-SHA256SUMS.txt` and `QuantumMPV-vX.Y.Z-sbom.spdx.json`. The in-app
 updater only considers assets that start with `QuantumMPV-` and end with `.apk`.
 It reads checksums from the asset digest or the release notes, so the extra files
