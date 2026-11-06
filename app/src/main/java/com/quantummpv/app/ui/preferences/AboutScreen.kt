@@ -594,7 +594,7 @@ object AboutScreen : Screen {
                           stringResource(R.string.ui_last_checked_never)
                         } else {
                           DateUtils
-                            .getRelativeTimeSpanString(lastCheckedAt, resumedAt, DateUtils.MINUTE_IN_MILLIS)
+                            .getRelativeTimeSpanString(lastCheckedAt, maxOf(resumedAt, lastCheckedAt), DateUtils.MINUTE_IN_MILLIS)
                             .toString()
                         },
                       ),
