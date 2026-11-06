@@ -55,7 +55,8 @@ jobs:
 
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "### Prebuilt application binaries" >> "$GITHUB_STEP_SUMMARY"
-          if find app -type f \( -iname '*.aar' -o -iname '*.jar' -o -iname '*.so' \) -not -path '*/build/*' -print | tee "$RUNNER_TEMP/app-binaries.txt" | grep -q .; then
+          find app -type f \( -iname '*.aar' -o -iname '*.jar' -o -iname '*.so' \) -not -path '*/build/*' -print > "$RUNNER_TEMP/app-binaries.txt"
+          if [[ -s "$RUNNER_TEMP/app-binaries.txt" ]]; then
             echo "::error::Prebuilt app binaries found. Verify each licence and replace opaque/non-rebuildable artifacts with source builds before official F-Droid submission."
             cat "$RUNNER_TEMP/app-binaries.txt" >> "$GITHUB_STEP_SUMMARY"
             blockers=$((blockers + 1))
