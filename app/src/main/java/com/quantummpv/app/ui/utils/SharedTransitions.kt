@@ -41,6 +41,18 @@ val LocalSharedTransitionScope = staticCompositionLocalOf<SharedTransitionScope?
 /** Matches the dock's circular Search button with the Search screen's top bar. */
 const val SEARCH_MORPH_KEY = "search_morph_key"
 
+/**
+ * Key for a main tab's inline search bar. Scoped per tab because the pager keeps neighbouring pages
+ * composed, so two tabs' bars must never be matched with each other or with MediaSearchScreen.
+ */
+fun inlineSearchMorphKey(tab: String): String = "$SEARCH_MORPH_KEY:$tab"
+
+/**
+ * Morph modifier for the InlineSearchBar of a dock-hosted tab, provided by DockSearchTopBarSwitcher
+ * and appended by InlineSearchBar after its caller's modifier. Empty everywhere else.
+ */
+val LocalInlineSearchMorphModifier = staticCompositionLocalOf<Modifier> { Modifier }
+
 /** Bounds spring for the Search morph: no overshoot so the bar never dips past its final edge. */
 val SearchMorphBoundsTransform =
   BoundsTransform { _, _ ->
@@ -58,13 +70,14 @@ val SearchMorphBoundsTransform =
 fun rememberSearchMorphModifier(
   sharedTransitionScope: SharedTransitionScope?,
   animatedVisibilityScope: AnimatedVisibilityScope?,
+  key: String = SEARCH_MORPH_KEY,
 ): Modifier {
   if (sharedTransitionScope == null || animatedVisibilityScope == null || AppMotion.shouldDisableAnimations()) {
     return Modifier
   }
   return with(sharedTransitionScope) {
     Modifier.sharedElement(
-      sharedContentState = rememberSharedContentState(key = SEARCH_MORPH_KEY),
+      sharedContentState = rememberSharedContentState(key = key),
       animatedVisibilityScope = animatedVisibilityScope,
       boundsTransform = SearchMorphBoundsTransform,
     )

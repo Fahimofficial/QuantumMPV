@@ -494,7 +494,17 @@ object FolderListScreen : Screen {
               totalCount = videoFolders.size,
               onBackClick = null,
               onCancelSelection = { selectionManager.clear() },
-              onSortClick = { sortDialogOpen.value = true },
+              additionalActions = {
+                if (!selectionManager.isInSelectionMode) com.quantummpv.app.ui.browser.components.FolderQuickSortButton(
+                  sortType = folderSortType,
+                  sortOrder = folderSortOrder,
+                  onSortChange = { type, order ->
+                    browserPreferences.folderSortType.set(type)
+                    browserPreferences.folderSortOrder.set(order)
+                  },
+                  onMoreOptions = { sortDialogOpen.value = true },
+                )
+              },
               onSearchClick = topBarSearchAction,
               onSettingsClick = {
                 backstack.navigateTo(com.quantummpv.app.ui.preferences.PreferencesScreen)

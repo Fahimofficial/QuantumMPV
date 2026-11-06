@@ -35,11 +35,14 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -158,8 +161,8 @@ fun FloatingMenuButton(
 @Composable
 fun FloatingGlassMenuPanel(
   visible: Boolean,
-  onSettingsClick: () -> Unit,
-  onLibraryInsightsClick: () -> Unit,
+  primaryItems: List<FloatingMenuItem>,
+  shortcutItems: List<FloatingMenuItem>,
   modifier: Modifier = Modifier,
   glass: Boolean = false,
   anchorCenterInRoot: () -> Offset? = { null },
@@ -230,18 +233,27 @@ fun FloatingGlassMenuPanel(
             .padding(PanelPadding),
         verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.extraSmall),
       ) {
-        MenuRow(
-          icon = Icons.RoundedFilled.Settings,
-          label = stringResource(R.string.ui_settings),
-          enabled = interactive,
-          onClick = onSettingsClick,
-        )
-        MenuRow(
-          icon = Icons.RoundedFilled.Insights,
-          label = stringResource(R.string.library_insights_title),
-          enabled = interactive,
-          onClick = onLibraryInsightsClick,
-        )
+        // Rows settle a few frames after the surface, top to bottom, so the eye follows the list.
+        val rowProgress: (Int) -> Float = { index ->
+          if (!scaleWithProgress) {
+            1f
+          } else {
+            val delay = (index * ROW_STAGGER).coerceAtMost(MAX_ROW_STAGGER)
+            ((progress - delay) / (1f - delay)).coerceIn(0f, 1f)
+          }
+        }
+        primaryItems.forEachIndexed { index, item ->
+          key(item.key) { MenuRow(item, interactive, { rowProgress(index) }) }
+        }
+        if (shortcutItems.isNotEmpty()) {
+          HorizontalDivider(
+            modifier = Modifier.padding(horizontal = MaterialTheme.spacing.small, vertical = 2.dp),
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+          )
+        }
+        shortcutItems.forEachIndexed { index, item ->
+          key(item.key) { MenuRow(item, interactive, { rowProgress(primaryItems.size + index) }) }
+        }
       }
     }
   }
@@ -253,10 +265,9 @@ fun FloatingGlassMenuPanel(
  */
 @Composable
 private fun MenuRow(
-  icon: AppIcon,
-  label: String,
+  item: FloatingMenuItem,
   enabled: Boolean,
-  onClick: () -> Unit,
+  revealProgress: () -> Float,
 ) {
   val shape = TileShape
   val interactionSource = remember { MutableInteractionSource() }
@@ -280,6 +291,9 @@ private fun MenuRow(
         .graphicsLayer {
           scaleX = scale
           scaleY = scale
+          val reveal = revealProgress()
+          alpha = reveal
+          translationY = (1f - reveal) * ROW_REVEAL_OFFSET.toPx()
         }.tvFocusHighlight(shape, focusedScale = 1.02f)
         .clip(shape)
         // Subtle tonal tile so the rounded tile shape reads at rest, not only under the ripple.
@@ -289,15 +303,15 @@ private fun MenuRow(
           indication = null,
           enabled = enabled,
           role = Role.Button,
-          onClick = onClick,
+          onClick = item.onClick,
         )
         .padding(horizontal = MaterialTheme.spacing.small, vertical = MaterialTheme.spacing.smaller),
     verticalAlignment = Alignment.CenterVertically,
   ) {
-    Icon(icon, contentDescription = null, modifier = Modifier.size(MenuIconSize), tint = MaterialTheme.colorScheme.primary)
+    Icon(item.icon, contentDescription = null, modifier = Modifier.size(MenuIconSize), tint = MaterialTheme.colorScheme.primary)
     Spacer(modifier = Modifier.width(MaterialTheme.spacing.small))
     Text(
-      text = label,
+      text = item.label,
       style = MaterialTheme.typography.bodyLarge,
       fontWeight = FontWeight.Medium,
       color = MaterialTheme.colorScheme.onSurface,
@@ -305,6 +319,19 @@ private fun MenuRow(
     )
   }
 }
+
+/** One row of the dock's More menu. [key] keeps row state stable when shortcuts are toggled. */
+@Immutable
+class FloatingMenuItem(
+  val key: String,
+  val icon: AppIcon,
+  val label: String,
+  val onClick: () -> Unit,
+)
+
+private const val ROW_STAGGER = 0.06f
+private const val MAX_ROW_STAGGER = 0.3f
+private val ROW_REVEAL_OFFSET = 6.dp
 
 /** Shared by the panel's progress and the button's rotation so both move as one. */
 private val PanelMotionSpec = AppMotion.Spatial.Standard

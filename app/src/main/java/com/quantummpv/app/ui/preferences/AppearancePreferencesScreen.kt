@@ -87,6 +87,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import me.zhanghai.compose.preference.ListPreference
+import me.zhanghai.compose.preference.Preference
 import me.zhanghai.compose.preference.ProvidePreferenceLocals
 import me.zhanghai.compose.preference.SliderPreference
 import org.koin.compose.koinInject
@@ -953,8 +954,7 @@ object AppearancePreferencesScreen : Screen {
           item {
             PreferenceCard {
               val showMusicTab by preferences.showMusicTab.collectAsState()
-              val showRecentsTab by preferences.showRecentsTab.collectAsState()
-              val showPlaylistsTab by preferences.showPlaylistsTab.collectAsState()
+              val showProfileTab by preferences.showProfileTab.collectAsState()
               val showNetworkTab by preferences.showNetworkTab.collectAsState()
               val showJellyfinTab by preferences.showJellyfinTab.collectAsState()
 
@@ -974,28 +974,13 @@ object AppearancePreferencesScreen : Screen {
               PreferenceDivider()
 
               SwitchPreference(
-                modifier = Modifier.settingsSearchTarget(R.string.pref_nav_recents_title),
-                value = showRecentsTab,
-                onValueChange = preferences.showRecentsTab::set,
-                title = { Text(text = stringResource(id = R.string.pref_nav_recents_title)) },
+                modifier = Modifier.settingsSearchTarget(R.string.pref_nav_profile_title),
+                value = showProfileTab,
+                onValueChange = preferences.showProfileTab::set,
+                title = { Text(text = stringResource(id = R.string.pref_nav_profile_title)) },
                 summary = {
                   Text(
-                    text = stringResource(id = R.string.pref_nav_recents_summary),
-                    color = MaterialTheme.colorScheme.outline,
-                  )
-                },
-              )
-
-              PreferenceDivider()
-
-              SwitchPreference(
-                modifier = Modifier.settingsSearchTarget(R.string.pref_nav_playlists_title),
-                value = showPlaylistsTab,
-                onValueChange = preferences.showPlaylistsTab::set,
-                title = { Text(text = stringResource(id = R.string.pref_nav_playlists_title)) },
-                summary = {
-                  Text(
-                    text = stringResource(id = R.string.pref_nav_playlists_summary),
+                    text = stringResource(id = R.string.pref_nav_profile_summary),
                     color = MaterialTheme.colorScheme.outline,
                   )
                 },
@@ -1062,6 +1047,20 @@ object AppearancePreferencesScreen : Screen {
                     color = MaterialTheme.colorScheme.outline,
                   )
                 },
+              )
+
+              PreferenceDivider()
+
+              Preference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_more_menu_title),
+                title = { Text(text = stringResource(id = R.string.pref_more_menu_title)) },
+                summary = {
+                  Text(
+                    text = stringResource(id = R.string.pref_more_menu_summary),
+                    color = MaterialTheme.colorScheme.outline,
+                  )
+                },
+                onClick = { backstack.navigateTo(MoreMenuPreferencesScreen) },
               )
             }
           }

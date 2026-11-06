@@ -273,15 +273,15 @@ dependencies {
   constraints {
     // Keep security-patched transitive libraries visible to Dependabot's Gradle snapshot.
     add("implementation", "io.netty:netty-codec:4.2.19.Final")
-    add("implementation", "org.bouncycastle:bcprov-jdk18on:1.85")
-    add("implementation", "org.bouncycastle:bcpkix-jdk18on:1.85")
-    add("implementation", "org.bouncycastle:bcutil-jdk18on:1.85")
+    add("implementation", "org.bouncycastle:bcprov-jdk18on:1.86")
+    add("implementation", "org.bouncycastle:bcpkix-jdk18on:1.86")
+    add("implementation", "org.bouncycastle:bcutil-jdk18on:1.86")
     add("implementation", "org.apache.commons:commons-lang3:3.18.0")
     add("implementation", "org.apache.httpcomponents:httpclient:4.5.14")
     add("implementation", "org.bitbucket.b_c:jose4j:0.9.6")
     add("implementation", "org.jdom:jdom2:2.0.6.1")
-    add("implementation", "ch.qos.logback:logback-core:1.6.5")
-    add("implementation", "ch.qos.logback:logback-classic:1.6.5")
+    add("implementation", "ch.qos.logback:logback-core:1.6.6")
+    add("implementation", "ch.qos.logback:logback-classic:1.6.6")
   }
 
   implementation(libs.androidx.activity.compose)
@@ -360,7 +360,7 @@ dependencies {
   testImplementation(libs.robolectric)
   androidTestImplementation("androidx.test.ext:junit:1.2.1")
   androidTestImplementation("androidx.test:runner:1.6.2")
-  androidTestImplementation("androidx.room:room-testing:2.8.4")
+  androidTestImplementation("androidx.room:room-testing:2.8.5")
 
   "standardImplementation"(files("libs/mpvlib.aar"))
   "noVulkanImplementation"(files("libs/mpvlib-no-vulkan.aar"))

@@ -48,10 +48,6 @@
   <string name="pref_appearance_category_navigation">नेविगेशन</string>
   <string name="pref_nav_home_title">होम टैब दिखाएं</string>
   <string name="pref_nav_home_summary">नीचे की नेविगेशन बार में होम दिखाएं या छुपाएं</string>
-  <string name="pref_nav_recents_title">रीसेंट्स टैब दिखाएं</string>
-  <string name="pref_nav_recents_summary">नीचे की नेविगेशन बार में रीसेंट्स दिखाएं या छुपाएं</string>
-  <string name="pref_nav_playlists_title">प्लेलिस्ट टैब दिखाएं</string>
-  <string name="pref_nav_playlists_summary">नीचे की नेविगेशन बार में प्लेलिस्ट दिखाएं या छुपाएं</string>
   <string name="pref_nav_network_title">नेटवर्क टैब दिखाएं</string>
   <string name="pref_nav_network_summary">नीचे की नेविगेशन बार में नेटवर्क दिखाएं या छुपाएं</string>
   <string name="pref_quick_play_fab_title">क्विक प्ले FAB</string>

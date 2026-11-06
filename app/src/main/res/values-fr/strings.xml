@@ -48,10 +48,6 @@
   <string name="pref_appearance_category_navigation">Navigation</string>
   <string name="pref_nav_home_title">Afficher l’onglet Accueil</string>
   <string name="pref_nav_home_summary">Afficher ou masquer Accueil dans la barre de navigation inférieure</string>
-  <string name="pref_nav_recents_title">Afficher l’onglet Récents</string>
-  <string name="pref_nav_recents_summary">Afficher ou masquer Récents dans la barre de navigation inférieure</string>
-  <string name="pref_nav_playlists_title">Afficher l’onglet Listes de lecture</string>
-  <string name="pref_nav_playlists_summary">Afficher ou masquer Listes de lecture dans la barre de navigation inférieure</string>
   <string name="pref_nav_network_title">Afficher l’onglet Réseau</string>
   <string name="pref_nav_network_summary">Afficher ou masquer Réseau dans la barre de navigation inférieure</string>
   <string name="pref_quick_play_fab_title">FAB de lecture rapide</string>

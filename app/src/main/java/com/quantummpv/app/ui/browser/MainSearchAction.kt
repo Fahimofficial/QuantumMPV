@@ -9,13 +9,26 @@
 
 package com.quantummpv.app.ui.browser
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.staticCompositionLocalOf
+import com.quantummpv.app.ui.theme.AppMotion
+import com.quantummpv.app.ui.utils.LocalInlineSearchMorphModifier
+import com.quantummpv.app.ui.utils.LocalSharedTransitionScope
+import com.quantummpv.app.ui.utils.inlineSearchMorphKey
+import com.quantummpv.app.ui.utils.rememberSearchMorphModifier
 
 /**
  * Routes the floating Search button to the existing search UI owned by each main tab.
@@ -32,11 +45,18 @@ internal class MainSearchActionController {
 
   private val registrations = mutableStateMapOf<MainScreen.MainTab, Registration>()
 
+  // Set in the same snapshot as the tab's own "search open" state, so the dock button starts its
+  // exit in the very frame the inline bar starts entering. Without it the button would only hide
+  // after the tab re-registers (one frame later) and the shared-element morph would see two
+  // visible ends. Cleared as soon as the tab registers its new state.
+  private val pendingInlineOpen = mutableStateMapOf<MainScreen.MainTab, Boolean>()
+
   /** True when [tab] currently has a composed search implementation. */
   fun isAvailable(tab: MainScreen.MainTab): Boolean = registrations.containsKey(tab)
 
   /** True when [tab]'s inline search field is already visible. */
-  fun isSearchActive(tab: MainScreen.MainTab): Boolean = registrations[tab]?.isSearchActive == true
+  fun isSearchActive(tab: MainScreen.MainTab): Boolean =
+    registrations[tab]?.isSearchActive == true || pendingInlineOpen[tab] == true
 
   /**
    * True when [tab]'s search is a separate destination. The dock button then morphs into that
@@ -45,10 +65,12 @@ internal class MainSearchActionController {
   fun opensScreen(tab: MainScreen.MainTab): Boolean = registrations[tab]?.opensScreen == true
 
   /** Invokes [tab]'s current search action, returning false if the tab has no registered search. */
-  fun request(tab: MainScreen.MainTab): Boolean = registrations[tab]?.action?.let {
-    it()
-    true
-  } ?: false
+  fun request(tab: MainScreen.MainTab): Boolean {
+    val registration = registrations[tab] ?: return false
+    if (!registration.opensScreen) pendingInlineOpen[tab] = true
+    registration.action()
+    return true
+  }
 
   /** Replaces the current action for [tab]; [owner] prevents an old page from clearing a newer one. */
   fun register(
@@ -59,6 +81,7 @@ internal class MainSearchActionController {
     action: () -> Unit,
   ) {
     registrations[tab] = Registration(owner, isSearchActive, opensScreen, action)
+    pendingInlineOpen.remove(tab)
   }
 
   /** Removes [tab]'s action only when it still belongs to [owner]. */
@@ -66,7 +89,10 @@ internal class MainSearchActionController {
     tab: MainScreen.MainTab,
     owner: Any,
   ) {
-    if (registrations[tab]?.owner === owner) registrations.remove(tab)
+    if (registrations[tab]?.owner === owner) {
+      registrations.remove(tab)
+      pendingInlineOpen.remove(tab)
+    }
   }
 }
 
@@ -110,4 +136,49 @@ internal fun mainTabSearchAction(
   }
 
   return if (dockOwnsSearch) null else onSearch
+}
+
+/**
+ * Swaps a main tab's top bar for its inline search bar. Inside MainScreen, while the dock owns
+ * Search, the bar morphs out of (and back into) the dock's Search button through the same
+ * shared-element transition Home uses for MediaSearchScreen, so every tab opens Search the same way.
+ * Elsewhere it is a plain swap, exactly as before. The InlineSearchBar inside [searchBar] picks the
+ * morph up through [LocalInlineSearchMorphModifier].
+ */
+@Composable
+internal fun DockSearchTopBarSwitcher(
+  searchActive: Boolean,
+  topBar: @Composable () -> Unit,
+  searchBar: @Composable () -> Unit,
+) {
+  val tab = LocalMainSearchTab.current
+  val sharedTransitionScope = LocalSharedTransitionScope.current
+  val dockOwnsSearch = tab != null && LocalMainSearchDockVisible.current && LocalMainSearchActionController.current != null
+  if (!dockOwnsSearch || sharedTransitionScope == null || AppMotion.shouldDisableAnimations()) {
+    if (searchActive) searchBar() else topBar()
+    return
+  }
+  val fadeSpec = AppMotion.spatial(AppMotion.Effect.Alpha, AppMotion.ReducedAlpha)
+  AnimatedContent(
+    targetState = searchActive,
+    transitionSpec = {
+      val transform =
+        if (targetState) {
+          // The bar arrives through the morph; only the outgoing title fades.
+          EnterTransition.None togetherWith fadeOut(fadeSpec)
+        } else {
+          // Keep the bar composed while it morphs back into the button.
+          fadeIn(fadeSpec) togetherWith ExitTransition.KeepUntilTransitionsFinished
+        }
+      transform using SizeTransform(clip = false)
+    },
+    label = "dock_search_top_bar",
+  ) { active ->
+    if (active) {
+      val morph = rememberSearchMorphModifier(sharedTransitionScope, this, inlineSearchMorphKey(tab.name))
+      CompositionLocalProvider(LocalInlineSearchMorphModifier provides morph, content = searchBar)
+    } else {
+      topBar()
+    }
+  }
 }
