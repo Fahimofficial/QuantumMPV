@@ -165,7 +165,7 @@ private fun PlayerControlEdgeHandle(
   val towardContent = if (androidx.compose.ui.platform.LocalLayoutDirection.current == androidx.compose.ui.unit.LayoutDirection.Rtl) 1f else -1f
   val nudgeSpec = AppMotion.defaultSpatial<Float>()
   androidx.compose.runtime.LaunchedEffect(Unit) {
-    if (reduceMotion || playerPreferences.playlistHandleNudgeShown.get()) return@LaunchedEffect
+    if (reduceMotion || playerPreferences.reduceMotion.get() || playerPreferences.playlistHandleNudgeShown.get()) return@LaunchedEffect
     kotlinx.coroutines.delay(NUDGE_START_DELAY_MS)
     repeat(2) {
       nudge.animateTo(nudgePx * towardContent, nudgeSpec)
