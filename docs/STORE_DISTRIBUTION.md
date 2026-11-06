@@ -17,6 +17,35 @@ One-time setup:
 
 The release's `production` environment still protects the private signing key. The Play upload workflow receives only the public AAB downloaded from the published GitHub release and short-lived OIDC credentials.
 
+### Narrow Workload Identity Federation trust
+
+Configure the OIDC provider to map:
+
+```
+google.subject=assertion.sub
+attribute.repository=assertion.repository
+attribute.ref=assertion.ref
+attribute.environment=assertion.environment
+```
+
+Restrict the provider condition to
+`assertion.repository == 'Fahimofficial/QuantumMPV'`,
+`assertion.ref == 'refs/heads/master'`, and
+`assertion.environment == 'play-store'`. Grant `roles/iam.workloadIdentityUser` to the
+Google service account for a `principalSet` restricted to this repository. The
+`PLAY_WIF_PROVIDER` variable is the full resource name:
+`projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/POOL_ID/providers/PROVIDER_ID`.
+Do not grant project-owner permissions.
+
+### App signing compatibility
+
+Google Play App Signing uses the app-signing key for APKs delivered to users; the key that signs
+the uploaded AAB is the upload key. When enrolling, preserve QuantumMPV's existing release
+certificate as the Play app-signing key if users who installed APKs from GitHub must be able to
+update through Play. Configure the accepted upload certificate in Play Console and verify the
+first release using internal testing before production.
+
+
 ## F-Droid status
 
 QuantumMPV is not ready for the official F-Droid repository yet. The current build includes Google Cast framework integration and consumes prebuilt native mpv AARs from `app/libs`; additional native artifacts are downloaded by `tools/verify_native_artifacts.py`. F-Droid builds must be reproducible from public source and cannot rely on opaque prebuilt binaries or downloading dependencies during the build.
