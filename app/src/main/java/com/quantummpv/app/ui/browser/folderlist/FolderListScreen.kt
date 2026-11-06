@@ -69,8 +69,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -1255,7 +1257,7 @@ private fun GridContent(
     LazyVerticalGrid(
       columns = GridCells.Fixed(computedColumns),
       state = gridState,
-      modifier = Modifier.fillMaxSize(),
+      modifier = Modifier.fillMaxSize().semantics { testTagsAsResourceId = true }.testTag("home_folder_list"),
       contentPadding =
         PaddingValues(
           start = 8.dp,
@@ -1266,12 +1268,14 @@ private fun GridContent(
       verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
       if (resumeCard != null) {
-        item(key = RESUME_CARD_KEY, contentType = RESUME_CARD_KEY, span = { GridItemSpan(maxLineSpan) }) { resumeCard() }
+        item(key = RESUME_CARD_KEY, contentType = RESUME_CARD_KEY, span = { GridItemSpan(maxLineSpan) }) {
+          Box(Modifier.animateItem()) { resumeCard() }
+        }
       }
       val pinnedCount = folders.count { it.path in pinnedFolderPaths }
       fun androidx.compose.foundation.lazy.grid.LazyGridScope.section(key: String, title: Int) {
         item(key = key, contentType = SECTION_CONTENT_TYPE, span = { GridItemSpan(maxLineSpan) }) {
-          FolderSectionHeader(stringResource(title), appItemMotion())
+          FolderSectionHeader(stringResource(title), appItemMotion().animateItem())
         }
       }
       for ((sectionStart, sectionEnd) in folderSections(pinnedCount, folders.size)) {
@@ -1295,7 +1299,7 @@ private fun GridContent(
           isInSelectionMode = selectionManager.isInSelectionMode,
           onSelect = { onFolderLongClick(folder) },
           onTogglePin = { onTogglePin(folder) },
-          modifier = appItemMotion().staggeredEntrance(index, stagger),
+          modifier = appItemMotion().staggeredEntrance(index, stagger).animateItem(),
         ) { onLongClick ->
         FolderCard(
           folder = folder,
@@ -1377,7 +1381,7 @@ private fun ListContent(
   Box(modifier = Modifier.fillMaxSize()) {
     LazyColumn(
       state = listState,
-      modifier = Modifier.fillMaxSize(),
+      modifier = Modifier.fillMaxSize().semantics { testTagsAsResourceId = true }.testTag("home_folder_list"),
       contentPadding =
         PaddingValues(
           start = 8.dp,
@@ -1386,7 +1390,7 @@ private fun ListContent(
         ),
     ) {
       if (resumeCard != null) {
-        item(key = RESUME_CARD_KEY, contentType = RESUME_CARD_KEY) { resumeCard() }
+        item(key = RESUME_CARD_KEY, contentType = RESUME_CARD_KEY) { Box(Modifier.animateItem()) { resumeCard() } }
       }
       val pinnedCount = folders.count { it.path in pinnedFolderPaths }
       for ((sectionStart, sectionEnd) in folderSections(pinnedCount, folders.size)) {
