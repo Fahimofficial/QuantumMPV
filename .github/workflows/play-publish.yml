@@ -32,6 +32,7 @@ jobs:
     environment: play-store
     permissions:
       contents: read
+      attestations: read
       id-token: write
     steps:
       - name: Validate stable release and download its AAB
