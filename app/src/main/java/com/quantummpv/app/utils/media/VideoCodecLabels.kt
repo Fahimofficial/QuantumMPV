@@ -14,21 +14,24 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 
+private val VIDEO_CODEC_LABELS = mapOf(
+  MediaFormat.MIMETYPE_VIDEO_HEVC to "HEVC",
+  MediaFormat.MIMETYPE_VIDEO_AVC to "H.264",
+  MediaFormat.MIMETYPE_VIDEO_AV1 to "AV1",
+  MediaFormat.MIMETYPE_VIDEO_VP9 to "VP9",
+  MediaFormat.MIMETYPE_VIDEO_VP8 to "VP8",
+  MediaFormat.MIMETYPE_VIDEO_MPEG4 to "MPEG-4",
+  MediaFormat.MIMETYPE_VIDEO_MPEG2 to "MPEG-2",
+  MediaFormat.MIMETYPE_VIDEO_H263 to "H.263",
+  "video/dolby-vision" to "Dolby Vision",
+)
+
 /** Short codec name for a video track MIME type ("video/hevc" -> "HEVC"), null when not a video MIME. */
 fun codecDisplayName(mime: String?): String? {
   if (mime == null || !mime.startsWith("video/")) return null
-  return when (mime.lowercase()) {
-    MediaFormat.MIMETYPE_VIDEO_HEVC -> "HEVC"
-    MediaFormat.MIMETYPE_VIDEO_AVC -> "H.264"
-    MediaFormat.MIMETYPE_VIDEO_AV1 -> "AV1"
-    MediaFormat.MIMETYPE_VIDEO_VP9 -> "VP9"
-    MediaFormat.MIMETYPE_VIDEO_VP8 -> "VP8"
-    MediaFormat.MIMETYPE_VIDEO_MPEG4 -> "MPEG-4"
-    MediaFormat.MIMETYPE_VIDEO_MPEG2 -> "MPEG-2"
-    MediaFormat.MIMETYPE_VIDEO_H263 -> "H.263"
-    "video/dolby-vision" -> "Dolby Vision"
-    else -> mime.substringAfter('/').substringAfterLast('.').uppercase().takeIf { it.isNotBlank() }
-  }
+  val normalized = mime.lowercase()
+  return VIDEO_CODEC_LABELS[normalized]
+    ?: normalized.substringAfter('/').substringAfterLast('.').uppercase().takeIf { it.isNotBlank() }
 }
 
 /**
