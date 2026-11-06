@@ -1,0 +1,42 @@
+name: Temporary website lockfile refresh
+
+on:
+  push:
+    branches:
+      - dependabot/npm_and_yarn/website/website-prod-minor-patch-5ed27e71d6
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      - name: Regenerate and validate website lockfile
+        working-directory: website
+        run: |
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm ls glob minimatch
+
+      - name: Commit refreshed lockfile
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add website/package-lock.json
+          if git diff --cached --quiet; then
+            echo "No lockfile changes were generated."
+            exit 0
+          fi
+          git commit -m "security: refresh vulnerable website glob dependencies"
+          git push
