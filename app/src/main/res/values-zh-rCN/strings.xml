@@ -48,10 +48,6 @@
   <string name="pref_appearance_category_navigation">导航</string>
   <string name="pref_nav_home_title">显示“首页”标签页</string>
   <string name="pref_nav_home_summary">在底部导航栏中显示或隐藏“首页”</string>
-  <string name="pref_nav_recents_title">显示“最近”标签页</string>
-  <string name="pref_nav_recents_summary">在底部导航栏中显示或隐藏“最近”</string>
-  <string name="pref_nav_playlists_title">显示“播放列表”标签页</string>
-  <string name="pref_nav_playlists_summary">在底部导航栏中显示或隐藏“播放列表”</string>
   <string name="pref_nav_network_title">显示“网络”标签页</string>
   <string name="pref_nav_network_summary">在底部导航栏中显示或隐藏“网络”</string>
   <string name="pref_quick_play_fab_title">快速播放悬浮按钮</string>

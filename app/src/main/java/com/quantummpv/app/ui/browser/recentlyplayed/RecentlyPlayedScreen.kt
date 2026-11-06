@@ -107,6 +107,7 @@ import com.quantummpv.app.ui.utils.NavigationPager
 import com.quantummpv.app.ui.utils.appItemMotion
 import com.quantummpv.app.ui.utils.calculateResponsiveGridSpans
 import com.quantummpv.app.ui.utils.navigateTo
+import com.quantummpv.app.ui.utils.popSafely
 import com.quantummpv.app.ui.utils.rememberTabNavigation
 import com.quantummpv.app.utils.media.MediaUtils
 import kotlinx.coroutines.launch
@@ -389,7 +390,7 @@ object RecentlyPlayedScreen : Screen {
             isInSelectionMode = selectionManager.isInSelectionMode,
             selectedCount = selectionManager.selectedCount,
             totalCount = filteredRecentItems.size,
-            onBackClick = null,
+            onBackClick = if (com.quantummpv.app.ui.browser.LocalIsMainTabPage.current) null else ({ backStack.popSafely() }),
             onCancelSelection = { selectionManager.clear() },
             onSortClick = null,
             onSearchClick = topBarSearchAction,

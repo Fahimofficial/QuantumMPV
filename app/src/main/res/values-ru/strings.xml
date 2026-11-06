@@ -48,10 +48,6 @@
   <string name="pref_appearance_category_navigation">Навигация</string>
   <string name="pref_nav_home_title">Показывать вкладку «Главная»</string>
   <string name="pref_nav_home_summary">Показывать или скрывать «Главную» на нижней панели навигации</string>
-  <string name="pref_nav_recents_title">Показывать вкладку «Недавние»</string>
-  <string name="pref_nav_recents_summary">Показывать или скрывать «Недавние» на нижней панели навигации</string>
-  <string name="pref_nav_playlists_title">Показывать вкладку «Плейлисты»</string>
-  <string name="pref_nav_playlists_summary">Показывать или скрывать «Плейлисты» на нижней панели навигации</string>
   <string name="pref_nav_network_title">Показывать вкладку «Сеть»</string>
   <string name="pref_nav_network_summary">Показывать или скрывать «Сеть» на нижней панели навигации</string>
   <string name="pref_quick_play_fab_title">Кнопка быстрого воспроизведения</string>
