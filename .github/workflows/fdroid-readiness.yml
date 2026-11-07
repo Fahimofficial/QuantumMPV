@@ -1,0 +1,80 @@
+name: F-Droid readiness
+
+on:
+  pull_request:
+    paths:
+      - 'app/**'
+      - '**/build.gradle'
+      - '**/build.gradle.kts'
+      - '**/libs.versions.toml'
+      - '.github/workflows/fdroid-readiness.yml'
+      - 'fdroid/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fdroid-readiness-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    name: Audit FOSS build prerequisites
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout source without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check licence and prohibited dependency / binary indicators
+        shell: bash
+        run: |
+          set -euo pipefail
+          blockers=0
+          summary() { printf '%s\n' "$@" >> "$GITHUB_STEP_SUMMARY"; }
+          summary_file() { cat "$1" >> "$GITHUB_STEP_SUMMARY"; }
+          if [[ ! -f LICENSE && ! -f LICENSE.md && ! -f COPYING ]]; then
+            echo "::warning::No root FOSS licence file found."
+            blockers=$((blockers + 1))
+          fi
+
+          summary "## F-Droid readiness audit"
+          summary "Repository: Fahimofficial/QuantumMPV"
+          summary ""
+          summary "### Known policy-sensitive Gradle dependencies"
+          if grep -RniE --include='*.gradle' --include='*.gradle.kts' --include='*.toml' \
+            '(com\.google\.android\.gms|com\.google\.firebase|play-services|firebase-|cast\.framework|coroutines-play-services)' \
+            app gradle 2>/dev/null | tee "$RUNNER_TEMP/proprietary-deps.txt"; then
+            echo "::warning::Potential Google Play Services / Firebase / Cast dependency found. Move it behind a FOSS-safe source set or replace it; do not remove it from Play/GitHub variants."
+            summary_file "$RUNNER_TEMP/proprietary-deps.txt"
+            blockers=$((blockers + 1))
+          else
+            summary "No known Google Play Services/Firebase/Cast dependency pattern found."
+          fi
+
+          summary ""
+          summary "### Prebuilt application binaries"
+          find app -type f \( -iname '*.aar' -o -iname '*.jar' -o -iname '*.so' \) -not -path '*/build/*' -print > "$RUNNER_TEMP/app-binaries.txt"
+          if [[ -s "$RUNNER_TEMP/app-binaries.txt" ]]; then
+            echo "::warning::Prebuilt app binaries found. Verify each licence and replace opaque/non-rebuildable artifacts with source builds before official F-Droid submission."
+            summary_file "$RUNNER_TEMP/app-binaries.txt"
+            blockers=$((blockers + 1))
+          else
+            summary "No app-local AAR/JAR/SO files found."
+          fi
+
+          summary ""
+          summary "### F-Droid metadata submission"
+          summary "F-Droid metadata is maintained and submitted in the separate fdroiddata repository; this audit does not require a local metadata file or check submission status."
+          summary "Use the FOSS variant's application ID for the fdroiddata package filename; it may differ from com.quantummpv.app."
+
+          if (( blockers > 0 )); then
+            summary ""
+            summary "**Not ready:** $blockers blocker category/categories found. This audit intentionally does not build or publish a misleading APK."
+            exit 0
+          fi
+          summary ""
+          summary "**Static prerequisite audit passed.** This is not a substitute for fdroidserver build, scanner, licence review or F-Droid maintainer approval."

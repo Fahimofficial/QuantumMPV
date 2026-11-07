@@ -1,0 +1,105 @@
+name: Publish to Google Play
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: Published stable GitHub release tag (for example v1.4.5)
+        required: true
+        type: string
+      track:
+        description: Google Play release track
+        required: true
+        default: internal
+        type: choice
+        options:
+          - internal
+          - alpha
+          - beta
+          - production
+
+permissions: {}
+
+concurrency:
+  group: play-store-${{ github.repository }}-${{ inputs.tag_name }}-${{ inputs.track }}
+  cancel-in-progress: false
+
+jobs:
+  upload:
+    name: Upload signed AAB to Google Play
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: play-store
+    permissions:
+      contents: read
+      attestations: read
+      id-token: write
+    steps:
+      - name: Validate stable release and download its AAB
+        id: release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_INPUT: ${{ inputs.tag_name }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$TAG_INPUT" =~ ^v[0-9]+(\.[0-9]+){2}$ ]]; then
+            echo "::error::Only stable vMAJOR.MINOR.PATCH tags can be uploaded. Received: $TAG_INPUT"
+            exit 1
+          fi
+
+          release_json="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${TAG_INPUT}")"
+          draft="$(jq -r '.draft' <<< "$release_json")"
+          prerelease="$(jq -r '.prerelease' <<< "$release_json")"
+          if [[ "$draft" != "false" || "$prerelease" != "false" ]]; then
+            echo "::error::${TAG_INPUT} must be a published, stable GitHub release (not a draft or prerelease)."
+            exit 1
+          fi
+
+          release_dir="$RUNNER_TEMP/play-release"
+          mkdir -p "$release_dir"
+          gh release download "$TAG_INPUT" --repo "$GITHUB_REPOSITORY" \
+            --pattern '*.aab' --pattern '*SHA256SUMS*' --dir "$release_dir"
+
+          mapfile -t bundles < <(find "$release_dir" -maxdepth 1 -type f -name '*.aab' -print)
+          mapfile -t checksum_files < <(find "$release_dir" -maxdepth 1 -type f -iname '*SHA256SUMS*' -print)
+          if [[ "${#bundles[@]}" -ne 1 || "${#checksum_files[@]}" -ne 1 ]]; then
+            echo "::error::Expected exactly one AAB and one SHA256SUMS file for ${TAG_INPUT}; found ${#bundles[@]} AAB(s) and ${#checksum_files[@]} checksum file(s)."
+            exit 1
+          fi
+
+          aab_name="$(basename "${bundles[0]}")"
+          if ! awk -v target="$aab_name" '$2 == target { print; count++ } END { if (count != 1) exit 1 }' "${checksum_files[0]}" > "$release_dir/aab-checksum.txt"; then
+            echo "::error::SHA256SUMS must contain exactly one entry for $aab_name."
+            exit 1
+          fi
+          sha256sum --check --strict "$release_dir/aab-checksum.txt"
+
+          # Verify the signed GitHub build provenance, not merely a colocated checksum.
+          gh attestation verify "${bundles[0]}" --repo "$GITHUB_REPOSITORY" \
+            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release.yml" \
+            --source-ref "refs/tags/${TAG_INPUT}"
+          echo "aab_path=${bundles[0]}" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG_INPUT" >> "$GITHUB_OUTPUT"
+          echo "Verified release bundle for $TAG_INPUT."
+
+      - name: Authenticate with Google Cloud using GitHub OIDC
+        id: auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ vars.PLAY_WIF_PROVIDER }}
+          service_account: ${{ vars.PLAY_SERVICE_ACCOUNT }}
+          create_credentials_file: true
+          cleanup_credentials: true
+
+      - name: Upload App Bundle to Google Play
+        uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5 # v1.1.5
+        with:
+          serviceAccountJson: ${{ steps.auth.outputs.credentials_file_path }}
+          packageName: com.quantummpv.app
+          releaseFile: ${{ steps.release.outputs.aab_path }}
+          releaseName: ${{ steps.release.outputs.tag }}
+          track: ${{ inputs.track }}
+          # Production is uploaded as a draft. A maintainer must finish review/publishing in Play Console.
+          status: ${{ inputs.track == 'production' && 'draft' || 'completed' }}
+          changesNotSentForReview: ${{ inputs.track == 'production' }}
