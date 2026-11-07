@@ -325,11 +325,13 @@ fun MpvrxTheme(
   // Provide theme transition state first, OUTSIDE MaterialExpressiveTheme
   val glassConfig = rememberGlassConfig()
   val hazeState = rememberHazeState()
+  val motionPolicy = rememberMotionPolicy()
 
   CompositionLocalProvider(
     LocalSpacing provides Spacing(),
     LocalThemeTransitionState provides transitionState,
-    LocalMotionPolicy provides rememberMotionPolicy(),
+    LocalMotionPolicy provides motionPolicy,
+    LocalReduceMotion provides motionPolicy.shouldReduceAnimations,
     LocalEmphasizedTypography provides AppEmphasizedTypography,
     LocalDarkAppColorScheme provides darkColorScheme,
     LocalAppTheme provides appTheme,

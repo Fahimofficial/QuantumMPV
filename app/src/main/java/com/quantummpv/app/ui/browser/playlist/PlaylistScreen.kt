@@ -301,6 +301,8 @@ object PlaylistScreen : Screen {
               icon = Icons.RoundedFilled.PlaylistAdd,
               title = stringResource(R.string.ui_no_playlists_yet),
               message = stringResource(R.string.playlist_empty_description),
+              actionLabel = stringResource(R.string.ui_create_playlist),
+              onAction = { showPlaylistActionSheet = true },
             )
           }
         }

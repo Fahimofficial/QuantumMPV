@@ -12,13 +12,16 @@
 package com.quantummpv.app.ui.preferences
 
 import android.app.ActivityManager
+import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.text.format.DateUtils
 import android.widget.ImageView
 import android.widget.Toast
 import androidx.annotation.StringRes
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -34,6 +37,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -47,6 +51,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -54,14 +59,21 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -70,14 +82,17 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.net.toUri
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.quantummpv.app.BuildConfig
 import com.quantummpv.app.R
@@ -93,18 +108,21 @@ import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.LocalShowSettingsBackArrow
 import com.quantummpv.app.ui.utils.navigateTo
 import com.quantummpv.app.ui.utils.popSafely
-import com.quantummpv.app.utils.clipboard.SafeClipboard
+import com.quantummpv.app.ui.utils.staggeredEntrance
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import java.util.Locale
 
 private fun Modifier.aboutLiquidShimmer(
-  fraction: Float,
+  fraction: () -> Float,
   highlight: Color,
 ): Modifier =
   drawWithCache {
     val travel = size.width * 1.9f
-    val startX = -size.width * 0.75f + travel * fraction
+    // Read here (draw phase) so the 5 s gradient loop never recomposes the screen.
+    val startX = -size.width * 0.75f + travel * fraction()
     val shimmer =
       Brush.linearGradient(
         colors =
@@ -174,7 +192,23 @@ object AboutScreen : Screen {
       }
     }
 
+    val snackbarHostState = remember { SnackbarHostState() }
+    val clipboard = LocalClipboard.current
+    val coroutineScope = rememberCoroutineScope()
+    val haptics = com.quantummpv.app.ui.utils.rememberAppHaptics()
+    // Exactly what the card shows is what gets copied.
+    val deviceInfo = remember { collectDeviceInfo() }
+    val deviceInfoLabel = stringResource(R.string.ui_device_info)
+    val deviceInfoCopied = stringResource(R.string.ui_device_info_copied)
+    // Re-read on every resume so "Last checked: 5 minutes ago" stays current.
+    var resumedAt by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LifecycleResumeEffect(Unit) {
+      resumedAt = System.currentTimeMillis()
+      onPauseOrDispose { }
+    }
+
     Scaffold(
+      snackbarHost = { SnackbarHost(snackbarHostState) },
       topBar = {
         TopAppBar(
           title = {
@@ -203,12 +237,12 @@ object AboutScreen : Screen {
       val cs = MaterialTheme.colorScheme
       val colorPrimary = cs.primaryContainer
       val colorTertiary = cs.tertiaryContainer
-      val fraction =
+      val fractionState: State<Float> =
         if (com.quantummpv.app.ui.theme.AppMotion.shouldReduceMotion()) {
-          0.5f
+          remember { mutableFloatStateOf(0.5f) }
         } else {
           val transition = rememberInfiniteTransition(label = "about_gradient")
-          val animated by transition.animateFloat(
+          transition.animateFloat(
             initialValue = 0f,
             targetValue = 1f,
             animationSpec =
@@ -218,8 +252,16 @@ object AboutScreen : Screen {
               ),
             label = "about_gradient_fraction",
           )
-          animated
         }
+      val fraction = { fractionState.value }
+      val reduceMotion = com.quantummpv.app.ui.theme.LocalReduceMotion.current
+      val stagger =
+        com.quantummpv.app.ui.utils.rememberEntranceStagger(
+          key = "about",
+          ready = true,
+          stepMillis = com.quantummpv.app.ui.theme.AppMotion.Timing.ABOUT_STAGGER_STEP,
+          maxItems = 4,
+        )
       val cornerRadius = 28.dp
 
       Column(
@@ -229,13 +271,22 @@ object AboutScreen : Screen {
             .then(settingsHighlight)
             .verticalScroll(settingsScrollState),
       ) {
-        PreferenceCard {
+        PreferenceCard(
+          modifier =
+            Modifier
+              .staggeredEntrance(0, stagger)
+              // Header parallax: moves at half the scroll speed; the scroll value is read in the layer.
+              .graphicsLayer {
+                if (!reduceMotion) translationY = settingsScrollState.value * com.quantummpv.app.ui.theme.Dimens.ABOUT_HEADER_PARALLAX
+              },
+        ) {
           Box(
             modifier =
               Modifier
                 .drawWithCache {
-                  val cx = size.width - size.width * fraction
-                  val cy = size.height * fraction
+                  val f = fraction()
+                  val cx = size.width - size.width * f
+                  val cy = size.height * f
 
                   val gradient =
                     Brush.radialGradient(
@@ -376,15 +427,7 @@ object AboutScreen : Screen {
 
               Spacer(modifier = Modifier.height(20.dp))
 
-              Column(
-                modifier =
-                  Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .clickable {
-                      SafeClipboard.copyPlainText(context, "mpvrx_device_info", collectDeviceInfo())
-                    },
-              ) {
+              Column(modifier = Modifier.fillMaxWidth()) {
                 Row(
                   verticalAlignment = Alignment.CenterVertically,
                   modifier = Modifier.padding(bottom = 8.dp),
@@ -409,10 +452,26 @@ object AboutScreen : Screen {
                   )
                 }
                 Text(
-                  text = collectDeviceInfo(),
+                  text = deviceInfo,
                   style = MaterialTheme.typography.bodySmall,
                   color = cs.onPrimaryContainer.copy(alpha = 0.85f),
                 )
+                Spacer(Modifier.height(12.dp))
+                FilledTonalButton(
+                  onClick = {
+                    haptics.confirm()
+                    coroutineScope.launch {
+                      clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(deviceInfoLabel, deviceInfo)))
+                      // Android 13+ shows its own copy confirmation.
+                      if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.S_V2) snackbarHostState.showSnackbar(deviceInfoCopied)
+                    }
+                  },
+                  modifier = Modifier.heightIn(min = com.quantummpv.app.ui.theme.Dimens.MinTouchTarget),
+                ) {
+                  Icon(Icons.RoundedFilled.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp))
+                  Spacer(Modifier.width(8.dp))
+                  Text(stringResource(R.string.ui_copy_device_info))
+                }
               }
             }
           }
@@ -422,47 +481,67 @@ object AboutScreen : Screen {
 
         // Support My Work: details live on their own screen (SupportScreen).
         PreferenceSectionHeader(title = stringResource(R.string.pref_section_support))
-        PreferenceCard(
-          emphasis = true,
+        // Full-width accent card; the heart pulses once on its first appearance in this process.
+        val heartScale = remember { Animatable(1f) }
+        val heartGrow = com.quantummpv.app.ui.theme.AppMotion.fastSpatial<Float>()
+        LaunchedEffect(Unit) {
+          if (reduceMotion || !com.quantummpv.app.ui.utils.claimOneShot("about-support-heart")) return@LaunchedEffect
+          delay(SUPPORT_HEART_DELAY_MS)
+          heartScale.animateTo(1.25f, heartGrow)
+          heartScale.animateTo(1f, com.quantummpv.app.ui.theme.AppMotion.PopSpring)
+        }
+        Card(
+          onClick = { backstack.navigateTo(SupportScreen) },
           modifier =
-            Modifier.aboutLiquidShimmer(
-              fraction = fraction,
-              highlight = cs.tertiary,
+            Modifier
+              .staggeredEntrance(1, stagger)
+              .fillMaxWidth()
+              .padding(horizontal = 16.dp, vertical = 8.dp)
+              .aboutLiquidShimmer(fraction = fraction, highlight = cs.tertiary),
+          shape = MaterialTheme.shapes.extraLargeIncreased,
+          colors =
+            CardDefaults.cardColors(
+              containerColor = cs.tertiaryContainer,
+              contentColor = cs.onTertiaryContainer,
             ),
         ) {
           Row(
             modifier =
               Modifier
                 .fillMaxWidth()
-                .clickable(role = Role.Button) { backstack.navigateTo(SupportScreen) }
-                .padding(16.dp),
+                .padding(horizontal = 16.dp, vertical = 18.dp),
             verticalAlignment = Alignment.CenterVertically,
           ) {
             Icon(
               imageVector = Icons.RoundedFilled.Favorite,
               contentDescription = null,
-              modifier = Modifier.size(24.dp),
-              tint = cs.primary,
+              modifier =
+                Modifier
+                  .size(28.dp)
+                  .graphicsLayer {
+                    scaleX = heartScale.value
+                    scaleY = heartScale.value
+                  },
+              tint = cs.onTertiaryContainer,
             )
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(14.dp))
             Column(modifier = Modifier.weight(1f)) {
               Text(
                 text = stringResource(R.string.support_title),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = cs.onSurface,
               )
               Spacer(Modifier.height(2.dp))
               Text(
                 text = stringResource(R.string.support_entry_summary),
                 style = MaterialTheme.typography.bodyMedium,
-                color = cs.onSurfaceVariant,
+                color = cs.onTertiaryContainer.copy(alpha = 0.8f),
               )
             }
             Icon(
               imageVector = Icons.RoundedFilled.ChevronRight,
               contentDescription = null,
-              tint = cs.outline,
+              tint = cs.onTertiaryContainer.copy(alpha = 0.8f),
             )
           }
         }
@@ -472,8 +551,9 @@ object AboutScreen : Screen {
         // Updates Section (only show if update feature is enabled)
         if (BuildConfig.ENABLE_UPDATE_FEATURE && updateViewModel != null) {
           PreferenceSectionHeader(title = stringResource(R.string.pref_section_updates))
-          PreferenceCard {
+          PreferenceCard(modifier = Modifier.staggeredEntrance(2, stagger)) {
             val isAutoUpdateEnabled by updateViewModel.isAutoUpdateEnabled.collectAsState()
+            val lastCheckedAt by updateViewModel.lastCheckedAt.collectAsState()
             val updateChannel by updateViewModel.updateChannel.collectAsState()
             Column {
               Row(
@@ -505,6 +585,21 @@ object AboutScreen : Screen {
                       ),
                     style = MaterialTheme.typography.bodyMedium,
                     color = cs.outline,
+                  )
+                  Text(
+                    text =
+                      stringResource(
+                        R.string.ui_last_checked,
+                        if (lastCheckedAt <= 0L) {
+                          stringResource(R.string.ui_last_checked_never)
+                        } else {
+                          DateUtils
+                            .getRelativeTimeSpanString(lastCheckedAt, maxOf(resumedAt, lastCheckedAt), DateUtils.MINUTE_IN_MILLIS)
+                            .toString()
+                        },
+                      ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = cs.onSurfaceVariant,
                   )
                 }
                 IconSwitch(
@@ -586,7 +681,7 @@ object AboutScreen : Screen {
         PreferenceSectionHeader(title = stringResource(R.string.pref_section_system))
 
         val systemStats = remember { collectSystemStats(context) }
-        PreferenceCard {
+        PreferenceCard(modifier = Modifier.staggeredEntrance(3, stagger)) {
           systemStats.forEachIndexed { index, (label, value) ->
             SystemStatRow(label = label, value = value)
             if (index < systemStats.lastIndex) PreferenceDivider()
@@ -1128,3 +1223,5 @@ private val OPEN_SOURCE_LIBRARIES =
       url = "https://github.com/quickjs-ng/quickjs",
     ),
   ).sortedBy { library -> library.name.lowercase(Locale.ROOT) }
+
+private const val SUPPORT_HEART_DELAY_MS = 350L

@@ -3,6 +3,15 @@
 
 ### What's New
 
+- **Continue watching**: Home shows the last played video at the top with its thumbnail, a clean title, "Resume from 12:30" and its progress. Tap to play, swipe it away to hide it until you play something else.
+- **Pinned folders**: Long-press a folder for Pin/Unpin (or Select). Pinned folders sit in their own "Pinned" section above the rest, and moves animate into place.
+- **Cleaner video titles**: Downloader ids like "[2K4T9HmEhWE]" and "Pinterest video #123…" numbers are hidden from titles (shown as small grey text instead). Files are never renamed.
+- **Video list**: A resolution and codec chip ("1080p · HEVC") loads in the background, the last played video shows "Resume · 3:20 left", the progress bar is taller and no longer touches the duration badge, and selection mode has an animated check, border and haptics.
+- **Motion**: Home and Settings rows ease in on first open, new-video badges pop in, cards respond to presses, folders expand into their video list, Settings rows expand into their page, videos open from their thumbnail, and dock taps fade between tabs. All of it turns into simple fades under Reduced motion or when system animations are off.
+- **Player**: Controls fade in faster (150 ms) and out in 250 ms. The side controls handle nudges once on first use so it's easier to find.
+- **Settings and About**: Settings has a collapsing large title and coloured category icons. Settings search waits for you to stop typing and animates results. About has a Copy device info button, a highlighted Support My Work card and "Last checked" under the update toggle.
+- **Empty states**: Empty library, search, history and playlist screens show an illustration with a button for the next step (Refresh, Clear search, Turn on history, Create playlist).
+
 - **Undo**: Removing videos from a playlist or items from Recents shows an Undo action that puts them back exactly where they were. Removals that also delete files still ask first and can't be undone.
 - **Reordering playlists**: Dragging a playlist item lifts it slightly and gives a haptic tick for each slot it crosses and a confirmation when dropped.
 - **Pull to refresh**: The list follows your finger, resists progressively past the trigger point, and ticks once when releasing would refresh.
@@ -13,6 +22,7 @@
 
 ### Fixes
 
+- **Startup performance**: The bundled Baseline Profile still pointed at the old package name, so none of the app's own code was precompiled. It now matches, and a `:baselineprofile` module can generate a real Baseline/Startup Profile and run Macrobenchmarks on a device.
 - **Accessibility**: Back arrows in Settings and other screens, the password visibility toggle, Navidrome favourite toggles, subtitle delete and the Secure Folder menu now have TalkBack labels.
 - **Text**: Music library menus and the create-playlist dialog are now translatable.
 - **Artwork**: Remote images are capped at 20 MB and an interrupted download can no longer leave a broken thumbnail cached.

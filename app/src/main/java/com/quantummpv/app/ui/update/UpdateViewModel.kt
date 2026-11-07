@@ -14,6 +14,7 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import androidx.core.content.FileProvider
+import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.quantummpv.app.BuildConfig
@@ -57,6 +58,16 @@ class UpdateViewModel(
         ?: if (BuildConfig.IS_PREVIEW_BUILD) AppUpdateChannel.PREVIEW else AppUpdateChannel.STABLE,
     )
   val updateChannel: StateFlow<AppUpdateChannel> = _updateChannel.asStateFlow()
+
+  /** Wall-clock millis of the last finished check (auto or manual, success or failure); 0 = never. */
+  private val _lastCheckedAt = MutableStateFlow(prefs.getLong(LAST_CHECKED_AT_KEY, 0L))
+  val lastCheckedAt: StateFlow<Long> = _lastCheckedAt.asStateFlow()
+
+  private fun markChecked() {
+    val now = System.currentTimeMillis()
+    prefs.edit { putLong(LAST_CHECKED_AT_KEY, now) }
+    _lastCheckedAt.value = now
+  }
 
   fun setUpdateChannel(channel: AppUpdateChannel) {
     if (!BuildConfig.ENABLE_UPDATE_FEATURE || channel == _updateChannel.value) return
@@ -109,6 +120,7 @@ class UpdateViewModel(
      */
     private const val UPDATE_CHECK_STARTUP_DELAY_MS = 1500L
     private const val UPDATE_CHANNEL_KEY = "app_update_channel"
+    private const val LAST_CHECKED_AT_KEY = "app_update_last_checked_at"
   }
 
   sealed class UpdateState {
@@ -144,6 +156,7 @@ class UpdateViewModel(
       _updateState.value = UpdateState.Loading
       try {
         val release = updateManager.checkForUpdate(channel = _updateChannel.value, forceShow = manual)
+        markChecked()
         if (release != null) {
           val existingFile = updateManager.getApkFile(release)
           if (existingFile != null) {
@@ -162,6 +175,7 @@ class UpdateViewModel(
         throw cancellation
       } catch (e: Exception) {
         Log.e(TAG, "Failed to check for updates", e)
+        markChecked()
         if (manual) {
           _updateState.value = UpdateState.Error
         } else {

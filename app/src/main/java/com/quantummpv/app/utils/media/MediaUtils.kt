@@ -213,7 +213,8 @@ object MediaUtils {
             playlistDurationsSeconds = playlistDurationsSeconds,
           )
           PlaybackPerformanceTrace.mark("OPEN_REQUEST", "source=${launchSource ?: "library"} kind=video")
-          context.startActivity(intent)
+          // Clip-reveals the player from the tapped thumbnail when one was just recorded.
+          context.startActivity(intent, com.quantummpv.app.ui.utils.PlayerLaunchOrigin.takeOptions(context))
           return
         }
 

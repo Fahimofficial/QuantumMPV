@@ -186,10 +186,10 @@ import kotlin.math.roundToInt
 @Suppress("CompositionLocalAllowlist")
 val LocalPlayerButtonsClickEvent = staticCompositionLocalOf { {} }
 
-fun <T> playerControlsExitAnimationSpec(durationMillis: Int = AppMotion.Duration.MEDIUM2): FiniteAnimationSpec<T> =
+fun <T> playerControlsExitAnimationSpec(durationMillis: Int = AppMotion.Timing.CONTROLS_FADE_OUT): FiniteAnimationSpec<T> =
   tween(durationMillis = durationMillis, easing = FastOutSlowInEasing)
 
-fun <T> playerControlsEnterAnimationSpec(durationMillis: Int = AppMotion.Duration.SHORT2): FiniteAnimationSpec<T> =
+fun <T> playerControlsEnterAnimationSpec(durationMillis: Int = AppMotion.Timing.CONTROLS_FADE_IN): FiniteAnimationSpec<T> =
   tween(durationMillis = durationMillis, easing = LinearOutSlowInEasing)
 
 private fun transparentOverlayAnimation(
@@ -202,8 +202,8 @@ private fun transparentOverlayAnimation(
   val targetAlpha = if (showing) 0.8f else 0f
   val animationSpec = when {
     animationsDisabled -> snap<Float>()
-    showing -> playerControlsEnterAnimationSpec((AppMotion.Duration.SHORT2 * animationSpeed).toInt().coerceAtLeast(30))
-    else -> playerControlsExitAnimationSpec((AppMotion.Duration.MEDIUM2 * animationSpeed).toInt().coerceAtLeast(50))
+    showing -> playerControlsEnterAnimationSpec((AppMotion.Timing.CONTROLS_FADE_IN * animationSpeed).toInt().coerceAtLeast(30))
+    else -> playerControlsExitAnimationSpec((AppMotion.Timing.CONTROLS_FADE_OUT * animationSpeed).toInt().coerceAtLeast(50))
   }
   return targetAlpha to animationSpec
 }
@@ -704,10 +704,10 @@ fun PlayerControls(
             } else {
               selectedControlsAnimStyle
             }
-          val enterMs = (AppMotion.Duration.SHORT2 * animSpeed).toInt().coerceAtLeast(30)
-          val exitMs = (AppMotion.Duration.MEDIUM2 * animSpeed).toInt().coerceAtLeast(50)
+          val enterMs = (AppMotion.Timing.CONTROLS_FADE_IN * animSpeed).toInt().coerceAtLeast(30)
+          val exitMs = (AppMotion.Timing.CONTROLS_FADE_OUT * animSpeed).toInt().coerceAtLeast(50)
 
-          // Slider display duration: 1000ms shown + 300ms exit animation = 1300ms total
+          // Slider display duration: 1000ms shown + 250ms exit animation
           val sliderDisplayDuration = 1000L
 
           val volumeSliderTimestamp by viewModel.volumeSliderTimestamp.collectAsState()
