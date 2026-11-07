@@ -37,7 +37,7 @@ For community concerns, see the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Supporting development
 
-Help with the app is free. If you want to support development with money, the options are in the README's [Support development](README.md#support-development) section. Donations are voluntary and do not buy priority support.
+Help with the app is free. If you want to support development with money, the options are in the README's [Support the Project](README.md#-support-the-project) section. Donations are voluntary and do not buy priority support.
 
 ## Respectful collaboration
 

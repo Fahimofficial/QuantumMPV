@@ -57,7 +57,7 @@ HDR, shaders, Anime4K, smart subtitles, Cast and deep customization. No ads. No 
 
 ## 📥 Download
 
-Get the latest APK from [GitHub Releases](https://github.com/Fahimofficial/QuantumMPV/releases/latest). Android 8.0 (API 26) or newer is required. Each release includes a `checksums.txt` file.
+Get the latest APK from [GitHub Releases](https://github.com/Fahimofficial/QuantumMPV/releases/latest). Android 8.0 (API 26) or newer is required. Each release includes a `QuantumMPV-<tag>-SHA256SUMS.txt` checksum file.
 
 | APK | Choose it when |
 |---|---|
