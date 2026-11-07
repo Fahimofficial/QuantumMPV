@@ -46,12 +46,13 @@ HDR, shaders, Anime4K, smart subtitles, Cast and deep customization. No ads. No 
 <div align="center">
   <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/player-controls.jpg" width="92%" alt="Player controls over a playing video">
   <br><br>
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/folderscreen.jpg" width="30%" alt="Folder list">
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/music-player.jpg" width="30%" alt="Music player">
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/pip.png" width="30%" alt="Picture-in-picture playback">
-  <br><br>
   <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/playlist-window.jpg" width="46%" alt="Playlist window in the player">
   <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/chapter-navigation.jpg" width="46%" alt="Chapter navigation">
+  <br><br>
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/folderscreen.jpg" width="23%" alt="Folder list">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/music-player.jpg" width="23%" alt="Music player">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/pip.png" width="23%" alt="Picture-in-picture playback">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/about-screen.jpg" width="23%" alt="About screen">
 </div>
 
 ## 📥 Download
