@@ -24,10 +24,10 @@ class UpiQrCodeTest {
   fun `generated qr decodes to the configured upi uri`() {
     val qr = UpiQrCode.encode(SupportConfig.upiPaymentUri, 768)
     val text = decode(qr)
-    assertEquals("upi://pay?pa=SimplyFahim@sbi&pn=SimplyFahim&cu=INR", text)
+    assertEquals("upi://pay?pa=SimplyFahim@sbi&pn=Md%20Fahim&cu=INR", text)
     val params = UpiPaymentUri.parse(text)!!
     assertEquals("SimplyFahim@sbi", params["pa"])
-    assertEquals("SimplyFahim", params["pn"])
+    assertEquals("Md Fahim", params["pn"])
     assertEquals("INR", params["cu"])
     assertNull(params["am"])
   }
