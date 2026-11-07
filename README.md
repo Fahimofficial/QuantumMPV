@@ -16,7 +16,7 @@
 >
 > **[Ko-fi · ko-fi.com/simplyfahim](https://ko-fi.com/simplyfahim)**
 >
-> **UPI ID: `SimplyFahim@sbi`** (payee SimplyFahim). In the app: **Settings → Support my work** shows a QR code generated on your device.
+> **UPI ID: `SimplyFahim@sbi`** (payee Md Fahim). In the app: **Settings → Support my work** shows a QR code generated on your device.
 >
 > More projects: [SimplyFahim.pages.dev](https://SimplyFahim.pages.dev)
 >

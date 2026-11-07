@@ -16,16 +16,17 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, quote, urlsplit
 
 import qrcode
 from qrcode.constants import ERROR_CORRECT_M
 
 UPI_ID = "SimplyFahim@sbi"
-PAYEE_NAME = "SimplyFahim"
+PAYEE_NAME = "Md Fahim"
 CURRENCY = "INR"
 # No `am` (amount) parameter: contributions are voluntary and payer-chosen.
-PAYLOAD = f"upi://pay?pa={UPI_ID}&pn={PAYEE_NAME}&cu={CURRENCY}"
+# quote() matches the app's UpiPaymentUri encoding (space -> %20, `@` literal).
+PAYLOAD = f"upi://pay?pa={quote(UPI_ID, safe='@')}&pn={quote(PAYEE_NAME, safe='@')}&cu={CURRENCY}"
 
 OUTPUT = Path(__file__).resolve().parent.parent / "docs" / "assets" / "support" / "upi-qr.png"
 
