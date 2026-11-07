@@ -23,13 +23,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavEntry
+import androidx.navigation3.ui.LocalNavAnimatedContentScope
 import androidx.navigation3.ui.NavDisplay
 import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.preferences.preference.collectAsState
@@ -73,6 +76,18 @@ internal fun ScreenNavDisplay(
     }
   val layoutDirection = LocalLayoutDirection.current
   val direction = if (layoutDirection == LayoutDirection.Ltr) 1 else -1
+  // While a container transform runs, the screens only cross-fade; the shared bounds do the motion.
+  val sharedFade = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
+  val sharesElements = sharedTransitionScope != null
+  fun sharedOr(
+    key: String,
+    fallback: () -> ContentTransform,
+  ): ContentTransform =
+    if (sharesElements && !reduceMotion && SharedNavigation.activeKey == key) {
+      fadeIn(sharedFade) togetherWith fadeOut(sharedFade)
+    } else {
+      fallback()
+    }
 
   NavDisplay(
     backStack = backStack,
@@ -86,14 +101,48 @@ internal fun ScreenNavDisplay(
       screenNavTransition(false, style, speed, if (edge == BackEventCompat.EDGE_RIGHT) -1 else 1)
     },
     entryProvider = { route ->
-      NavEntry(route) {
-        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+      val sharedKey = sharedDestinationKey(route)
+      NavEntry(
+        route,
+        metadata =
+          NavDisplay.transitionSpec { sharedOr(sharedKey) { screenNavTransition(true, style, speed, direction) } } +
+            NavDisplay.popTransitionSpec { sharedOr(sharedKey) { screenNavTransition(false, style, speed, direction) } } +
+            NavDisplay.predictivePopTransitionSpec { edge: Int ->
+              sharedOr(sharedKey) {
+                screenNavTransition(false, style, speed, if (edge == BackEventCompat.EDGE_RIGHT) -1 else 1)
+              }
+            },
+      ) {
+        val containerModifier =
+          if (sharesElements) {
+            DisposableEffect(sharedKey) {
+              onDispose { if (SharedNavigation.activeKey == sharedKey) SharedNavigation.activeKey = null }
+            }
+            if (SharedNavigation.activeKey == sharedKey) {
+              // The screen's corners round off while it shrinks back into the tapped card or row.
+              val shape = LocalNavAnimatedContentScope.current.rememberMorphingCornerShape(visible = 0.dp, hidden = 24.dp)
+              Modifier.sharedNavBounds(sharedKey, shape)
+            } else {
+              Modifier
+            }
+          } else {
+            Modifier
+          }
+        Surface(Modifier.fillMaxSize().then(containerModifier), color = MaterialTheme.colorScheme.background) {
           content(route)
         }
       }
     },
   )
 }
+
+/** Key a destination uses for its end of a container transform (see [SharedNavigation]). */
+private fun sharedDestinationKey(route: Screen): String =
+  if (route is com.quantummpv.app.ui.browser.videolist.VideoListScreen) {
+    SharedNavigation.folderKey(route.bucketId)
+  } else {
+    SharedNavigation.screenKey(route)
+  }
 
 private fun screenNavTransition(
   forward: Boolean,

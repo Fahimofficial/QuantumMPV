@@ -246,6 +246,7 @@ private fun MediaSearchContent(
       bottomPadding = 0.dp,
       onFolderClick = openFolder,
       onMediaClick = playMedia,
+      onClearQuery = { updateQuery("") },
       modifier =
         Modifier
           .weight(1f)
@@ -281,6 +282,7 @@ internal fun MediaSearchBody(
   onMediaClick: (Video) -> Unit,
   modifier: Modifier = Modifier,
   idleContent: @Composable () -> Unit = {},
+  onClearQuery: (() -> Unit)? = null,
 ) {
   Box(modifier = modifier.fillMaxSize()) {
     when {
@@ -299,6 +301,8 @@ internal fun MediaSearchBody(
           title = stringResource(R.string.ui_no_results_found),
           message = stringResource(if (audioOnly) R.string.ui_search_no_matching_audio else R.string.ui_search_no_matching_videos),
           modifier = Modifier.fillMaxSize(),
+          actionLabel = onClearQuery?.let { stringResource(R.string.ui_search_clear_query) },
+          onAction = onClearQuery,
         )
       uiState is SearchUiState.Loading ->
         CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))

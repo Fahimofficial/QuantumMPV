@@ -66,7 +66,10 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -113,8 +116,10 @@ import com.quantummpv.app.ui.securefolder.SecureFolderGateScreen
 import com.quantummpv.app.ui.securefolder.SecureFolderProgressDialog
 import com.quantummpv.app.ui.theme.AppMotion
 import com.quantummpv.app.ui.utils.LocalBackStack
+import com.quantummpv.app.ui.utils.appItemMotion
 import com.quantummpv.app.ui.utils.navigateTo
 import com.quantummpv.app.ui.utils.popSafely
+import com.quantummpv.app.ui.utils.sharedNavBounds
 import com.quantummpv.app.utils.history.RecentlyPlayedOps
 import com.quantummpv.app.utils.media.CopyPasteOps
 import com.quantummpv.app.utils.media.MediaSearchEngine
@@ -224,6 +229,7 @@ data class VideoListScreen(
     val compressorDialogOpen = rememberSaveable { mutableStateOf(false) }
     var swipeRenameVideo by remember { mutableStateOf<Video?>(null) }
     var swipeDeleteVideo by remember { mutableStateOf<Video?>(null) }
+    val selectionHaptics = com.quantummpv.app.ui.utils.rememberAppHaptics()
 
     // Copy/Move state
     val folderPickerOpen = rememberSaveable { mutableStateOf(false) }
@@ -374,6 +380,13 @@ data class VideoListScreen(
         } else {
           BrowserTopBar(
           title = displayFolderName,
+          titleModifier =
+            Modifier.sharedNavBounds(
+              key = com.quantummpv.app.ui.utils.SharedNavigation.folderTitleKey(bucketId),
+              shape = androidx.compose.ui.graphics.RectangleShape,
+              activeWhen = com.quantummpv.app.ui.utils.SharedNavigation.folderKey(bucketId),
+              scaleContent = true,
+            ),
           isInSelectionMode = selectionManager.isInSelectionMode,
           selectedCount = selectionManager.selectedCount,
           totalCount = sortedVideosWithInfo.size,
@@ -495,7 +508,7 @@ data class VideoListScreen(
     ) { padding ->
       val autoScrollToLastPlayed by browserPreferences.autoScrollToLastPlayed.collectAsState()
 
-      Box(modifier = Modifier.fillMaxSize()) {
+      Box(modifier = Modifier.fillMaxSize().semantics { testTagsAsResourceId = true }.testTag("video_list_screen")) {
         VideoListContent(
           folderId = bucketId,
           videosWithInfo = displayedVideosWithInfo,
@@ -508,6 +521,7 @@ data class VideoListScreen(
           selectionManager = selectionManager,
           onVideoClick = { video ->
             if (selectionManager.isInSelectionMode) {
+              selectionHaptics.tick()
               selectionManager.toggle(video)
             } else {
               // Always use MediaUtils.playFile which lets PlayerActivity auto-generate playlist
@@ -516,7 +530,10 @@ data class VideoListScreen(
               MediaUtils.playFile(video, context, "video_list")
             }
           },
-          onVideoLongClick = { video -> selectionManager.handleLongClick(video) },
+          onVideoLongClick = { video ->
+            if (selectionManager.isInSelectionMode) selectionHaptics.tick() else selectionHaptics.confirm()
+            selectionManager.handleLongClick(video)
+          },
           onWatchedChange = viewModel::setWatched,
           onRename = { video -> swipeRenameVideo = video },
           onDelete = { video -> swipeDeleteVideo = video },
@@ -1184,6 +1201,7 @@ internal fun VideoListContent(
                   val videoWithInfo = videosWithInfo[index]
                   val isRecentlyPlayed = recentlyPlayedFilePath?.let { videoWithInfo.video.path == it } ?: false
 
+                  Box(modifier = appItemMotion()) {
                   SwipeableVideoActions(
                     itemKey = videoWithInfo.video.path,
                     enabled = !selectionManager.isInSelectionMode && onWatchedChange != null,
@@ -1208,6 +1226,7 @@ internal fun VideoListContent(
                           { onVideoClick(videoWithInfo.video) }
                         },
                       isGridMode = true,
+                      modifier = Modifier.testTag("video_row"),
                       gridColumns = columns,
                       thumbnailWidthPx = thumbWidthPx,
                       thumbnailHeightPx = thumbHeightPx,
@@ -1215,7 +1234,11 @@ internal fun VideoListContent(
                       allowThumbnailGeneration = false,
                       allowThumbnailLoading = allowThumbnailLoading,
                       uiConfig = videoCardUiConfig,
+                      cleanTitle = videoWithInfo.cleanTitle,
+                      resumeRemaining = videoWithInfo.remainingFormatted,
+                      isInSelectionMode = selectionManager.isInSelectionMode,
                     )
+                  }
                   }
                 }
               }
@@ -1259,6 +1282,7 @@ internal fun VideoListContent(
                   val videoWithInfo = videosWithInfo[index]
                   val isRecentlyPlayed = recentlyPlayedFilePath?.let { videoWithInfo.video.path == it } ?: false
 
+                  Box(modifier = appItemMotion()) {
                   SwipeableVideoActions(
                     itemKey = videoWithInfo.video.path,
                     enabled = !selectionManager.isInSelectionMode && onWatchedChange != null,
@@ -1283,13 +1307,18 @@ internal fun VideoListContent(
                           { onVideoClick(videoWithInfo.video) }
                         },
                       isGridMode = false,
+                      modifier = Modifier.testTag("video_row"),
                       showSubtitleIndicator = showSubtitleIndicator,
                       allowThumbnailGeneration = false,
                       allowThumbnailLoading = allowThumbnailLoading,
                       uiConfig = videoCardUiConfig,
                       thumbnailWidthPx = if (isAudio) with(density) { musicCoverArtSize.dp.roundToPx() } else null,
                       thumbnailHeightPx = if (isAudio) with(density) { musicCoverArtSize.dp.roundToPx() } else null,
+                      cleanTitle = videoWithInfo.cleanTitle,
+                      resumeRemaining = videoWithInfo.remainingFormatted,
+                      isInSelectionMode = selectionManager.isInSelectionMode,
                     )
+                  }
                   }
                 }
               }

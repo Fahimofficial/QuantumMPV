@@ -73,6 +73,7 @@ fun BrowserTopBar(
   totalCount: Int,
   onCancelSelection: () -> Unit,
   modifier: Modifier = Modifier,
+  titleModifier: Modifier = Modifier,
   onBackClick: (() -> Unit)? = null,
   onSortClick: (() -> Unit)? = null,
   onSearchClick: (() -> Unit)? = null,
@@ -129,6 +130,7 @@ fun BrowserTopBar(
   } else {
     NormalTopBar(
       title = title,
+      titleModifier = titleModifier,
       onBackClick = onBackClick,
       onSortClick = onSortClick,
       onSearchClick = onSearchClick,
@@ -163,6 +165,7 @@ private fun NormalTopBar(
   postSearchActions: @Composable RowScope.() -> Unit = { },
   additionalActions: @Composable RowScope.() -> Unit,
   modifier: Modifier = Modifier,
+  titleModifier: Modifier = Modifier,
   onTitleLongPress: (() -> Unit)?,
   onTitleDoubleTap: (() -> Unit)? = null,
   colors: TopAppBarColors? = null,
@@ -219,8 +222,8 @@ private fun NormalTopBar(
         } else {
           ""
         }
-      val titleModifier =
-        Modifier
+      val tapModifier =
+        titleModifier
           .onGloballyPositioned { coordinates ->
             titleBounds.value = coordinates.boundsInWindow()
           }.pointerInput(onTitleLongPress, onTitleDoubleTap) {
@@ -283,7 +286,7 @@ private fun NormalTopBar(
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         modifier =
-          titleModifier.then(
+          tapModifier.then(
             if (onBackClick == null) {
               Modifier.padding(start = 8.dp)
             } else {

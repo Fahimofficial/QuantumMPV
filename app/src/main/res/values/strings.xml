@@ -2754,4 +2754,18 @@
   <string name="music_open_playlist">Open Playlist</string>
   <string name="music_delete_playlist">Delete Playlist</string>
   <string name="music_play_all">Play All</string>
+  <!-- UI motion and list polish -->
+  <string name="ui_enable_history">Turn on history</string>
+  <string name="ui_pin">Pin</string>
+  <string name="ui_unpin">Unpin</string>
+  <string name="ui_folders_section">Folders</string>
+  <string name="ui_resume_card_label">Continue watching</string>
+  <string name="ui_resume_from">Resume from %1$s</string>
+  <string name="ui_play_again">Play again</string>
+  <string name="ui_resume_card_dismiss">Hide continue watching</string>
+  <string name="ui_resume_remaining">Resume · %1$s left</string>
+  <string name="ui_copy_device_info">Copy device info</string>
+  <string name="ui_device_info_copied">Device info copied</string>
+  <string name="ui_last_checked">Last checked: %1$s</string>
+  <string name="ui_last_checked_never">Never</string>
 </resources>

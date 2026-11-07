@@ -9,8 +9,10 @@
 
 package com.quantummpv.app.ui.browser.cards
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -27,9 +29,11 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -44,6 +48,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -58,10 +63,16 @@ import com.quantummpv.app.ui.icons.AppIcon
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
+import com.quantummpv.app.ui.theme.AppMotion
 import com.quantummpv.app.ui.theme.AppShapeScale
 import com.quantummpv.app.ui.theme.DesignTokens.LocalGlassConfig
 import com.quantummpv.app.ui.theme.DesignTokens.SurfaceStyle
+import com.quantummpv.app.ui.theme.Dimens
 import com.quantummpv.app.ui.theme.GlassComponents
+import com.quantummpv.app.ui.theme.LocalReduceMotion
+import com.quantummpv.app.ui.utils.SharedNavigation
+import com.quantummpv.app.ui.utils.pressScale
+import com.quantummpv.app.ui.utils.sharedNavBounds
 import com.quantummpv.app.utils.FormatUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -202,13 +213,18 @@ fun FolderCard(
   }
 
   val cardShape = AppShapeScale.large
+  val cardInteractionSource = remember { MutableInteractionSource() }
 
   Card(
     modifier =
       modifier
         .fillMaxWidth()
+        .sharedNavBounds(SharedNavigation.folderKey(folder.bucketId), cardShape)
+        .pressScale(cardInteractionSource, shape = cardShape, pressedLift = Dimens.PressedLift)
         .clip(cardShape)
         .combinedClickable(
+          interactionSource = cardInteractionSource,
+          indication = ripple(),
           onClick = onClick,
           onLongClick = onLongClick,
           onLongClickLabel =
@@ -217,7 +233,7 @@ fun FolderCard(
             } else {
               null
             },
-        ).semantics { selected = isSelected },
+        ).semantics { selected = isSelected }.testTag("folder_row"),
     shape = cardShape,
     colors = CardDefaults.cardColors(containerColor = Color.Transparent),
   ) {
@@ -334,26 +350,11 @@ fun FolderCard(
               )
             }
 
-            if (newVideoCount > 0) {
-              Box(
-                modifier =
-                  Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(6.dp)
-                    .clip(AppShapeScale.extraSmall)
-                    .background(Color(0xFFD32F2F))
-                    .padding(horizontal = 6.dp, vertical = 2.dp),
-              ) {
-                Text(
-                  text = newVideoCount.toString(),
-                  style =
-                    MaterialTheme.typography.labelSmall.copy(
-                      fontWeight = FontWeight.Bold,
-                    ),
-                  color = Color.White,
-                )
-              }
-            }
+            // Always composed so a count arriving after the row is on screen (0 -> N) pops in.
+            NewCountBadge(
+              count = newVideoCount,
+              modifier = Modifier.align(Alignment.TopEnd).padding(6.dp),
+            )
 
             if (isPinned) {
               PinnedFolderBadge(
@@ -454,26 +455,11 @@ fun FolderCard(
             }
 
             // Show new video count badge if folder contains new videos
-            if (newVideoCount > 0) {
-              Box(
-                modifier =
-                  Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(4.dp)
-                    .clip(AppShapeScale.extraSmall)
-                    .background(Color(0xFFD32F2F)) // Warning red color
-                    .padding(horizontal = 6.dp, vertical = 2.dp),
-              ) {
-                Text(
-                  text = newVideoCount.toString(),
-                  style =
-                    MaterialTheme.typography.labelSmall.copy(
-                      fontWeight = FontWeight.Bold,
-                    ),
-                  color = Color.White,
-                )
-              }
-            }
+            // Always composed so a count arriving after the row is on screen (0 -> N) pops in.
+            NewCountBadge(
+              count = newVideoCount,
+              modifier = Modifier.align(Alignment.TopEnd).padding(4.dp),
+            )
 
             if (isPinned) {
               PinnedFolderBadge(
@@ -494,6 +480,14 @@ fun FolderCard(
               color = if (isRecentlyPlayed) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurface,
               maxLines = maxLines,
               overflow = TextOverflow.Ellipsis,
+              // Morphs into the video list's top bar title.
+              modifier =
+                Modifier.sharedNavBounds(
+                  key = SharedNavigation.folderTitleKey(folder.bucketId),
+                  shape = androidx.compose.ui.graphics.RectangleShape,
+                  activeWhen = SharedNavigation.folderKey(folder.bucketId),
+                  scaleContent = true,
+                ),
             )
             if (showFolderPath && parentPath.isNotEmpty()) {
               Text(
@@ -619,3 +613,41 @@ private val FOLDER_DATE_FORMATTER: java.time.format.DateTimeFormatter =
 
 private fun formatDate(timestampSeconds: Long): String =
   FOLDER_DATE_FORMATTER.format(java.time.Instant.ofEpochSecond(timestampSeconds))
+
+/**
+ * Red "new videos" count. Pops in with a slight overshoot when it appears or the count changes while
+ * on screen; a row scrolled back into view keeps its badge still because the count didn't change.
+ */
+@Composable
+private fun NewCountBadge(
+  count: Int,
+  modifier: Modifier = Modifier,
+) {
+  val reduceMotion = LocalReduceMotion.current
+  val scale = remember { Animatable(1f) }
+  var shownCount by remember { mutableIntStateOf(count) }
+  LaunchedEffect(count) {
+    if (count == shownCount) return@LaunchedEffect
+    shownCount = count
+    if (reduceMotion || count <= 0) return@LaunchedEffect
+    scale.snapTo(0f)
+    scale.animateTo(1f, AppMotion.PopSpring)
+  }
+  if (count <= 0) return
+  Box(
+    modifier =
+      modifier
+        .graphicsLayer {
+          scaleX = scale.value
+          scaleY = scale.value
+        }.clip(AppShapeScale.extraSmall)
+        .background(MaterialTheme.colorScheme.error)
+        .padding(horizontal = 6.dp, vertical = 2.dp),
+  ) {
+    Text(
+      text = count.toString(),
+      style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+      color = MaterialTheme.colorScheme.onError,
+    )
+  }
+}
