@@ -141,7 +141,7 @@ QuantumMPV is free software under the [GNU Affero General Public License v3.0 or
 
 QuantumMPV is free and always will be. If it makes your movie nights better, a small donation keeps development going.
 
-<a href="https://quantummpv.vercel.app/pay/"><img src="docs/assets/support/upi-qr.png" width="240" alt="UPI QR code to pay Md Fahim, UPI ID SimplyFahim@sbi. Tap to open UPI payment options."></a>
+<a href="https://quantummpv.vercel.app/pay/"><img src="docs/assets/support/upi-qr.png" width="220" alt="UPI QR code to pay Md Fahim, UPI ID SimplyFahim@sbi. Tap to open UPI payment options."></a>
 
 ### 👆 **Tap the QR to open UPI payment options**
 

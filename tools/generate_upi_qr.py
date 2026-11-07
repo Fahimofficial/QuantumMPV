@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """Generates the styled UPI support QR (docs/assets/support/upi-qr.png) and checks it decodes.
 
-Dark rounded card, white panel, dot modules, green finder eyes and the UPI ID as a caption.
+Dark card with slightly rounded, transparent corners, white panel, dot modules, green finder eyes and the UPI ID as a caption.
 Runs offline; no QR web service is used.
 
     pip install "qrcode[pil]" zxing-cpp
@@ -53,11 +53,11 @@ def render() -> Image.Image:
     n = len(m)
 
     s = 4  # supersample for smooth dots and corners
-    img = Image.new("RGB", (W * s, H * s), WHITE)
+    img = Image.new("RGBA", (W * s, H * s), (0, 0, 0, 0))  # transparent outside the card
     d = ImageDraw.Draw(img)
-    d.rounded_rectangle((0, 0, W * s - 1, H * s - 1), 110 * s, fill=INK)
+    d.rounded_rectangle((0, 0, W * s - 1, H * s - 1), 56 * s, fill=INK)
     panel = W - 2 * PAD
-    d.rounded_rectangle((PAD * s, PAD * s, (W - PAD) * s, (PAD + panel) * s), 72 * s, fill=WHITE)
+    d.rounded_rectangle((PAD * s, PAD * s, (W - PAD) * s, (PAD + panel) * s), 36 * s, fill=WHITE)
 
     cell = panel / (n + 5)  # 2.5-module quiet zone on each side
     ox = oy = PAD + 2.5 * cell
@@ -89,7 +89,7 @@ def main() -> int:
     img = render()
     OUT.parent.mkdir(parents=True, exist_ok=True)
     img.save(OUT, optimize=True)
-    saved = Image.open(OUT)
+    saved = Image.alpha_composite(Image.new("RGBA", Image.open(OUT).size, WHITE + (255,)), Image.open(OUT).convert("RGBA")).convert("RGB")
     # Check the saved file at full size and at the sizes the READMEs and websites show it.
     for test in (saved, saved.resize((240, 271), Image.LANCZOS), saved.resize((220, 248), Image.LANCZOS)):
         results = zxingcpp.read_barcodes(test)
