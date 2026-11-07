@@ -273,6 +273,7 @@ jobs:
           cp fastlane/metadata/android/preview-site/index.html site/index.html
           cp fastlane/metadata/android/en-US/images/icon.png site/icon.png
           cp fastlane/metadata/android/preview-site/site.webmanifest site/site.webmanifest
+          cp docs/assets/support/upi-qr.png site/upi-qr.png
           cp fastlane/metadata/android/en-US/images/phoneScreenshots/* site/screenshots/
           touch site/.nojekyll
 
