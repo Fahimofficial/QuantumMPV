@@ -1,6 +1,6 @@
 # F-Droid readiness: QuantumMPV
 
-Application ID: `com.quantummpv.app`
+Current standard variant application ID: `com.quantummpv.app`
 
 ## Distribution boundary
 
@@ -12,7 +12,7 @@ Google Cast framework and prebuilt app/libs mpv AARs/native artifacts. A FOSS va
 
 ## What the workflow does
 
-`.github/workflows/fdroid-readiness.yml` runs a fail-closed static prerequisite audit. It flags known Google Play Services/Firebase/Cast dependencies, app-local prebuilt AAR/JAR/SO files, missing root licensing and missing F-Droid metadata. It does **not** claim to build or publish an F-Droid APK while those prerequisites remain unresolved.
+`.github/workflows/fdroid-readiness.yml` runs an informational, non-blocking static prerequisite audit. It reports known Google Play Services/Firebase/Cast dependencies, app-local prebuilt AAR/JAR/SO files and missing root licensing as warnings and in the job summary; these findings do not fail the check. The workflow does not check whether metadata has been submitted to the separate `fdroiddata` repository. That recipe must use the FOSS variant's application ID (which may differ from the current standard variant), and the workflow does **not** build or publish an APK.
 
 ## Required path to official F-Droid
 

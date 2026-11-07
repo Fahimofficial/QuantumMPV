@@ -65,7 +65,7 @@ resolve ──► instrumented (API 30, 34) ──┐
 | `publish` | `contents: write`, `id-token: write`, `attestations: write` | Re-verifies native contents, writes `SHA256SUMS`, exports the SPDX SBOM from the dependency graph, creates build provenance attestations and creates the GitHub release |
 
 Published assets: `QuantumMPV-{universal,arm64-v8a,armeabi-v7a,x86,x86_64}-vX.Y.Z.apk`,
-`QuantumMPV-fongmi-vX.Y.Z.apk`, `QuantumMPV-no-vulkan-vX.Y.Z.apk`, `QuantumMPV-vX.Y.Z.aab`,
+`QuantumMPV-fongmi-vX.Y.Z.apk`, `QuantumMPV-no-vulkan-vX.Y.Z.apk`, `QuantumMPV-standard-vX.Y.Z.aab`,
 `QuantumMPV-vX.Y.Z-SHA256SUMS.txt` and `QuantumMPV-vX.Y.Z-sbom.spdx.json`. The in-app
 updater only considers assets that start with `QuantumMPV-` and end with `.apk`.
 It reads checksums from the asset digest or the release notes, so the extra files

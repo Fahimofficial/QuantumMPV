@@ -67,12 +67,9 @@ jobs:
           fi
 
           summary ""
-          summary "### Build metadata"
-          if [[ ! -f fdroid/com.quantummpv.app.yml ]]; then
-            echo "::warning::Missing fdroid/com.quantummpv.app.yml. Add and validate official fdroiddata metadata only after the FOSS build variant exists."
-            summary "Missing official fdroiddata metadata: fdroid/com.quantummpv.app.yml"
-            blockers=$((blockers + 1))
-          fi
+          summary "### F-Droid metadata submission"
+          summary "F-Droid metadata is maintained and submitted in the separate fdroiddata repository; this audit does not require a local metadata file or check submission status."
+          summary "Use the FOSS variant's application ID for the fdroiddata package filename; it may differ from com.quantummpv.app."
 
           if (( blockers > 0 )); then
             summary ""

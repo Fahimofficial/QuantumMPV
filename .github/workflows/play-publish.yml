@@ -77,7 +77,8 @@ jobs:
 
           # Verify the signed GitHub build provenance, not merely a colocated checksum.
           gh attestation verify "${bundles[0]}" --repo "$GITHUB_REPOSITORY" \
-            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release.yml"
+            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release.yml" \
+            --source-ref "refs/tags/${TAG_INPUT}"
           echo "aab_path=${bundles[0]}" >> "$GITHUB_OUTPUT"
           echo "tag=$TAG_INPUT" >> "$GITHUB_OUTPUT"
           echo "Verified release bundle for $TAG_INPUT."
