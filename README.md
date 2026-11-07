@@ -44,21 +44,21 @@
 ## Showcase
 
 <div align="center">
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/player.png" width="92%">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/player-controls.jpg" width="92%" alt="QuantumMPV player controls">
 </div>
 
 <br>
 
 <div align="center">
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/videoscreen.png" width="31%">
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/pip.png" width="31%">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/folderscreen.jpg" width="31%" alt="QuantumMPV folder list">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/pip.png" width="31%" alt="Picture-in-picture playback">
 </div>
 
 <br>
 
 <div align="center">
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/playlistwindow.png" width="48%">
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/chapters.png" width="48%">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/playlist-window.jpg" width="48%" alt="Playlist window in the player">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/chapter-navigation.jpg" width="48%" alt="Chapter navigation">
 </div>
 
 <br>
