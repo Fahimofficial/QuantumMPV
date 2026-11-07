@@ -141,7 +141,7 @@ QuantumMPV is free software under the [GNU Affero General Public License v3.0 or
 
 QuantumMPV is free and always will be. If it makes your movie nights better, a small donation keeps development going.
 
-<a href="https://quantummpv.vercel.app/pay/"><img src="docs/assets/support/upi-qr.png" width="220" alt="UPI QR code to pay Md Fahim, UPI ID SimplyFahim@sbi. Tap to open UPI payment options."></a>
+<a href="https://simplyfahim.pages.dev/pay/"><img src="docs/assets/support/upi-qr.png" width="220" alt="UPI QR code to pay Md Fahim, UPI ID SimplyFahim@sbi. Tap to open UPI payment options."></a>
 
 ### 👆 **Tap the QR to open UPI payment options**
 
@@ -160,7 +160,7 @@ SimplyFahim@sbi
 </tr>
 </table>
 
-<a href="https://quantummpv.vercel.app/pay/"><img src="https://img.shields.io/badge/Pay_with-UPI-009E3B?style=for-the-badge&logo=googlepay&logoColor=white" height="44" alt="Pay with UPI"></a>
+<a href="https://simplyfahim.pages.dev/pay/"><img src="https://img.shields.io/badge/Pay_with-UPI-009E3B?style=for-the-badge&logo=googlepay&logoColor=white" height="44" alt="Pay with UPI"></a>
 &nbsp;
 <a href="https://ko-fi.com/simplyfahim"><img src="https://img.shields.io/badge/Support_me_on-Ko--fi-FF5E5B?style=for-the-badge&logo=kofi&logoColor=white" height="44" alt="Support me on Ko-fi"></a>
 
