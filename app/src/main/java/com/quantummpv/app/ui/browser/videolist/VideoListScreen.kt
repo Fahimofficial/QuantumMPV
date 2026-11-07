@@ -1226,6 +1226,7 @@ internal fun VideoListContent(
                           { onVideoClick(videoWithInfo.video) }
                         },
                       isGridMode = true,
+                      modifier = Modifier.testTag("video_row"),
                       gridColumns = columns,
                       thumbnailWidthPx = thumbWidthPx,
                       thumbnailHeightPx = thumbHeightPx,
@@ -1306,6 +1307,7 @@ internal fun VideoListContent(
                           { onVideoClick(videoWithInfo.video) }
                         },
                       isGridMode = false,
+                      modifier = Modifier.testTag("video_row"),
                       showSubtitleIndicator = showSubtitleIndicator,
                       allowThumbnailGeneration = false,
                       allowThumbnailLoading = allowThumbnailLoading,

@@ -33,7 +33,11 @@ class UiBenchmarks {
 
   @Test fun homeScrollWithProfile() = homeScroll(CompilationMode.Partial(BaselineProfileMode.Require))
 
+  @Test fun folderOpenNoProfile() = folderOpen(CompilationMode.None())
+
   @Test fun folderOpenWithProfile() = folderOpen(CompilationMode.Partial(BaselineProfileMode.Require))
+
+  @Test fun selectionModeNoProfile() = selection(CompilationMode.None())
 
   @Test fun selectionModeWithProfile() = selection(CompilationMode.Partial(BaselineProfileMode.Require))
 
