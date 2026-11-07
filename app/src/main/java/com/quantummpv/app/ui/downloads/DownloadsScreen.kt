@@ -161,7 +161,7 @@ object DownloadsScreen : Screen {
               icon = Icons.RoundedFilled.FileDownload,
               title = stringResource(R.string.downloads_empty),
               message = stringResource(R.string.downloads_empty_hint),
-              modifier = Modifier.fillMaxWidth().padding(top = 48.dp),
+              modifier = Modifier.fillParentMaxHeight().padding(top = 48.dp),
             )
           }
         }

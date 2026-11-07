@@ -31,6 +31,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Stable
@@ -93,6 +94,13 @@ data class MotionPolicy(
 }
 
 val LocalMotionPolicy = staticCompositionLocalOf { MotionPolicy() }
+
+/**
+ * True when the system animator scale is 0 (or Battery Saver disabled animators) or the user picked
+ * Reduced/Off motion. Consumers use instant changes or short fades only, and skip stagger, parallax,
+ * nudge, pulse and shared-element motion. Provided next to [LocalMotionPolicy] by the app theme.
+ */
+val LocalReduceMotion = staticCompositionLocalOf { false }
 
 /** Combines the system animator setting with observed motion and performance preferences. */
 @Composable
@@ -257,6 +265,53 @@ object AppMotion {
     )
     return alpha
   }
+
+  /*
+   * Material motion-scheme specs (MaterialTheme.motionScheme is MotionScheme.expressive()). Spatial
+   * specs move or resize things and snap under reduced motion; effects specs (alpha, colour) shrink
+   * to a short tween under reduced motion and snap when motion is Off.
+   */
+
+  @Composable
+  fun <T> defaultSpatial(): FiniteAnimationSpec<T> =
+    if (LocalReduceMotion.current) snap() else MaterialTheme.motionScheme.defaultSpatialSpec()
+
+  @Composable
+  fun <T> fastSpatial(): FiniteAnimationSpec<T> =
+    if (LocalReduceMotion.current) snap() else MaterialTheme.motionScheme.fastSpatialSpec()
+
+  @Composable
+  fun <T> defaultEffects(): FiniteAnimationSpec<T> = effects(MaterialTheme.motionScheme.defaultEffectsSpec())
+
+  @Composable
+  fun <T> fastEffects(): FiniteAnimationSpec<T> = effects(MaterialTheme.motionScheme.fastEffectsSpec())
+
+  @Composable
+  private fun <T> effects(spec: FiniteAnimationSpec<T>): FiniteAnimationSpec<T> =
+    when {
+      policy().shouldDisableAnimations -> snap()
+      LocalReduceMotion.current -> androidx.compose.animation.core.tween(Duration.MICRO)
+      else -> spec
+    }
+
+  /** Explicit timings the motion scheme doesn't cover (stagger steps, fade-through, overlays). */
+  object Timing {
+    const val HOME_STAGGER_STEP = 35
+    const val HOME_STAGGER_ITEMS = 8
+    const val SETTINGS_STAGGER_STEP = 20
+    const val SETTINGS_STAGGER_ITEMS = 10
+    const val ABOUT_STAGGER_STEP = 40
+    const val FADE_THROUGH_OUT = 90
+    const val FADE_THROUGH_IN = 210
+    const val FADE_THROUGH_SCALE = 0.92f
+    const val CONTROLS_FADE_IN = 150
+    const val CONTROLS_FADE_OUT = 250
+    const val SEARCH_DEBOUNCE = 150L
+    const val SCRIM_FADE = 150
+  }
+
+  /** Slightly bouncy spring for badges, checkboxes and icon pops (scale 0 -> 1 with overshoot). */
+  val PopSpring: SpringSpec<Float> = spring(dampingRatio = 0.55f, stiffness = 800f)
 
   fun <T> noBounce(stiffness: Float): SpringSpec<T> =
     spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = stiffness)
