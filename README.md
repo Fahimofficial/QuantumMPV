@@ -50,13 +50,6 @@
 <br>
 
 <div align="center">
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/folderscreen.jpg" width="31%" alt="QuantumMPV folder list">
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/pip.png" width="31%" alt="Picture-in-picture playback">
-</div>
-
-<br>
-
-<div align="center">
   <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/playlist-window.jpg" width="48%" alt="Playlist window in the player">
   <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/chapter-navigation.jpg" width="48%" alt="Chapter navigation">
 </div>
@@ -64,6 +57,8 @@
 <br>
 
 <div align="center">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/folderscreen.jpg" width="31%" alt="QuantumMPV folder list">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/pip.png" width="31%" alt="Picture-in-picture playback">
   <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/about-screen.jpg" width="31%" alt="QuantumMPV About screen">
 </div>
 
